@@ -49,9 +49,9 @@ func (s *ExpressionStmt) stmtNode()           {}
 
 // VarDecl represents a typed variable declaration: var $x: int = 42
 type VarDecl struct {
-	Name     string         // variable name including $
-	TypeName string         // type annotation (may be empty)
-	Value    Expression     // initializer (may be nil)
+	Name     string     // variable name including $
+	TypeName string     // type annotation (may be empty)
+	Value    Expression // initializer (may be nil)
 	Pos_     lexer.Position
 }
 
@@ -61,9 +61,9 @@ func (s *VarDecl) stmtNode()           {}
 
 // AssignStmt represents $var = expr or $obj->prop = expr
 type AssignStmt struct {
-	Target Expression     // left side (DollarIdent or PropertyAccess)
-	Op     string         // "=", "+=", "-=", "*=", "/="
-	Value  Expression     // right side
+	Target Expression // left side (DollarIdent or PropertyAccess)
+	Op     string     // "=", "+=", "-=", "*=", "/="
+	Value  Expression // right side
 	Pos_   lexer.Position
 }
 
@@ -73,7 +73,7 @@ func (s *AssignStmt) stmtNode()           {}
 
 // ReturnStmt represents: return expr or return expr1, expr2
 type ReturnStmt struct {
-	Values []Expression   // one or more return values (nil slice for bare return)
+	Values []Expression // one or more return values (nil slice for bare return)
 	Pos_   lexer.Position
 }
 
@@ -83,11 +83,11 @@ func (s *ReturnStmt) stmtNode()           {}
 
 // IfStmt represents: if $cond { } else if { } else { }
 type IfStmt struct {
-	Condition   Expression
-	Body        *BlockStmt
-	ElseIfs     []*ElseIfClause // zero or more else-if branches
-	ElseBody    *BlockStmt      // may be nil
-	Pos_        lexer.Position
+	Condition Expression
+	Body      *BlockStmt
+	ElseIfs   []*ElseIfClause // zero or more else-if branches
+	ElseBody  *BlockStmt      // may be nil
+	Pos_      lexer.Position
 }
 
 func (s *IfStmt) nodeType() string    { return "IfStmt" }
@@ -121,8 +121,8 @@ func (s *ForStmt) stmtNode()           {}
 // or: foreach $users as $key => $value { }
 type ForeachStmt struct {
 	Iterable Expression
-	ValueVar string     // the $item variable
-	KeyVar   string     // the $key variable (empty if not used)
+	ValueVar string // the $item variable
+	KeyVar   string // the $key variable (empty if not used)
 	Body     *BlockStmt
 	Pos_     lexer.Position
 }
@@ -178,8 +178,8 @@ type FuncDecl struct {
 	Name       string
 	Params     []*Param
 	ReturnType *ReturnTypeSpec // may be nil
-	Body       *BlockStmt     // nil for arrow functions
-	ArrowExpr  Expression     // non-nil for => shorthand
+	Body       *BlockStmt      // nil for arrow functions
+	ArrowExpr  Expression      // non-nil for => shorthand
 	Pos_       lexer.Position
 }
 
@@ -189,9 +189,9 @@ func (s *FuncDecl) stmtNode()           {}
 
 // Param represents a function parameter.
 type Param struct {
-	Name     string         // including $ prefix
-	TypeName string         // type annotation (empty if dynamic)
-	Default  Expression     // default value (may be nil)
+	Name     string     // including $ prefix
+	TypeName string     // type annotation (empty if dynamic)
+	Default  Expression // default value (may be nil)
 	Pos_     lexer.Position
 }
 
@@ -234,7 +234,7 @@ func (p *PropertyDecl) Pos() lexer.Position { return p.Pos_ }
 // TryCatchStmt represents try { } catch ($e) { }
 type TryCatchStmt struct {
 	TryBody   *BlockStmt
-	CatchVar  string     // the $e variable
+	CatchVar  string // the $e variable
 	CatchBody *BlockStmt
 	Pos_      lexer.Position
 }
@@ -279,7 +279,7 @@ func (s *ParallelStmt) stmtNode()           {}
 
 // DestructureAssign represents: [$a, $b] = expr
 type DestructureAssign struct {
-	Names []string   // [$data, $err]
+	Names []string // [$data, $err]
 	Value Expression
 	Pos_  lexer.Position
 }
@@ -468,10 +468,10 @@ func (e *PropertyAccess) exprNode()           {}
 
 // MethodCall represents $obj->method(args) — sugar over PropertyAccess + CallExpr
 type MethodCall struct {
-	Object   Expression
-	Method   string
-	Args     []Expression
-	Pos_     lexer.Position
+	Object Expression
+	Method string
+	Args   []Expression
+	Pos_   lexer.Position
 }
 
 func (e *MethodCall) nodeType() string    { return "MethodCall" }

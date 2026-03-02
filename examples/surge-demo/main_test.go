@@ -305,5 +305,3 @@ func TestConcurrentRequests(t *testing.T) {
 		t.Errorf("Concurrent request failed: %v", err)
 	}
 }
-
-

@@ -28,16 +28,16 @@ type Bridge struct {
 
 // CachedModel holds a cached ML model reference.
 type CachedModel struct {
-	Name     string
-	Path     string
-	Loaded   bool
+	Name   string
+	Path   string
+	Loaded bool
 }
 
 // ExecResult holds the result of an @ml block execution.
 type ExecResult struct {
-	Output    map[string]interface{} // out variables
-	Stdout    string                 // captured stdout
-	Error     error
+	Output map[string]interface{} // out variables
+	Stdout string                 // captured stdout
+	Error  error
 }
 
 // New creates a new ML Bridge.

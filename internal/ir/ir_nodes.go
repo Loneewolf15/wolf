@@ -5,21 +5,21 @@ package ir
 
 // Program is the top-level WIR node — a complete compilation unit.
 type Program struct {
-	Package    string
-	Imports    []string
-	Functions  []*Function
-	Classes    []*Class
-	InitStmts  []Stmt // top-level statements placed in main() or init()
+	Package   string
+	Imports   []string
+	Functions []*Function
+	Classes   []*Class
+	InitStmts []Stmt // top-level statements placed in main() or init()
 }
 
 // Function represents a Go function.
 type Function struct {
-	Name       string
-	Params     []*Param
+	Name        string
+	Params      []*Param
 	ReturnTypes []string // Go type names
-	Body       []Stmt
-	IsMethod   bool
-	Receiver   string // struct name if IsMethod
+	Body        []Stmt
+	IsMethod    bool
+	Receiver    string // struct name if IsMethod
 }
 
 // Param is a function parameter with a Go type.
@@ -30,9 +30,9 @@ type Param struct {
 
 // Class maps to a Go struct + methods.
 type Class struct {
-	Name       string
-	Fields     []*Field
-	Methods    []*Function
+	Name        string
+	Fields      []*Field
+	Methods     []*Function
 	Constructor *Function // __construct
 }
 
@@ -381,4 +381,3 @@ type RespondStmt struct {
 }
 
 func (*RespondStmt) irStmt() {}
-

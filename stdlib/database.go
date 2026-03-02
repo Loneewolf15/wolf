@@ -12,10 +12,11 @@ import (
 
 // Database implements the Wolf Database library class.
 // It wraps Go's database/sql with the TraversyMVC-style API:
-//   $this->db->query("SQL")
-//   $this->db->bind(":param", $value)
-//   $this->db->execute()
-//   $this->db->resultSet() / $this->db->single() / $this->db->rowCount()
+//
+//	$this->db->query("SQL")
+//	$this->db->bind(":param", $value)
+//	$this->db->execute()
+//	$this->db->resultSet() / $this->db->single() / $this->db->rowCount()
 type Database struct {
 	db       *sql.DB
 	stmt     *sql.Stmt
@@ -28,13 +29,13 @@ type Database struct {
 
 // DBConfig holds database connection configuration.
 type DBConfig struct {
-	Driver   string `json:"driver"`
-	Host     string `json:"host"`
-	Port     int    `json:"port"`
-	User     string `json:"user"`
-	Pass     string `json:"pass"`
-	Name     string `json:"name"`
-	SSLMode  string `json:"ssl_mode,omitempty"`
+	Driver  string `json:"driver"`
+	Host    string `json:"host"`
+	Port    int    `json:"port"`
+	User    string `json:"user"`
+	Pass    string `json:"pass"`
+	Name    string `json:"name"`
+	SSLMode string `json:"ssl_mode,omitempty"`
 }
 
 // DSN returns the driver-specific connection string.

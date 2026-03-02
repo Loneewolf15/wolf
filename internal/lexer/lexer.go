@@ -8,15 +8,15 @@ import (
 
 // Lexer tokenizes Wolf source code into a stream of tokens.
 type Lexer struct {
-	source   string   // the raw source code
-	file     string   // source file name
-	tokens   []Token  // accumulated tokens
-	errors   []*WolfError // accumulated errors
+	source string       // the raw source code
+	file   string       // source file name
+	tokens []Token      // accumulated tokens
+	errors []*WolfError // accumulated errors
 
-	start   int  // start position of the current token
-	current int  // current read position
-	line    int  // current line number (1-based)
-	col     int  // current column number (1-based)
+	start     int // start position of the current token
+	current   int // current read position
+	line      int // current line number (1-based)
+	col       int // current column number (1-based)
 	startLine int // line at start of current token
 	startCol  int // col at start of current token
 }

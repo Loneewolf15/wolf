@@ -1,0 +1,873 @@
+go test ./... -v -cover -coverprofile=coverage.out
+	github.com/wolflang/wolf/cmd/wolf		coverage: 0.0% of statements
+=== RUN   TestEndToEnd
+=== RUN   TestEndToEnd/01_hello.wolf
+    e2e_test.go:52: Compilation failed:
+        LLVM compilation failed: neither llc nor clang found.
+          Install LLVM: sudo apt-get install clang llvm
+=== RUN   TestEndToEnd/02_vars.wolf
+    e2e_test.go:52: Compilation failed:
+        LLVM compilation failed: neither llc nor clang found.
+          Install LLVM: sudo apt-get install clang llvm
+=== RUN   TestEndToEnd/03_math.wolf
+    e2e_test.go:52: Compilation failed:
+        LLVM compilation failed: neither llc nor clang found.
+          Install LLVM: sudo apt-get install clang llvm
+=== RUN   TestEndToEnd/04_strings.wolf
+    e2e_test.go:52: Compilation failed:
+        LLVM compilation failed: neither llc nor clang found.
+          Install LLVM: sudo apt-get install clang llvm
+=== RUN   TestEndToEnd/05_stdlib_math.wolf
+    e2e_test.go:52: Compilation failed:
+        LLVM compilation failed: neither llc nor clang found.
+          Install LLVM: sudo apt-get install clang llvm
+=== RUN   TestEndToEnd/06_stdlib_strings.wolf
+    e2e_test.go:52: Compilation failed:
+        LLVM compilation failed: neither llc nor clang found.
+          Install LLVM: sudo apt-get install clang llvm
+=== RUN   TestEndToEnd/07_stdlib_json.wolf
+    e2e_test.go:52: Compilation failed:
+        LLVM compilation failed: neither llc nor clang found.
+          Install LLVM: sudo apt-get install clang llvm
+=== RUN   TestEndToEnd/08_logic.wolf
+    e2e_test.go:52: Compilation failed:
+        LLVM compilation failed: neither llc nor clang found.
+          Install LLVM: sudo apt-get install clang llvm
+=== RUN   TestEndToEnd/09_if_else.wolf
+    e2e_test.go:52: Compilation failed:
+        LLVM compilation failed: neither llc nor clang found.
+          Install LLVM: sudo apt-get install clang llvm
+=== RUN   TestEndToEnd/10_for.wolf
+    e2e_test.go:52: Compilation failed:
+        LLVM compilation failed: neither llc nor clang found.
+          Install LLVM: sudo apt-get install clang llvm
+=== RUN   TestEndToEnd/11_while.wolf
+    e2e_test.go:52: Compilation failed:
+        LLVM compilation failed: neither llc nor clang found.
+          Install LLVM: sudo apt-get install clang llvm
+=== RUN   TestEndToEnd/12_foreach.wolf
+    e2e_test.go:52: Compilation failed:
+        LLVM compilation failed: neither llc nor clang found.
+          Install LLVM: sudo apt-get install clang llvm
+=== RUN   TestEndToEnd/13_functions.wolf
+    e2e_test.go:52: Compilation failed:
+        LLVM compilation failed: neither llc nor clang found.
+          Install LLVM: sudo apt-get install clang llvm
+=== RUN   TestEndToEnd/14_classes.wolf
+    e2e_test.go:52: Compilation failed:
+        LLVM compilation failed: neither llc nor clang found.
+          Install LLVM: sudo apt-get install clang llvm
+=== RUN   TestEndToEnd/15_maps.wolf
+    e2e_test.go:52: Compilation failed:
+        LLVM compilation failed: neither llc nor clang found.
+          Install LLVM: sudo apt-get install clang llvm
+=== RUN   TestEndToEnd/16_match.wolf
+    e2e_test.go:52: Compilation failed:
+        LLVM compilation failed: neither llc nor clang found.
+          Install LLVM: sudo apt-get install clang llvm
+=== RUN   TestEndToEnd/17_arrays.wolf
+    e2e_test.go:52: Compilation failed:
+        LLVM compilation failed: neither llc nor clang found.
+          Install LLVM: sudo apt-get install clang llvm
+=== RUN   TestEndToEnd/18_func_returns.wolf
+    e2e_test.go:52: Compilation failed:
+        LLVM compilation failed: neither llc nor clang found.
+          Install LLVM: sudo apt-get install clang llvm
+=== RUN   TestEndToEnd/19_nested_loops.wolf
+    e2e_test.go:52: Compilation failed:
+        LLVM compilation failed: neither llc nor clang found.
+          Install LLVM: sudo apt-get install clang llvm
+=== RUN   TestEndToEnd/20_struct_like_classes.wolf
+    e2e_test.go:52: Compilation failed:
+        LLVM compilation failed: neither llc nor clang found.
+          Install LLVM: sudo apt-get install clang llvm
+--- FAIL: TestEndToEnd (0.18s)
+    --- FAIL: TestEndToEnd/01_hello.wolf (0.01s)
+    --- FAIL: TestEndToEnd/02_vars.wolf (0.05s)
+    --- FAIL: TestEndToEnd/03_math.wolf (0.00s)
+    --- FAIL: TestEndToEnd/04_strings.wolf (0.01s)
+    --- FAIL: TestEndToEnd/05_stdlib_math.wolf (0.02s)
+    --- FAIL: TestEndToEnd/06_stdlib_strings.wolf (0.01s)
+    --- FAIL: TestEndToEnd/07_stdlib_json.wolf (0.00s)
+    --- FAIL: TestEndToEnd/08_logic.wolf (0.00s)
+    --- FAIL: TestEndToEnd/09_if_else.wolf (0.01s)
+    --- FAIL: TestEndToEnd/10_for.wolf (0.01s)
+    --- FAIL: TestEndToEnd/11_while.wolf (0.00s)
+    --- FAIL: TestEndToEnd/12_foreach.wolf (0.01s)
+    --- FAIL: TestEndToEnd/13_functions.wolf (0.00s)
+    --- FAIL: TestEndToEnd/14_classes.wolf (0.00s)
+    --- FAIL: TestEndToEnd/15_maps.wolf (0.00s)
+    --- FAIL: TestEndToEnd/16_match.wolf (0.00s)
+    --- FAIL: TestEndToEnd/17_arrays.wolf (0.00s)
+    --- FAIL: TestEndToEnd/18_func_returns.wolf (0.00s)
+    --- FAIL: TestEndToEnd/19_nested_loops.wolf (0.00s)
+    --- FAIL: TestEndToEnd/20_struct_like_classes.wolf (0.01s)
+FAIL
+coverage: [no statements]
+FAIL	github.com/wolflang/wolf/e2e	0.218s
+=== RUN   TestCompileHelloWorld
+--- PASS: TestCompileHelloWorld (0.00s)
+=== RUN   TestCompileVariableAssignment
+--- PASS: TestCompileVariableAssignment (0.00s)
+=== RUN   TestCompileMultipleVars
+--- PASS: TestCompileMultipleVars (0.00s)
+=== RUN   TestCompileTypedVarDecl
+--- PASS: TestCompileTypedVarDecl (0.00s)
+=== RUN   TestCompileFunction
+--- PASS: TestCompileFunction (0.00s)
+=== RUN   TestCompileFunctionWithReturn
+--- PASS: TestCompileFunctionWithReturn (0.00s)
+=== RUN   TestCompileArrowFunction
+--- PASS: TestCompileArrowFunction (0.00s)
+=== RUN   TestCompileIfElse
+--- PASS: TestCompileIfElse (0.00s)
+=== RUN   TestCompileForLoop
+--- PASS: TestCompileForLoop (0.00s)
+=== RUN   TestCompileWhileLoop
+--- PASS: TestCompileWhileLoop (0.00s)
+=== RUN   TestCompileForeach
+--- PASS: TestCompileForeach (0.00s)
+=== RUN   TestCompileMatch
+--- PASS: TestCompileMatch (0.00s)
+=== RUN   TestCompileNewExpr
+--- PASS: TestCompileNewExpr (0.00s)
+=== RUN   TestCompileArrayLiteral
+--- PASS: TestCompileArrayLiteral (0.00s)
+=== RUN   TestCompileMapLiteral
+--- PASS: TestCompileMapLiteral (0.00s)
+=== RUN   TestCompileParallel
+--- PASS: TestCompileParallel (0.00s)
+=== RUN   TestCompileChannel
+--- PASS: TestCompileChannel (0.00s)
+=== RUN   TestCompileInterpolation
+--- PASS: TestCompileInterpolation (0.00s)
+=== RUN   TestCompileTryCatch
+--- PASS: TestCompileTryCatch (0.00s)
+=== RUN   TestCompileFullProgram
+--- PASS: TestCompileFullProgram (0.00s)
+=== RUN   TestStrictModeTypeMismatch
+--- PASS: TestStrictModeTypeMismatch (0.00s)
+=== RUN   TestCompileEmptyProgram
+--- PASS: TestCompileEmptyProgram (0.00s)
+=== RUN   TestCompileBoolLiterals
+--- PASS: TestCompileBoolLiterals (0.00s)
+=== RUN   TestCompileNilLiteral
+--- PASS: TestCompileNilLiteral (0.00s)
+=== RUN   TestCompileUnaryNot
+--- PASS: TestCompileUnaryNot (0.00s)
+=== RUN   TestCompileUnaryNegation
+--- PASS: TestCompileUnaryNegation (0.00s)
+=== RUN   TestConcurrentCompilations
+--- PASS: TestConcurrentCompilations (0.09s)
+=== RUN   TestCompileLargeProgram
+--- PASS: TestCompileLargeProgram (0.02s)
+=== RUN   TestDeeplyNestedIf
+--- PASS: TestDeeplyNestedIf (0.00s)
+=== RUN   TestDeeplyNestedLoops
+--- PASS: TestDeeplyNestedLoops (0.00s)
+=== RUN   TestEmptyStringLiteral
+--- PASS: TestEmptyStringLiteral (0.00s)
+=== RUN   TestLongStringInterpolation
+--- PASS: TestLongStringInterpolation (0.00s)
+=== RUN   TestLargeInteger
+--- PASS: TestLargeInteger (0.00s)
+=== RUN   TestNegativeFloat
+--- PASS: TestNegativeFloat (0.00s)
+=== RUN   TestZeroValues
+--- PASS: TestZeroValues (0.00s)
+=== RUN   TestFunctionNoParams
+--- PASS: TestFunctionNoParams (0.00s)
+=== RUN   TestFunctionManyParams
+--- PASS: TestFunctionManyParams (0.00s)
+=== RUN   TestRecursiveFunction
+--- PASS: TestRecursiveFunction (0.00s)
+=== RUN   TestVariableReassignment
+--- PASS: TestVariableReassignment (0.00s)
+=== RUN   TestComparisonOperators
+--- PASS: TestComparisonOperators (0.00s)
+=== RUN   TestInvalidSyntaxRecovery
+--- PASS: TestInvalidSyntaxRecovery (0.00s)
+=== RUN   TestUnterminatedString
+--- PASS: TestUnterminatedString (0.00s)
+=== RUN   TestMultipleErrors
+--- PASS: TestMultipleErrors (0.00s)
+=== RUN   TestPipelineProducesValidLLVMIR
+=== RUN   TestPipelineProducesValidLLVMIR/empty
+=== RUN   TestPipelineProducesValidLLVMIR/print
+=== RUN   TestPipelineProducesValidLLVMIR/var
+=== RUN   TestPipelineProducesValidLLVMIR/func
+=== RUN   TestPipelineProducesValidLLVMIR/if
+=== RUN   TestPipelineProducesValidLLVMIR/for
+=== RUN   TestPipelineProducesValidLLVMIR/while
+=== RUN   TestPipelineProducesValidLLVMIR/class
+=== RUN   TestPipelineProducesValidLLVMIR/array
+=== RUN   TestPipelineProducesValidLLVMIR/map
+=== RUN   TestPipelineProducesValidLLVMIR/interp
+--- PASS: TestPipelineProducesValidLLVMIR (0.01s)
+    --- PASS: TestPipelineProducesValidLLVMIR/empty (0.00s)
+    --- PASS: TestPipelineProducesValidLLVMIR/print (0.00s)
+    --- PASS: TestPipelineProducesValidLLVMIR/var (0.00s)
+    --- PASS: TestPipelineProducesValidLLVMIR/func (0.00s)
+    --- PASS: TestPipelineProducesValidLLVMIR/if (0.00s)
+    --- PASS: TestPipelineProducesValidLLVMIR/for (0.00s)
+    --- PASS: TestPipelineProducesValidLLVMIR/while (0.00s)
+    --- PASS: TestPipelineProducesValidLLVMIR/class (0.00s)
+    --- PASS: TestPipelineProducesValidLLVMIR/array (0.00s)
+    --- PASS: TestPipelineProducesValidLLVMIR/map (0.00s)
+    --- PASS: TestPipelineProducesValidLLVMIR/interp (0.00s)
+PASS
+coverage: 30.1% of statements
+ok  	github.com/wolflang/wolf/internal/compiler	0.285s	coverage: 30.1% of statements
+=== RUN   TestIREmitPackage
+--- PASS: TestIREmitPackage (0.00s)
+=== RUN   TestIREmitImports
+--- PASS: TestIREmitImports (0.00s)
+=== RUN   TestIREmitPrintAsFmtPrintln
+--- PASS: TestIREmitPrintAsFmtPrintln (0.00s)
+=== RUN   TestIREmitFunctionCreation
+--- PASS: TestIREmitFunctionCreation (0.00s)
+=== RUN   TestIREmitClassToStruct
+--- PASS: TestIREmitClassToStruct (0.00s)
+=== RUN   TestIREmitMatchToSwitch
+--- PASS: TestIREmitMatchToSwitch (0.00s)
+=== RUN   TestIREmitForeachToRange
+--- PASS: TestIREmitForeachToRange (0.00s)
+=== RUN   TestIREmitErrorExpr
+--- PASS: TestIREmitErrorExpr (0.00s)
+=== RUN   TestIREmitInterpolationToSprintf
+--- PASS: TestIREmitInterpolationToSprintf (0.00s)
+=== RUN   TestIREmitDollarStripping
+--- PASS: TestIREmitDollarStripping (0.00s)
+=== RUN   TestIREmitNewExprToConstructor
+--- PASS: TestIREmitNewExprToConstructor (0.00s)
+=== RUN   TestLLVMEmitHeader
+--- PASS: TestLLVMEmitHeader (0.00s)
+=== RUN   TestLLVMEmitMainFunction
+--- PASS: TestLLVMEmitMainFunction (0.00s)
+=== RUN   TestLLVMEmitStringConstant
+--- PASS: TestLLVMEmitStringConstant (0.00s)
+=== RUN   TestLLVMEmitPrintStr
+--- PASS: TestLLVMEmitPrintStr (0.00s)
+=== RUN   TestLLVMEmitIntVariable
+--- PASS: TestLLVMEmitIntVariable (0.00s)
+=== RUN   TestLLVMEmitFloatVariable
+--- PASS: TestLLVMEmitFloatVariable (0.00s)
+=== RUN   TestLLVMEmitBoolVariable
+--- PASS: TestLLVMEmitBoolVariable (0.00s)
+=== RUN   TestLLVMEmitStringVariable
+--- PASS: TestLLVMEmitStringVariable (0.00s)
+=== RUN   TestLLVMEmitArithmetic
+--- PASS: TestLLVMEmitArithmetic (0.00s)
+=== RUN   TestLLVMEmitComparison
+--- PASS: TestLLVMEmitComparison (0.00s)
+=== RUN   TestLLVMEmitFunction
+--- PASS: TestLLVMEmitFunction (0.00s)
+=== RUN   TestLLVMEmitIfElse
+--- PASS: TestLLVMEmitIfElse (0.00s)
+=== RUN   TestLLVMEmitForLoop
+--- PASS: TestLLVMEmitForLoop (0.00s)
+=== RUN   TestLLVMEmitPrintInt
+--- PASS: TestLLVMEmitPrintInt (0.00s)
+=== RUN   TestLLVMEmitPrintBool
+--- PASS: TestLLVMEmitPrintBool (0.00s)
+=== RUN   TestLLVMEmitEmptyProgram
+--- PASS: TestLLVMEmitEmptyProgram (0.00s)
+=== RUN   TestLLVMEmitMultipleFunctions
+--- PASS: TestLLVMEmitMultipleFunctions (0.00s)
+=== RUN   TestLLVMEmitNestedIf
+--- PASS: TestLLVMEmitNestedIf (0.00s)
+PASS
+coverage: 53.5% of statements
+ok  	github.com/wolflang/wolf/internal/emitter	0.023s	coverage: 53.5% of statements
+	github.com/wolflang/wolf/internal/ir		=== RUN   TestEmptyFile
+--- PASS: TestEmptyFile (0.00s)
+=== RUN   TestWhitespaceOnly
+--- PASS: TestWhitespaceOnly (0.00s)
+=== RUN   TestDollarIdent
+--- PASS: TestDollarIdent (0.00s)
+=== RUN   TestDollarIdentUnderscore
+--- PASS: TestDollarIdentUnderscore (0.00s)
+=== RUN   TestDollarIdentWithNumbers
+--- PASS: TestDollarIdentWithNumbers (0.00s)
+=== RUN   TestMultipleDollarIdents
+--- PASS: TestMultipleDollarIdents (0.00s)
+=== RUN   TestSimpleString
+--- PASS: TestSimpleString (0.00s)
+=== RUN   TestEmptyString
+--- PASS: TestEmptyString (0.00s)
+=== RUN   TestStringEscapeSequences
+--- PASS: TestStringEscapeSequences (0.00s)
+=== RUN   TestStringEscapedQuote
+--- PASS: TestStringEscapedQuote (0.00s)
+=== RUN   TestStringEscapedBackslash
+--- PASS: TestStringEscapedBackslash (0.00s)
+=== RUN   TestStringInterpolationSimple
+--- PASS: TestStringInterpolationSimple (0.00s)
+=== RUN   TestStringInterpolationExpression
+--- PASS: TestStringInterpolationExpression (0.00s)
+=== RUN   TestStringInterpolationPropertyAccess
+--- PASS: TestStringInterpolationPropertyAccess (0.00s)
+=== RUN   TestInteger
+--- PASS: TestInteger (0.00s)
+=== RUN   TestIntegerZero
+--- PASS: TestIntegerZero (0.00s)
+=== RUN   TestIntegerLarge
+--- PASS: TestIntegerLarge (0.00s)
+=== RUN   TestFloat
+--- PASS: TestFloat (0.00s)
+=== RUN   TestFloatLeadingZero
+--- PASS: TestFloatLeadingZero (0.00s)
+=== RUN   TestBoolTrue
+--- PASS: TestBoolTrue (0.00s)
+=== RUN   TestBoolFalse
+--- PASS: TestBoolFalse (0.00s)
+=== RUN   TestNil
+--- PASS: TestNil (0.00s)
+=== RUN   TestAllKeywords
+=== RUN   TestAllKeywords/func
+=== RUN   TestAllKeywords/class
+=== RUN   TestAllKeywords/new
+=== RUN   TestAllKeywords/if
+=== RUN   TestAllKeywords/else
+=== RUN   TestAllKeywords/for
+=== RUN   TestAllKeywords/foreach
+=== RUN   TestAllKeywords/while
+=== RUN   TestAllKeywords/match
+=== RUN   TestAllKeywords/return
+=== RUN   TestAllKeywords/async
+=== RUN   TestAllKeywords/await
+=== RUN   TestAllKeywords/parallel
+=== RUN   TestAllKeywords/channel
+=== RUN   TestAllKeywords/send
+=== RUN   TestAllKeywords/receive
+=== RUN   TestAllKeywords/try
+=== RUN   TestAllKeywords/catch
+=== RUN   TestAllKeywords/import
+=== RUN   TestAllKeywords/print
+=== RUN   TestAllKeywords/var
+=== RUN   TestAllKeywords/private
+=== RUN   TestAllKeywords/public
+=== RUN   TestAllKeywords/static
+=== RUN   TestAllKeywords/as
+=== RUN   TestAllKeywords/in
+=== RUN   TestAllKeywords/error
+--- PASS: TestAllKeywords (0.00s)
+    --- PASS: TestAllKeywords/func (0.00s)
+    --- PASS: TestAllKeywords/class (0.00s)
+    --- PASS: TestAllKeywords/new (0.00s)
+    --- PASS: TestAllKeywords/if (0.00s)
+    --- PASS: TestAllKeywords/else (0.00s)
+    --- PASS: TestAllKeywords/for (0.00s)
+    --- PASS: TestAllKeywords/foreach (0.00s)
+    --- PASS: TestAllKeywords/while (0.00s)
+    --- PASS: TestAllKeywords/match (0.00s)
+    --- PASS: TestAllKeywords/return (0.00s)
+    --- PASS: TestAllKeywords/async (0.00s)
+    --- PASS: TestAllKeywords/await (0.00s)
+    --- PASS: TestAllKeywords/parallel (0.00s)
+    --- PASS: TestAllKeywords/channel (0.00s)
+    --- PASS: TestAllKeywords/send (0.00s)
+    --- PASS: TestAllKeywords/receive (0.00s)
+    --- PASS: TestAllKeywords/try (0.00s)
+    --- PASS: TestAllKeywords/catch (0.00s)
+    --- PASS: TestAllKeywords/import (0.00s)
+    --- PASS: TestAllKeywords/print (0.00s)
+    --- PASS: TestAllKeywords/var (0.00s)
+    --- PASS: TestAllKeywords/private (0.00s)
+    --- PASS: TestAllKeywords/public (0.00s)
+    --- PASS: TestAllKeywords/static (0.00s)
+    --- PASS: TestAllKeywords/as (0.00s)
+    --- PASS: TestAllKeywords/in (0.00s)
+    --- PASS: TestAllKeywords/error (0.00s)
+=== RUN   TestArithmeticOperators
+--- PASS: TestArithmeticOperators (0.00s)
+=== RUN   TestIncrementDecrement
+--- PASS: TestIncrementDecrement (0.00s)
+=== RUN   TestComparisonOperators
+--- PASS: TestComparisonOperators (0.00s)
+=== RUN   TestLogicalOperators
+--- PASS: TestLogicalOperators (0.00s)
+=== RUN   TestAssignmentOperators
+--- PASS: TestAssignmentOperators (0.00s)
+=== RUN   TestArrowOperators
+--- PASS: TestArrowOperators (0.00s)
+=== RUN   TestDotOperators
+--- PASS: TestDotOperators (0.00s)
+=== RUN   TestColonOperators
+--- PASS: TestColonOperators (0.00s)
+=== RUN   TestBrackets
+--- PASS: TestBrackets (0.00s)
+=== RUN   TestDelimiters
+--- PASS: TestDelimiters (0.00s)
+=== RUN   TestAtMl
+--- PASS: TestAtMl (0.00s)
+=== RUN   TestAtUnknown
+--- PASS: TestAtUnknown (0.00s)
+=== RUN   TestComment
+--- PASS: TestComment (0.00s)
+=== RUN   TestCommentAtEndOfLine
+--- PASS: TestCommentAtEndOfLine (0.00s)
+=== RUN   TestBareIdentifier
+--- PASS: TestBareIdentifier (0.00s)
+=== RUN   TestIdentifierWithUnderscore
+--- PASS: TestIdentifierWithUnderscore (0.00s)
+=== RUN   TestLineTracking
+--- PASS: TestLineTracking (0.00s)
+=== RUN   TestColumnTracking
+--- PASS: TestColumnTracking (0.00s)
+=== RUN   TestHelloWorld
+--- PASS: TestHelloWorld (0.00s)
+=== RUN   TestVariableAssignment
+--- PASS: TestVariableAssignment (0.00s)
+=== RUN   TestFunctionDeclaration
+--- PASS: TestFunctionDeclaration (0.00s)
+=== RUN   TestClassDeclaration
+--- PASS: TestClassDeclaration (0.00s)
+=== RUN   TestForLoop
+--- PASS: TestForLoop (0.00s)
+=== RUN   TestForeachWithKeyValue
+--- PASS: TestForeachWithKeyValue (0.00s)
+=== RUN   TestMatchStatement
+--- PASS: TestMatchStatement (0.00s)
+=== RUN   TestAtMlBlock
+--- PASS: TestAtMlBlock (0.00s)
+=== RUN   TestAsyncAwait
+--- PASS: TestAsyncAwait (0.00s)
+=== RUN   TestTryCatch
+--- PASS: TestTryCatch (0.00s)
+=== RUN   TestStrictTyping
+--- PASS: TestStrictTyping (0.00s)
+=== RUN   TestArrowFunction
+--- PASS: TestArrowFunction (0.00s)
+=== RUN   TestMultipleReturnValues
+--- PASS: TestMultipleReturnValues (0.00s)
+=== RUN   TestNegativeNumber
+--- PASS: TestNegativeNumber (0.00s)
+=== RUN   TestUnterminatedString
+--- PASS: TestUnterminatedString (0.00s)
+=== RUN   TestDollarAlone
+--- PASS: TestDollarAlone (0.00s)
+=== RUN   TestUnexpectedCharacter
+--- PASS: TestUnexpectedCharacter (0.00s)
+=== RUN   TestSingleAmpersand
+--- PASS: TestSingleAmpersand (0.00s)
+=== RUN   TestSinglePipe
+--- PASS: TestSinglePipe (0.00s)
+=== RUN   TestUnicodeInString
+--- PASS: TestUnicodeInString (0.00s)
+=== RUN   TestUnicodeIdentifier
+--- PASS: TestUnicodeIdentifier (0.00s)
+=== RUN   TestErrorFormat
+--- PASS: TestErrorFormat (0.00s)
+=== RUN   TestErrorFormatNoFile
+--- PASS: TestErrorFormatNoFile (0.00s)
+=== RUN   TestFilePositionInToken
+--- PASS: TestFilePositionInToken (0.00s)
+=== RUN   TestDatabaseThisPattern
+--- PASS: TestDatabaseThisPattern (0.00s)
+=== RUN   TestNewDatabase
+--- PASS: TestNewDatabase (0.00s)
+=== RUN   TestChannelOperations
+--- PASS: TestChannelOperations (0.00s)
+=== RUN   TestParallelBlock
+--- PASS: TestParallelBlock (0.00s)
+=== RUN   TestNamedParameters
+--- PASS: TestNamedParameters (0.00s)
+=== RUN   TestMapLiteral
+--- PASS: TestMapLiteral (0.00s)
+=== RUN   TestGoStyleMultipleReturn
+--- PASS: TestGoStyleMultipleReturn (0.00s)
+PASS
+coverage: 83.5% of statements
+ok  	github.com/wolflang/wolf/internal/lexer	0.032s	coverage: 83.5% of statements
+=== RUN   TestNewBridge
+--- PASS: TestNewBridge (0.00s)
+=== RUN   TestInitBridge
+--- PASS: TestInitBridge (3.25s)
+=== RUN   TestShutdownBridge
+--- PASS: TestShutdownBridge (2.32s)
+=== RUN   TestExecSimple
+--- PASS: TestExecSimple (4.84s)
+=== RUN   TestExecWithInputVars
+--- PASS: TestExecWithInputVars (2.57s)
+=== RUN   TestExecWithOutputVars
+--- PASS: TestExecWithOutputVars (5.24s)
+=== RUN   TestExecWithStringVars
+--- PASS: TestExecWithStringVars (3.08s)
+=== RUN   TestExecAsync
+--- PASS: TestExecAsync (3.18s)
+=== RUN   TestModelCache
+--- PASS: TestModelCache (0.00s)
+=== RUN   TestExecPythonError
+--- PASS: TestExecPythonError (3.47s)
+=== RUN   TestExecSyntaxError
+--- PASS: TestExecSyntaxError (3.38s)
+=== RUN   TestFindPython
+--- PASS: TestFindPython (2.04s)
+=== RUN   TestBuildWrapperNoVars
+--- PASS: TestBuildWrapperNoVars (0.00s)
+=== RUN   TestBuildWrapperWithInVars
+--- PASS: TestBuildWrapperWithInVars (0.00s)
+=== RUN   TestBuildWrapperWithOutVars
+--- PASS: TestBuildWrapperWithOutVars (0.00s)
+=== RUN   TestBuildWrapperStripsDollar
+--- PASS: TestBuildWrapperStripsDollar (0.00s)
+PASS
+coverage: 84.8% of statements
+ok  	github.com/wolflang/wolf/internal/mlbridge	33.385s	coverage: 84.8% of statements
+=== RUN   TestEmptyProgram
+--- PASS: TestEmptyProgram (0.00s)
+=== RUN   TestSimpleAssignment
+--- PASS: TestSimpleAssignment (0.00s)
+=== RUN   TestIntAssignment
+--- PASS: TestIntAssignment (0.00s)
+=== RUN   TestFloatAssignment
+--- PASS: TestFloatAssignment (0.00s)
+=== RUN   TestBoolAssignment
+--- PASS: TestBoolAssignment (0.00s)
+=== RUN   TestArrayLiteral
+--- PASS: TestArrayLiteral (0.00s)
+=== RUN   TestMapLiteral
+--- PASS: TestMapLiteral (0.00s)
+=== RUN   TestVarDecl
+--- PASS: TestVarDecl (0.00s)
+=== RUN   TestVarDeclStringType
+--- PASS: TestVarDeclStringType (0.00s)
+=== RUN   TestFuncDecl
+--- PASS: TestFuncDecl (0.00s)
+=== RUN   TestFuncDeclMultipleReturns
+--- PASS: TestFuncDeclMultipleReturns (0.00s)
+=== RUN   TestArrowFunction
+--- PASS: TestArrowFunction (0.00s)
+=== RUN   TestFuncDefaultParam
+--- PASS: TestFuncDefaultParam (0.00s)
+=== RUN   TestClosureExpr
+--- PASS: TestClosureExpr (0.00s)
+=== RUN   TestIfStmt
+--- PASS: TestIfStmt (0.00s)
+=== RUN   TestIfElseStmt
+--- PASS: TestIfElseStmt (0.00s)
+=== RUN   TestIfElseIfElseStmt
+--- PASS: TestIfElseIfElseStmt (0.00s)
+=== RUN   TestForStmt
+--- PASS: TestForStmt (0.00s)
+=== RUN   TestForeachStmt
+--- PASS: TestForeachStmt (0.00s)
+=== RUN   TestForeachKeyValueStmt
+--- PASS: TestForeachKeyValueStmt (0.00s)
+=== RUN   TestWhileStmt
+--- PASS: TestWhileStmt (0.00s)
+=== RUN   TestMatchStmt
+--- PASS: TestMatchStmt (0.00s)
+=== RUN   TestReturnStmt
+--- PASS: TestReturnStmt (0.00s)
+=== RUN   TestClassDecl
+--- PASS: TestClassDecl (0.00s)
+=== RUN   TestClassPropertyWithDefault
+--- PASS: TestClassPropertyWithDefault (0.00s)
+=== RUN   TestTryCatch
+--- PASS: TestTryCatch (0.00s)
+=== RUN   TestAsyncExpr
+--- PASS: TestAsyncExpr (0.00s)
+=== RUN   TestAwaitExpr
+--- PASS: TestAwaitExpr (0.00s)
+=== RUN   TestParallelBlock
+--- PASS: TestParallelBlock (0.00s)
+=== RUN   TestChannelExpr
+--- PASS: TestChannelExpr (0.00s)
+=== RUN   TestSendExpr
+--- PASS: TestSendExpr (0.00s)
+=== RUN   TestReceiveExpr
+--- PASS: TestReceiveExpr (0.00s)
+=== RUN   TestDestructureAssign
+--- PASS: TestDestructureAssign (0.00s)
+=== RUN   TestNewExpr
+--- PASS: TestNewExpr (0.00s)
+=== RUN   TestPropertyAccess
+--- PASS: TestPropertyAccess (0.00s)
+=== RUN   TestMethodCall
+--- PASS: TestMethodCall (0.00s)
+=== RUN   TestChainedPropertyAccess
+--- PASS: TestChainedPropertyAccess (0.00s)
+=== RUN   TestNamedArguments
+--- PASS: TestNamedArguments (0.00s)
+=== RUN   TestMulBeforeAdd
+--- PASS: TestMulBeforeAdd (0.00s)
+=== RUN   TestComparisonPrecedence
+--- PASS: TestComparisonPrecedence (0.00s)
+=== RUN   TestUnaryNot
+--- PASS: TestUnaryNot (0.00s)
+=== RUN   TestUnaryNegation
+--- PASS: TestUnaryNegation (0.00s)
+=== RUN   TestPostfixIncrement
+--- PASS: TestPostfixIncrement (0.00s)
+=== RUN   TestIndexExpr
+--- PASS: TestIndexExpr (0.00s)
+=== RUN   TestPrintExpr
+--- PASS: TestPrintExpr (0.00s)
+=== RUN   TestErrorExpr
+--- PASS: TestErrorExpr (0.00s)
+=== RUN   TestInterpolatedString
+--- PASS: TestInterpolatedString (0.00s)
+=== RUN   TestMLBlock
+--- PASS: TestMLBlock (0.00s)
+=== RUN   TestImportStmt
+--- PASS: TestImportStmt (0.00s)
+=== RUN   TestFullWolfProgram
+--- PASS: TestFullWolfProgram (0.00s)
+=== RUN   TestMissingClosingBrace
+--- PASS: TestMissingClosingBrace (0.00s)
+=== RUN   TestMissingParenInFunc
+--- PASS: TestMissingParenInFunc (0.00s)
+PASS
+coverage: 71.8% of statements
+ok  	github.com/wolflang/wolf/internal/parser	0.072s	coverage: 71.8% of statements
+=== RUN   TestNewManager
+--- PASS: TestNewManager (0.00s)
+=== RUN   TestLoadConfigDefault
+--- PASS: TestLoadConfigDefault (0.00s)
+=== RUN   TestInitAndSaveConfig
+--- PASS: TestInitAndSaveConfig (0.00s)
+=== RUN   TestLoadConfigFromFile
+--- PASS: TestLoadConfigFromFile (0.00s)
+=== RUN   TestPackageSpecString
+--- PASS: TestPackageSpecString (0.00s)
+=== RUN   TestAddPackageToConfig
+--- PASS: TestAddPackageToConfig (0.00s)
+=== RUN   TestAddDuplicateUpdatesVersion
+--- PASS: TestAddDuplicateUpdatesVersion (0.01s)
+=== RUN   TestRemovePackageFromConfig
+--- PASS: TestRemovePackageFromConfig (0.00s)
+=== RUN   TestRemoveNonexistent
+--- PASS: TestRemoveNonexistent (0.00s)
+=== RUN   TestVenvDoesNotExist
+--- PASS: TestVenvDoesNotExist (0.00s)
+=== RUN   TestInstallCreatesVenv
+--- PASS: TestInstallCreatesVenv (79.29s)
+=== RUN   TestPaths
+--- PASS: TestPaths (0.00s)
+=== RUN   TestShellCommand
+--- PASS: TestShellCommand (0.00s)
+=== RUN   TestGenerateLock
+--- PASS: TestGenerateLock (75.13s)
+=== RUN   TestCheckAllInstalled
+--- PASS: TestCheckAllInstalled (82.24s)
+=== RUN   TestCheckMissingPackage
+--- PASS: TestCheckMissingPackage (74.81s)
+PASS
+coverage: 72.9% of statements
+ok  	github.com/wolflang/wolf/internal/pythonenv	311.529s	coverage: 72.9% of statements
+=== RUN   TestGlobalScope
+--- PASS: TestGlobalScope (0.00s)
+=== RUN   TestDollarStripping
+--- PASS: TestDollarStripping (0.00s)
+=== RUN   TestFunctionScope
+--- PASS: TestFunctionScope (0.00s)
+=== RUN   TestClassScope
+--- PASS: TestClassScope (0.00s)
+=== RUN   TestForeachScope
+--- PASS: TestForeachScope (0.00s)
+=== RUN   TestTryCatchScope
+--- PASS: TestTryCatchScope (0.00s)
+=== RUN   TestDestructureScope
+--- PASS: TestDestructureScope (0.00s)
+=== RUN   TestClosureScope
+--- PASS: TestClosureScope (0.00s)
+=== RUN   TestBuiltins
+--- PASS: TestBuiltins (0.00s)
+=== RUN   TestStrictModeUndeclaredVar
+--- PASS: TestStrictModeUndeclaredVar (0.00s)
+=== RUN   TestStrictModeDeclaredVarNoError
+--- PASS: TestStrictModeDeclaredVarNoError (0.00s)
+=== RUN   TestDynamicModeAutoDeclaration
+--- PASS: TestDynamicModeAutoDeclaration (0.00s)
+=== RUN   TestMLBlockOutVars
+--- PASS: TestMLBlockOutVars (0.00s)
+=== RUN   TestStripDollar
+--- PASS: TestStripDollar (0.00s)
+=== RUN   TestNestedScope
+--- PASS: TestNestedScope (0.00s)
+=== RUN   TestForLoopScope
+--- PASS: TestForLoopScope (0.00s)
+=== RUN   TestMultipleFunctions
+--- PASS: TestMultipleFunctions (0.00s)
+PASS
+coverage: 72.9% of statements
+ok  	github.com/wolflang/wolf/internal/resolver	0.029s	coverage: 72.9% of statements
+=== RUN   TestProjectCreation
+--- PASS: TestProjectCreation (0.00s)
+=== RUN   TestProjectEmptyName
+--- PASS: TestProjectEmptyName (0.00s)
+PASS
+coverage: 90.5% of statements
+ok  	github.com/wolflang/wolf/internal/scaffold	0.100s	coverage: 90.5% of statements
+=== RUN   TestDynamicNoErrors
+--- PASS: TestDynamicNoErrors (0.00s)
+=== RUN   TestDynamicFunctionNoErrors
+--- PASS: TestDynamicFunctionNoErrors (0.00s)
+=== RUN   TestDynamicClassNoErrors
+--- PASS: TestDynamicClassNoErrors (0.00s)
+=== RUN   TestStrictTypeMismatch
+--- PASS: TestStrictTypeMismatch (0.00s)
+=== RUN   TestStrictTypeMatch
+--- PASS: TestStrictTypeMatch (0.00s)
+=== RUN   TestStrictFloatType
+--- PASS: TestStrictFloatType (0.00s)
+=== RUN   TestStrictStringType
+--- PASS: TestStrictStringType (0.00s)
+=== RUN   TestStrictBoolType
+--- PASS: TestStrictBoolType (0.00s)
+=== RUN   TestInferInt
+--- PASS: TestInferInt (0.00s)
+=== RUN   TestInferFloat
+--- PASS: TestInferFloat (0.00s)
+=== RUN   TestInferString
+--- PASS: TestInferString (0.00s)
+=== RUN   TestInferBool
+--- PASS: TestInferBool (0.00s)
+=== RUN   TestInferNil
+--- PASS: TestInferNil (0.00s)
+=== RUN   TestInferArray
+--- PASS: TestInferArray (0.00s)
+=== RUN   TestInferMap
+--- PASS: TestInferMap (0.00s)
+=== RUN   TestInferDynamic
+--- PASS: TestInferDynamic (0.00s)
+=== RUN   TestTypeString
+--- PASS: TestTypeString (0.00s)
+=== RUN   TestFullProgramNoErrors
+--- PASS: TestFullProgramNoErrors (0.00s)
+PASS
+coverage: 57.7% of statements
+ok  	github.com/wolflang/wolf/internal/typechecker	0.114s	coverage: 57.7% of statements
+=== RUN   TestStringsContains
+--- PASS: TestStringsContains (0.00s)
+=== RUN   TestStringsStartsEndsWith
+--- PASS: TestStringsStartsEndsWith (0.00s)
+=== RUN   TestStringsSplitJoin
+--- PASS: TestStringsSplitJoin (0.00s)
+=== RUN   TestStringsTrim
+--- PASS: TestStringsTrim (0.00s)
+=== RUN   TestStringsUpperLower
+--- PASS: TestStringsUpperLower (0.00s)
+=== RUN   TestStringsReplace
+--- PASS: TestStringsReplace (0.00s)
+=== RUN   TestStringsLength
+--- PASS: TestStringsLength (0.00s)
+=== RUN   TestStringsReverse
+--- PASS: TestStringsReverse (0.00s)
+=== RUN   TestStringsIndex
+--- PASS: TestStringsIndex (0.00s)
+=== RUN   TestStringsSubstring
+--- PASS: TestStringsSubstring (0.00s)
+=== RUN   TestStringsPad
+--- PASS: TestStringsPad (0.00s)
+=== RUN   TestStringsIsEmpty
+--- PASS: TestStringsIsEmpty (0.00s)
+=== RUN   TestStringsIsNumeric
+--- PASS: TestStringsIsNumeric (0.00s)
+=== RUN   TestStringsIsAlpha
+--- PASS: TestStringsIsAlpha (0.00s)
+=== RUN   TestStringsRepeat
+--- PASS: TestStringsRepeat (0.00s)
+=== RUN   TestJSONEncodeDecode
+--- PASS: TestJSONEncodeDecode (0.00s)
+=== RUN   TestJSONDecodeMap
+--- PASS: TestJSONDecodeMap (0.00s)
+=== RUN   TestJSONDecodeArray
+--- PASS: TestJSONDecodeArray (0.00s)
+=== RUN   TestJSONEncodePretty
+--- PASS: TestJSONEncodePretty (0.00s)
+=== RUN   TestJSONValid
+--- PASS: TestJSONValid (0.00s)
+=== RUN   TestJSONDecodeError
+--- PASS: TestJSONDecodeError (0.00s)
+=== RUN   TestMathAbs
+--- PASS: TestMathAbs (0.00s)
+=== RUN   TestMathCeilFloor
+--- PASS: TestMathCeilFloor (0.00s)
+=== RUN   TestMathRound
+--- PASS: TestMathRound (0.00s)
+=== RUN   TestMathSqrt
+--- PASS: TestMathSqrt (0.00s)
+=== RUN   TestMathPow
+--- PASS: TestMathPow (0.00s)
+=== RUN   TestMathLog
+--- PASS: TestMathLog (0.00s)
+=== RUN   TestMathMinMax
+--- PASS: TestMathMinMax (0.00s)
+=== RUN   TestMathClamp
+--- PASS: TestMathClamp (0.00s)
+=== RUN   TestMathRandom
+--- PASS: TestMathRandom (0.00s)
+=== RUN   TestMathRandomInt
+--- PASS: TestMathRandomInt (0.00s)
+=== RUN   TestMathRandomRange
+--- PASS: TestMathRandomRange (0.00s)
+=== RUN   TestMathTrig
+--- PASS: TestMathTrig (0.00s)
+=== RUN   TestMathConstants
+--- PASS: TestMathConstants (0.00s)
+=== RUN   TestEnvGetSet
+--- PASS: TestEnvGetSet (0.00s)
+=== RUN   TestEnvGetDefault
+--- PASS: TestEnvGetDefault (0.00s)
+=== RUN   TestEnvSet
+--- PASS: TestEnvSet (0.00s)
+=== RUN   TestEnvUnset
+--- PASS: TestEnvUnset (0.00s)
+=== RUN   TestEnvHas
+--- PASS: TestEnvHas (0.00s)
+=== RUN   TestEnvAll
+--- PASS: TestEnvAll (0.00s)
+=== RUN   TestEnvLoadFile
+--- PASS: TestEnvLoadFile (0.00s)
+=== RUN   TestEnvLoadFileMissing
+--- PASS: TestEnvLoadFileMissing (0.00s)
+=== RUN   TestDBConfigDSN_MySQL
+--- PASS: TestDBConfigDSN_MySQL (0.00s)
+=== RUN   TestDBConfigDSN_Postgres
+--- PASS: TestDBConfigDSN_Postgres (0.00s)
+=== RUN   TestDBConfigDSN_SQLite
+--- PASS: TestDBConfigDSN_SQLite (0.00s)
+=== RUN   TestLoadDBConfig
+--- PASS: TestLoadDBConfig (0.00s)
+=== RUN   TestLoadDBConfigDefaults
+--- PASS: TestLoadDBConfigDefaults (0.00s)
+=== RUN   TestLoadDBConfigMissing
+--- PASS: TestLoadDBConfigMissing (0.00s)
+=== RUN   TestLoadDBConfigInvalidJSON
+--- PASS: TestLoadDBConfigInvalidJSON (0.00s)
+=== RUN   TestNewDatabase
+--- PASS: TestNewDatabase (0.00s)
+=== RUN   TestQuerySetsSQL
+--- PASS: TestQuerySetsSQL (0.00s)
+=== RUN   TestBindAddsParam
+--- PASS: TestBindAddsParam (0.00s)
+=== RUN   TestResolveBindings
+--- PASS: TestResolveBindings (0.00s)
+=== RUN   TestExecuteWithoutConnection
+--- PASS: TestExecuteWithoutConnection (0.00s)
+=== RUN   TestRowCountDefault
+--- PASS: TestRowCountDefault (0.00s)
+=== RUN   TestCloseNilDB
+--- PASS: TestCloseNilDB (0.00s)
+=== RUN   TestRedisSetGet
+--- PASS: TestRedisSetGet (0.00s)
+=== RUN   TestRedisDel
+--- PASS: TestRedisDel (0.00s)
+=== RUN   TestRedisExists
+--- PASS: TestRedisExists (0.00s)
+=== RUN   TestRedisHash
+--- PASS: TestRedisHash (0.00s)
+=== RUN   TestRedisNotConnected
+--- PASS: TestRedisNotConnected (0.00s)
+=== RUN   TestRedisClose
+--- PASS: TestRedisClose (0.00s)
+=== RUN   TestNewRedisDefaults
+--- PASS: TestNewRedisDefaults (0.00s)
+PASS
+coverage: 70.3% of statements
+ok  	github.com/wolflang/wolf/stdlib	0.106s	coverage: 70.3% of statements
+FAIL
+make: *** [Makefile:33: test-cover] Error 1

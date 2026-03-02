@@ -2,18 +2,18 @@
 package emitter
 
 import (
-	"strings"
 	"github.com/wolflang/wolf/internal/ir"
 	"github.com/wolflang/wolf/internal/parser"
 	"github.com/wolflang/wolf/internal/resolver"
+	"strings"
 )
 
 // IREmitter transforms a Wolf AST into WIR.
 type IREmitter struct {
 	resolver     *resolver.Resolver
-	imports      map[string]bool   // track needed imports
-	declared     map[string]bool   // track declared variables (for := vs =)
-	httpHandlers map[string]bool   // track functions used as HTTP handlers
+	imports      map[string]bool // track needed imports
+	declared     map[string]bool // track declared variables (for := vs =)
+	httpHandlers map[string]bool // track functions used as HTTP handlers
 }
 
 // New creates a new IREmitter.

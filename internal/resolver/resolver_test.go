@@ -197,11 +197,11 @@ func TestMLBlockOutVars(t *testing.T) {
 
 func TestStripDollar(t *testing.T) {
 	cases := map[string]string{
-		"$name":    "name",
-		"$_priv":   "_priv",
-		"$x":       "x",
-		"myFunc":   "myFunc",
-		"":         "",
+		"$name":  "name",
+		"$_priv": "_priv",
+		"$x":     "x",
+		"myFunc": "myFunc",
+		"":       "",
 	}
 	for input, expected := range cases {
 		result := stripDollar(input)

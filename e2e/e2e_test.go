@@ -45,7 +45,7 @@ func TestEndToEnd(t *testing.T) {
 			// Set OutDir exactly 3 levels deep from repo root: e2e/testdata/wolf_out_X
 			c.OutDir = filepath.Join(testdata, "wolf_out_"+name)
 			defer os.RemoveAll(c.OutDir)
-			
+
 			result, err := c.Build(string(source), wolfFile)
 			if err != nil {
 				// Print errors
@@ -58,7 +58,7 @@ func TestEndToEnd(t *testing.T) {
 			var stderr bytes.Buffer
 			cmd.Stdout = &stdout
 			cmd.Stderr = &stderr
-			
+
 			err = cmd.Run()
 			if err != nil {
 				t.Fatalf("Program execution failed: %v\nStderr: %s", err, stderr.String())
@@ -67,7 +67,7 @@ func TestEndToEnd(t *testing.T) {
 			// Compare output
 			actual := strings.TrimSpace(stdout.String())
 			expected := strings.TrimSpace(string(expectedOut))
-			
+
 			if actual != expected {
 				t.Errorf("Output mismatch.\nExpected:\n%s\nGot:\n%s", expected, actual)
 			}

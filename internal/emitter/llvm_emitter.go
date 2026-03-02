@@ -13,7 +13,7 @@ import (
 
 // LLVMEmitter generates LLVM IR text from WIR.
 type LLVMEmitter struct {
-	buf         strings.Builder
+	buf          strings.Builder
 	stringConsts map[string]string // value → @.str.N label
 	strCounter   int
 	localCounter int

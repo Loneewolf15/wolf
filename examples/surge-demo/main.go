@@ -29,22 +29,22 @@ type RideEstimate struct {
 
 // PriceResponse is the API response with pricing details.
 type PriceResponse struct {
-	BasePrice      float64 `json:"base_price"`
+	BasePrice       float64 `json:"base_price"`
 	SurgeMultiplier float64 `json:"surge_multiplier"`
-	FinalPrice     float64 `json:"final_price"`
-	Currency       string  `json:"currency"`
-	DistanceKm     float64 `json:"distance_km"`
-	EstimatedMins  int     `json:"estimated_mins"`
-	RideType       string  `json:"ride_type"`
-	Timestamp      string  `json:"timestamp"`
+	FinalPrice      float64 `json:"final_price"`
+	Currency        string  `json:"currency"`
+	DistanceKm      float64 `json:"distance_km"`
+	EstimatedMins   int     `json:"estimated_mins"`
+	RideType        string  `json:"ride_type"`
+	Timestamp       string  `json:"timestamp"`
 }
 
 // HealthResponse is the API health check response.
 type HealthResponse struct {
-	Status    string `json:"status"`
-	Version   string `json:"version"`
-	Uptime    string `json:"uptime"`
-	Language  string `json:"language"`
+	Status   string `json:"status"`
+	Version  string `json:"version"`
+	Uptime   string `json:"uptime"`
+	Language string `json:"language"`
 }
 
 // ========== Surge Engine ==========
@@ -52,9 +52,9 @@ type HealthResponse struct {
 // SurgeEngine calculates dynamic surge pricing.
 // In a full Wolf program, this would use @ml blocks with scikit-learn.
 type SurgeEngine struct {
-	mu           sync.RWMutex
-	demandCache  map[string]float64
-	baseRates    map[string]float64
+	mu          sync.RWMutex
+	demandCache map[string]float64
+	baseRates   map[string]float64
 }
 
 // NewSurgeEngine creates a new surge pricing engine.

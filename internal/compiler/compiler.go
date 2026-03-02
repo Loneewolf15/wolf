@@ -83,7 +83,7 @@ func (c *Compiler) Compile(source, filename string) (*CompileResult, error) {
 	for _, ast := range discoveredASTs {
 		program.Statements = append(program.Statements, ast.Statements...)
 	}
-	
+
 	// Generate the __compiler_dispatch_controller method based on all discovered classes
 	dispatchFunc := generateDispatcherAST(program)
 	if dispatchFunc != nil {

@@ -15,11 +15,11 @@ import (
 
 // Config represents the wolf.python configuration file.
 type Config struct {
-	PythonVersion  string            `json:"python_version"`
-	Packages       []PackageSpec     `json:"packages"`
-	VenvPath       string            `json:"venv_path"`
-	AutoActivate   bool              `json:"auto_activate"`
-	Env            map[string]string `json:"env,omitempty"`
+	PythonVersion string            `json:"python_version"`
+	Packages      []PackageSpec     `json:"packages"`
+	VenvPath      string            `json:"venv_path"`
+	AutoActivate  bool              `json:"auto_activate"`
+	Env           map[string]string `json:"env,omitempty"`
 }
 
 // PackageSpec represents a Python package requirement.
@@ -38,10 +38,10 @@ func (p PackageSpec) String() string {
 
 // LockFile represents the wolf.python.lock file.
 type LockFile struct {
-	GeneratedAt    string        `json:"generated_at"`
-	PythonVersion  string        `json:"python_version"`
-	PythonPath     string        `json:"python_path"`
-	Packages       []LockedPkg   `json:"packages"`
+	GeneratedAt   string      `json:"generated_at"`
+	PythonVersion string      `json:"python_version"`
+	PythonPath    string      `json:"python_path"`
+	Packages      []LockedPkg `json:"packages"`
 }
 
 // LockedPkg is a resolved package with exact version.
