@@ -160,6 +160,18 @@ func (e *LLVMEmitter) Emit(program *ir.Program) string {
 	e.writeln("declare ptr @wolf_bool_to_string(i1)")
 	e.writeln("")
 
+	e.writeln("; --- HTTP Server (C FFI) ---")
+	e.writeln("declare void @wolf_http_serve(i64, ptr)")
+	e.writeln("declare ptr @wolf_http_req_method(i64)")
+	e.writeln("declare ptr @wolf_http_req_path(i64)")
+	e.writeln("declare ptr @wolf_http_req_query(i64, ptr)")
+	e.writeln("declare ptr @wolf_http_req_header(i64, ptr)")
+	e.writeln("declare ptr @wolf_http_req_body(i64)")
+	e.writeln("declare void @wolf_http_res_header(i64, ptr, ptr)")
+	e.writeln("declare void @wolf_http_res_status(i64, i64)")
+	e.writeln("declare void @wolf_http_res_write(i64, ptr)")
+	e.writeln("")
+
 	// Body
 	e.buf.WriteString(bodyStr)
 

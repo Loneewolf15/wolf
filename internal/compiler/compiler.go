@@ -58,7 +58,9 @@ func (c *Compiler) Compile(source, filename string) (*CompileResult, error) {
 
 	// Phase 2: Parse
 	p := parser.New(tokens, filename)
-	program, parseErrors := p.Parse()
+	var program *parser.Program
+	var parseErrors []*lexer.WolfError
+	program, parseErrors = p.Parse()
 	if len(parseErrors) > 0 {
 		for _, e := range parseErrors {
 			result.Errors = append(result.Errors, e.Error())
@@ -67,7 +69,25 @@ func (c *Compiler) Compile(source, filename string) (*CompileResult, error) {
 	}
 
 	if c.Verbose {
-		fmt.Printf("wolf: parsed %d top-level statements\n", len(program.Statements))
+		fmt.Printf("wolf: parsed %d top-level statements from main file\n", len(program.Statements))
+	}
+
+	// Phase 2.5: Auto-Discover TraversyMVC Libraries and Controllers
+	projectRoot := filepath.Dir(filename)
+	discoveredASTs, err := c.AutoDiscover(projectRoot)
+	if err != nil {
+		result.Errors = append(result.Errors, err.Error())
+		return result, fmt.Errorf("autodiscovery failed: %w", err)
+	}
+
+	for _, ast := range discoveredASTs {
+		program.Statements = append(program.Statements, ast.Statements...)
+	}
+	
+	// Generate the __compiler_dispatch_controller method based on all discovered classes
+	dispatchFunc := generateDispatcherAST(program)
+	if dispatchFunc != nil {
+		program.Statements = append(program.Statements, dispatchFunc)
 	}
 
 	// Phase 3: Resolve
@@ -211,7 +231,7 @@ func (c *Compiler) Build(source, filename string) (*CompileResult, error) {
 
 	// Link everything into final binary
 	binaryPath := filepath.Join(outDir, baseName)
-	linkArgs := []string{"-o", binaryPath, objFile, runtimeObj}
+	linkArgs := []string{"-o", binaryPath, objFile, runtimeObj, "-lpthread"}
 
 	if runtime.GOOS == "linux" {
 		linkArgs = append(linkArgs, "-lm")

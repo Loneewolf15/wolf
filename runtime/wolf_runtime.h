@@ -27,4 +27,19 @@ const char* wolf_bool_to_string(int b);
 void* wolf_alloc(int64_t size);
 void wolf_free(void* ptr);
 
+// --- HTTP Server ---
+typedef void (*wolf_http_handler_t)(int64_t req_id, int64_t res_id);
+
+void wolf_http_serve(int64_t port, void* handler_ptr);
+
+const char* wolf_http_req_method(int64_t req_id);
+const char* wolf_http_req_path(int64_t req_id);
+const char* wolf_http_req_query(int64_t req_id, const char* key);
+const char* wolf_http_req_header(int64_t req_id, const char* key);
+const char* wolf_http_req_body(int64_t req_id);
+
+void wolf_http_res_header(int64_t res_id, const char* key, const char* value);
+void wolf_http_res_status(int64_t res_id, int64_t status_code);
+void wolf_http_res_write(int64_t res_id, const char* body);
+
 #endif // WOLF_RUNTIME_H
