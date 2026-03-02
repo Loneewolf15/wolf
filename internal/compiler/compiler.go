@@ -290,9 +290,15 @@ func findWolfRoot() (string, error) {
 		if _, err := os.Stat(runtimePath); err == nil {
 			return cwd, nil
 		}
+		// When running tests from a subdirectory like `e2e/` or `internal/`
+		parentDir := filepath.Dir(cwd)
+		runtimePath = filepath.Join(parentDir, "runtime", "wolf_runtime.c")
+		if _, err := os.Stat(runtimePath); err == nil {
+			return parentDir, nil
+		}
 	}
 
-	return "", fmt.Errorf("could not find wolf runtime directory (looked for runtime/wolf_runtime.c)")
+	return "", fmt.Errorf("could not find wolf runtime directory (looked for runtime/wolf_runtime.c) in %s", cwd)
 }
 
 func findCC() string {

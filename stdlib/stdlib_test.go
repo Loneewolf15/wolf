@@ -185,9 +185,9 @@ func TestRedisSetGet(t *testing.T) {
 	r.SetConn(mem)
 
 	r.Set("greeting", "hello", 0)
-	val, err := r.Get("greeting")
-	if err != nil {
-		t.Fatalf("Get failed: %v", err)
+	val := r.Get("greeting")
+	if val == "" {
+		t.Fatalf("Get failed to retrieve key")
 	}
 	if val != "hello" {
 		t.Errorf("Expected 'hello', got '%s'", val)
@@ -205,9 +205,9 @@ func TestRedisDel(t *testing.T) {
 		t.Errorf("Expected 1 deleted, got %d", count)
 	}
 
-	_, err := r.Get("key1")
-	if err == nil {
-		t.Error("Expected error after delete")
+	val := r.Get("key1")
+	if val != "" {
+		t.Error("Expected empty string after delete")
 	}
 }
 
@@ -251,9 +251,9 @@ func TestRedisHash(t *testing.T) {
 
 func TestRedisNotConnected(t *testing.T) {
 	r := NewRedis(&RedisConfig{})
-	_, err := r.Get("key")
-	if err == nil {
-		t.Error("Expected error when not connected")
+	val := r.Get("key")
+	if val != "" {
+		t.Error("Expected empty string when not connected")
 	}
 }
 

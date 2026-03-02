@@ -157,18 +157,12 @@ var js WolfJSON
 
 func TestJSONEncodeDecode(t *testing.T) {
 	data := map[string]interface{}{"name": "Wolf", "version": 1.0}
-	encoded, err := js.Encode(data)
-	if err != nil {
-		t.Fatalf("Encode failed: %v", err)
-	}
+	encoded := js.Encode(data)
 	if encoded == "" {
 		t.Error("Expected non-empty JSON")
 	}
 
-	decoded, err := js.Decode(encoded)
-	if err != nil {
-		t.Fatalf("Decode failed: %v", err)
-	}
+	decoded := js.Decode(encoded)
 	m, ok := decoded.(map[string]interface{})
 	if !ok {
 		t.Fatal("Expected map")
@@ -179,9 +173,9 @@ func TestJSONEncodeDecode(t *testing.T) {
 }
 
 func TestJSONDecodeMap(t *testing.T) {
-	m, err := js.DecodeMap(`{"key": "value"}`)
-	if err != nil {
-		t.Fatal(err)
+	m := js.DecodeMap(`{"key": "value"}`)
+	if m == nil {
+		t.Fatal("Expected map, got nil")
 	}
 	if m["key"] != "value" {
 		t.Error("Expected 'value'")
@@ -189,9 +183,9 @@ func TestJSONDecodeMap(t *testing.T) {
 }
 
 func TestJSONDecodeArray(t *testing.T) {
-	arr, err := js.DecodeArray(`[1, 2, 3]`)
-	if err != nil {
-		t.Fatal(err)
+	arr := js.DecodeArray(`[1, 2, 3]`)
+	if arr == nil {
+		t.Fatal("Expected array, got nil")
 	}
 	if len(arr) != 3 {
 		t.Errorf("Expected 3, got %d", len(arr))
@@ -200,9 +194,9 @@ func TestJSONDecodeArray(t *testing.T) {
 
 func TestJSONEncodePretty(t *testing.T) {
 	data := map[string]string{"a": "1"}
-	pretty, err := js.EncodePretty(data)
-	if err != nil {
-		t.Fatal(err)
+	pretty := js.EncodePretty(data)
+	if pretty == "" {
+		t.Fatal("Expected pretty JSON, got empty string")
 	}
 	if !containsStr(pretty, "\n") {
 		t.Error("Pretty should have newlines")
@@ -219,9 +213,9 @@ func TestJSONValid(t *testing.T) {
 }
 
 func TestJSONDecodeError(t *testing.T) {
-	_, err := js.Decode("{bad json")
-	if err == nil {
-		t.Error("Expected error")
+	res := js.Decode("{bad json")
+	if res != nil {
+		t.Error("Expected nil on bad json")
 	}
 }
 
