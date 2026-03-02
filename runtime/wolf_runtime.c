@@ -4,6 +4,9 @@
  * Compiled with: clang -c wolf_runtime.c -o wolf_runtime.o
  */
 
+#define _GNU_SOURCE
+#define _POSIX_C_SOURCE 200809L
+
 #include "wolf_runtime.h"
 #include <stdio.h>
 #include <stdlib.h>

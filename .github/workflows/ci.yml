@@ -34,7 +34,19 @@ jobs:
         run: make build
 
       - name: Test
-        run: make test-cover
+        run: |
+          make test-cover > test_log.txt 2>&1 || (
+            echo "::error title=make test-cover failed::See step summary for details"
+            echo "### 🔴 Test Suite Failure Log" >> $GITHUB_STEP_SUMMARY
+            echo "<details><summary>Click to expand full log</summary>" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+            tail -n 100 test_log.txt >> $GITHUB_STEP_SUMMARY
+            echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+            echo "</details>" >> $GITHUB_STEP_SUMMARY
+            cat test_log.txt
+            exit 2
+          )
 
       - name: Cross-Platform Build
         run: make build-all
