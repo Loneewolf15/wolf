@@ -1,0 +1,8 @@
+func handle_test() {
+    $url = $r->URL->Query()->Get("url")
+    respond(200, {"received_url": $url})
+}
+
+route("GET", "/test", handle_test)
+print("Server starting on :8080")
+serve(8080)

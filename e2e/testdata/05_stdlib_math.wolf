@@ -1,0 +1,5 @@
+$abs = Wolf_Math::Abs(-5.5)
+$ceil = Wolf_Math::Ceil(4.2)
+$floor = Wolf_Math::Floor(4.8)
+$max = Wolf_Math::Max(10.0, 20.0)
+print("abs: {$abs} ceil: {$ceil} floor: {$floor} max: {$max}")

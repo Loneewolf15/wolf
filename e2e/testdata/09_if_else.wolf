@@ -1,0 +1,8 @@
+$age = 15
+if $age >= 18 {
+    print("Welcome")
+} else if $age >= 13 {
+    print("Teen")
+} else {
+    print("Child")
+}

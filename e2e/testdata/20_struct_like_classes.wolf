@@ -1,0 +1,2 @@
+$b = Wolf_Env::Has("WOLF_TEST_VAR")
+print("Has Env: {$b}")

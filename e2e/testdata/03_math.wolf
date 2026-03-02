@@ -1,0 +1,8 @@
+$a = 10
+$b = 2
+$c = $a + $b
+$d = $a - $b
+$e = $a * $b
+$f = $a / $b
+$g = 10 % 3
+print("add: {$c} sub: {$d} mul: {$e} div: {$f} mod: {$g}")

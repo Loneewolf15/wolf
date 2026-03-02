@@ -1,0 +1,19 @@
+# Binaries for programs and plugins
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+wolf
+wolf_out/
+test-venv/
+.default-venv/
+__pycache__/
+
+# Output and build directories
+bin/
+obj/
+
+# Ignored Folders
+Agskills/
+BackendTemplate/

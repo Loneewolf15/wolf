@@ -1,0 +1,10 @@
+$name = "World"
+$count = 3
+
+func greet($who) {
+    print("Hello, {$who}!")
+}
+
+for $i = 0; $i < $count; $i++ {
+    greet($name)
+}

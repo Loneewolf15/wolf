@@ -1,0 +1,5 @@
+$c = Wolf_Strings::Contains("Red Wolf", "Wolf")
+$u = Wolf_Strings::Upper("hello")
+$s = Wolf_Strings::Split("a,b,c", ",")
+$j = Wolf_Strings::Join($s, "-")
+print("contains: {$c} upper: {$u} join: {$j}")

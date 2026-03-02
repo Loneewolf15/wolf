@@ -1,0 +1,80 @@
+# Wolf Surge Pricing API
+# A complete HTTP server written in Wolf
+# Demonstrates: routes, respond, serve, functions, control flow
+
+# -- Base rates per km --
+# (Rates are used directly within handle_estimate)
+
+# -- Distance calculation (simplified haversine) --
+func haversine($lat1, $lng1, $lat2, $lng2) -> float {
+    $d_lat = $lat2 - $lat1
+    $d_lng = $lng2 - $lng1
+    $km_lat = $d_lat * 111.0
+    $km_lng = $d_lng * 111.0
+    $dist = $km_lat + $km_lng
+    if $dist < 0.0 {
+        $dist = $dist * -1.0
+    }
+    return $dist
+}
+
+# -- Surge multiplier --
+func get_surge($hour) -> float {
+    $factor = 1.0
+    if $hour > 6.0 {
+        if $hour < 10.0 {
+            $factor = 1.3
+        }
+    }
+    if $hour > 16.0 {
+        if $hour < 21.0 {
+            $factor = 1.5
+        }
+    }
+    if $factor > 3.0 {
+        $factor = 3.0
+    }
+    return $factor
+}
+
+# -- Calculate price --
+func calculate_price($distance, $rate, $surge) -> float {
+    $base = $distance * $rate
+    if $base < 5.0 {
+        $base = 5.0
+    }
+    $final = $base * $surge
+    return $final
+}
+
+# -- HTTP Handlers --
+
+func handle_health() {
+    respond(200, {"status": "healthy", "version": "0.1.0", "language": "Wolf"})
+}
+
+func handle_estimate() {
+    $distance = haversine(6.5244, 3.3792, 6.4541, 3.3947)
+    $surge = get_surge(18.0)
+    $std_price = calculate_price($distance, 1.50, $surge)
+    $prm_price = calculate_price($distance, 2.50, $surge)
+    $xl_price = calculate_price($distance, 3.00, $surge)
+    respond(200, {
+        "distance_km": $distance,
+        "surge": $surge,
+        "standard_price": $std_price,
+        "premium_price": $prm_price,
+        "xl_price": $xl_price,
+        "currency": "NGN"
+    })
+}
+
+# -- Routes --
+route("GET", "/health", handle_health)
+route("POST", "/rides/estimate", handle_estimate)
+
+# -- Start server --
+print("Wolf Surge Pricing API")
+print("  GET  /health          - Health check")
+print("  POST /rides/estimate  - Price estimate")
+serve(8080)

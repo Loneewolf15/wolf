@@ -1,0 +1,3 @@
+$m = {"name": "Wolf", "age": 1}
+$s = Wolf_JSON::Encode($m)
+print("encoded: {$s}")

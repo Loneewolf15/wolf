@@ -1,0 +1,85 @@
+# Wolf URL Shortener API
+# Demonstrates: Redis integration, stdlib, dynamic Go object interaction
+
+# 1. Connect to Redis (loads from config/wolf.config.json)
+Wolf_Redis::Connect()
+
+# 2. Helper: Generate random 6-character short ID
+func generate_short() -> string {
+    $chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+    $new_id = ""
+    for $i = 0; $i < 6; $i++ {
+        $idx = Wolf_Math::RandomInt(Wolf_Strings::Length($chars))
+        $new_id = $new_id + Wolf_Strings::Substring($chars, $idx, $idx + 1)
+    }
+    return $new_id
+}
+
+# 3. HTTP Handler: POST /shorten?url=https://...
+func handle_shorten() {
+    $long_url = $r->URL->Query()->Get("url")
+    
+    if Wolf_Strings::IsEmpty($long_url) {
+        respond(400, {"error": "url parameter is required"})
+        return
+    }
+
+    $short_id = generate_short()
+    
+    # Save to Redis
+    Wolf_Redis::Set("url:{$short_id}", $long_url, 0)
+    
+    respond(200, {
+        "id": $short_id,
+        "long_url": $long_url,
+        "short_url": "http://localhost:8080/go?id={$short_id}"
+    })
+}
+
+# 4. HTTP Handler: GET /go?id=...
+func handle_redirect() {
+    $req_id = $r->URL->Query()->Get("id")
+
+    if Wolf_Strings::IsEmpty($req_id) {
+        respond(400, {"error": "id parameter is required"})
+        return
+    }
+
+    # Fetch from Redis
+    $target_url = Wolf_Redis::Get("url:{$req_id}")
+
+    if Wolf_Strings::IsEmpty($target_url) {
+        respond(404, {"error": "short url not found"})
+        return
+    }
+
+    # Use native Go HTTP Writer to issue a 302 Redirect
+    $w->Header()->Set("Location", $target_url)
+    $w->WriteHeader(302)
+}
+
+# 5. HTTP Handler: GET /health
+func handle_health() {
+    # Check if redis is alive by pinging a test key
+    Wolf_Redis::Set("health", "ok", 1)
+    $redis_status = Wolf_Redis::Get("health")
+    
+    respond(200, {
+        "status": "healthy",
+        "redis": $redis_status,
+        "language": "Wolf",
+        "app": "URL Shortener"
+    })
+}
+
+# 6. Register Routes
+route("POST", "/shorten", handle_shorten)
+route("GET", "/go", handle_redirect)
+route("GET", "/health", handle_health)
+
+# 7. Start Server
+print("🐺 Wolf URL Shortener starting on :8080")
+print("  POST /shorten?url=...  - Create short link")
+print("  GET  /go?id=...        - Redirect to long link")
+print("  GET  /health           - Healthcheck")
+serve(8080)

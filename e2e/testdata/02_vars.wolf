@@ -1,0 +1,7 @@
+$name = "WolfLang"
+$version = 1.0
+$isActive = true
+
+print("Language: " + $name)
+print("Version: {$version}")
+print("Active: {$isActive}")

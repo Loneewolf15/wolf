@@ -1,0 +1,6 @@
+$v = 2
+match $v {
+    1 => print("One")
+    2 => print("Two")
+    _ => print("Other")
+}

@@ -1,0 +1,14 @@
+wolf: lexed 328 tokens
+wolf: parsed 13 top-level statements
+wolf: Go source generated successfully
+Error: build failed
+Usage:
+  wolf build [file] [flags]
+
+Flags:
+  -h, --help   help for build
+
+Global Flags:
+      --strict    Enable strict type checking mode
+  -V, --verbose   Enable verbose output
+
