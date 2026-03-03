@@ -227,6 +227,17 @@ func (e *LLVMEmitter) Emit(program *ir.Program) string {
 	e.writeln("declare ptr @wolf_define_get(ptr)")
 	e.writeln("")
 
+	e.writeln("; --- Redis ---")
+	e.writeln("declare ptr @wolf_redis_connect(ptr, i64, ptr)")
+	e.writeln("declare void @wolf_redis_set(ptr, ptr, ptr, i64)")
+	e.writeln("declare ptr @wolf_redis_get(ptr, ptr)")
+	e.writeln("declare i64 @wolf_redis_del(ptr, ptr)")
+	e.writeln("declare i1 @wolf_redis_exists(ptr, ptr)")
+	e.writeln("declare void @wolf_redis_hset(ptr, ptr, ptr, ptr)")
+	e.writeln("declare ptr @wolf_redis_hget(ptr, ptr, ptr)")
+	e.writeln("declare void @wolf_redis_close(ptr)")
+	e.writeln("")
+
 	e.writeln("; --- Data Structures ---")
 	e.writeln("declare ptr @wolf_array_create()")
 	e.writeln("declare void @wolf_array_push(ptr, ptr)")

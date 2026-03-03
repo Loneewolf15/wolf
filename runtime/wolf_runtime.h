@@ -58,6 +58,16 @@ void wolf_define(const char* key, const char* value);
 int wolf_defined(const char* key);
 const char* wolf_define_get(const char* key);
 
+// --- Redis (In-Memory Mock / hiredis swap) ---
+void* wolf_redis_connect(const char* host, int64_t port, const char* pass);
+void wolf_redis_set(void* handle, const char* key, const char* value, int64_t ttl);
+const char* wolf_redis_get(void* handle, const char* key);
+int64_t wolf_redis_del(void* handle, const char* key);
+int wolf_redis_exists(void* handle, const char* key);
+void wolf_redis_hset(void* handle, const char* key, const char* field, const char* value);
+const char* wolf_redis_hget(void* handle, const char* key, const char* field);
+void wolf_redis_close(void* handle);
+
 // --- Math ---
 double wolf_math_abs(double v);
 double wolf_math_ceil(double v);

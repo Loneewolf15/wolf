@@ -1,0 +1,45 @@
+# libraries/Redis.wolf
+# Redis wrapper class following TraversyMVC pattern
+# Uses in-memory mock by default — swap to hiredis for production
+
+class Redis {
+    $handle
+
+    func __construct() {
+        $host = define_get("REDIS_HOST")
+        if $host == "" {
+            $host = "localhost"
+        }
+        $port = 6379
+        $pass = define_get("REDIS_PASS")
+        $this->handle = redis_connect($host, $port, $pass)
+    }
+
+    func set($key: string, $value: string, $ttl: int) {
+        redis_set($this->handle, $key, $value, $ttl)
+    }
+
+    func get($key: string) {
+        return redis_get($this->handle, $key)
+    }
+
+    func del($key: string) {
+        return redis_del($this->handle, $key)
+    }
+
+    func exists($key: string) {
+        return redis_exists($this->handle, $key)
+    }
+
+    func hset($key: string, $field: string, $value: string) {
+        redis_hset($this->handle, $key, $field, $value)
+    }
+
+    func hget($key: string, $field: string) {
+        return redis_hget($this->handle, $key, $field)
+    }
+
+    func close() {
+        redis_close($this->handle)
+    }
+}

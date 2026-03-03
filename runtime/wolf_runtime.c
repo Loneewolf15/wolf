@@ -226,6 +226,98 @@ const char* wolf_define_get(const char* key) {
     return "";
 }
 
+// ========== Redis (In-Memory Mock) ==========
+// Production: swap with hiredis calls. Mock lets Wolf code compile & run without a live Redis.
+
+#define WOLF_REDIS_MAX 512
+
+static struct {
+    char* keys[WOLF_REDIS_MAX];
+    char* values[WOLF_REDIS_MAX];
+    int64_t ttls[WOLF_REDIS_MAX];   // 0 = no expiry
+    int count;
+} wolf_redis_store = { .count = 0 };
+
+static int wolf_redis_find(const char* key) {
+    if (!key) return -1;
+    for (int i = 0; i < wolf_redis_store.count; i++) {
+        if (wolf_redis_store.keys[i] && strcmp(wolf_redis_store.keys[i], key) == 0) {
+            return i;
+        }
+    }
+    return -1;
+}
+
+void* wolf_redis_connect(const char* host, int64_t port, const char* pass) {
+    // In-memory mock: always succeeds
+    return (void*)1;
+}
+
+void wolf_redis_set(void* handle, const char* key, const char* value, int64_t ttl) {
+    if (!key) return;
+    int idx = wolf_redis_find(key);
+    if (idx >= 0) {
+        free(wolf_redis_store.values[idx]);
+        wolf_redis_store.values[idx] = value ? strdup(value) : strdup("");
+        wolf_redis_store.ttls[idx] = ttl;
+        return;
+    }
+    if (wolf_redis_store.count >= WOLF_REDIS_MAX) return;
+    wolf_redis_store.keys[wolf_redis_store.count] = strdup(key);
+    wolf_redis_store.values[wolf_redis_store.count] = value ? strdup(value) : strdup("");
+    wolf_redis_store.ttls[wolf_redis_store.count] = ttl;
+    wolf_redis_store.count++;
+}
+
+const char* wolf_redis_get(void* handle, const char* key) {
+    int idx = wolf_redis_find(key);
+    if (idx >= 0) return wolf_redis_store.values[idx];
+    return "";
+}
+
+int64_t wolf_redis_del(void* handle, const char* key) {
+    int idx = wolf_redis_find(key);
+    if (idx < 0) return 0;
+    free(wolf_redis_store.keys[idx]);
+    free(wolf_redis_store.values[idx]);
+    // Shift remaining entries down
+    for (int i = idx; i < wolf_redis_store.count - 1; i++) {
+        wolf_redis_store.keys[i] = wolf_redis_store.keys[i + 1];
+        wolf_redis_store.values[i] = wolf_redis_store.values[i + 1];
+        wolf_redis_store.ttls[i] = wolf_redis_store.ttls[i + 1];
+    }
+    wolf_redis_store.count--;
+    return 1;
+}
+
+int wolf_redis_exists(void* handle, const char* key) {
+    return wolf_redis_find(key) >= 0 ? 1 : 0;
+}
+
+void wolf_redis_hset(void* handle, const char* key, const char* field, const char* value) {
+    // Store as "key:field" -> value
+    if (!key || !field) return;
+    size_t klen = strlen(key) + strlen(field) + 2;
+    char* compound = (char*)malloc(klen);
+    snprintf(compound, klen, "%s:%s", key, field);
+    wolf_redis_set(handle, compound, value, 0);
+    free(compound);
+}
+
+const char* wolf_redis_hget(void* handle, const char* key, const char* field) {
+    if (!key || !field) return "";
+    size_t klen = strlen(key) + strlen(field) + 2;
+    char* compound = (char*)malloc(klen);
+    snprintf(compound, klen, "%s:%s", key, field);
+    const char* result = wolf_redis_get(handle, compound);
+    free(compound);
+    return result;
+}
+
+void wolf_redis_close(void* handle) {
+    // No-op for mock
+}
+
 // ========== Stdlib Strings & JSON ==========
 
 int wolf_strings_contains(const char* s, const char* substr) {
