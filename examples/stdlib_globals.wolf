@@ -1,0 +1,12 @@
+say("Testing Wolf global functions!\n")
+$t = time()
+say("Current Unix Time: {$t}\n")
+
+$r = math.random(1, 10)
+say("Random 1-10: {$r}\n")
+
+say("Waiting 1 second...\n")
+sleep(1)
+
+$date_str = "2026-03-03 12:00:00"
+say("Parsed Date: {$date_str}\n")

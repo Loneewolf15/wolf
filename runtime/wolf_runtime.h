@@ -3,7 +3,12 @@
 
 #include <stdint.h>
 
-// --- Print ---
+// --- Output & Display (Wolf Way) ---
+void wolf_say(const char* s);
+void wolf_show(void* variable);
+void wolf_inspect(void* variable);
+
+// --- Print (Legacy/Internal) ---
 void wolf_print_str(const char* s);
 void wolf_print_int(int64_t n);
 void wolf_print_float(double f);
@@ -30,6 +35,23 @@ void* wolf_map_get(void* map, const char* key);
 int wolf_env_has(const char* key);
 
 void* wolf_class_create(const char* name);
+
+// --- Time & Date ---
+int64_t wolf_time_now();
+const char* wolf_time_date(const char* format, int64_t timestamp);
+int64_t wolf_time_strtotime(const char* datetime_string);
+
+// --- System Utilities ---
+void wolf_system_sleep(int64_t seconds);
+void wolf_system_exit(int64_t code);
+void wolf_system_die(const char* message);
+const char* wolf_env_get(const char* key, const char* default_val);
+
+// --- Sessions ---
+void wolf_session_begin();
+void wolf_session_set(const char* key, const char* value);
+const char* wolf_session_get(const char* key);
+void wolf_session_end();
 
 // --- Math ---
 double wolf_math_abs(double v);

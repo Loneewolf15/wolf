@@ -187,6 +187,7 @@ func (e *LLVMEmitter) Emit(program *ir.Program) string {
 	e.writeln("declare double @wolf_math_floor(double)")
 	e.writeln("declare double @wolf_math_max(double, double)")
 	e.writeln("declare double @wolf_math_min(double, double)")
+	e.writeln("declare i64 @wolf_math_random(i64, i64)")
 	e.writeln("")
 
 	e.writeln("; --- Stdlib Strings & JSON ---")
@@ -195,6 +196,29 @@ func (e *LLVMEmitter) Emit(program *ir.Program) string {
 	e.writeln("declare ptr @wolf_strings_split(ptr, ptr)")
 	e.writeln("declare ptr @wolf_strings_join(ptr, ptr)")
 	e.writeln("declare ptr @wolf_json_encode(ptr)")
+	e.writeln("")
+
+	e.writeln("; --- Output & Display ---")
+	e.writeln("declare void @wolf_say(ptr)")
+	e.writeln("declare void @wolf_show(ptr)")
+	e.writeln("declare void @wolf_inspect(ptr)")
+	e.writeln("")
+
+	e.writeln("; --- Time & System ---")
+	e.writeln("declare i64 @wolf_time_now()")
+	e.writeln("declare ptr @wolf_time_date(ptr, i64)")
+	e.writeln("declare i64 @wolf_time_strtotime(ptr)")
+	e.writeln("declare void @wolf_system_sleep(i64)")
+	e.writeln("declare void @wolf_system_exit(i64)")
+	e.writeln("declare void @wolf_system_die(ptr)")
+	e.writeln("declare ptr @wolf_env_get(ptr, ptr)")
+	e.writeln("")
+
+	e.writeln("; --- Sessions ---")
+	e.writeln("declare void @wolf_session_begin()")
+	e.writeln("declare void @wolf_session_set(ptr, ptr)")
+	e.writeln("declare ptr @wolf_session_get(ptr)")
+	e.writeln("declare void @wolf_session_end()")
 	e.writeln("")
 
 	e.writeln("; --- Data Structures ---")
@@ -451,6 +475,12 @@ func (e *LLVMEmitter) inferExprType(expr ir.Expr) string {
 		return "ptr"
 	case *ir.CallExpr:
 		if ident, ok := ex.Callee.(*ir.Ident); ok {
+			switch ident.Name {
+			case "time", "strtotime":
+				return "i64"
+			case "date", "env", "session_get":
+				return "ptr"
+			}
 			if fnSig, exists := e.funcSigs[ident.Name]; exists && len(fnSig.ReturnTypes) > 0 {
 				return e.wolfTypeToLLVM(fnSig.ReturnTypes[0])
 			}
@@ -459,11 +489,13 @@ func (e *LLVMEmitter) inferExprType(expr ir.Expr) string {
 	case *ir.MethodCallExpr:
 		return "ptr" // default for method calls
 	case *ir.StaticCall:
-		// Convert Wolf_Math::Abs to wolf_math_abs to infer return type
+		// Convert Wolf_Math::Abs or math.abs to generic names
 		cfunc := strings.ToLower(fmt.Sprintf("%s_%s", ex.Class, ex.Method))
 		switch cfunc {
-		case "wolf_math_abs", "wolf_math_ceil", "wolf_math_floor", "wolf_math_max", "wolf_math_min":
+		case "wolf_math_abs", "wolf_math_ceil", "wolf_math_floor", "wolf_math_max", "wolf_math_min", "math_abs", "math_ceil", "math_floor", "math_max", "math_min":
 			return "double"
+		case "wolf_math_random", "math_random":
+			return "i64"
 		case "wolf_json_encode", "wolf_json_decode", "wolf_strings_upper", "wolf_strings_join", "wolf_strings_replace":
 			return "ptr"
 		case "wolf_strings_contains", "wolf_env_has":
@@ -910,6 +942,38 @@ func (e *LLVMEmitter) emitCallExpr(call *ir.CallExpr) string {
 	calleeName := ""
 	if ident, ok := call.Callee.(*ir.Ident); ok {
 		calleeName = ident.Name
+
+		// Map global wolf functions to C runtime equivalents
+		switch calleeName {
+		case "say":
+			calleeName = "wolf_say"
+		case "show":
+			calleeName = "wolf_show"
+		case "inspect":
+			calleeName = "wolf_inspect"
+		case "time":
+			calleeName = "wolf_time_now"
+		case "date":
+			calleeName = "wolf_time_date"
+		case "strtotime":
+			calleeName = "wolf_time_strtotime"
+		case "sleep":
+			calleeName = "wolf_system_sleep"
+		case "exit":
+			calleeName = "wolf_system_exit"
+		case "die":
+			calleeName = "wolf_system_die"
+		case "env":
+			calleeName = "wolf_env_get"
+		case "session_begin":
+			calleeName = "wolf_session_begin"
+		case "session_set":
+			calleeName = "wolf_session_set"
+		case "session_get":
+			calleeName = "wolf_session_get"
+		case "session_end":
+			calleeName = "wolf_session_end"
+		}
 	}
 
 	var fnSig *ir.Function
@@ -922,6 +986,24 @@ func (e *LLVMEmitter) emitCallExpr(call *ir.CallExpr) string {
 		expectedType := "ptr"
 		if fnSig != nil && i < len(fnSig.Params) {
 			expectedType = e.wolfTypeToLLVM(fnSig.Params[i].Type)
+		} else if fnSig == nil {
+			switch calleeName {
+			case "wolf_system_sleep", "wolf_system_exit":
+				expectedType = "i64"
+			case "wolf_time_date":
+				if i == 0 {
+					expectedType = "ptr"
+				}
+				if i == 1 {
+					expectedType = "i64"
+				}
+			case "wolf_math_abs", "wolf_math_ceil", "wolf_math_floor", "wolf_math_round":
+				expectedType = "double"
+			case "wolf_math_max", "wolf_math_min":
+				expectedType = "double"
+			case "wolf_math_random":
+				expectedType = "i64"
+			}
 		}
 		val := e.emitExpr(arg, expectedType)
 		args[i] = fmt.Sprintf("%s %s", expectedType, val)
@@ -931,7 +1013,14 @@ func (e *LLVMEmitter) emitCallExpr(call *ir.CallExpr) string {
 	if fnSig != nil && len(fnSig.ReturnTypes) > 0 {
 		retType = e.wolfTypeToLLVM(fnSig.ReturnTypes[0])
 	} else if fnSig == nil {
-		retType = "ptr" // Call to unknown func (e.g. external) typically returns ptr
+		switch calleeName {
+		case "wolf_say", "wolf_show", "wolf_inspect", "wolf_system_sleep", "wolf_system_exit", "wolf_system_die", "wolf_session_begin", "wolf_session_set", "wolf_session_end":
+			retType = "void"
+		case "wolf_time_now", "wolf_time_strtotime":
+			retType = "i64"
+		default:
+			retType = "ptr" // Call to unknown func (e.g. external) typically returns ptr
+		}
 	}
 
 	reg := e.nextLocal()
@@ -1164,8 +1253,17 @@ func (e *LLVMEmitter) emitMethodCall(mc *ir.MethodCallExpr) string {
 }
 
 func (e *LLVMEmitter) emitStaticCall(sc *ir.StaticCall) string {
-	// Standardize names: Wolf_Math::Abs -> wolf_math_abs
+	// Standardize names: Wolf_Math::Abs or math.abs -> wolf_math_abs
 	calleeName := strings.ToLower(fmt.Sprintf("%s_%s", sc.Class, sc.Method))
+
+	switch strings.ToLower(sc.Class) {
+	case "math", "wolf_math":
+		calleeName = strings.ToLower(fmt.Sprintf("wolf_math_%s", sc.Method))
+	case "json", "wolf_json":
+		calleeName = strings.ToLower(fmt.Sprintf("wolf_json_%s", sc.Method))
+	case "strings", "wolf_strings":
+		calleeName = strings.ToLower(fmt.Sprintf("wolf_strings_%s", sc.Method))
+	}
 
 	args := make([]string, len(sc.Args))
 	for i, arg := range sc.Args {

@@ -966,7 +966,39 @@ func (p *Parser) parseCallAndAccess() Expression {
 					Pos_:   pos,
 				}
 			} else {
-				// Property access
+				expr = &PropertyAccess{
+					Object:   expr,
+					Property: propName,
+					Pos_:     pos,
+				}
+			}
+		} else if p.check(lexer.TOKEN_DOT) {
+			// Module property access or module method call: math.random()
+			pos := p.currentPos()
+			p.advance() // consume .
+			propName := ""
+			if p.check(lexer.TOKEN_IDENT) {
+				propName = p.advance().Literal
+			} else {
+				p.addError("expected property name after '.'")
+			}
+
+			if p.check(lexer.TOKEN_LPAREN) {
+				// Method call mapped as StaticCall for module.method()
+				args := p.parseArgList()
+				// Unwrap the module name
+				moduleName := ""
+				if ident, ok := expr.(*Identifier); ok {
+					moduleName = ident.Name
+				}
+				expr = &StaticCall{
+					Class:  moduleName,
+					Method: propName,
+					Args:   args,
+					Pos_:   pos,
+				}
+			} else {
+				// Property access mapped dynamically
 				expr = &PropertyAccess{
 					Object:   expr,
 					Property: propName,

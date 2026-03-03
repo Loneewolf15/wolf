@@ -18,6 +18,7 @@
 #include <unistd.h>
 #include <pthread.h>
 #include <strings.h>
+#include <time.h>
 
 // ========== Print ==========
 
@@ -48,6 +49,24 @@ void wolf_print_nil(void) {
 
 void wolf_println(void) {
     printf("\n");
+}
+
+// --- Output & Display (Wolf Way) ---
+
+void wolf_say(const char* s) {
+    if (s) printf("%s", s);
+}
+
+void wolf_show(void* variable) {
+    // For now, map everything to a simple string representation
+    if (variable) printf("%p\n", variable);
+    else printf("nil\n");
+}
+
+void wolf_inspect(void* variable) {
+    // Debugging dump
+    if (variable) printf("[ptr] %p\n", variable);
+    else printf("[nil] null\n");
 }
 
 // ========== String Operations ==========
@@ -122,6 +141,52 @@ double wolf_math_max(double a, double b) {
 }
 double wolf_math_min(double a, double b) {
 	return a < b ? a : b;
+}
+int64_t wolf_math_random(int64_t min, int64_t max) {
+    srand(time(NULL));
+    return min + rand() % ((max + 1) - min);
+}
+
+// ========== Time & System ==========
+
+int64_t wolf_time_now() {
+    return (int64_t)time(NULL);
+}
+
+const char* wolf_time_date(const char* format, int64_t timestamp) {
+    time_t rawtime = (time_t)timestamp;
+    struct tm *info = localtime(&rawtime);
+    char* buf = (char*)malloc(256);
+    strftime(buf, 256, format, info);
+    return buf;
+}
+
+void wolf_system_sleep(int64_t seconds) {
+    sleep((unsigned int)seconds);
+}
+
+void wolf_system_exit(int64_t code) {
+    exit((int)code);
+}
+
+void wolf_system_die(const char* message) {
+    if (message) printf("%s\n", message);
+    exit(1);
+}
+
+// ========== Sessions ==========
+
+void wolf_session_begin() {
+    // LLVM FFI Stub for Sessions
+}
+void wolf_session_set(const char* key, const char* value) {
+    // LLVM FFI Stub
+}
+const char* wolf_session_get(const char* key) {
+    return ""; // LLVM FFI Stub
+}
+void wolf_session_end() {
+    // LLVM FFI Stub
 }
 
 // ========== Stdlib Strings & JSON ==========
