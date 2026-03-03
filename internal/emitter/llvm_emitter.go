@@ -21,6 +21,8 @@ type LLVMEmitter struct {
 	indent       int
 	// Track declared variables and their LLVM types
 	varTypes map[string]string // varName → LLVM type ("i64", "double", "ptr", "i1")
+	// Track user-defined function signatures
+	funcSigs map[string]*ir.Function
 	// Track declared external functions
 	declaredExterns map[string]bool
 }
@@ -30,6 +32,7 @@ func NewLLVMEmitter() *LLVMEmitter {
 	return &LLVMEmitter{
 		stringConsts:    make(map[string]string),
 		varTypes:        make(map[string]string),
+		funcSigs:        make(map[string]*ir.Function),
 		declaredExterns: make(map[string]bool),
 	}
 }
@@ -100,10 +103,28 @@ func (e *LLVMEmitter) Emit(program *ir.Program) string {
 	mainBuf := &e.buf
 	e.buf = bodyBuf
 
-	// Emit functions
+	// Emit functions and track their signatures
 	for _, fn := range program.Functions {
+		e.funcSigs[fn.Name] = fn
 		e.emitFunction(fn)
 		e.writeln("")
+	}
+
+	// Emit classes
+	for _, cls := range program.Classes {
+		if cls.Constructor != nil {
+			cls.Constructor.ReturnTypes = []string{"ptr"}
+			e.funcSigs[cls.Constructor.Name] = cls.Constructor
+			e.emitConstructor(cls.Constructor, cls.Name)
+			e.writeln("")
+		}
+		for _, method := range cls.Methods {
+			method.Params = append([]*ir.Param{{Name: "this", Type: "ptr"}}, method.Params...)
+			method.Name = fmt.Sprintf("%s_%s", cls.Name, method.Name)
+			e.funcSigs[method.Name] = method
+			e.emitFunction(method)
+			e.writeln("")
+		}
 	}
 
 	// Emit main function from InitStmts
@@ -160,6 +181,34 @@ func (e *LLVMEmitter) Emit(program *ir.Program) string {
 	e.writeln("declare ptr @wolf_bool_to_string(i1)")
 	e.writeln("")
 
+	e.writeln("; --- Math ---")
+	e.writeln("declare double @wolf_math_abs(double)")
+	e.writeln("declare double @wolf_math_ceil(double)")
+	e.writeln("declare double @wolf_math_floor(double)")
+	e.writeln("declare double @wolf_math_max(double, double)")
+	e.writeln("declare double @wolf_math_min(double, double)")
+	e.writeln("")
+
+	e.writeln("; --- Stdlib Strings & JSON ---")
+	e.writeln("declare i1 @wolf_strings_contains(ptr, ptr)")
+	e.writeln("declare ptr @wolf_strings_upper(ptr)")
+	e.writeln("declare ptr @wolf_strings_split(ptr, ptr)")
+	e.writeln("declare ptr @wolf_strings_join(ptr, ptr)")
+	e.writeln("declare ptr @wolf_json_encode(ptr)")
+	e.writeln("")
+
+	e.writeln("; --- Data Structures ---")
+	e.writeln("declare ptr @wolf_array_create()")
+	e.writeln("declare void @wolf_array_push(ptr, ptr)")
+	e.writeln("declare ptr @wolf_array_get(ptr, i64)")
+	e.writeln("declare i64 @wolf_array_length(ptr)")
+	e.writeln("declare ptr @wolf_map_create()")
+	e.writeln("declare void @wolf_map_set(ptr, ptr, ptr)")
+	e.writeln("declare ptr @wolf_map_get(ptr, ptr)")
+	e.writeln("declare ptr @wolf_class_create(ptr)")
+	e.writeln("declare i1 @wolf_env_has(ptr)")
+	e.writeln("")
+
 	e.writeln("; --- HTTP Server (C FFI) ---")
 	e.writeln("declare void @wolf_http_serve(i64, ptr)")
 	e.writeln("declare ptr @wolf_http_req_method(i64)")
@@ -185,7 +234,7 @@ func (e *LLVMEmitter) emitFunction(fn *ir.Function) {
 	params := make([]string, len(fn.Params))
 	for i, p := range fn.Params {
 		llType := e.wolfTypeToLLVM(p.Type)
-		params[i] = fmt.Sprintf("%s %%%s", llType, p.Name)
+		params[i] = fmt.Sprintf("%s %%%s.arg", llType, p.Name)
 	}
 
 	retType := "void"
@@ -197,11 +246,12 @@ func (e *LLVMEmitter) emitFunction(fn *ir.Function) {
 	e.writeln("entry:")
 	e.indent++
 
-	// Allocate stack space for params
+	// Allocate stack space for params and map their types
 	for _, p := range fn.Params {
 		llType := e.wolfTypeToLLVM(p.Type)
-		e.writelnIndent(fmt.Sprintf("%%%s.addr = alloca %s", p.Name, llType))
-		e.writelnIndent(fmt.Sprintf("store %s %%%s, ptr %%%s.addr", llType, p.Name, p.Name))
+		e.writelnIndent(fmt.Sprintf("%%%s = alloca %s", p.Name, llType))
+		e.writelnIndent(fmt.Sprintf("store %s %%%s.arg, ptr %%%s", llType, p.Name, p.Name))
+		e.varTypes[p.Name] = llType
 	}
 
 	for _, stmt := range fn.Body {
@@ -212,6 +262,45 @@ func (e *LLVMEmitter) emitFunction(fn *ir.Function) {
 	if retType == "void" && !e.lastStmtIsReturn(fn.Body) {
 		e.writelnIndent("ret void")
 	}
+
+	e.indent--
+	e.writeln("}")
+}
+
+func (e *LLVMEmitter) emitConstructor(fn *ir.Function, className string) {
+	params := make([]string, len(fn.Params))
+	for i, p := range fn.Params {
+		llType := e.wolfTypeToLLVM(p.Type)
+		params[i] = fmt.Sprintf("%s %%%s.arg", llType, p.Name)
+	}
+
+	e.writeln(fmt.Sprintf("define ptr @%s(%s) {", fn.Name, strings.Join(params, ", ")))
+	e.writeln("entry:")
+	e.indent++
+
+	for _, p := range fn.Params {
+		llType := e.wolfTypeToLLVM(p.Type)
+		e.writelnIndent(fmt.Sprintf("%%%s = alloca %s", p.Name, llType))
+		e.writelnIndent(fmt.Sprintf("store %s %%%s.arg, ptr %%%s", llType, p.Name, p.Name))
+		e.varTypes[p.Name] = llType
+	}
+	
+	clsLabel := e.addStringConst(className)
+	clsLen := len(className) + 1
+	e.writelnIndent(fmt.Sprintf("%%%s.name_var = getelementptr [%d x i8], ptr %s, i64 0, i64 0", className, clsLen, clsLabel))
+	thisReg := e.nextLocal()
+	e.writelnIndent(fmt.Sprintf("%s = call ptr @wolf_class_create(ptr %%%s.name_var)", thisReg, className))
+	e.writelnIndent("%this = alloca ptr")
+	e.writelnIndent(fmt.Sprintf("store ptr %s, ptr %%this", thisReg))
+	e.varTypes["this"] = "ptr"
+
+	for _, stmt := range fn.Body {
+		e.emitStmt(stmt)
+	}
+
+	retReg := e.nextLocal()
+	e.writelnIndent(fmt.Sprintf("%s = load ptr, ptr %%this", retReg))
+	e.writelnIndent(fmt.Sprintf("ret ptr %s", retReg))
 
 	e.indent--
 	e.writeln("}")
@@ -300,6 +389,24 @@ func (e *LLVMEmitter) emitAssign(s *ir.AssignStmt) {
 
 		val := e.emitExpr(s.Value, storedType)
 		e.writelnIndent(fmt.Sprintf("store %s %s, ptr %%%s", storedType, val, target.Name))
+	case *ir.FieldAccess:
+		objVal := e.emitExpr(target.Object, "ptr")
+		valVal := e.emitArgAsString(s.Value)
+		keyLabel := e.addStringConst(target.Field)
+		keyReg := e.nextLocal()
+		byteLen := len(target.Field) + 1
+		e.writelnIndent(fmt.Sprintf("%s = getelementptr [%d x i8], ptr %s, i64 0, i64 0", keyReg, byteLen, keyLabel))
+		e.writelnIndent(fmt.Sprintf("call void @wolf_map_set(ptr %s, ptr %s, ptr %s)", objVal, keyReg, valVal))
+	case *ir.IndexExpr:
+		objVal := e.emitExpr(target.Object, "ptr")
+		idxType := e.inferExprType(target.Index)
+		idxVal := e.emitExpr(target.Index, idxType)
+		if idxType != "ptr" {
+			stringPtr := e.emitArgAsString(target.Index)
+			idxVal = stringPtr
+		}
+		valVal := e.emitArgAsString(s.Value)
+		e.writelnIndent(fmt.Sprintf("call void @wolf_map_set(ptr %s, ptr %s, ptr %s)", objVal, idxVal, valVal))
 	default:
 		e.writelnIndent(fmt.Sprintf("; TODO: complex assignment target %T", s.Target))
 	}
@@ -324,6 +431,9 @@ func (e *LLVMEmitter) inferExprType(expr ir.Expr) string {
 		case "==", "!=", "<", ">", "<=", ">=", "&&", "||":
 			return "i1"
 		default:
+			if ex.Op == "+" && (e.inferExprType(ex.Left) == "ptr" || e.inferExprType(ex.Right) == "ptr") {
+				return "ptr"
+			}
 			// Check if either side is float
 			if e.inferExprType(ex.Left) == "double" || e.inferExprType(ex.Right) == "double" {
 				return "double"
@@ -340,7 +450,26 @@ func (e *LLVMEmitter) inferExprType(expr ir.Expr) string {
 	case *ir.StringConcat:
 		return "ptr"
 	case *ir.CallExpr:
+		if ident, ok := ex.Callee.(*ir.Ident); ok {
+			if fnSig, exists := e.funcSigs[ident.Name]; exists && len(fnSig.ReturnTypes) > 0 {
+				return e.wolfTypeToLLVM(fnSig.ReturnTypes[0])
+			}
+		}
 		return "ptr" // default for function calls
+	case *ir.MethodCallExpr:
+		return "ptr" // default for method calls
+	case *ir.StaticCall:
+		// Convert Wolf_Math::Abs to wolf_math_abs to infer return type
+		cfunc := strings.ToLower(fmt.Sprintf("%s_%s", ex.Class, ex.Method))
+		switch cfunc {
+		case "wolf_math_abs", "wolf_math_ceil", "wolf_math_floor", "wolf_math_max", "wolf_math_min":
+			return "double"
+		case "wolf_json_encode", "wolf_json_decode", "wolf_strings_upper", "wolf_strings_join", "wolf_strings_replace":
+			return "ptr"
+		case "wolf_strings_contains", "wolf_env_has":
+			return "i1"
+		}
+		return "ptr"
 	case *ir.Ident:
 		if t, ok := e.varTypes[ex.Name]; ok {
 			return t
@@ -366,22 +495,28 @@ func (e *LLVMEmitter) emitReturn(s *ir.ReturnStmt) {
 	if len(s.Values) == 0 {
 		e.writelnIndent("ret void")
 	} else {
-		val := e.emitExpr(s.Values[0], "")
-		e.writelnIndent(fmt.Sprintf("ret i64 %s", val))
+		llType := e.inferExprType(s.Values[0])
+		val := e.emitExpr(s.Values[0], llType)
+		e.writelnIndent(fmt.Sprintf("ret %s %s", llType, val))
 	}
 }
 
 func (e *LLVMEmitter) emitIf(s *ir.IfStmt) {
 	condVal := e.emitExpr(s.Condition, "i1")
 	thenLabel := e.nextLabel("if.then")
-	elseLabel := e.nextLabel("if.else")
+	
+	hasElseIfs := len(s.ElseIfs) > 0
+	hasElse := s.ElseBody != nil
 	endLabel := e.nextLabel("if.end")
-
-	if s.ElseBody != nil || len(s.ElseIfs) > 0 {
-		e.writelnIndent(fmt.Sprintf("br i1 %s, label %%%s, label %%%s", condVal, thenLabel, elseLabel))
-	} else {
-		e.writelnIndent(fmt.Sprintf("br i1 %s, label %%%s, label %%%s", condVal, thenLabel, endLabel))
+	
+	nextLabel := endLabel
+	if hasElseIfs {
+		nextLabel = e.nextLabel("if.elseif.cond")
+	} else if hasElse {
+		nextLabel = e.nextLabel("if.else")
 	}
+
+	e.writelnIndent(fmt.Sprintf("br i1 %s, label %%%s, label %%%s", condVal, thenLabel, nextLabel))
 
 	// Then block
 	e.writeln(fmt.Sprintf("%s:", thenLabel))
@@ -390,13 +525,36 @@ func (e *LLVMEmitter) emitIf(s *ir.IfStmt) {
 	}
 	e.writelnIndent(fmt.Sprintf("br label %%%s", endLabel))
 
+	// Else If blocks
+	for i, elif := range s.ElseIfs {
+		e.writeln(fmt.Sprintf("%s:", nextLabel))
+		elifCondVal := e.emitExpr(elif.Condition, "i1")
+		
+		elifThenLabel := e.nextLabel("if.elseif.then")
+		
+		if i < len(s.ElseIfs)-1 {
+			nextLabel = e.nextLabel("if.elseif.cond")
+		} else if hasElse {
+			nextLabel = e.nextLabel("if.else")
+		} else {
+			nextLabel = endLabel
+		}
+		
+		e.writelnIndent(fmt.Sprintf("br i1 %s, label %%%s, label %%%s", elifCondVal, elifThenLabel, nextLabel))
+		
+		// ElseIf Then block
+		e.writeln(fmt.Sprintf("%s:", elifThenLabel))
+		for _, stmt := range elif.Body {
+			e.emitStmt(stmt)
+		}
+		e.writelnIndent(fmt.Sprintf("br label %%%s", endLabel))
+	}
+
 	// Else block
-	if s.ElseBody != nil || len(s.ElseIfs) > 0 {
-		e.writeln(fmt.Sprintf("%s:", elseLabel))
-		if s.ElseBody != nil {
-			for _, stmt := range s.ElseBody {
-				e.emitStmt(stmt)
-			}
+	if hasElse {
+		e.writeln(fmt.Sprintf("%s:", nextLabel))
+		for _, stmt := range s.ElseBody {
+			e.emitStmt(stmt)
 		}
 		e.writelnIndent(fmt.Sprintf("br label %%%s", endLabel))
 	}
@@ -445,11 +603,120 @@ func (e *LLVMEmitter) emitFor(s *ir.ForStmt) {
 }
 
 func (e *LLVMEmitter) emitRange(s *ir.RangeStmt) {
-	e.writelnIndent(fmt.Sprintf("; TODO: range loop over %s, %s", s.Key, s.Value))
+	arrVal := e.emitExpr(s.Iterable, "ptr")
+
+	// Get length
+	lenReg := e.nextLocal()
+	e.writelnIndent(fmt.Sprintf("%s = call i64 @wolf_array_length(ptr %s)", lenReg, arrVal))
+
+	// Loop counter setup
+	idxPtr := e.nextLocal()
+	e.writelnIndent(fmt.Sprintf("%s = alloca i64", idxPtr))
+	e.writelnIndent(fmt.Sprintf("store i64 0, ptr %s", idxPtr))
+
+	condLabel := e.nextLabel("range.cond")
+	bodyLabel := e.nextLabel("range.body")
+	endLabel := e.nextLabel("range.end")
+
+	e.writelnIndent(fmt.Sprintf("br label %%%s", condLabel))
+	e.writeln(fmt.Sprintf("%s:", condLabel))
+
+	idxVal := e.nextLocal()
+	e.writelnIndent(fmt.Sprintf("%s = load i64, ptr %s", idxVal, idxPtr))
+
+	cmpReg := e.nextLocal()
+	e.writelnIndent(fmt.Sprintf("%s = icmp slt i64 %s, %s", cmpReg, idxVal, lenReg))
+	e.writelnIndent(fmt.Sprintf("br i1 %s, label %%%s, label %%%s", cmpReg, bodyLabel, endLabel))
+
+	e.writeln(fmt.Sprintf("%s:", bodyLabel))
+
+	// Assign value
+	if s.Value != "" && s.Value != "_" {
+		valReg := e.nextLocal()
+		e.writelnIndent(fmt.Sprintf("%s = call ptr @wolf_array_get(ptr %s, i64 %s)", valReg, arrVal, idxVal))
+		e.writelnIndent(fmt.Sprintf("%%%s = alloca ptr", s.Value))
+		e.varTypes[s.Value] = "ptr"
+		e.writelnIndent(fmt.Sprintf("store ptr %s, ptr %%%s", valReg, s.Value))
+	}
+
+	// Assign key
+	if s.Key != "" && s.Key != "_" {
+		e.writelnIndent(fmt.Sprintf("%%%s = alloca i64", s.Key))
+		e.varTypes[s.Key] = "i64"
+		e.writelnIndent(fmt.Sprintf("store i64 %s, ptr %%%s", idxVal, s.Key))
+	}
+
+	for _, stmt := range s.Body {
+		e.emitStmt(stmt)
+	}
+
+	// Update loop counter
+	nextIdx := e.nextLocal()
+	e.writelnIndent(fmt.Sprintf("%s = add i64 %s, 1", nextIdx, idxVal))
+	e.writelnIndent(fmt.Sprintf("store i64 %s, ptr %s", nextIdx, idxPtr))
+	e.writelnIndent(fmt.Sprintf("br label %%%s", condLabel))
+
+	e.writeln(fmt.Sprintf("%s:", endLabel))
 }
 
 func (e *LLVMEmitter) emitSwitch(s *ir.SwitchStmt) {
-	e.writelnIndent("; TODO: switch statement")
+	subjType := e.inferExprType(s.Subject)
+	if subjType == "" {
+		subjType = "i64"
+	}
+	subjVal := e.emitExpr(s.Subject, subjType)
+	endLabel := e.nextLabel("match.end")
+
+	var nextCondLabel string
+	if len(s.Cases) > 0 {
+		nextCondLabel = e.nextLabel("match.case.cond")
+		e.writelnIndent(fmt.Sprintf("br label %%%s", nextCondLabel))
+	} else if len(s.Default) > 0 {
+		nextCondLabel = e.nextLabel("match.default")
+		e.writelnIndent(fmt.Sprintf("br label %%%s", nextCondLabel))
+	} else {
+		e.writelnIndent(fmt.Sprintf("br label %%%s", endLabel))
+		e.writeln(fmt.Sprintf("%s:", endLabel))
+		return
+	}
+
+	for i, c := range s.Cases {
+		e.writeln(fmt.Sprintf("%s:", nextCondLabel))
+		
+		caseVal := e.emitExpr(c.Value, subjType)
+		cmpReg := e.nextLocal()
+		
+		// Note: Using integer/pointer naive equality for now. Strings would need strcmp.
+		e.writelnIndent(fmt.Sprintf("%s = icmp eq %s %s, %s", cmpReg, subjType, subjVal, caseVal))
+		
+		caseBodyLabel := e.nextLabel("match.case.body")
+		
+		if i < len(s.Cases)-1 {
+			nextCondLabel = e.nextLabel("match.case.cond")
+		} else if len(s.Default) > 0 {
+			nextCondLabel = e.nextLabel("match.default")
+		} else {
+			nextCondLabel = endLabel
+		}
+		
+		e.writelnIndent(fmt.Sprintf("br i1 %s, label %%%s, label %%%s", cmpReg, caseBodyLabel, nextCondLabel))
+		
+		e.writeln(fmt.Sprintf("%s:", caseBodyLabel))
+		for _, stmt := range c.Body {
+			e.emitStmt(stmt)
+		}
+		e.writelnIndent(fmt.Sprintf("br label %%%s", endLabel))
+	}
+
+	if len(s.Default) > 0 {
+		e.writeln(fmt.Sprintf("%s:", nextCondLabel))
+		for _, stmt := range s.Default {
+			e.emitStmt(stmt)
+		}
+		e.writelnIndent(fmt.Sprintf("br label %%%s", endLabel))
+	}
+
+	e.writeln(fmt.Sprintf("%s:", endLabel))
 }
 
 // ========== Expression Emission ==========
@@ -482,25 +749,95 @@ func (e *LLVMEmitter) emitExpr(expr ir.Expr, expectedType string) string {
 		reg := e.nextLocal()
 		e.writelnIndent(fmt.Sprintf("%s = load %s, ptr %%%s", reg, loadType, ex.Name))
 		return reg
+	case *ir.FieldAccess:
+		objVal := e.emitExpr(ex.Object, "ptr")
+		keyLabel := e.addStringConst(ex.Field)
+		keyReg := e.nextLocal()
+		byteLen := len(ex.Field) + 1
+		e.writelnIndent(fmt.Sprintf("%s = getelementptr [%d x i8], ptr %s, i64 0, i64 0", keyReg, byteLen, keyLabel))
+		reg := e.nextLocal()
+		e.writelnIndent(fmt.Sprintf("%s = call ptr @wolf_map_get(ptr %s, ptr %s)", reg, objVal, keyReg))
+		return reg
 	case *ir.BinaryExpr:
 		return e.emitBinaryExpr(ex, expectedType)
 	case *ir.UnaryExpr:
 		return e.emitUnaryExpr(ex)
 	case *ir.CallExpr:
 		return e.emitCallExpr(ex)
+	case *ir.MethodCallExpr:
+		return e.emitMethodCall(ex)
+	case *ir.StaticCall:
+		return e.emitStaticCall(ex)
 	case *ir.FmtSprintf:
 		return e.emitFmtSprintf(ex)
 	case *ir.StringConcat:
 		return e.emitStringConcat(ex)
 	case *ir.PostfixExpr:
 		return e.emitPostfix(ex)
+	case *ir.IndexExpr:
+		return e.emitIndexExpr(ex)
+	case *ir.SliceLit:
+		return e.emitSliceLit(ex)
+	case *ir.MapLit:
+		return e.emitMapLit(ex)
 	default:
 		e.writelnIndent(fmt.Sprintf("; TODO: unhandled expr type %T", expr))
-		return "0"
+		return "null"
 	}
 }
 
+func (e *LLVMEmitter) emitIndexExpr(ex *ir.IndexExpr) string {
+	objVal := e.emitExpr(ex.Object, "ptr")
+	idxType := e.inferExprType(ex.Index)
+	idxVal := e.emitExpr(ex.Index, idxType)
+	reg := e.nextLocal()
+
+	if idxType == "i64" {
+		e.writelnIndent(fmt.Sprintf("%s = call ptr @wolf_array_get(ptr %s, i64 %s)", reg, objVal, idxVal))
+	} else {
+		// Default to map_get if the index parameter is not a pure integer
+		if idxType != "ptr" {
+			stringPtr := e.emitArgAsString(ex.Index)
+			idxVal = stringPtr
+		}
+		e.writelnIndent(fmt.Sprintf("%s = call ptr @wolf_map_get(ptr %s, ptr %s)", reg, objVal, idxVal))
+	}
+	return reg
+}
+
+func (e *LLVMEmitter) emitSliceLit(ex *ir.SliceLit) string {
+	arrReg := e.nextLocal()
+	e.writelnIndent(fmt.Sprintf("%s = call ptr @wolf_array_create()", arrReg))
+	for _, elem := range ex.Elements {
+		elemVal := e.emitArgAsString(elem)
+		e.writelnIndent(fmt.Sprintf("call void @wolf_array_push(ptr %s, ptr %s)", arrReg, elemVal))
+	}
+	return arrReg
+}
+
+func (e *LLVMEmitter) emitMapLit(ex *ir.MapLit) string {
+	mapReg := e.nextLocal()
+	e.writelnIndent(fmt.Sprintf("%s = call ptr @wolf_map_create()", mapReg))
+	for i := range ex.Keys {
+		keyVal := e.emitArgAsString(ex.Keys[i])
+		valVal := e.emitArgAsString(ex.Values[i])
+		e.writelnIndent(fmt.Sprintf("call void @wolf_map_set(ptr %s, ptr %s, ptr %s)", mapReg, keyVal, valVal))
+	}
+	return mapReg
+}
+
 func (e *LLVMEmitter) emitBinaryExpr(ex *ir.BinaryExpr, expectedType string) string {
+	leftType := e.inferExprType(ex.Left)
+	rightType := e.inferExprType(ex.Right)
+
+	if ex.Op == "+" && (leftType == "ptr" || rightType == "ptr") {
+		leftVal := e.emitArgAsString(ex.Left)
+		rightVal := e.emitArgAsString(ex.Right)
+		reg := e.nextLocal()
+		e.writelnIndent(fmt.Sprintf("%s = call ptr @wolf_string_concat(ptr %s, ptr %s)", reg, leftVal, rightVal))
+		return reg
+	}
+
 	left := e.emitExpr(ex.Left, "i64")
 	right := e.emitExpr(ex.Right, "i64")
 	reg := e.nextLocal()
@@ -540,14 +877,19 @@ func (e *LLVMEmitter) emitBinaryExpr(ex *ir.BinaryExpr, expectedType string) str
 }
 
 func (e *LLVMEmitter) emitUnaryExpr(ex *ir.UnaryExpr) string {
-	operand := e.emitExpr(ex.Operand, "")
+	opType := e.inferExprType(ex.Operand)
+	operand := e.emitExpr(ex.Operand, opType)
 	reg := e.nextLocal()
 
 	switch ex.Op {
 	case "!":
 		e.writelnIndent(fmt.Sprintf("%s = xor i1 %s, 1", reg, operand))
 	case "-":
-		e.writelnIndent(fmt.Sprintf("%s = sub i64 0, %s", reg, operand))
+		if opType == "double" {
+			e.writelnIndent(fmt.Sprintf("%s = fsub double 0.0, %s", reg, operand))
+		} else {
+			e.writelnIndent(fmt.Sprintf("%s = sub i64 0, %s", reg, operand))
+		}
 	default:
 		e.writelnIndent(fmt.Sprintf("; unknown unary op: %s", ex.Op))
 		return "0"
@@ -569,15 +911,36 @@ func (e *LLVMEmitter) emitCallExpr(call *ir.CallExpr) string {
 	if ident, ok := call.Callee.(*ir.Ident); ok {
 		calleeName = ident.Name
 	}
+	
+	var fnSig *ir.Function
+	if calleeName != "" {
+		fnSig = e.funcSigs[calleeName]
+	}
 
 	args := make([]string, len(call.Args))
 	for i, arg := range call.Args {
-		val := e.emitExpr(arg, "")
-		args[i] = fmt.Sprintf("ptr %s", val)
+		expectedType := "ptr"
+		if fnSig != nil && i < len(fnSig.Params) {
+			expectedType = e.wolfTypeToLLVM(fnSig.Params[i].Type)
+		}
+		val := e.emitExpr(arg, expectedType)
+		args[i] = fmt.Sprintf("%s %s", expectedType, val)
+	}
+
+	retType := "void"
+	if fnSig != nil && len(fnSig.ReturnTypes) > 0 {
+		retType = e.wolfTypeToLLVM(fnSig.ReturnTypes[0])
+	} else if fnSig == nil {
+		retType = "ptr" // Call to unknown func (e.g. external) typically returns ptr
 	}
 
 	reg := e.nextLocal()
-	e.writelnIndent(fmt.Sprintf("%s = call ptr @%s(%s)", reg, calleeName, strings.Join(args, ", ")))
+	if retType == "void" {
+		e.writelnIndent(fmt.Sprintf("call void @%s(%s)", calleeName, strings.Join(args, ", ")))
+		return "null" // return null as dummy
+	}
+	
+	e.writelnIndent(fmt.Sprintf("%s = call %s @%s(%s)", reg, retType, calleeName, strings.Join(args, ", ")))
 	return reg
 }
 
@@ -610,15 +973,9 @@ func (e *LLVMEmitter) emitPrintCall(call *ir.CallExpr) string {
 		case *ir.FmtSprintf:
 			val := e.emitFmtSprintf(ex)
 			e.writelnIndent(fmt.Sprintf("call void @wolf_print_str(ptr %s)", val))
-		case *ir.BinaryExpr:
-			val := e.emitBinaryExpr(ex, "i64")
-			e.writelnIndent(fmt.Sprintf("call void @wolf_print_int(i64 %s)", val))
-		case *ir.StringConcat:
-			val := e.emitStringConcat(ex)
-			e.writelnIndent(fmt.Sprintf("call void @wolf_print_str(ptr %s)", val))
 		default:
-			val := e.emitExpr(arg, "")
-			// Default: try to print as string
+			// For all other types, convert to string using emitArgAsString and print as string
+			val := e.emitArgAsString(arg)
 			e.writelnIndent(fmt.Sprintf("call void @wolf_print_str(ptr %s)", val))
 		}
 	}
@@ -700,28 +1057,127 @@ func (e *LLVMEmitter) emitArgAsString(arg ir.Expr) string {
 		e.writelnIndent(fmt.Sprintf("%s = call ptr @wolf_bool_to_string(i1 %s)", reg, val))
 		return reg
 	default:
-		// Load as ptr and assume it's a string
-		val := e.emitExpr(arg, "ptr")
-		return val
+		llType := e.inferExprType(arg)
+		val := e.emitExpr(arg, llType)
+		
+		switch llType {
+		case "i64":
+			reg := e.nextLocal()
+			e.writelnIndent(fmt.Sprintf("%s = call ptr @wolf_int_to_string(i64 %s)", reg, val))
+			return reg
+		case "double":
+			reg := e.nextLocal()
+			e.writelnIndent(fmt.Sprintf("%s = call ptr @wolf_float_to_string(double %s)", reg, val))
+			return reg
+		case "i1":
+			reg := e.nextLocal()
+			e.writelnIndent(fmt.Sprintf("%s = call ptr @wolf_bool_to_string(i1 %s)", reg, val))
+			return reg
+		default:
+			return val
+		}
 	}
 }
 
-func (e *LLVMEmitter) emitStringConcat(ex *ir.StringConcat) string {
-	left := e.emitExpr(ex.Left, "ptr")
-	right := e.emitExpr(ex.Right, "ptr")
+func (e *LLVMEmitter) emitStringConcat(ex *ir. StringConcat) string {
+	left := e.emitArgAsString(ex.Left)
+	right := e.emitArgAsString(ex.Right)
 	reg := e.nextLocal()
 	e.writelnIndent(fmt.Sprintf("%s = call ptr @wolf_string_concat(ptr %s, ptr %s)", reg, left, right))
 	return reg
 }
 
 func (e *LLVMEmitter) emitPostfix(ex *ir.PostfixExpr) string {
-	e.writelnIndent(fmt.Sprintf("; TODO: postfix %s", ex.Op))
-	return "0"
+	ident, ok := ex.Operand.(*ir.Ident)
+	if !ok {
+		e.writelnIndent(fmt.Sprintf("; TODO: postfix on non-ident %T", ex.Operand))
+		return "null"
+	}
+
+	llType := e.inferExprType(ex.Operand)
+	val := e.emitExpr(ex.Operand, llType)
+	reg := e.nextLocal()
+
+	switch ex.Op {
+	case "++":
+		if llType == "double" {
+			e.writelnIndent(fmt.Sprintf("%s = fadd double %s, 1.0", reg, val))
+		} else {
+			e.writelnIndent(fmt.Sprintf("%s = add i64 %s, 1", reg, val))
+		}
+	case "--":
+		if llType == "double" {
+			e.writelnIndent(fmt.Sprintf("%s = fsub double %s, 1.0", reg, val))
+		} else {
+			e.writelnIndent(fmt.Sprintf("%s = sub i64 %s, 1", reg, val))
+		}
+	default:
+		e.writelnIndent(fmt.Sprintf("; unknown postfix op: %s", ex.Op))
+		return "null"
+	}
+
+	e.writelnIndent(fmt.Sprintf("store %s %s, ptr %%%s", llType, reg, ident.Name))
+	return reg
 }
 
 func (e *LLVMEmitter) emitMethodCall(mc *ir.MethodCallExpr) string {
-	e.writelnIndent(fmt.Sprintf("; TODO: method call .%s()", mc.Method))
-	return "0"
+	objVal := e.emitExpr(mc.Object, "ptr")
+	
+	var calleeName string
+	for name := range e.funcSigs {
+		if strings.HasSuffix(name, "_"+mc.Method) {
+			calleeName = name
+			break
+		}
+	}
+	if calleeName == "" {
+		calleeName = mc.Method
+	}
+	
+	fnSig := e.funcSigs[calleeName]
+	
+	args := []string{fmt.Sprintf("ptr %s", objVal)}
+	for i, arg := range mc.Args {
+		expectedType := "ptr"
+		if fnSig != nil && i+1 < len(fnSig.Params) {
+			expectedType = e.wolfTypeToLLVM(fnSig.Params[i+1].Type)
+		}
+		val := e.emitExpr(arg, expectedType)
+		args = append(args, fmt.Sprintf("%s %s", expectedType, val))
+	}
+
+	retType := "void"
+	if fnSig != nil && len(fnSig.ReturnTypes) > 0 {
+		retType = e.wolfTypeToLLVM(fnSig.ReturnTypes[0])
+	} else if fnSig == nil {
+		retType = "ptr"
+	}
+
+	reg := e.nextLocal()
+	if retType == "void" {
+		e.writelnIndent(fmt.Sprintf("call void @%s(%s)", calleeName, strings.Join(args, ", ")))
+		return "null"
+	}
+	
+	e.writelnIndent(fmt.Sprintf("%s = call %s @%s(%s)", reg, retType, calleeName, strings.Join(args, ", ")))
+	return reg
+}
+
+func (e *LLVMEmitter) emitStaticCall(sc *ir.StaticCall) string {
+	// Standardize names: Wolf_Math::Abs -> wolf_math_abs
+	calleeName := strings.ToLower(fmt.Sprintf("%s_%s", sc.Class, sc.Method))
+
+	args := make([]string, len(sc.Args))
+	for i, arg := range sc.Args {
+		llType := e.inferExprType(arg)
+		val := e.emitExpr(arg, llType)
+		args[i] = fmt.Sprintf("%s %s", llType, val)
+	}
+
+	retType := e.inferExprType(sc)
+	reg := e.nextLocal()
+	e.writelnIndent(fmt.Sprintf("%s = call %s @%s(%s)", reg, retType, calleeName, strings.Join(args, ", ")))
+	return reg
 }
 
 // ========== Type Mapping ==========

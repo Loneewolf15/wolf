@@ -18,6 +18,33 @@ const char* wolf_string_upper(const char* s);
 const char* wolf_string_lower(const char* s);
 const char* wolf_string_trim(const char* s);
 
+// --- Data Structures ---
+void* wolf_array_create();
+void wolf_array_push(void* arr, void* item);
+void* wolf_array_get(void* arr, int64_t index);
+int64_t wolf_array_length(void* arr);
+
+void* wolf_map_create();
+void wolf_map_set(void* map, const char* key, void* value);
+void* wolf_map_get(void* map, const char* key);
+int wolf_env_has(const char* key);
+
+void* wolf_class_create(const char* name);
+
+// --- Math ---
+double wolf_math_abs(double v);
+double wolf_math_ceil(double v);
+double wolf_math_floor(double v);
+double wolf_math_max(double a, double b);
+double wolf_math_min(double a, double b);
+
+// --- Stdlib ---
+int wolf_strings_contains(const char* s, const char* substr);
+const char* wolf_strings_upper(const char* s);
+const char* wolf_strings_split(const char* s, const char* sep);
+const char* wolf_strings_join(const char* arr, const char* sep);
+const char* wolf_json_encode(void* obj);
+
 // --- Conversions ---
 const char* wolf_int_to_string(int64_t n);
 const char* wolf_float_to_string(double f);

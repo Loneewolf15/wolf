@@ -173,9 +173,12 @@ func (c *Compiler) Build(source, filename string) (*CompileResult, error) {
 	compiled := false
 
 	// Strategy 1: Use LLC if available
+	var compileErrors []string
+
 	if hasLLC() {
 		llcCmd := exec.Command("llc", "-filetype=obj", "-relocation-model=pic", "-o", objFile, llFile)
 		if out, err := llcCmd.CombinedOutput(); err != nil {
+			compileErrors = append(compileErrors, fmt.Sprintf("llc error: %s\n%s", err, string(out)))
 			if c.Verbose {
 				fmt.Printf("wolf: llc failed: %s\n%s\n", err, string(out))
 			}
@@ -191,6 +194,7 @@ func (c *Compiler) Build(source, filename string) (*CompileResult, error) {
 	if !compiled && hasClang() {
 		clangCmd := exec.Command("clang", "-c", "-O2", "-o", objFile, llFile)
 		if out, err := clangCmd.CombinedOutput(); err != nil {
+			compileErrors = append(compileErrors, fmt.Sprintf("clang error: %s\n%s", err, string(out)))
 			if c.Verbose {
 				fmt.Printf("wolf: clang .ll compilation failed: %s\n%s\n", err, string(out))
 			}
@@ -206,16 +210,20 @@ func (c *Compiler) Build(source, filename string) (*CompileResult, error) {
 	if !compiled {
 		bcFile := filepath.Join(outDir, baseName+".bc")
 		llvmAsCmd := exec.Command("llvm-as", "-o", bcFile, llFile)
-		if _, err := llvmAsCmd.CombinedOutput(); err == nil {
+		if asOut, err := llvmAsCmd.CombinedOutput(); err == nil {
 			llcCmd := exec.Command("llc", "-filetype=obj", "-relocation-model=pic", "-o", objFile, bcFile)
-			if _, err := llcCmd.CombinedOutput(); err == nil {
+			if llcOut, err := llcCmd.CombinedOutput(); err == nil {
 				compiled = true
+			} else {
+				compileErrors = append(compileErrors, fmt.Sprintf("llc (bc) error: %s\n%s", err, string(llcOut)))
 			}
+		} else {
+			compileErrors = append(compileErrors, fmt.Sprintf("llvm-as error: %s\n%s", err, string(asOut)))
 		}
 	}
 
 	if !compiled {
-		return result, fmt.Errorf("LLVM compilation failed: neither llc nor clang found.\n  Install LLVM: sudo apt-get install clang llvm")
+		return result, fmt.Errorf("LLVM compilation failed:\n%s\nIf tools are missing, install them: sudo apt-get install clang llvm", strings.Join(compileErrors, "\n"))
 	}
 
 	// Compile wolf runtime
