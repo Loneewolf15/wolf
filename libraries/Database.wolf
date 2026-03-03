@@ -1,0 +1,67 @@
+# libraries/Database.wolf
+# PDO-style Database class following TraversyMVC pattern
+# Reads connection info from define() constants set in config/config.wolf
+
+class Database {
+    $dbh
+    $stmt
+    $error
+    $sql: string
+    $bindings
+
+    func __construct() {
+        # Auto-connect using define'd constants
+        $host = define_get("DB_HOST")
+        $user = define_get("DB_USER")
+        $pass = define_get("DB_PASS")
+        $name = define_get("DB_NAME")
+        $this->dbh = db_connect($host, $user, $pass, $name)
+    }
+
+    func query($sql: string) {
+        $this->sql = $sql
+        $this->stmt = db_prepare($this->dbh, $sql)
+    }
+
+    func bind($param: string, $value) {
+        db_bind($this->stmt, $param, $value)
+    }
+
+    func execute() {
+        return db_execute($this->stmt)
+    }
+
+    func resultset() {
+        $this->execute()
+        return db_fetch_all($this->stmt)
+    }
+
+    func single() {
+        $this->execute()
+        return db_fetch_one($this->stmt)
+    }
+
+    func rowCount() {
+        return db_row_count($this->stmt)
+    }
+
+    func lastInsertId() {
+        return db_last_insert_id($this->dbh)
+    }
+
+    func close() {
+        db_close($this->dbh)
+    }
+
+    func beginTransaction() {
+        db_begin_transaction($this->dbh)
+    }
+
+    func commit() {
+        db_commit($this->dbh)
+    }
+
+    func rollBack() {
+        db_rollback($this->dbh)
+    }
+}

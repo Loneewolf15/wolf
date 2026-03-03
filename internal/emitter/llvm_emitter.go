@@ -221,6 +221,12 @@ func (e *LLVMEmitter) Emit(program *ir.Program) string {
 	e.writeln("declare void @wolf_session_end()")
 	e.writeln("")
 
+	e.writeln("; --- Define System (PHP-style constants) ---")
+	e.writeln("declare void @wolf_define(ptr, ptr)")
+	e.writeln("declare i1 @wolf_defined(ptr)")
+	e.writeln("declare ptr @wolf_define_get(ptr)")
+	e.writeln("")
+
 	e.writeln("; --- Data Structures ---")
 	e.writeln("declare ptr @wolf_array_create()")
 	e.writeln("declare void @wolf_array_push(ptr, ptr)")
@@ -973,6 +979,12 @@ func (e *LLVMEmitter) emitCallExpr(call *ir.CallExpr) string {
 			calleeName = "wolf_session_get"
 		case "session_end":
 			calleeName = "wolf_session_end"
+		case "define":
+			calleeName = "wolf_define"
+		case "defined":
+			calleeName = "wolf_defined"
+		case "define_get":
+			calleeName = "wolf_define_get"
 		}
 	}
 
@@ -1014,10 +1026,12 @@ func (e *LLVMEmitter) emitCallExpr(call *ir.CallExpr) string {
 		retType = e.wolfTypeToLLVM(fnSig.ReturnTypes[0])
 	} else if fnSig == nil {
 		switch calleeName {
-		case "wolf_say", "wolf_show", "wolf_inspect", "wolf_system_sleep", "wolf_system_exit", "wolf_system_die", "wolf_session_begin", "wolf_session_set", "wolf_session_end":
+		case "wolf_say", "wolf_show", "wolf_inspect", "wolf_system_sleep", "wolf_system_exit", "wolf_system_die", "wolf_session_begin", "wolf_session_set", "wolf_session_end", "wolf_define":
 			retType = "void"
 		case "wolf_time_now", "wolf_time_strtotime":
 			retType = "i64"
+		case "wolf_defined":
+			retType = "i1"
 		default:
 			retType = "ptr" // Call to unknown func (e.g. external) typically returns ptr
 		}

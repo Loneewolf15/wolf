@@ -53,6 +53,11 @@ void wolf_session_set(const char* key, const char* value);
 const char* wolf_session_get(const char* key);
 void wolf_session_end();
 
+// --- Define System (PHP-style constants) ---
+void wolf_define(const char* key, const char* value);
+int wolf_defined(const char* key);
+const char* wolf_define_get(const char* key);
+
 // --- Math ---
 double wolf_math_abs(double v);
 double wolf_math_ceil(double v);

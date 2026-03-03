@@ -1,0 +1,14 @@
+# config/config.wolf
+# Database config using PHP-style define() constants
+# These are read by libraries/Database.wolf
+
+define("DB_HOST", env("DB_HOST", "localhost"))
+define("DB_USER", env("DB_USER", "root"))
+define("DB_PASS", env("DB_PASS", ""))
+define("DB_NAME", env("DB_NAME", "wolfdb"))
+define("DB_PORT", env("DB_PORT", "3306"))
+
+# App Config
+define("APPROOT", env("APPROOT", "."))
+define("SITENAME", env("SITENAME", "WolfApp"))
+define("URLROOT", env("URLROOT", "http://localhost"))

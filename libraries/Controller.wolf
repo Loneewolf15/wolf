@@ -1,0 +1,36 @@
+# libraries/Controller.wolf
+# Base Controller class — all controllers extend this
+# Provides model(), getData(), and helper methods
+
+class Controller {
+
+    func model($name: string) {
+        # Auto-instantiate a model class by name
+        # The compiler generates __compiler_create_model() dispatch
+        return __compiler_create_model($name)
+    }
+
+    func getData($req: Request) {
+        # Read JSON body from HTTP request
+        $body = $req->body()
+        return $body
+    }
+
+    func sendResponse($res: Response, $status: bool, $message: string, $data, $httpCode: int) {
+        $res->status($httpCode)
+        $res->json({
+            "status": $status,
+            "message": $message,
+            "data": $data,
+            "timestamp": time()
+        })
+    }
+
+    func sendError($res: Response, $code: int, $message: string) {
+        $res->status($code)
+        $res->json({
+            "status": false,
+            "message": $message
+        })
+    }
+}

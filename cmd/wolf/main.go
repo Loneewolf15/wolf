@@ -235,7 +235,24 @@ database layer, and embeds CPython for native ML library access.`,
 		},
 	}
 
-	rootCmd.AddCommand(buildCmd, runCmd, fmtCmd, testCmd, pythonCmd, newCmd)
+	generateCmd := &cobra.Command{
+		Use:   "generate [type] [name]",
+		Short: "Generate a Wolf file (controller, model, service, library)",
+		Args:  cobra.ExactArgs(2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			kind := args[0]
+			name := args[1]
+			fmt.Printf("wolf: generating %s '%s'...\n", kind, name)
+			outPath, err := scaffold.Generate(kind, name)
+			if err != nil {
+				return err
+			}
+			fmt.Printf("wolf: created %s ✓\n", outPath)
+			return nil
+		},
+	}
+
+	rootCmd.AddCommand(buildCmd, runCmd, fmtCmd, testCmd, pythonCmd, newCmd, generateCmd)
 
 	if err := rootCmd.Execute(); err != nil {
 		os.Exit(1)

@@ -15,7 +15,7 @@ import (
 func (c *Compiler) AutoDiscover(projectRoot string) ([]*parser.Program, error) {
 	var asts []*parser.Program
 
-	dirsToScan := []string{"libraries", "models", "controllers", "services", "helpers"}
+	dirsToScan := []string{"config", "libraries", "models", "controllers", "services", "helpers"}
 
 	for _, dir := range dirsToScan {
 		fullPath := filepath.Join(projectRoot, dir)

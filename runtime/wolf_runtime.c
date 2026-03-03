@@ -189,6 +189,43 @@ void wolf_session_end() {
     // LLVM FFI Stub
 }
 
+// ========== Define System (PHP-style constants) ==========
+
+#define WOLF_DEFINE_MAX 256
+
+static struct {
+    char* keys[WOLF_DEFINE_MAX];
+    char* values[WOLF_DEFINE_MAX];
+    int count;
+} wolf_defines = { .count = 0 };
+
+void wolf_define(const char* key, const char* value) {
+    if (!key || wolf_defines.count >= WOLF_DEFINE_MAX) return;
+    // Check if already defined (constants are immutable)
+    for (int i = 0; i < wolf_defines.count; i++) {
+        if (strcmp(wolf_defines.keys[i], key) == 0) return;
+    }
+    wolf_defines.keys[wolf_defines.count] = strdup(key);
+    wolf_defines.values[wolf_defines.count] = value ? strdup(value) : strdup("");
+    wolf_defines.count++;
+}
+
+int wolf_defined(const char* key) {
+    if (!key) return 0;
+    for (int i = 0; i < wolf_defines.count; i++) {
+        if (strcmp(wolf_defines.keys[i], key) == 0) return 1;
+    }
+    return 0;
+}
+
+const char* wolf_define_get(const char* key) {
+    if (!key) return "";
+    for (int i = 0; i < wolf_defines.count; i++) {
+        if (strcmp(wolf_defines.keys[i], key) == 0) return wolf_defines.values[i];
+    }
+    return "";
+}
+
 // ========== Stdlib Strings & JSON ==========
 
 int wolf_strings_contains(const char* s, const char* substr) {
