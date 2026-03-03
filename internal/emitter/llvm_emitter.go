@@ -284,7 +284,7 @@ func (e *LLVMEmitter) emitConstructor(fn *ir.Function, className string) {
 		e.writelnIndent(fmt.Sprintf("store %s %%%s.arg, ptr %%%s", llType, p.Name, p.Name))
 		e.varTypes[p.Name] = llType
 	}
-	
+
 	clsLabel := e.addStringConst(className)
 	clsLen := len(className) + 1
 	e.writelnIndent(fmt.Sprintf("%%%s.name_var = getelementptr [%d x i8], ptr %s, i64 0, i64 0", className, clsLen, clsLabel))
@@ -504,11 +504,11 @@ func (e *LLVMEmitter) emitReturn(s *ir.ReturnStmt) {
 func (e *LLVMEmitter) emitIf(s *ir.IfStmt) {
 	condVal := e.emitExpr(s.Condition, "i1")
 	thenLabel := e.nextLabel("if.then")
-	
+
 	hasElseIfs := len(s.ElseIfs) > 0
 	hasElse := s.ElseBody != nil
 	endLabel := e.nextLabel("if.end")
-	
+
 	nextLabel := endLabel
 	if hasElseIfs {
 		nextLabel = e.nextLabel("if.elseif.cond")
@@ -529,9 +529,9 @@ func (e *LLVMEmitter) emitIf(s *ir.IfStmt) {
 	for i, elif := range s.ElseIfs {
 		e.writeln(fmt.Sprintf("%s:", nextLabel))
 		elifCondVal := e.emitExpr(elif.Condition, "i1")
-		
+
 		elifThenLabel := e.nextLabel("if.elseif.then")
-		
+
 		if i < len(s.ElseIfs)-1 {
 			nextLabel = e.nextLabel("if.elseif.cond")
 		} else if hasElse {
@@ -539,9 +539,9 @@ func (e *LLVMEmitter) emitIf(s *ir.IfStmt) {
 		} else {
 			nextLabel = endLabel
 		}
-		
+
 		e.writelnIndent(fmt.Sprintf("br i1 %s, label %%%s, label %%%s", elifCondVal, elifThenLabel, nextLabel))
-		
+
 		// ElseIf Then block
 		e.writeln(fmt.Sprintf("%s:", elifThenLabel))
 		for _, stmt := range elif.Body {
@@ -682,15 +682,15 @@ func (e *LLVMEmitter) emitSwitch(s *ir.SwitchStmt) {
 
 	for i, c := range s.Cases {
 		e.writeln(fmt.Sprintf("%s:", nextCondLabel))
-		
+
 		caseVal := e.emitExpr(c.Value, subjType)
 		cmpReg := e.nextLocal()
-		
+
 		// Note: Using integer/pointer naive equality for now. Strings would need strcmp.
 		e.writelnIndent(fmt.Sprintf("%s = icmp eq %s %s, %s", cmpReg, subjType, subjVal, caseVal))
-		
+
 		caseBodyLabel := e.nextLabel("match.case.body")
-		
+
 		if i < len(s.Cases)-1 {
 			nextCondLabel = e.nextLabel("match.case.cond")
 		} else if len(s.Default) > 0 {
@@ -698,9 +698,9 @@ func (e *LLVMEmitter) emitSwitch(s *ir.SwitchStmt) {
 		} else {
 			nextCondLabel = endLabel
 		}
-		
+
 		e.writelnIndent(fmt.Sprintf("br i1 %s, label %%%s, label %%%s", cmpReg, caseBodyLabel, nextCondLabel))
-		
+
 		e.writeln(fmt.Sprintf("%s:", caseBodyLabel))
 		for _, stmt := range c.Body {
 			e.emitStmt(stmt)
@@ -911,7 +911,7 @@ func (e *LLVMEmitter) emitCallExpr(call *ir.CallExpr) string {
 	if ident, ok := call.Callee.(*ir.Ident); ok {
 		calleeName = ident.Name
 	}
-	
+
 	var fnSig *ir.Function
 	if calleeName != "" {
 		fnSig = e.funcSigs[calleeName]
@@ -939,7 +939,7 @@ func (e *LLVMEmitter) emitCallExpr(call *ir.CallExpr) string {
 		e.writelnIndent(fmt.Sprintf("call void @%s(%s)", calleeName, strings.Join(args, ", ")))
 		return "null" // return null as dummy
 	}
-	
+
 	e.writelnIndent(fmt.Sprintf("%s = call %s @%s(%s)", reg, retType, calleeName, strings.Join(args, ", ")))
 	return reg
 }
@@ -1059,7 +1059,7 @@ func (e *LLVMEmitter) emitArgAsString(arg ir.Expr) string {
 	default:
 		llType := e.inferExprType(arg)
 		val := e.emitExpr(arg, llType)
-		
+
 		switch llType {
 		case "i64":
 			reg := e.nextLocal()
@@ -1079,7 +1079,7 @@ func (e *LLVMEmitter) emitArgAsString(arg ir.Expr) string {
 	}
 }
 
-func (e *LLVMEmitter) emitStringConcat(ex *ir. StringConcat) string {
+func (e *LLVMEmitter) emitStringConcat(ex *ir.StringConcat) string {
 	left := e.emitArgAsString(ex.Left)
 	right := e.emitArgAsString(ex.Right)
 	reg := e.nextLocal()
@@ -1122,7 +1122,7 @@ func (e *LLVMEmitter) emitPostfix(ex *ir.PostfixExpr) string {
 
 func (e *LLVMEmitter) emitMethodCall(mc *ir.MethodCallExpr) string {
 	objVal := e.emitExpr(mc.Object, "ptr")
-	
+
 	var calleeName string
 	for name := range e.funcSigs {
 		if strings.HasSuffix(name, "_"+mc.Method) {
@@ -1133,9 +1133,9 @@ func (e *LLVMEmitter) emitMethodCall(mc *ir.MethodCallExpr) string {
 	if calleeName == "" {
 		calleeName = mc.Method
 	}
-	
+
 	fnSig := e.funcSigs[calleeName]
-	
+
 	args := []string{fmt.Sprintf("ptr %s", objVal)}
 	for i, arg := range mc.Args {
 		expectedType := "ptr"
@@ -1158,7 +1158,7 @@ func (e *LLVMEmitter) emitMethodCall(mc *ir.MethodCallExpr) string {
 		e.writelnIndent(fmt.Sprintf("call void @%s(%s)", calleeName, strings.Join(args, ", ")))
 		return "null"
 	}
-	
+
 	e.writelnIndent(fmt.Sprintf("%s = call %s @%s(%s)", reg, retType, calleeName, strings.Join(args, ", ")))
 	return reg
 }
