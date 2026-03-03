@@ -4,7 +4,7 @@
 *.dll
 *.so
 *.dylib
-wolf
+/wolf
 wolf_out/
 test-venv/
 .default-venv/
