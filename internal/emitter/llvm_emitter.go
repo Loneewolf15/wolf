@@ -302,6 +302,28 @@ func (e *LLVMEmitter) Emit(program *ir.Program) string {
 	e.writeln("declare ptr @wolf_env_get(ptr, ptr)")
 	e.writeln("")
 
+	e.writeln("; --- Phase 2: Arrays ---")
+	e.writeln("declare i64 @wolf_count(ptr)")
+	e.writeln("declare i1 @wolf_in_array(ptr, ptr)")
+	e.writeln("declare i64 @wolf_array_search(ptr, ptr)")
+	e.writeln("declare ptr @wolf_array_pop(ptr)")
+	e.writeln("declare ptr @wolf_array_shift(ptr)")
+	e.writeln("declare void @wolf_array_unshift(ptr, ptr)")
+	e.writeln("declare ptr @wolf_array_reverse(ptr)")
+	e.writeln("declare ptr @wolf_array_unique(ptr)")
+	e.writeln("declare ptr @wolf_array_merge(ptr, ptr)")
+	e.writeln("declare ptr @wolf_array_slice(ptr, i64, i64)")
+	e.writeln("declare void @wolf_sort(ptr)")
+	e.writeln("declare void @wolf_rsort(ptr)")
+	e.writeln("declare double @wolf_array_sum(ptr)")
+	e.writeln("declare ptr @wolf_array_keys(ptr)")
+	e.writeln("declare ptr @wolf_array_values(ptr)")
+	e.writeln("declare ptr @wolf_array_diff(ptr, ptr)")
+	e.writeln("declare ptr @wolf_array_intersect(ptr, ptr)")
+	e.writeln("declare ptr @wolf_array_flip(ptr)")
+	e.writeln("declare ptr @wolf_range(i64, i64)")
+	e.writeln("")
+
 	e.writeln("; --- Sessions ---")
 	e.writeln("declare void @wolf_session_begin()")
 	e.writeln("declare void @wolf_session_set(ptr, ptr)")
@@ -1260,6 +1282,48 @@ func (e *LLVMEmitter) emitCallExpr(call *ir.CallExpr) string {
 			calleeName = "wolf_log_warning"
 		case "log_error":
 			calleeName = "wolf_log_error"
+
+		// --- Arrays ---
+		case "count":
+			calleeName = "wolf_count"
+		case "in_array":
+			calleeName = "wolf_in_array"
+		case "array_search":
+			calleeName = "wolf_array_search"
+		case "array_push":
+			calleeName = "wolf_array_push"
+		case "array_pop":
+			calleeName = "wolf_array_pop"
+		case "array_shift":
+			calleeName = "wolf_array_shift"
+		case "array_unshift":
+			calleeName = "wolf_array_unshift"
+		case "array_reverse":
+			calleeName = "wolf_array_reverse"
+		case "array_unique":
+			calleeName = "wolf_array_unique"
+		case "array_merge":
+			calleeName = "wolf_array_merge"
+		case "array_slice":
+			calleeName = "wolf_array_slice"
+		case "sort":
+			calleeName = "wolf_sort"
+		case "rsort":
+			calleeName = "wolf_rsort"
+		case "array_sum":
+			calleeName = "wolf_array_sum"
+		case "array_keys":
+			calleeName = "wolf_array_keys"
+		case "array_values":
+			calleeName = "wolf_array_values"
+		case "array_diff":
+			calleeName = "wolf_array_diff"
+		case "array_intersect":
+			calleeName = "wolf_array_intersect"
+		case "array_flip":
+			calleeName = "wolf_array_flip"
+		case "range":
+			calleeName = "wolf_range"
 		}
 	}
 
@@ -1293,6 +1357,18 @@ func (e *LLVMEmitter) emitCallExpr(call *ir.CallExpr) string {
 				expectedType = "double"
 			case "wolf_math_random":
 				expectedType = "i64"
+			case "wolf_range":
+				expectedType = "i64"
+			case "wolf_array_slice":
+				if i == 0 {
+					expectedType = "ptr"
+				} else {
+					expectedType = "i64"
+				}
+			case "wolf_deg2rad", "wolf_rad2deg":
+				expectedType = "double"
+			case "wolf_clamp":
+				expectedType = "double"
 			case "wolf_number_format":
 				if i == 0 {
 					expectedType = "double"
@@ -1314,7 +1390,8 @@ func (e *LLVMEmitter) emitCallExpr(call *ir.CallExpr) string {
 		switch calleeName {
 		case "wolf_say", "wolf_show", "wolf_inspect", "wolf_system_sleep", "wolf_system_exit", "wolf_system_die", "wolf_session_begin", "wolf_session_set", "wolf_session_end", "wolf_define",
 			"wolf_dump", "wolf_dd", "wolf_log_info", "wolf_log_warning", "wolf_log_error",
-			"wolf_redis_set", "wolf_redis_hset", "wolf_redis_close":
+			"wolf_redis_set", "wolf_redis_hset", "wolf_redis_close",
+			"wolf_array_unshift", "wolf_sort", "wolf_rsort", "wolf_array_push":
 			retType = "void"
 		case "wolf_time_now", "wolf_time_strtotime", "wolf_redis_del":
 			retType = "i64"
@@ -1325,12 +1402,14 @@ func (e *LLVMEmitter) emitCallExpr(call *ir.CallExpr) string {
 			"wolf_math_asin", "wolf_math_acos", "wolf_math_atan", "wolf_math_atan2",
 			"wolf_math_sqrt", "wolf_math_pow", "wolf_math_log", "wolf_math_log10", "wolf_math_exp",
 			"wolf_math_round", "wolf_math_fmod", "wolf_math_pi",
-			"wolf_deg2rad", "wolf_rad2deg", "wolf_clamp", "wolf_floatval":
+			"wolf_deg2rad", "wolf_rad2deg", "wolf_clamp", "wolf_floatval",
+			"wolf_array_sum":
 			retType = "double"
 		case "wolf_intval", "wolf_intdiv", "wolf_strpos", "wolf_strrpos", "wolf_str_word_count", "wolf_strcmp":
 			retType = "i64"
 		case "wolf_str_contains", "wolf_str_starts_with", "wolf_str_ends_with",
-			"wolf_boolval", "wolf_is_numeric", "wolf_password_verify":
+			"wolf_boolval", "wolf_is_numeric", "wolf_password_verify",
+			"wolf_in_array":
 			retType = "i1"
 		default:
 			retType = "ptr" // Call to unknown func (e.g. external) typically returns ptr

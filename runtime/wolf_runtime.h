@@ -198,4 +198,25 @@ void wolf_log_info(const char* msg);
 void wolf_log_warning(const char* msg);
 void wolf_log_error(const char* msg);
 
+// --- Phase 2 Stdlib: Arrays ---
+int64_t wolf_count(void* a);
+int wolf_in_array(const char* val, void* a);
+int64_t wolf_array_search(const char* val, void* a);
+void* wolf_array_pop(void* a);
+void* wolf_array_shift(void* a);
+void wolf_array_unshift(void* a, void* item);
+void* wolf_array_reverse(void* a);
+void* wolf_array_unique(void* a);
+void* wolf_array_merge(void* a, void* b);
+void* wolf_array_slice(void* a, int64_t offset, int64_t len);
+void wolf_sort(void* a);
+void wolf_rsort(void* a);
+double wolf_array_sum(void* a);
+void* wolf_array_keys(void* m);
+void* wolf_array_values(void* m);
+void* wolf_array_diff(void* a, void* b);
+void* wolf_array_intersect(void* a, void* b);
+void* wolf_array_flip(void* a);
+void* wolf_range(int64_t start, int64_t end);
+
 #endif // WOLF_RUNTIME_H

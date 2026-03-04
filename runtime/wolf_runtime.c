@@ -465,6 +465,251 @@ int64_t wolf_array_length(void* a) {
     return ((wolf_array_t*)a)->length;
 }
 
+// ========== Phase 2 Stdlib — Array Functions ==========
+
+// count() — alias for array_length
+int64_t wolf_count(void* a) {
+    return wolf_array_length(a);
+}
+
+// in_array($val, $arr) — search for value (string comparison)
+int wolf_in_array(const char* val, void* a) {
+    if (!a || !val) return 0;
+    wolf_array_t* arr = (wolf_array_t*)a;
+    for (int64_t i = 0; i < arr->length; i++) {
+        if (arr->items[i] && strcmp((const char*)arr->items[i], val) == 0) return 1;
+    }
+    return 0;
+}
+
+// array_search($val, $arr) — returns index or -1
+int64_t wolf_array_search(const char* val, void* a) {
+    if (!a || !val) return -1;
+    wolf_array_t* arr = (wolf_array_t*)a;
+    for (int64_t i = 0; i < arr->length; i++) {
+        if (arr->items[i] && strcmp((const char*)arr->items[i], val) == 0) return i;
+    }
+    return -1;
+}
+
+// array_pop($arr) — remove and return last element
+void* wolf_array_pop(void* a) {
+    if (!a) return NULL;
+    wolf_array_t* arr = (wolf_array_t*)a;
+    if (arr->length == 0) return NULL;
+    return arr->items[--arr->length];
+}
+
+// array_shift($arr) — remove and return first element
+void* wolf_array_shift(void* a) {
+    if (!a) return NULL;
+    wolf_array_t* arr = (wolf_array_t*)a;
+    if (arr->length == 0) return NULL;
+    void* first = arr->items[0];
+    for (int64_t i = 0; i < arr->length - 1; i++) {
+        arr->items[i] = arr->items[i + 1];
+    }
+    arr->length--;
+    return first;
+}
+
+// array_unshift($arr, $val) — add to beginning
+void wolf_array_unshift(void* a, void* item) {
+    if (!a) return;
+    wolf_array_t* arr = (wolf_array_t*)a;
+    if (arr->length >= arr->capacity) {
+        arr->capacity *= 2;
+        arr->items = (void**)realloc(arr->items, sizeof(void*) * arr->capacity);
+    }
+    for (int64_t i = arr->length; i > 0; i--) {
+        arr->items[i] = arr->items[i - 1];
+    }
+    arr->items[0] = item;
+    arr->length++;
+}
+
+// array_reverse($arr) — return new reversed array
+void* wolf_array_reverse(void* a) {
+    if (!a) return wolf_array_create();
+    wolf_array_t* arr = (wolf_array_t*)a;
+    void* result = wolf_array_create();
+    for (int64_t i = arr->length - 1; i >= 0; i--) {
+        wolf_array_push(result, arr->items[i]);
+    }
+    return result;
+}
+
+// array_unique($arr) — return new array with duplicates removed
+void* wolf_array_unique(void* a) {
+    if (!a) return wolf_array_create();
+    wolf_array_t* arr = (wolf_array_t*)a;
+    void* result = wolf_array_create();
+    for (int64_t i = 0; i < arr->length; i++) {
+        int found = 0;
+        wolf_array_t* res = (wolf_array_t*)result;
+        for (int64_t j = 0; j < res->length; j++) {
+            if (arr->items[i] && res->items[j] &&
+                strcmp((const char*)arr->items[i], (const char*)res->items[j]) == 0) {
+                found = 1; break;
+            }
+        }
+        if (!found) wolf_array_push(result, arr->items[i]);
+    }
+    return result;
+}
+
+// array_merge($a, $b) — merge two arrays
+void* wolf_array_merge(void* a, void* b) {
+    void* result = wolf_array_create();
+    if (a) {
+        wolf_array_t* arr_a = (wolf_array_t*)a;
+        for (int64_t i = 0; i < arr_a->length; i++) {
+            wolf_array_push(result, arr_a->items[i]);
+        }
+    }
+    if (b) {
+        wolf_array_t* arr_b = (wolf_array_t*)b;
+        for (int64_t i = 0; i < arr_b->length; i++) {
+            wolf_array_push(result, arr_b->items[i]);
+        }
+    }
+    return result;
+}
+
+// array_slice($arr, $offset, $length) — return slice
+void* wolf_array_slice(void* a, int64_t offset, int64_t len) {
+    void* result = wolf_array_create();
+    if (!a) return result;
+    wolf_array_t* arr = (wolf_array_t*)a;
+    if (offset < 0) offset = arr->length + offset;
+    if (offset < 0) offset = 0;
+    if (len < 0) len = arr->length - offset + len;
+    if (len <= 0) return result;
+    for (int64_t i = offset; i < offset + len && i < arr->length; i++) {
+        wolf_array_push(result, arr->items[i]);
+    }
+    return result;
+}
+
+// sort($arr) — sort array in place (string comparison)
+void wolf_sort(void* a) {
+    if (!a) return;
+    wolf_array_t* arr = (wolf_array_t*)a;
+    // Bubble sort — works for moderate sizes
+    for (int64_t i = 0; i < arr->length - 1; i++) {
+        for (int64_t j = 0; j < arr->length - i - 1; j++) {
+            const char* s1 = arr->items[j] ? (const char*)arr->items[j] : "";
+            const char* s2 = arr->items[j+1] ? (const char*)arr->items[j+1] : "";
+            if (strcmp(s1, s2) > 0) {
+                void* tmp = arr->items[j];
+                arr->items[j] = arr->items[j+1];
+                arr->items[j+1] = tmp;
+            }
+        }
+    }
+}
+
+// rsort($arr) — sort descending in place
+void wolf_rsort(void* a) {
+    if (!a) return;
+    wolf_array_t* arr = (wolf_array_t*)a;
+    for (int64_t i = 0; i < arr->length - 1; i++) {
+        for (int64_t j = 0; j < arr->length - i - 1; j++) {
+            const char* s1 = arr->items[j] ? (const char*)arr->items[j] : "";
+            const char* s2 = arr->items[j+1] ? (const char*)arr->items[j+1] : "";
+            if (strcmp(s1, s2) < 0) {
+                void* tmp = arr->items[j];
+                arr->items[j] = arr->items[j+1];
+                arr->items[j+1] = tmp;
+            }
+        }
+    }
+}
+
+// array_sum($arr) — sum all values (treats as doubles via atof)
+double wolf_array_sum(void* a) {
+    if (!a) return 0.0;
+    wolf_array_t* arr = (wolf_array_t*)a;
+    double sum = 0.0;
+    for (int64_t i = 0; i < arr->length; i++) {
+        if (arr->items[i]) sum += atof((const char*)arr->items[i]);
+    }
+    return sum;
+}
+
+// array_keys($map) — return keys as array (for wolf_map_t)
+void* wolf_array_keys(void* m) {
+    if (!m) return wolf_array_create();
+    wolf_map_t* map = (wolf_map_t*)m;
+    void* result = wolf_array_create();
+    for (int64_t i = 0; i < map->size; i++) {
+        wolf_array_push(result, (void*)map->keys[i]);
+    }
+    return result;
+}
+
+// array_values($map) — return values as array (for wolf_map_t)
+void* wolf_array_values(void* m) {
+    if (!m) return wolf_array_create();
+    wolf_map_t* map = (wolf_map_t*)m;
+    void* result = wolf_array_create();
+    for (int64_t i = 0; i < map->size; i++) {
+        wolf_array_push(result, map->values[i]);
+    }
+    return result;
+}
+
+// array_diff($a, $b) — values in a not in b
+void* wolf_array_diff(void* a, void* b) {
+    void* result = wolf_array_create();
+    if (!a) return result;
+    wolf_array_t* arr_a = (wolf_array_t*)a;
+    for (int64_t i = 0; i < arr_a->length; i++) {
+        if (!wolf_in_array((const char*)arr_a->items[i], b)) {
+            wolf_array_push(result, arr_a->items[i]);
+        }
+    }
+    return result;
+}
+
+// array_intersect($a, $b) — values in both
+void* wolf_array_intersect(void* a, void* b) {
+    void* result = wolf_array_create();
+    if (!a || !b) return result;
+    wolf_array_t* arr_a = (wolf_array_t*)a;
+    for (int64_t i = 0; i < arr_a->length; i++) {
+        if (wolf_in_array((const char*)arr_a->items[i], b)) {
+            wolf_array_push(result, arr_a->items[i]);
+        }
+    }
+    return result;
+}
+
+// array_flip($arr) — swap keys/values (returns map from array)
+void* wolf_array_flip(void* a) {
+    if (!a) return wolf_map_create();
+    wolf_array_t* arr = (wolf_array_t*)a;
+    void* result = wolf_map_create();
+    for (int64_t i = 0; i < arr->length; i++) {
+        char idx[32];
+        snprintf(idx, sizeof(idx), "%lld", (long long)i);
+        wolf_map_set(result, (const char*)arr->items[i], strdup(idx));
+    }
+    return result;
+}
+
+// range($start, $end) — create array [start..end]
+void* wolf_range(int64_t start, int64_t end) {
+    void* result = wolf_array_create();
+    int64_t step = start <= end ? 1 : -1;
+    for (int64_t i = start; step > 0 ? i <= end : i >= end; i += step) {
+        char* s = (char*)malloc(32);
+        snprintf(s, 32, "%lld", (long long)i);
+        wolf_array_push(result, s);
+    }
+    return result;
+}
+
 void* wolf_map_create() {
     wolf_map_t* m = (wolf_map_t*)malloc(sizeof(wolf_map_t));
     m->capacity = 8;
