@@ -220,6 +220,78 @@ func (e *LLVMEmitter) Emit(program *ir.Program) string {
 	e.writeln("declare void @wolf_inspect(ptr)")
 	e.writeln("")
 
+	e.writeln("; --- Phase 1 Stdlib: Strings ---")
+	e.writeln("declare ptr @wolf_strtoupper(ptr)")
+	e.writeln("declare ptr @wolf_strtolower(ptr)")
+	e.writeln("declare ptr @wolf_ucfirst(ptr)")
+	e.writeln("declare ptr @wolf_ucwords(ptr)")
+	e.writeln("declare ptr @wolf_lcfirst(ptr)")
+	e.writeln("declare ptr @wolf_trim(ptr)")
+	e.writeln("declare ptr @wolf_ltrim(ptr)")
+	e.writeln("declare ptr @wolf_rtrim(ptr)")
+	e.writeln("declare i1 @wolf_str_contains(ptr, ptr)")
+	e.writeln("declare i1 @wolf_str_starts_with(ptr, ptr)")
+	e.writeln("declare i1 @wolf_str_ends_with(ptr, ptr)")
+	e.writeln("declare ptr @wolf_str_replace(ptr, ptr, ptr)")
+	e.writeln("declare ptr @wolf_str_repeat(ptr, i64)")
+	e.writeln("declare ptr @wolf_str_pad(ptr, i64, ptr)")
+	e.writeln("declare ptr @wolf_explode(ptr, ptr)")
+	e.writeln("declare ptr @wolf_implode(ptr, ptr)")
+	e.writeln("declare ptr @wolf_substr(ptr, i64, i64)")
+	e.writeln("declare i64 @wolf_strpos(ptr, ptr)")
+	e.writeln("declare i64 @wolf_strrpos(ptr, ptr)")
+	e.writeln("declare i64 @wolf_str_word_count(ptr)")
+	e.writeln("declare i64 @wolf_strcmp(ptr, ptr)")
+	e.writeln("declare ptr @wolf_nl2br(ptr)")
+	e.writeln("declare ptr @wolf_strip_tags(ptr)")
+	e.writeln("declare ptr @wolf_htmlspecialchars(ptr)")
+	e.writeln("declare ptr @wolf_addslashes(ptr)")
+	e.writeln("declare ptr @wolf_stripslashes(ptr)")
+	e.writeln("declare ptr @wolf_sprintf(ptr, ptr)")
+	e.writeln("")
+
+	e.writeln("; --- Math Extras ---")
+	e.writeln("declare double @wolf_deg2rad(double)")
+	e.writeln("declare double @wolf_rad2deg(double)")
+	e.writeln("declare double @wolf_clamp(double, double, double)")
+	e.writeln("")
+
+	e.writeln("; --- Type Casting ---")
+	e.writeln("declare i64 @wolf_intval(ptr)")
+	e.writeln("declare double @wolf_floatval(ptr)")
+	e.writeln("declare ptr @wolf_strval(i64)")
+	e.writeln("declare i1 @wolf_boolval(ptr)")
+	e.writeln("declare i64 @wolf_intdiv(i64, i64)")
+	e.writeln("declare ptr @wolf_gettype(ptr)")
+	e.writeln("declare i1 @wolf_is_numeric(ptr)")
+	e.writeln("")
+
+	e.writeln("; --- Encoding ---")
+	e.writeln("declare ptr @wolf_base64_encode(ptr)")
+	e.writeln("declare ptr @wolf_base64_decode(ptr)")
+	e.writeln("declare ptr @wolf_url_encode(ptr)")
+	e.writeln("declare ptr @wolf_url_decode(ptr)")
+	e.writeln("declare ptr @wolf_json_pretty(ptr)")
+	e.writeln("declare ptr @wolf_json_decode(ptr)")
+	e.writeln("")
+
+	e.writeln("; --- Security ---")
+	e.writeln("declare ptr @wolf_md5(ptr)")
+	e.writeln("declare ptr @wolf_sha256(ptr)")
+	e.writeln("declare ptr @wolf_password_hash(ptr)")
+	e.writeln("declare i1 @wolf_password_verify(ptr, ptr)")
+	e.writeln("declare ptr @wolf_uuid_v4()")
+	e.writeln("declare ptr @wolf_rand_hex(i64)")
+	e.writeln("")
+
+	e.writeln("; --- Debugging ---")
+	e.writeln("declare void @wolf_dump(ptr)")
+	e.writeln("declare void @wolf_dd(ptr)")
+	e.writeln("declare void @wolf_log_info(ptr)")
+	e.writeln("declare void @wolf_log_warning(ptr)")
+	e.writeln("declare void @wolf_log_error(ptr)")
+	e.writeln("")
+
 	e.writeln("; --- Time & System ---")
 	e.writeln("declare i64 @wolf_time_now()")
 	e.writeln("declare ptr @wolf_time_date(ptr, i64)")
@@ -1022,6 +1094,172 @@ func (e *LLVMEmitter) emitCallExpr(call *ir.CallExpr) string {
 			calleeName = "wolf_define_get"
 		case "number_format":
 			calleeName = "wolf_number_format"
+
+		// --- Math globals (both sin(x) and math.sin(x) work) ---
+		case "sin":
+			calleeName = "wolf_math_sin"
+		case "cos":
+			calleeName = "wolf_math_cos"
+		case "tan":
+			calleeName = "wolf_math_tan"
+		case "asin":
+			calleeName = "wolf_math_asin"
+		case "acos":
+			calleeName = "wolf_math_acos"
+		case "atan":
+			calleeName = "wolf_math_atan"
+		case "atan2":
+			calleeName = "wolf_math_atan2"
+		case "sqrt":
+			calleeName = "wolf_math_sqrt"
+		case "pow":
+			calleeName = "wolf_math_pow"
+		case "log":
+			calleeName = "wolf_math_log"
+		case "log10":
+			calleeName = "wolf_math_log10"
+		case "exp":
+			calleeName = "wolf_math_exp"
+		case "round":
+			calleeName = "wolf_math_round"
+		case "ceil":
+			calleeName = "wolf_math_ceil"
+		case "floor":
+			calleeName = "wolf_math_floor"
+		case "abs":
+			calleeName = "wolf_math_abs"
+		case "fmod":
+			calleeName = "wolf_math_fmod"
+		case "pi":
+			calleeName = "wolf_math_pi"
+		case "min":
+			calleeName = "wolf_math_min"
+		case "max":
+			calleeName = "wolf_math_max"
+		case "rand":
+			calleeName = "wolf_math_random"
+		case "deg2rad":
+			calleeName = "wolf_deg2rad"
+		case "rad2deg":
+			calleeName = "wolf_rad2deg"
+		case "clamp":
+			calleeName = "wolf_clamp"
+
+		// --- Strings ---
+		case "strlen":
+			calleeName = "wolf_string_length"
+		case "strtoupper":
+			calleeName = "wolf_strtoupper"
+		case "strtolower":
+			calleeName = "wolf_strtolower"
+		case "ucfirst":
+			calleeName = "wolf_ucfirst"
+		case "ucwords":
+			calleeName = "wolf_ucwords"
+		case "lcfirst":
+			calleeName = "wolf_lcfirst"
+		case "trim":
+			calleeName = "wolf_trim"
+		case "ltrim":
+			calleeName = "wolf_ltrim"
+		case "rtrim":
+			calleeName = "wolf_rtrim"
+		case "str_contains":
+			calleeName = "wolf_str_contains"
+		case "str_starts_with":
+			calleeName = "wolf_str_starts_with"
+		case "str_ends_with":
+			calleeName = "wolf_str_ends_with"
+		case "str_replace":
+			calleeName = "wolf_str_replace"
+		case "str_repeat":
+			calleeName = "wolf_str_repeat"
+		case "str_pad":
+			calleeName = "wolf_str_pad"
+		case "explode":
+			calleeName = "wolf_explode"
+		case "implode":
+			calleeName = "wolf_implode"
+		case "substr":
+			calleeName = "wolf_substr"
+		case "strpos":
+			calleeName = "wolf_strpos"
+		case "strrpos":
+			calleeName = "wolf_strrpos"
+		case "sprintf":
+			calleeName = "wolf_sprintf"
+		case "str_word_count":
+			calleeName = "wolf_str_word_count"
+		case "nl2br":
+			calleeName = "wolf_nl2br"
+		case "strip_tags":
+			calleeName = "wolf_strip_tags"
+		case "htmlspecialchars":
+			calleeName = "wolf_htmlspecialchars"
+		case "addslashes":
+			calleeName = "wolf_addslashes"
+		case "stripslashes":
+			calleeName = "wolf_stripslashes"
+		case "strcmp":
+			calleeName = "wolf_strcmp"
+
+		// --- Type Casting ---
+		case "intval":
+			calleeName = "wolf_intval"
+		case "floatval":
+			calleeName = "wolf_floatval"
+		case "strval":
+			calleeName = "wolf_strval"
+		case "boolval":
+			calleeName = "wolf_boolval"
+		case "intdiv":
+			calleeName = "wolf_intdiv"
+		case "gettype":
+			calleeName = "wolf_gettype"
+		case "is_numeric":
+			calleeName = "wolf_is_numeric"
+
+		// --- Encoding ---
+		case "base64_encode":
+			calleeName = "wolf_base64_encode"
+		case "base64_decode":
+			calleeName = "wolf_base64_decode"
+		case "url_encode":
+			calleeName = "wolf_url_encode"
+		case "url_decode":
+			calleeName = "wolf_url_decode"
+		case "json_encode":
+			calleeName = "wolf_json_encode"
+		case "json_decode":
+			calleeName = "wolf_json_decode"
+		case "json_pretty":
+			calleeName = "wolf_json_pretty"
+
+		// --- Security ---
+		case "md5":
+			calleeName = "wolf_md5"
+		case "sha256":
+			calleeName = "wolf_sha256"
+		case "password_hash":
+			calleeName = "wolf_password_hash"
+		case "password_verify":
+			calleeName = "wolf_password_verify"
+		case "uuid_v4":
+			calleeName = "wolf_uuid_v4"
+		case "rand_hex":
+			calleeName = "wolf_rand_hex"
+
+		// --- Output ---
+		case "dump":
+			calleeName = "wolf_dump"
+		case "dd":
+			calleeName = "wolf_dd"
+		case "log_info":
+			calleeName = "wolf_log_info"
+		case "log_warning":
+			calleeName = "wolf_log_warning"
+		case "log_error":
+			calleeName = "wolf_log_error"
 		}
 	}
 
@@ -1074,7 +1312,9 @@ func (e *LLVMEmitter) emitCallExpr(call *ir.CallExpr) string {
 		retType = e.wolfTypeToLLVM(fnSig.ReturnTypes[0])
 	} else if fnSig == nil {
 		switch calleeName {
-		case "wolf_say", "wolf_show", "wolf_inspect", "wolf_system_sleep", "wolf_system_exit", "wolf_system_die", "wolf_session_begin", "wolf_session_set", "wolf_session_end", "wolf_define":
+		case "wolf_say", "wolf_show", "wolf_inspect", "wolf_system_sleep", "wolf_system_exit", "wolf_system_die", "wolf_session_begin", "wolf_session_set", "wolf_session_end", "wolf_define",
+			"wolf_dump", "wolf_dd", "wolf_log_info", "wolf_log_warning", "wolf_log_error",
+			"wolf_redis_set", "wolf_redis_hset", "wolf_redis_close":
 			retType = "void"
 		case "wolf_time_now", "wolf_time_strtotime", "wolf_redis_del":
 			retType = "i64"
@@ -1084,8 +1324,14 @@ func (e *LLVMEmitter) emitCallExpr(call *ir.CallExpr) string {
 			"wolf_math_sin", "wolf_math_cos", "wolf_math_tan",
 			"wolf_math_asin", "wolf_math_acos", "wolf_math_atan", "wolf_math_atan2",
 			"wolf_math_sqrt", "wolf_math_pow", "wolf_math_log", "wolf_math_log10", "wolf_math_exp",
-			"wolf_math_round", "wolf_math_fmod", "wolf_math_pi":
+			"wolf_math_round", "wolf_math_fmod", "wolf_math_pi",
+			"wolf_deg2rad", "wolf_rad2deg", "wolf_clamp", "wolf_floatval":
 			retType = "double"
+		case "wolf_intval", "wolf_intdiv", "wolf_strpos", "wolf_strrpos", "wolf_str_word_count", "wolf_strcmp":
+			retType = "i64"
+		case "wolf_str_contains", "wolf_str_starts_with", "wolf_str_ends_with",
+			"wolf_boolval", "wolf_is_numeric", "wolf_password_verify":
+			retType = "i1"
 		default:
 			retType = "ptr" // Call to unknown func (e.g. external) typically returns ptr
 		}

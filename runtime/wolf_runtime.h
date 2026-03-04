@@ -132,4 +132,70 @@ void wolf_http_res_header(int64_t res_id, const char* key, const char* value);
 void wolf_http_res_status(int64_t res_id, int64_t status_code);
 void wolf_http_res_write(int64_t res_id, const char* body);
 
+// --- Phase 1 Stdlib: Strings ---
+const char* wolf_strtoupper(const char* s);
+const char* wolf_strtolower(const char* s);
+const char* wolf_ucfirst(const char* s);
+const char* wolf_ucwords(const char* s);
+const char* wolf_lcfirst(const char* s);
+const char* wolf_trim(const char* s);
+const char* wolf_ltrim(const char* s);
+const char* wolf_rtrim(const char* s);
+int wolf_str_contains(const char* s, const char* sub);
+int wolf_str_starts_with(const char* s, const char* prefix);
+int wolf_str_ends_with(const char* s, const char* suffix);
+const char* wolf_str_replace(const char* find, const char* rep, const char* s);
+const char* wolf_str_repeat(const char* s, int64_t times);
+const char* wolf_str_pad(const char* s, int64_t len, const char* pad);
+const char* wolf_explode(const char* sep, const char* s);
+const char* wolf_implode(const char* sep, const char* arr);
+const char* wolf_substr(const char* s, int64_t start, int64_t len);
+int64_t wolf_strpos(const char* s, const char* sub);
+int64_t wolf_strrpos(const char* s, const char* sub);
+int64_t wolf_str_word_count(const char* s);
+int64_t wolf_strcmp(const char* a, const char* b);
+const char* wolf_nl2br(const char* s);
+const char* wolf_strip_tags(const char* s);
+const char* wolf_htmlspecialchars(const char* s);
+const char* wolf_addslashes(const char* s);
+const char* wolf_stripslashes(const char* s);
+const char* wolf_sprintf(const char* fmt, const char* arg1);
+
+// --- Math Extras ---
+double wolf_deg2rad(double deg);
+double wolf_rad2deg(double rad);
+double wolf_clamp(double n, double mn, double mx);
+
+// --- Type Casting ---
+int64_t wolf_intval(const char* s);
+double wolf_floatval(const char* s);
+const char* wolf_strval(int64_t n);
+int wolf_boolval(const char* s);
+int64_t wolf_intdiv(int64_t a, int64_t b);
+const char* wolf_gettype(const char* val);
+int wolf_is_numeric(const char* s);
+
+// --- Encoding ---
+const char* wolf_base64_encode(const char* s);
+const char* wolf_base64_decode(const char* s);
+const char* wolf_url_encode(const char* s);
+const char* wolf_url_decode(const char* s);
+const char* wolf_json_pretty(const char* json);
+const char* wolf_json_decode(const char* json);
+
+// --- Security ---
+const char* wolf_md5(const char* s);
+const char* wolf_sha256(const char* s);
+const char* wolf_password_hash(const char* password);
+int wolf_password_verify(const char* password, const char* hash);
+const char* wolf_uuid_v4();
+const char* wolf_rand_hex(int64_t length);
+
+// --- Output ---
+void wolf_dump(const char* val);
+void wolf_dd(const char* val);
+void wolf_log_info(const char* msg);
+void wolf_log_warning(const char* msg);
+void wolf_log_error(const char* msg);
+
 #endif // WOLF_RUNTIME_H
