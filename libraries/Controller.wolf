@@ -1,6 +1,6 @@
 # libraries/Controller.wolf
 # Base Controller class — all controllers extend this
-# Provides model(), getData(), and helper methods
+# Provides model() and getData() — matches backendTemplate/app/libraries/Controller.php
 
 class Controller {
 
@@ -10,27 +10,43 @@ class Controller {
         return __compiler_create_model($name)
     }
 
-    func getData($req: Request) {
-        # Read JSON body from HTTP request
-        $body = $req->body()
-        return $body
+    func getData() {
+        # Read JSON body from current HTTP request context
+        # Equivalent to PHP: json_decode(file_get_contents('php://input'), true)
+        $raw = wolf_http_get_body()
+        $data = json_decode($raw)
+        return $data
     }
 
-    func sendResponse($res: Response, $status: bool, $message: string, $data, $httpCode: int) {
-        $res->status($httpCode)
-        $res->json({
-            "status": $status,
-            "message": $message,
-            "data": $data,
-            "timestamp": time()
-        })
+    func getAuthorizationHeader() {
+        return wolf_http_get_header("Authorization")
     }
 
-    func sendError($res: Response, $code: int, $message: string) {
-        $res->status($code)
-        $res->json({
-            "status": false,
-            "message": $message
-        })
+    func bearer() {
+        $header = $this->getAuthorizationHeader()
+        if $header != "" {
+            # Extract token after "Bearer "
+            $parts = Wolf_Strings::Split($header, " ")
+            if Wolf_Array::Length($parts) > 1 {
+                return $parts[1]
+            }
+        }
+        return ""
+    }
+
+    func RouteProtection() {
+        $bearer = $this->bearer()
+        if $bearer == "" {
+            http_response_code(401)
+            echo json_encode({"status": false, "message": "Unauthorized"})
+            die("")
+        }
+        $decoded = $this->myJsonID($bearer, env("JWT_SECRET_KEY", "secret_server_key"))
+        if !$decoded {
+            http_response_code(401)
+            echo json_encode({"status": false, "message": "Invalid token"})
+            die("")
+        }
+        return $decoded
     }
 }

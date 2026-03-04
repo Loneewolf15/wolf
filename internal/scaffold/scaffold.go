@@ -157,13 +157,25 @@ class %s extends Controller {
     $%sModel
 
     func __construct() {
-        # Initialize models here
-        # $this->%sModel = $this->model("%s")
+        $this->%sModel = $this->model("%s")
     }
 
-    # GET /%s/index
-    func index($args: array, $req: Request, $res: Response) {
-        $this->sendResponse($res, true, "%s API", {"controller": "%s"}, 200)
+    func sendResponse($status, $message, $data, $httpCode: int) {
+        http_response_code($httpCode)
+        echo json_encode({
+            "status": $status,
+            "message": $message,
+            "data": $data,
+            "timestamp": time()
+        })
+    }
+
+    # GET /%s
+    func index() {
+        $this->sendResponse(true, "%s API", {
+            "version": "1.0",
+            "controller": "%s"
+        }, 200)
     }
 }
 `, name, name, toLowerFirst(name), toLowerFirst(name), name, toLowerFirst(name), name, name)
