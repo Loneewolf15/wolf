@@ -19,6 +19,7 @@
 #include <pthread.h>
 #include <strings.h>
 #include <time.h>
+#include <math.h>
 
 // ========== Print ==========
 
@@ -145,6 +146,73 @@ double wolf_math_min(double a, double b) {
 int64_t wolf_math_random(int64_t min, int64_t max) {
     srand(time(NULL));
     return min + rand() % ((max + 1) - min);
+}
+
+// --- Trigonometric ---
+double wolf_math_sin(double v)  { return sin(v); }
+double wolf_math_cos(double v)  { return cos(v); }
+double wolf_math_tan(double v)  { return tan(v); }
+double wolf_math_asin(double v) { return asin(v); }
+double wolf_math_acos(double v) { return acos(v); }
+double wolf_math_atan(double v) { return atan(v); }
+double wolf_math_atan2(double y, double x) { return atan2(y, x); }
+
+// --- Power / Root / Log ---
+double wolf_math_sqrt(double v)           { return sqrt(v); }
+double wolf_math_pow(double base, double exp_val) { return pow(base, exp_val); }
+double wolf_math_log(double v)            { return log(v); }
+double wolf_math_log10(double v)          { return log10(v); }
+double wolf_math_exp(double v)            { return exp(v); }
+
+// --- Rounding ---
+double wolf_math_round(double v) { return round(v); }
+double wolf_math_fmod(double a, double b) { return fmod(a, b); }
+
+// --- Constants ---
+double wolf_math_pi() { return 3.14159265358979323846; }
+
+// --- Number Formatting (PHP-style) ---
+const char* wolf_number_format(double number, int64_t decimals, const char* dec_point, const char* thousands_sep) {
+    if (!dec_point) dec_point = ".";
+    if (!thousands_sep) thousands_sep = ",";
+
+    // Format the decimal part
+    char fmt[32];
+    snprintf(fmt, sizeof(fmt), "%%.%lldf", (long long)decimals);
+    char raw[128];
+    snprintf(raw, sizeof(raw), fmt, number < 0 ? -number : number);
+
+    // Split into integer and decimal parts
+    char* dot = strchr(raw, '.');
+    int int_len = dot ? (int)(dot - raw) : (int)strlen(raw);
+
+    // Count commas needed
+    int commas = (int_len - 1) / 3;
+    int result_len = (number < 0 ? 1 : 0) + int_len + commas + (dot ? (int)strlen(dec_point) + (int)strlen(dot + 1) : 0) + 1;
+    char* result = (char*)malloc(result_len + 16); // extra safety
+    char* p = result;
+
+    if (number < 0) *p++ = '-';
+
+    // Write integer part with thousands separators
+    int sep_len = (int)strlen(thousands_sep);
+    for (int i = 0; i < int_len; i++) {
+        *p++ = raw[i];
+        int remaining = int_len - i - 1;
+        if (remaining > 0 && remaining % 3 == 0) {
+            for (int s = 0; s < sep_len; s++) *p++ = thousands_sep[s];
+        }
+    }
+
+    // Write decimal part
+    if (dot && decimals > 0) {
+        int dp_len = (int)strlen(dec_point);
+        for (int s = 0; s < dp_len; s++) *p++ = dec_point[s];
+        char* frac = dot + 1;
+        for (int i = 0; i < (int)decimals && frac[i]; i++) *p++ = frac[i];
+    }
+    *p = '\0';
+    return result;
 }
 
 // ========== Time & System ==========

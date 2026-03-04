@@ -75,6 +75,32 @@ double wolf_math_floor(double v);
 double wolf_math_max(double a, double b);
 double wolf_math_min(double a, double b);
 
+// --- Trig ---
+double wolf_math_sin(double v);
+double wolf_math_cos(double v);
+double wolf_math_tan(double v);
+double wolf_math_asin(double v);
+double wolf_math_acos(double v);
+double wolf_math_atan(double v);
+double wolf_math_atan2(double y, double x);
+
+// --- Power / Root / Log ---
+double wolf_math_sqrt(double v);
+double wolf_math_pow(double base, double exp_val);
+double wolf_math_log(double v);
+double wolf_math_log10(double v);
+double wolf_math_exp(double v);
+
+// --- Rounding ---
+double wolf_math_round(double v);
+double wolf_math_fmod(double a, double b);
+
+// --- Constants ---
+double wolf_math_pi();
+
+// --- Number Formatting ---
+const char* wolf_number_format(double number, int64_t decimals, const char* dec_point, const char* thousands_sep);
+
 // --- Stdlib ---
 int wolf_strings_contains(const char* s, const char* substr);
 const char* wolf_strings_upper(const char* s);

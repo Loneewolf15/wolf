@@ -188,6 +188,22 @@ func (e *LLVMEmitter) Emit(program *ir.Program) string {
 	e.writeln("declare double @wolf_math_max(double, double)")
 	e.writeln("declare double @wolf_math_min(double, double)")
 	e.writeln("declare i64 @wolf_math_random(i64, i64)")
+	e.writeln("declare double @wolf_math_sin(double)")
+	e.writeln("declare double @wolf_math_cos(double)")
+	e.writeln("declare double @wolf_math_tan(double)")
+	e.writeln("declare double @wolf_math_asin(double)")
+	e.writeln("declare double @wolf_math_acos(double)")
+	e.writeln("declare double @wolf_math_atan(double)")
+	e.writeln("declare double @wolf_math_atan2(double, double)")
+	e.writeln("declare double @wolf_math_sqrt(double)")
+	e.writeln("declare double @wolf_math_pow(double, double)")
+	e.writeln("declare double @wolf_math_log(double)")
+	e.writeln("declare double @wolf_math_log10(double)")
+	e.writeln("declare double @wolf_math_exp(double)")
+	e.writeln("declare double @wolf_math_round(double)")
+	e.writeln("declare double @wolf_math_fmod(double, double)")
+	e.writeln("declare double @wolf_math_pi()")
+	e.writeln("declare ptr @wolf_number_format(double, i64, ptr, ptr)")
 	e.writeln("")
 
 	e.writeln("; --- Stdlib Strings & JSON ---")
@@ -509,10 +525,18 @@ func (e *LLVMEmitter) inferExprType(expr ir.Expr) string {
 		// Convert Wolf_Math::Abs or math.abs to generic names
 		cfunc := strings.ToLower(fmt.Sprintf("%s_%s", ex.Class, ex.Method))
 		switch cfunc {
-		case "wolf_math_abs", "wolf_math_ceil", "wolf_math_floor", "wolf_math_max", "wolf_math_min", "math_abs", "math_ceil", "math_floor", "math_max", "math_min":
+		case "wolf_math_abs", "wolf_math_ceil", "wolf_math_floor", "wolf_math_max", "wolf_math_min", "math_abs", "math_ceil", "math_floor", "math_max", "math_min",
+			"wolf_math_sin", "wolf_math_cos", "wolf_math_tan", "wolf_math_asin", "wolf_math_acos", "wolf_math_atan", "wolf_math_atan2",
+			"wolf_math_sqrt", "wolf_math_pow", "wolf_math_log", "wolf_math_log10", "wolf_math_exp",
+			"wolf_math_round", "wolf_math_fmod", "wolf_math_pi",
+			"math_sin", "math_cos", "math_tan", "math_asin", "math_acos", "math_atan", "math_atan2",
+			"math_sqrt", "math_pow", "math_log", "math_log10", "math_exp",
+			"math_round", "math_fmod", "math_pi":
 			return "double"
 		case "wolf_math_random", "math_random":
 			return "i64"
+		case "wolf_number_format":
+			return "ptr"
 		case "wolf_json_encode", "wolf_json_decode", "wolf_strings_upper", "wolf_strings_join", "wolf_strings_replace":
 			return "ptr"
 		case "wolf_strings_contains", "wolf_env_has":
@@ -996,6 +1020,8 @@ func (e *LLVMEmitter) emitCallExpr(call *ir.CallExpr) string {
 			calleeName = "wolf_defined"
 		case "define_get":
 			calleeName = "wolf_define_get"
+		case "number_format":
+			calleeName = "wolf_number_format"
 		}
 	}
 
@@ -1020,12 +1046,23 @@ func (e *LLVMEmitter) emitCallExpr(call *ir.CallExpr) string {
 				if i == 1 {
 					expectedType = "i64"
 				}
-			case "wolf_math_abs", "wolf_math_ceil", "wolf_math_floor", "wolf_math_round":
+			case "wolf_math_abs", "wolf_math_ceil", "wolf_math_floor", "wolf_math_round",
+				"wolf_math_sin", "wolf_math_cos", "wolf_math_tan",
+				"wolf_math_asin", "wolf_math_acos", "wolf_math_atan",
+				"wolf_math_sqrt", "wolf_math_log", "wolf_math_log10", "wolf_math_exp":
 				expectedType = "double"
-			case "wolf_math_max", "wolf_math_min":
+			case "wolf_math_max", "wolf_math_min", "wolf_math_atan2", "wolf_math_pow", "wolf_math_fmod":
 				expectedType = "double"
 			case "wolf_math_random":
 				expectedType = "i64"
+			case "wolf_number_format":
+				if i == 0 {
+					expectedType = "double"
+				} else if i == 1 {
+					expectedType = "i64"
+				} else {
+					expectedType = "ptr"
+				}
 			}
 		}
 		val := e.emitExpr(arg, expectedType)
@@ -1039,10 +1076,16 @@ func (e *LLVMEmitter) emitCallExpr(call *ir.CallExpr) string {
 		switch calleeName {
 		case "wolf_say", "wolf_show", "wolf_inspect", "wolf_system_sleep", "wolf_system_exit", "wolf_system_die", "wolf_session_begin", "wolf_session_set", "wolf_session_end", "wolf_define":
 			retType = "void"
-		case "wolf_time_now", "wolf_time_strtotime":
+		case "wolf_time_now", "wolf_time_strtotime", "wolf_redis_del":
 			retType = "i64"
-		case "wolf_defined":
+		case "wolf_defined", "wolf_redis_exists":
 			retType = "i1"
+		case "wolf_math_abs", "wolf_math_ceil", "wolf_math_floor", "wolf_math_max", "wolf_math_min",
+			"wolf_math_sin", "wolf_math_cos", "wolf_math_tan",
+			"wolf_math_asin", "wolf_math_acos", "wolf_math_atan", "wolf_math_atan2",
+			"wolf_math_sqrt", "wolf_math_pow", "wolf_math_log", "wolf_math_log10", "wolf_math_exp",
+			"wolf_math_round", "wolf_math_fmod", "wolf_math_pi":
+			retType = "double"
 		default:
 			retType = "ptr" // Call to unknown func (e.g. external) typically returns ptr
 		}
