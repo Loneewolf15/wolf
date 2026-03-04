@@ -11,7 +11,7 @@ import (
 )
 
 // Database implements the Wolf Database library class.
-// It wraps Go's database/sql with the TraversyMVC-style API:
+// It wraps Go's database/sql with the Wolf PDO-style API:
 //
 //	$this->db->query("SQL")
 //	$this->db->bind(":param", $value)
@@ -130,7 +130,7 @@ func (d *Database) DB() *sql.DB {
 	return d.db
 }
 
-// ========== Query Builder API (TraversyMVC style) ==========
+// ========== Query Builder API (Wolf PDO style) ==========
 
 // Query sets the SQL query string.
 func (d *Database) Query(sqlStr string) {

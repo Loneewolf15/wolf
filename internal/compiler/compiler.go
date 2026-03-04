@@ -72,7 +72,7 @@ func (c *Compiler) Compile(source, filename string) (*CompileResult, error) {
 		fmt.Printf("wolf: parsed %d top-level statements from main file\n", len(program.Statements))
 	}
 
-	// Phase 2.5: Auto-Discover TraversyMVC Libraries and Controllers
+	// Phase 2.5: Auto-Discover Libraries and Controllers
 	projectRoot := filepath.Dir(filename)
 	discoveredASTs, err := c.AutoDiscover(projectRoot)
 	if err != nil {

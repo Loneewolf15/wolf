@@ -23,7 +23,7 @@ class Core {
     }
 
     func init($port: int) {
-        print("🐺 Wolf Server (TraversyMVC Core) starting on port {$port}...")
+        print("🐺 Wolf Server starting on port {$port}...")
         wolf_http_serve($port, __dispatch_route)
     }
 }

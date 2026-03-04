@@ -1,5 +1,5 @@
 # libraries/Database.wolf
-# PDO-style Database class following TraversyMVC pattern
+# PDO-style Database class for Wolf
 # Reads connection info from define() constants set in config/config.wolf
 
 class Database {

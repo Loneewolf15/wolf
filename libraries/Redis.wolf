@@ -1,5 +1,5 @@
 # libraries/Redis.wolf
-# Redis wrapper class following TraversyMVC pattern
+# Redis wrapper class for Wolf
 # Uses in-memory mock by default — swap to hiredis for production
 
 class Redis {

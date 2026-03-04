@@ -1,6 +1,6 @@
 # Database and Redis 🐺
 
-Wolf provides TraversyMVC-inspired database wrappers for familiar, safe, and powerful data access. Instead of raw drivers, Wolf wraps Go's `database/sql` and `go-redis/redis` for zero-friction backend development.
+Wolf provides built-in database wrappers for familiar, safe, and powerful data access. Instead of raw drivers, Wolf wraps Go's `database/sql` and `go-redis/redis` for zero-friction backend development.
 
 ## Configuring Connections
 
