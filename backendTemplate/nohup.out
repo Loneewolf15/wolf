@@ -1,4 +1,0 @@
-
-Email worker started. Waiting for jobs...
-[2025-09-29 10:25:20] Processing job: 4 - Type: SendPasswordResetEmail
-[2025-09-29 10:25:25] Processed and deleted job: 4
