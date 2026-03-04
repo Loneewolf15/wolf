@@ -219,4 +219,41 @@ void* wolf_array_intersect(void* a, void* b);
 void* wolf_array_flip(void* a);
 void* wolf_range(int64_t start, int64_t end);
 
+// --- Phase 3: Date/Time ---
+int64_t wolf_time_ms();
+int64_t wolf_time_ns();
+int64_t wolf_mktime(int64_t hour, int64_t min, int64_t sec, int64_t mon, int64_t day, int64_t year);
+int64_t wolf_date_diff(int64_t ts1, int64_t ts2);
+const char* wolf_date_format(int64_t timestamp, const char* format);
+int64_t wolf_day_of_week(int64_t timestamp);
+int64_t wolf_days_in_month(int64_t month, int64_t year);
+int wolf_is_leap_year(int64_t year);
+int64_t wolf_strtotime(const char* str);
+
+// --- Phase 3: Validation ---
+int wolf_is_email(const char* s);
+int wolf_is_url(const char* s);
+int wolf_is_phone(const char* s);
+int wolf_is_uuid(const char* s);
+int wolf_is_json(const char* s);
+int wolf_is_ip(const char* s);
+int wolf_is_alpha(const char* s);
+int wolf_is_alpha_num(const char* s);
+
+// --- Phase 3: File System ---
+int wolf_file_exists(const char* path);
+const char* wolf_file_read(const char* path);
+int wolf_file_write(const char* path, const char* data);
+int wolf_file_append(const char* path, const char* data);
+int wolf_file_delete(const char* path);
+int64_t wolf_file_size(const char* path);
+const char* wolf_file_extension(const char* path);
+const char* wolf_file_basename(const char* path);
+const char* wolf_file_dirname(const char* path);
+int wolf_dir_exists(const char* path);
+
+// --- Phase 3: Utilities ---
+const char* wolf_slug(const char* s);
+const char* wolf_truncate(const char* s, int64_t len, const char* suffix);
+
 #endif // WOLF_RUNTIME_H

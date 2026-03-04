@@ -324,6 +324,47 @@ func (e *LLVMEmitter) Emit(program *ir.Program) string {
 	e.writeln("declare ptr @wolf_range(i64, i64)")
 	e.writeln("")
 
+	e.writeln("; --- Phase 3: Date/Time ---")
+	e.writeln("declare i64 @wolf_time_ms()")
+	e.writeln("declare i64 @wolf_time_ns()")
+	e.writeln("declare i64 @wolf_mktime(i64, i64, i64, i64, i64, i64)")
+	e.writeln("declare i64 @wolf_date_diff(i64, i64)")
+	e.writeln("declare ptr @wolf_date_format(i64, ptr)")
+	e.writeln("declare i64 @wolf_day_of_week(i64)")
+	e.writeln("declare i64 @wolf_days_in_month(i64, i64)")
+	e.writeln("declare i1 @wolf_is_leap_year(i64)")
+	e.writeln("declare i64 @wolf_strtotime(ptr)")
+	e.writeln("")
+
+	e.writeln("; --- Phase 3: Validation ---")
+	e.writeln("declare i1 @wolf_is_email(ptr)")
+	e.writeln("declare i1 @wolf_is_url(ptr)")
+	e.writeln("declare i1 @wolf_is_phone(ptr)")
+	e.writeln("declare i1 @wolf_is_uuid(ptr)")
+	e.writeln("declare i1 @wolf_is_json(ptr)")
+	e.writeln("declare i1 @wolf_is_ip(ptr)")
+	e.writeln("declare i1 @wolf_is_alpha(ptr)")
+	e.writeln("declare i1 @wolf_is_alpha_num(ptr)")
+	e.writeln("")
+
+	e.writeln("; --- Phase 3: File System ---")
+	e.writeln("declare i1 @wolf_file_exists(ptr)")
+	e.writeln("declare ptr @wolf_file_read(ptr)")
+	e.writeln("declare i1 @wolf_file_write(ptr, ptr)")
+	e.writeln("declare i1 @wolf_file_append(ptr, ptr)")
+	e.writeln("declare i1 @wolf_file_delete(ptr)")
+	e.writeln("declare i64 @wolf_file_size(ptr)")
+	e.writeln("declare ptr @wolf_file_extension(ptr)")
+	e.writeln("declare ptr @wolf_file_basename(ptr)")
+	e.writeln("declare ptr @wolf_file_dirname(ptr)")
+	e.writeln("declare i1 @wolf_dir_exists(ptr)")
+	e.writeln("")
+
+	e.writeln("; --- Phase 3: Utilities ---")
+	e.writeln("declare ptr @wolf_slug(ptr)")
+	e.writeln("declare ptr @wolf_truncate(ptr, i64, ptr)")
+	e.writeln("")
+
 	e.writeln("; --- Sessions ---")
 	e.writeln("declare void @wolf_session_begin()")
 	e.writeln("declare void @wolf_session_set(ptr, ptr)")
@@ -1324,6 +1365,70 @@ func (e *LLVMEmitter) emitCallExpr(call *ir.CallExpr) string {
 			calleeName = "wolf_array_flip"
 		case "range":
 			calleeName = "wolf_range"
+
+		// --- Phase 3: Date/Time ---
+		case "time_ms":
+			calleeName = "wolf_time_ms"
+		case "time_ns":
+			calleeName = "wolf_time_ns"
+		case "mktime":
+			calleeName = "wolf_mktime"
+		case "date_diff":
+			calleeName = "wolf_date_diff"
+		case "date_format":
+			calleeName = "wolf_date_format"
+		case "day_of_week":
+			calleeName = "wolf_day_of_week"
+		case "days_in_month":
+			calleeName = "wolf_days_in_month"
+		case "is_leap_year":
+			calleeName = "wolf_is_leap_year"
+
+		// --- Phase 3: Validation ---
+		case "is_email":
+			calleeName = "wolf_is_email"
+		case "is_url":
+			calleeName = "wolf_is_url"
+		case "is_phone":
+			calleeName = "wolf_is_phone"
+		case "is_uuid":
+			calleeName = "wolf_is_uuid"
+		case "is_json":
+			calleeName = "wolf_is_json"
+		case "is_ip":
+			calleeName = "wolf_is_ip"
+		case "is_alpha":
+			calleeName = "wolf_is_alpha"
+		case "is_alpha_num":
+			calleeName = "wolf_is_alpha_num"
+
+		// --- Phase 3: File System ---
+		case "file_exists":
+			calleeName = "wolf_file_exists"
+		case "file_read":
+			calleeName = "wolf_file_read"
+		case "file_write":
+			calleeName = "wolf_file_write"
+		case "file_append":
+			calleeName = "wolf_file_append"
+		case "file_delete":
+			calleeName = "wolf_file_delete"
+		case "file_size":
+			calleeName = "wolf_file_size"
+		case "file_extension":
+			calleeName = "wolf_file_extension"
+		case "file_basename":
+			calleeName = "wolf_file_basename"
+		case "file_dirname":
+			calleeName = "wolf_file_dirname"
+		case "dir_exists":
+			calleeName = "wolf_dir_exists"
+
+		// --- Phase 3: Utilities ---
+		case "slug":
+			calleeName = "wolf_slug"
+		case "truncate":
+			calleeName = "wolf_truncate"
 		}
 	}
 
@@ -1393,10 +1498,6 @@ func (e *LLVMEmitter) emitCallExpr(call *ir.CallExpr) string {
 			"wolf_redis_set", "wolf_redis_hset", "wolf_redis_close",
 			"wolf_array_unshift", "wolf_sort", "wolf_rsort", "wolf_array_push":
 			retType = "void"
-		case "wolf_time_now", "wolf_time_strtotime", "wolf_redis_del":
-			retType = "i64"
-		case "wolf_defined", "wolf_redis_exists":
-			retType = "i1"
 		case "wolf_math_abs", "wolf_math_ceil", "wolf_math_floor", "wolf_math_max", "wolf_math_min",
 			"wolf_math_sin", "wolf_math_cos", "wolf_math_tan",
 			"wolf_math_asin", "wolf_math_acos", "wolf_math_atan", "wolf_math_atan2",
@@ -1405,11 +1506,18 @@ func (e *LLVMEmitter) emitCallExpr(call *ir.CallExpr) string {
 			"wolf_deg2rad", "wolf_rad2deg", "wolf_clamp", "wolf_floatval",
 			"wolf_array_sum":
 			retType = "double"
-		case "wolf_intval", "wolf_intdiv", "wolf_strpos", "wolf_strrpos", "wolf_str_word_count", "wolf_strcmp":
+		case "wolf_time_now", "wolf_time_strtotime", "wolf_redis_del",
+			"wolf_count", "wolf_array_search", "wolf_intval", "wolf_intdiv", "wolf_strpos", "wolf_strrpos", "wolf_str_word_count", "wolf_strcmp",
+			"wolf_time_ms", "wolf_time_ns", "wolf_mktime", "wolf_date_diff", "wolf_day_of_week", "wolf_days_in_month",
+			"wolf_strtotime", "wolf_file_size":
 			retType = "i64"
-		case "wolf_str_contains", "wolf_str_starts_with", "wolf_str_ends_with",
+		case "wolf_defined", "wolf_redis_exists",
+			"wolf_str_contains", "wolf_str_starts_with", "wolf_str_ends_with",
 			"wolf_boolval", "wolf_is_numeric", "wolf_password_verify",
-			"wolf_in_array":
+			"wolf_in_array",
+			"wolf_is_email", "wolf_is_url", "wolf_is_phone", "wolf_is_uuid", "wolf_is_json",
+			"wolf_is_ip", "wolf_is_alpha", "wolf_is_alpha_num", "wolf_is_leap_year",
+			"wolf_file_exists", "wolf_file_write", "wolf_file_append", "wolf_file_delete", "wolf_dir_exists":
 			retType = "i1"
 		default:
 			retType = "ptr" // Call to unknown func (e.g. external) typically returns ptr

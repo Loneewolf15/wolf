@@ -20,6 +20,7 @@
 #include <strings.h>
 #include <time.h>
 #include <math.h>
+#include <sys/stat.h>
 
 // ========== Print ==========
 
@@ -1546,3 +1547,309 @@ const char* wolf_json_decode(const char* json) {
     return json ? strdup(json) : strdup("null");
 }
 
+// ========== Phase 3 Stdlib — Date/Time Extras ==========
+
+int64_t wolf_time_ms() {
+    struct timespec ts;
+    clock_gettime(CLOCK_REALTIME, &ts);
+    return (int64_t)(ts.tv_sec * 1000LL + ts.tv_nsec / 1000000LL);
+}
+
+int64_t wolf_time_ns() {
+    struct timespec ts;
+    clock_gettime(CLOCK_REALTIME, &ts);
+    return (int64_t)(ts.tv_sec * 1000000000LL + ts.tv_nsec);
+}
+
+int64_t wolf_mktime(int64_t hour, int64_t min, int64_t sec, int64_t mon, int64_t day, int64_t year) {
+    struct tm t = {0};
+    t.tm_hour = (int)hour;
+    t.tm_min = (int)min;
+    t.tm_sec = (int)sec;
+    t.tm_mon = (int)mon - 1;
+    t.tm_mday = (int)day;
+    t.tm_year = (int)year - 1900;
+    t.tm_isdst = -1;
+    return (int64_t)mktime(&t);
+}
+
+int64_t wolf_date_diff(int64_t ts1, int64_t ts2) {
+    return ts2 > ts1 ? ts2 - ts1 : ts1 - ts2;
+}
+
+const char* wolf_date_format(int64_t timestamp, const char* format) {
+    return wolf_time_date(format, timestamp);
+}
+
+int64_t wolf_day_of_week(int64_t timestamp) {
+    time_t t = (time_t)timestamp;
+    struct tm* info = localtime(&t);
+    return (int64_t)info->tm_wday;
+}
+
+int64_t wolf_days_in_month(int64_t month, int64_t year) {
+    int days_per_month[] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
+    if (month < 1 || month > 12) return 0;
+    int d = days_per_month[month - 1];
+    if (month == 2 && (year % 4 == 0 && (year % 100 != 0 || year % 400 == 0))) d = 29;
+    return (int64_t)d;
+}
+
+int wolf_is_leap_year(int64_t year) {
+    return (year % 4 == 0 && (year % 100 != 0 || year % 400 == 0));
+}
+
+int64_t wolf_strtotime(const char* str) {
+    // Simple parser for common date formats
+    if (!str) return 0;
+    struct tm t = {0};
+    // Try "YYYY-MM-DD HH:MM:SS"
+    if (sscanf(str, "%d-%d-%d %d:%d:%d", &t.tm_year, &t.tm_mon, &t.tm_mday,
+               &t.tm_hour, &t.tm_min, &t.tm_sec) >= 3) {
+        t.tm_year -= 1900;
+        t.tm_mon -= 1;
+        t.tm_isdst = -1;
+        return (int64_t)mktime(&t);
+    }
+    // Try "YYYY-MM-DD"
+    if (sscanf(str, "%d-%d-%d", &t.tm_year, &t.tm_mon, &t.tm_mday) == 3) {
+        t.tm_year -= 1900;
+        t.tm_mon -= 1;
+        t.tm_isdst = -1;
+        return (int64_t)mktime(&t);
+    }
+    // Special strings
+    if (strcmp(str, "now") == 0) return (int64_t)time(NULL);
+    if (strcmp(str, "today") == 0) {
+        time_t now = time(NULL);
+        struct tm* tm_now = localtime(&now);
+        tm_now->tm_hour = 0; tm_now->tm_min = 0; tm_now->tm_sec = 0;
+        return (int64_t)mktime(tm_now);
+    }
+    if (strcmp(str, "tomorrow") == 0) {
+        return (int64_t)time(NULL) + 86400;
+    }
+    if (strcmp(str, "yesterday") == 0) {
+        return (int64_t)time(NULL) - 86400;
+    }
+    // "+N days" / "-N days"
+    int n;
+    if (sscanf(str, "+%d days", &n) == 1) return (int64_t)time(NULL) + n * 86400;
+    if (sscanf(str, "-%d days", &n) == 1) return (int64_t)time(NULL) - n * 86400;
+    if (sscanf(str, "+%d hours", &n) == 1) return (int64_t)time(NULL) + n * 3600;
+    if (sscanf(str, "-%d hours", &n) == 1) return (int64_t)time(NULL) - n * 3600;
+    return 0;
+}
+
+// ========== Phase 3 Stdlib — Validation ==========
+
+int wolf_is_email(const char* s) {
+    if (!s) return 0;
+    const char* at = strchr(s, '@');
+    if (!at || at == s) return 0;
+    const char* dot = strchr(at, '.');
+    if (!dot || dot == at + 1 || *(dot + 1) == '\0') return 0;
+    // Check no spaces
+    for (const char* p = s; *p; p++) {
+        if (isspace((unsigned char)*p)) return 0;
+    }
+    return 1;
+}
+
+int wolf_is_url(const char* s) {
+    if (!s) return 0;
+    return (strncmp(s, "http://", 7) == 0 || strncmp(s, "https://", 8) == 0 ||
+            strncmp(s, "ftp://", 6) == 0);
+}
+
+int wolf_is_phone(const char* s) {
+    if (!s) return 0;
+    const char* p = s;
+    if (*p == '+') p++;
+    int digits = 0;
+    while (*p) {
+        if (isdigit((unsigned char)*p)) digits++;
+        else if (*p != ' ' && *p != '-' && *p != '(' && *p != ')') return 0;
+        p++;
+    }
+    return digits >= 7 && digits <= 15;
+}
+
+int wolf_is_uuid(const char* s) {
+    if (!s || strlen(s) != 36) return 0;
+    // Check format: 8-4-4-4-12
+    for (int i = 0; i < 36; i++) {
+        if (i == 8 || i == 13 || i == 18 || i == 23) {
+            if (s[i] != '-') return 0;
+        } else {
+            if (!isxdigit((unsigned char)s[i])) return 0;
+        }
+    }
+    return 1;
+}
+
+int wolf_is_json(const char* s) {
+    if (!s || !*s) return 0;
+    // Skip whitespace
+    while (isspace((unsigned char)*s)) s++;
+    // Must start with { or [
+    return *s == '{' || *s == '[';
+}
+
+int wolf_is_ip(const char* s) {
+    if (!s) return 0;
+    int parts = 0, val = 0, has_digit = 0;
+    while (*s) {
+        if (isdigit((unsigned char)*s)) {
+            val = val * 10 + (*s - '0');
+            has_digit = 1;
+            if (val > 255) return 0;
+        } else if (*s == '.') {
+            if (!has_digit) return 0;
+            parts++; val = 0; has_digit = 0;
+        } else return 0;
+        s++;
+    }
+    return has_digit && parts == 3;
+}
+
+int wolf_is_alpha(const char* s) {
+    if (!s || !*s) return 0;
+    while (*s) {
+        if (!isalpha((unsigned char)*s)) return 0;
+        s++;
+    }
+    return 1;
+}
+
+int wolf_is_alpha_num(const char* s) {
+    if (!s || !*s) return 0;
+    while (*s) {
+        if (!isalnum((unsigned char)*s)) return 0;
+        s++;
+    }
+    return 1;
+}
+
+// ========== Phase 3 Stdlib — File System ==========
+
+int wolf_file_exists(const char* path) {
+    if (!path) return 0;
+    FILE* f = fopen(path, "r");
+    if (f) { fclose(f); return 1; }
+    return 0;
+}
+
+const char* wolf_file_read(const char* path) {
+    if (!path) return strdup("");
+    FILE* f = fopen(path, "rb");
+    if (!f) return strdup("");
+    fseek(f, 0, SEEK_END);
+    long size = ftell(f);
+    fseek(f, 0, SEEK_SET);
+    char* buf = (char*)malloc(size + 1);
+    fread(buf, 1, size, f);
+    buf[size] = '\0';
+    fclose(f);
+    return buf;
+}
+
+int wolf_file_write(const char* path, const char* data) {
+    if (!path || !data) return 0;
+    FILE* f = fopen(path, "wb");
+    if (!f) return 0;
+    fwrite(data, 1, strlen(data), f);
+    fclose(f);
+    return 1;
+}
+
+int wolf_file_append(const char* path, const char* data) {
+    if (!path || !data) return 0;
+    FILE* f = fopen(path, "ab");
+    if (!f) return 0;
+    fwrite(data, 1, strlen(data), f);
+    fclose(f);
+    return 1;
+}
+
+int wolf_file_delete(const char* path) {
+    if (!path) return 0;
+    return remove(path) == 0;
+}
+
+int64_t wolf_file_size(const char* path) {
+    if (!path) return -1;
+    FILE* f = fopen(path, "rb");
+    if (!f) return -1;
+    fseek(f, 0, SEEK_END);
+    long size = ftell(f);
+    fclose(f);
+    return (int64_t)size;
+}
+
+const char* wolf_file_extension(const char* path) {
+    if (!path) return strdup("");
+    const char* dot = strrchr(path, '.');
+    if (!dot || dot == path) return strdup("");
+    return strdup(dot + 1);
+}
+
+const char* wolf_file_basename(const char* path) {
+    if (!path) return strdup("");
+    const char* slash = strrchr(path, '/');
+    if (!slash) return strdup(path);
+    return strdup(slash + 1);
+}
+
+const char* wolf_file_dirname(const char* path) {
+    if (!path) return strdup("");
+    const char* slash = strrchr(path, '/');
+    if (!slash) return strdup(".");
+    size_t len = slash - path;
+    char* r = (char*)malloc(len + 1);
+    memcpy(r, path, len);
+    r[len] = '\0';
+    return r;
+}
+
+int wolf_dir_exists(const char* path) {
+    if (!path) return 0;
+    struct stat st;
+    return (stat(path, &st) == 0 && S_ISDIR(st.st_mode));
+}
+
+// ========== Phase 3 Stdlib — Slug & Truncate ==========
+
+const char* wolf_slug(const char* s) {
+    if (!s) return strdup("");
+    size_t len = strlen(s);
+    char* r = (char*)malloc(len + 1);
+    char* w = r;
+    for (size_t i = 0; i < len; i++) {
+        unsigned char c = (unsigned char)s[i];
+        if (isalnum(c)) *w++ = (char)tolower(c);
+        else if (c == ' ' || c == '_') {
+            if (w > r && *(w-1) != '-') *w++ = '-';
+        }
+        // skip other chars (apostrophes, etc.)
+    }
+    // Remove trailing dash
+    if (w > r && *(w-1) == '-') w--;
+    *w = '\0';
+    return r;
+}
+
+const char* wolf_truncate(const char* s, int64_t len, const char* suffix) {
+    if (!s) return strdup("");
+    if (!suffix) suffix = "...";
+    size_t sl = strlen(s);
+    if ((int64_t)sl <= len) return strdup(s);
+    size_t suf_len = strlen(suffix);
+    int64_t cut = len - (int64_t)suf_len;
+    if (cut < 0) cut = 0;
+    char* r = (char*)malloc(cut + suf_len + 1);
+    memcpy(r, s, cut);
+    memcpy(r + cut, suffix, suf_len);
+    r[cut + suf_len] = '\0';
+    return r;
+}
