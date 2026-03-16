@@ -207,7 +207,7 @@ const char* wolf_base64_decode(const char* s);
 const char* wolf_url_encode(const char* s);
 const char* wolf_url_decode(const char* s);
 const char* wolf_json_pretty(const char* json);
-const char* wolf_json_decode(const char* json);
+void* wolf_json_decode(const char* json);
 
 // --- Security ---
 const char* wolf_md5(const char* s);

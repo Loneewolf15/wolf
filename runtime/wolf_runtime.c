@@ -349,6 +349,8 @@ const char* wolf_define_get(const char* key) {
 // ========== Database (Real MySQL C Bindings) ==========
 #include <mysql/mysql.h>
 
+static pthread_mutex_t db_mutex = PTHREAD_MUTEX_INITIALIZER;
+
 typedef struct {
     MYSQL *conn;
     char *sql;
@@ -391,50 +393,62 @@ static char* wolf_internal_str_replace(const char* orig, const char* rep, const 
 }
 
 void* wolf_db_connect(const char* host, const char* user, const char* pass, const char* dbname) {
-    printf("[WOLF-DB] Connecting: host=%s user=%s db=%s\n", 
-           host ? host : "NULL", 
-           user ? user : "NULL", 
+    pthread_mutex_lock(&db_mutex);
+    printf("[WOLF-DB] Connecting: host=%s user=%s db=%s\n",
+           host ? host : "NULL",
+           user ? user : "NULL",
            dbname ? dbname : "NULL");
+
     MYSQL *conn = mysql_init(NULL);
     if (conn == NULL) {
         printf("[WOLF-DB] mysql_init() failed\n");
+        pthread_mutex_unlock(&db_mutex);
         return NULL;
     }
 
-    // If host is "localhost", try known socket paths first, then TCP fallback
     if (host && strcmp(host, "localhost") == 0) {
         const char* socket_paths[] = {
-           "/opt/lampp/var/mysql/mysql.sock",
-           "/var/run/mysqld/mysqld.sock",
-    "/tmp/mysql.sock",
-    "/var/lib/mysql/mysql.sock",
+            "/opt/lampp/var/mysql/mysql.sock",
+            "/var/run/mysqld/mysqld.sock",
+            "/tmp/mysql.sock",
+            "/var/lib/mysql/mysql.sock",
             NULL
         };
         for (int i = 0; socket_paths[i]; i++) {
             if (access(socket_paths[i], F_OK) == 0) {
                 if (mysql_real_connect(conn, NULL, user, pass, dbname, 0, socket_paths[i], 0) != NULL) {
+                    pthread_mutex_unlock(&db_mutex);
                     return conn;
                 }
                 printf("[WOLF-DB] Socket %s failed: %s\n", socket_paths[i], mysql_error(conn));
                 mysql_close(conn);
                 conn = mysql_init(NULL);
+                if (conn == NULL) {
+                    pthread_mutex_unlock(&db_mutex);
+                    return NULL;
+                }
             }
         }
-        // Fallback: try TCP via 127.0.0.1
+        // Fallback: TCP via 127.0.0.1
         if (mysql_real_connect(conn, "127.0.0.1", user, pass, dbname, 3306, NULL, 0) != NULL) {
+            pthread_mutex_unlock(&db_mutex);
             return conn;
         }
         printf("[WOLF-DB] Connection failed: %s\n", mysql_error(conn));
         mysql_close(conn);
+        pthread_mutex_unlock(&db_mutex);
         return NULL;
     }
 
-    // Non-localhost: connect normally
+    // Non-localhost
     if (mysql_real_connect(conn, host, user, pass, dbname, 0, NULL, 0) == NULL) {
         printf("[WOLF-DB] Connection failed: %s\n", mysql_error(conn));
         mysql_close(conn);
+        pthread_mutex_unlock(&db_mutex);
         return NULL;
     }
+
+    pthread_mutex_unlock(&db_mutex);
     return conn;
 }
 
@@ -1372,6 +1386,7 @@ typedef struct {
 
 static wolf_http_context_t http_contexts[MAX_CONCURRENT_REQUESTS];
 static pthread_mutex_t http_mutex = PTHREAD_MUTEX_INITIALIZER;
+// static pthread_mutex_t db_mutex = PTHREAD_MUTEX_INITIALIZER;
 static wolf_http_handler_t global_wolf_handler = NULL;
 
 // Thread-local storage for current request/response context
@@ -1518,6 +1533,7 @@ static void parse_http_request(int id, char* raw_req, size_t len) {
 }
 
 static void* http_worker(void* arg) {
+    mysql_thread_init();  // ← add this
     int id = (int)(intptr_t)arg;
     wolf_http_context_t* ctx = &http_contexts[id];
     
@@ -1553,11 +1569,13 @@ static void* http_worker(void* arg) {
     
     close(ctx->client_fd);
     free_http_context(id);
+    mysql_thread_end();  // ← add this
     return NULL;
 }
 
 void wolf_http_serve(int64_t port, void* handler_ptr) {
     global_wolf_handler = (wolf_http_handler_t)handler_ptr;
+    mysql_library_init(0, NULL, NULL);  // ← add this
     
     int server_fd;
     struct sockaddr_in address;
@@ -2202,9 +2220,92 @@ const char* wolf_json_pretty(const char* json) {
     return json ? strdup(json) : strdup("null");
 }
 
-const char* wolf_json_decode(const char* json) {
-    // Stub — returns as-is
-    return json ? strdup(json) : strdup("null");
+void* wolf_json_decode(const char* json) {
+    if (!json) return wolf_map_create();
+    // Skip whitespace
+    while (*json && (*json == ' ' || *json == '\t' || *json == '\n')) json++;
+    if (*json != '{') return wolf_map_create();
+
+    void* map = wolf_map_create();
+    json++; // skip '{'
+
+    while (*json) {
+        // Skip whitespace
+        while (*json && (*json == ' ' || *json == '\t' || *json == '\n' || *json == ',')) json++;
+        if (*json == '}') break;
+        if (*json != '"') break;
+        json++; // skip opening quote
+
+        // Read key
+        char key[256] = {0};
+        int ki = 0;
+        while (*json && *json != '"' && ki < 255) key[ki++] = *json++;
+        if (*json == '"') json++; // skip closing quote
+
+        // Skip whitespace and colon
+        while (*json && (*json == ' ' || *json == '\t' || *json == ':')) json++;
+
+        // Read value
+        if (*json == '"') {
+            json++; // skip opening quote
+            char val[4096] = {0};
+            int vi = 0;
+            while (*json && *json != '"' && vi < 4095) {
+                if (*json == '\\' && *(json+1)) {
+                    json++;
+                    switch (*json) {
+                        case 'n': val[vi++] = '\n'; break;
+                        case 't': val[vi++] = '\t'; break;
+                        case 'r': val[vi++] = '\r'; break;
+                        default:  val[vi++] = *json; break;
+                    }
+                } else {
+                    val[vi++] = *json;
+                }
+                json++;
+            }
+            if (*json == '"') json++; // skip closing quote
+            wolf_map_set(map, key, strdup(val));
+        } else if (*json == 't' && strncmp(json, "true", 4) == 0) {
+            json += 4;
+            wolf_map_set_bool(map, key, 1);
+        } else if (*json == 'f' && strncmp(json, "false", 5) == 0) {
+            json += 5;
+            wolf_map_set_bool(map, key, 0);
+        } else if (*json == 'n' && strncmp(json, "null", 4) == 0) {
+            json += 4;
+            wolf_map_set(map, key, NULL);
+        } else if (*json == '{') {
+            // Nested object — recurse
+            // Find the matching closing brace
+            int depth = 0;
+            const char* start = json;
+            while (*json) {
+                if (*json == '{') depth++;
+                else if (*json == '}') { depth--; if (depth == 0) { json++; break; } }
+                json++;
+            }
+            char* nested = strndup(start, json - start);
+            wolf_map_set(map, key, wolf_json_decode(nested));
+            free(nested);
+        } else {
+            // Number
+            char num[64] = {0};
+            int ni = 0;
+            int is_float = 0;
+            if (*json == '-') num[ni++] = *json++;
+            while (*json && ((*json >= '0' && *json <= '9') || *json == '.') && ni < 63) {
+                if (*json == '.') is_float = 1;
+                num[ni++] = *json++;
+            }
+            if (is_float) {
+                wolf_map_set_float(map, key, atof(num));
+            } else {
+                wolf_map_set_int(map, key, atoll(num));
+            }
+        }
+    }
+    return map;
 }
 
 // ========== Phase 3 Stdlib — Date/Time Extras ==========

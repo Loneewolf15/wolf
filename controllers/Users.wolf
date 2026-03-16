@@ -84,7 +84,7 @@ class UsersController extends Controller {
 
         # Generate user ID and referral code
         $user_id = "mplaza" + md5(date("%Y%m%d%H%M%S", time()) + strval(rand(1000, 9999)))
-        $new_referral_code = strtoupper(substr($name, 0, 4)) + strval(rand(100, 999))
+        $new_referral_code = strtoupper(substr($name, 0, 4)) + strval(rand(10, 99))
 
         # Handle referral
         $referrer_id = ""
