@@ -444,6 +444,9 @@ func (e *LLVMEmitter) Emit(program *ir.Program) string {
 	e.writeln("declare i64 @wolf_array_length(ptr)")
 	e.writeln("declare ptr @wolf_map_create()")
 	e.writeln("declare void @wolf_map_set(ptr, ptr, ptr)")
+	e.writeln("declare void @wolf_map_set_int(ptr, ptr, i64)")
+	e.writeln("declare void @wolf_map_set_float(ptr, ptr, double)")
+	e.writeln("declare void @wolf_map_set_bool(ptr, ptr, i1)")
 	e.writeln("declare ptr @wolf_map_get(ptr, ptr)")
 	e.writeln("declare ptr @wolf_class_create(ptr)")
 	e.writeln("declare i1 @wolf_env_has(ptr)")
@@ -509,7 +512,7 @@ func (e *LLVMEmitter) collectLocalVars(stmts []ir.Stmt) {
 			e.varTypes[s.Name] = llType
 		case *ir.AssignStmt:
 			if target, ok := s.Target.(*ir.Ident); ok {
-				if s.Op == ":=" || e.varTypes[target.Name] == "" {
+				if e.varTypes[target.Name] == "" {
 					llType := e.inferExprType(s.Value)
 					if llType == "" {
 						llType = "ptr"
@@ -526,6 +529,9 @@ func (e *LLVMEmitter) collectLocalVars(stmts []ir.Stmt) {
 				e.collectLocalVars(s.ElseBody)
 			}
 		case *ir.ForStmt:
+			if s.Init != nil {
+				e.collectLocalVars([]ir.Stmt{s.Init})
+			}
 			e.collectLocalVars(s.Body)
 		case *ir.RangeStmt:
 			e.varTypes[s.Value] = "ptr"
@@ -1127,15 +1133,11 @@ func (e *LLVMEmitter) emitRange(s *ir.RangeStmt) {
 	if s.Value != "" && s.Value != "_" {
 		valReg := e.nextLocal()
 		e.writelnIndent(fmt.Sprintf("%s = call ptr @wolf_array_get(ptr %s, i64 %s)", valReg, arrVal, idxVal))
-		e.writelnIndent(fmt.Sprintf("%%%s = alloca ptr", s.Value))
-		e.varTypes[s.Value] = "ptr"
 		e.writelnIndent(fmt.Sprintf("store ptr %s, ptr %%%s", valReg, s.Value))
 	}
 
 	// Assign key
 	if s.Key != "" && s.Key != "_" {
-		e.writelnIndent(fmt.Sprintf("%%%s = alloca i64", s.Key))
-		e.varTypes[s.Key] = "i64"
 		e.writelnIndent(fmt.Sprintf("store i64 %s, ptr %%%s", idxVal, s.Key))
 	}
 
@@ -1318,8 +1320,21 @@ func (e *LLVMEmitter) emitMapLit(ex *ir.MapLit) string {
 	e.writelnIndent(fmt.Sprintf("%s = call ptr @wolf_map_create()", mapReg))
 	for i := range ex.Keys {
 		keyVal := e.emitArgAsString(ex.Keys[i])
-		valVal := e.emitArgAsString(ex.Values[i])
-		e.writelnIndent(fmt.Sprintf("call void @wolf_map_set(ptr %s, ptr %s, ptr %s)", mapReg, keyVal, valVal))
+		valType := e.inferExprType(ex.Values[i])
+		switch valType {
+		case "i64":
+			intVal := e.emitExpr(ex.Values[i], "i64")
+			e.writelnIndent(fmt.Sprintf("call void @wolf_map_set_int(ptr %s, ptr %s, i64 %s)", mapReg, keyVal, intVal))
+		case "double":
+			floatVal := e.emitExpr(ex.Values[i], "double")
+			e.writelnIndent(fmt.Sprintf("call void @wolf_map_set_float(ptr %s, ptr %s, double %s)", mapReg, keyVal, floatVal))
+		case "i1":
+			boolVal := e.emitExpr(ex.Values[i], "i1")
+			e.writelnIndent(fmt.Sprintf("call void @wolf_map_set_bool(ptr %s, ptr %s, i1 %s)", mapReg, keyVal, boolVal))
+		default:
+			valVal := e.emitArgAsString(ex.Values[i])
+			e.writelnIndent(fmt.Sprintf("call void @wolf_map_set(ptr %s, ptr %s, ptr %s)", mapReg, keyVal, valVal))
+		}
 	}
 	return mapReg
 }

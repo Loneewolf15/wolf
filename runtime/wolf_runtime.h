@@ -31,6 +31,9 @@ int64_t wolf_array_length(void* arr);
 
 void* wolf_map_create();
 void wolf_map_set(void* map, const char* key, void* value);
+void wolf_map_set_int(void* map, const char* key, int64_t value);
+void wolf_map_set_float(void* map, const char* key, double value);
+void wolf_map_set_bool(void* map, const char* key, int value);
 void* wolf_map_get(void* map, const char* key);
 int wolf_env_has(const char* key);
 

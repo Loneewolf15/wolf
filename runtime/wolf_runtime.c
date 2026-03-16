@@ -733,24 +733,65 @@ typedef struct {
     int64_t capacity;
 } wolf_map_t;
 
+// ========== Typed Value System ==========
+
+#define WOLF_TYPE_STRING  0
+#define WOLF_TYPE_INT     1
+#define WOLF_TYPE_FLOAT   2
+#define WOLF_TYPE_BOOL    3
+#define WOLF_TYPE_NULL    4
+#define WOLF_TYPE_MAP     5
+#define WOLF_TYPE_ARRAY   6
+
+typedef struct {
+    int type;
+    union {
+        char*   s;
+        int64_t i;
+        double  f;
+        int     b;
+        void*   ptr;
+    } val;
+} wolf_value_t;
+
+static wolf_value_t* wolf_val_make(int type) {
+    wolf_value_t* v = (wolf_value_t*)malloc(sizeof(wolf_value_t));
+    v->type = type;
+    return v;
+}
+
 // Forward declaration
 static char* wolf_json_encode_value(void* val);
 
 static char* wolf_json_encode_map(wolf_map_t* m) {
     if (!m) return strdup("{}");
+
+    // Sort keys alphabetically
+    int64_t n = m->size;
+    int64_t* order = (int64_t*)malloc(n * sizeof(int64_t));
+    for (int64_t i = 0; i < n; i++) order[i] = i;
+    for (int64_t i = 0; i < n - 1; i++) {
+        for (int64_t j = i + 1; j < n; j++) {
+            if (strcmp(m->keys[order[i]], m->keys[order[j]]) > 0) {
+                int64_t tmp = order[i]; order[i] = order[j]; order[j] = tmp;
+            }
+        }
+    }
+
     char* buf = (char*)malloc(4096);
     buf[0] = '\0';
     strcat(buf, "{");
-    for (int64_t i = 0; i < m->size; i++) {
+    for (int64_t i = 0; i < n; i++) {
         if (i > 0) strcat(buf, ",");
         strcat(buf, "\"");
-        strcat(buf, m->keys[i]);
+        strcat(buf, m->keys[order[i]]);
         strcat(buf, "\":");
-        char* val = wolf_json_encode_value(m->values[i]);
+        char* val = wolf_json_encode_value(m->values[order[i]]);
         strcat(buf, val);
         free(val);
     }
     strcat(buf, "}");
+    free(order);
     return buf;
 }
 
@@ -771,23 +812,33 @@ static char* wolf_json_encode_array(wolf_array_t* a) {
 
 static char* wolf_json_encode_value(void* val) {
     if (!val) return strdup("null");
-    const char* s = (const char*)val;
-    int is_string = 1;
-    for (int i = 0; i < 64 && s[i]; i++) {
-        unsigned char c = (unsigned char)s[i];
-        if (c < 0x20 && c != '\n' && c != '\r' && c != '\t') {
-            is_string = 0;
-            break;
-        }
-        if (c > 0x7E) { is_string = 0; break; }
+
+    // Check if this is a tagged wolf_value_t
+    wolf_value_t* tagged = (wolf_value_t*)val;
+    if (tagged->type == WOLF_TYPE_INT) {
+        char* buf = (char*)malloc(32);
+        snprintf(buf, 32, "%lld", (long long)tagged->val.i);
+        return buf;
     }
-    if (is_string) {
+    if (tagged->type == WOLF_TYPE_FLOAT) {
+        char* buf = (char*)malloc(64);
+        snprintf(buf, 64, "%g", tagged->val.f);
+        return buf;
+    }
+    if (tagged->type == WOLF_TYPE_BOOL) {
+        return strdup(tagged->val.b ? "true" : "false");
+    }
+    if (tagged->type == WOLF_TYPE_NULL) {
+        return strdup("null");
+    }
+    if (tagged->type == WOLF_TYPE_STRING) {
+        const char* s = tagged->val.s;
         size_t len = strlen(s);
         char* out = (char*)malloc(len * 2 + 3);
         char* w = out;
         *w++ = '"';
         for (size_t i = 0; i < len; i++) {
-            if (s[i] == '"') { *w++ = '\\'; *w++ = '"'; }
+            if (s[i] == '"')       { *w++ = '\\'; *w++ = '"'; }
             else if (s[i] == '\\') { *w++ = '\\'; *w++ = '\\'; }
             else if (s[i] == '\n') { *w++ = '\\'; *w++ = 'n'; }
             else if (s[i] == '\r') { *w++ = '\\'; *w++ = 'r'; }
@@ -798,15 +849,48 @@ static char* wolf_json_encode_value(void* val) {
         *w = '\0';
         return out;
     }
-    wolf_map_t* m = (wolf_map_t*)val;
-    if (m->capacity > 0 && m->capacity <= 1024 && m->size >= 0 && m->size <= m->capacity && m->keys) {
+    if (tagged->type == WOLF_TYPE_MAP) {
+        wolf_map_t* m = (wolf_map_t*)tagged->val.ptr;
         return wolf_json_encode_map(m);
     }
-    wolf_array_t* a = (wolf_array_t*)val;
-    if (a->capacity > 0 && a->capacity <= 1024 && a->length >= 0 && a->length <= a->capacity && a->items) {
+    if (tagged->type == WOLF_TYPE_ARRAY) {
+        wolf_array_t* a = (wolf_array_t*)tagged->val.ptr;
         return wolf_json_encode_array(a);
     }
-    return strdup("null");
+
+    // Fallback: treat as raw pointer — could be map, array, or plain string
+    const char* s = (const char*)val;
+
+    // Try map
+    wolf_map_t* m = (wolf_map_t*)val;
+    if (m->capacity > 0 && m->capacity <= 1024 && m->size >= 0 &&
+        m->size <= m->capacity && m->keys) {
+        return wolf_json_encode_map(m);
+    }
+
+    // Try array
+    wolf_array_t* a = (wolf_array_t*)val;
+    if (a->capacity > 0 && a->capacity <= 1024 && a->length >= 0 &&
+        a->length <= a->capacity && a->items) {
+        return wolf_json_encode_array(a);
+    }
+
+    // Plain string — quote it
+    size_t len = strlen(s);
+    char* out = (char*)malloc(len * 2 + 3);
+    char* w = out;
+    *w++ = '"';
+    for (size_t i = 0; i < len; i++) {
+        if (s[i] == '"')       { *w++ = '\\'; *w++ = '"'; }
+        else if (s[i] == '\\') { *w++ = '\\'; *w++ = '\\'; }
+        else if (s[i] == '\n') { *w++ = '\\'; *w++ = 'n'; }
+        else if (s[i] == '\r') { *w++ = '\\'; *w++ = 'r'; }
+        else if (s[i] == '\t') { *w++ = '\\'; *w++ = 't'; }
+        else *w++ = s[i];
+    }
+    *w++ = '"';
+    *w = '\0';
+    return out;
 }
 
 const char* wolf_json_encode(void* obj) {
@@ -1098,6 +1182,82 @@ void* wolf_map_create() {
     return m;
 }
 
+
+static wolf_value_t* wolf_val_from_ptr(void* ptr) {
+    // If it's already a tagged value, return as-is
+    // Otherwise wrap as string
+    if (!ptr) {
+        wolf_value_t* v = wolf_val_make(WOLF_TYPE_NULL);
+        return v;
+    }
+    wolf_value_t* v = wolf_val_make(WOLF_TYPE_STRING);
+    v->val.s = strdup((const char*)ptr);
+    return v;
+}
+void wolf_map_set_int(void* map_ptr, const char* key, int64_t value) {
+    if (!map_ptr || !key) return;
+    wolf_value_t* v = wolf_val_make(WOLF_TYPE_INT);
+    v->val.i = value;
+    wolf_map_t* m = (wolf_map_t*)map_ptr;
+    // Check if key exists, update if so
+    for (int64_t i = 0; i < m->size; i++) {
+        if (strcmp(m->keys[i], key) == 0) {
+            m->values[i] = v;
+            return;
+        }
+    }
+    if (m->size >= m->capacity) {
+        m->capacity *= 2;
+        m->keys = (char**)realloc(m->keys, sizeof(char*) * m->capacity);
+        m->values = (void**)realloc(m->values, sizeof(void*) * m->capacity);
+    }
+    m->keys[m->size] = strdup(key);
+    m->values[m->size] = v;
+    m->size++;
+}
+
+void wolf_map_set_float(void* map_ptr, const char* key, double value) {
+    if (!map_ptr || !key) return;
+    wolf_value_t* v = wolf_val_make(WOLF_TYPE_FLOAT);
+    v->val.f = value;
+    wolf_map_t* m = (wolf_map_t*)map_ptr;
+    for (int64_t i = 0; i < m->size; i++) {
+        if (strcmp(m->keys[i], key) == 0) {
+            m->values[i] = v;
+            return;
+        }
+    }
+    if (m->size >= m->capacity) {
+        m->capacity *= 2;
+        m->keys = (char**)realloc(m->keys, sizeof(char*) * m->capacity);
+        m->values = (void**)realloc(m->values, sizeof(void*) * m->capacity);
+    }
+    m->keys[m->size] = strdup(key);
+    m->values[m->size] = v;
+    m->size++;
+}
+
+void wolf_map_set_bool(void* map_ptr, const char* key, int value) {
+    if (!map_ptr || !key) return;
+    wolf_value_t* v = wolf_val_make(WOLF_TYPE_BOOL);
+    v->val.b = value;
+    wolf_map_t* m = (wolf_map_t*)map_ptr;
+    for (int64_t i = 0; i < m->size; i++) {
+        if (strcmp(m->keys[i], key) == 0) {
+            m->values[i] = v;
+            return;
+        }
+    }
+    if (m->size >= m->capacity) {
+        m->capacity *= 2;
+        m->keys = (char**)realloc(m->keys, sizeof(char*) * m->capacity);
+        m->values = (void**)realloc(m->values, sizeof(void*) * m->capacity);
+    }
+    m->keys[m->size] = strdup(key);
+    m->values[m->size] = v;
+    m->size++;
+}
+
 void wolf_map_set(void* map_ptr, const char* key, void* value) {
     if (!map_ptr || !key) return;
     wolf_map_t* m = (wolf_map_t*)map_ptr;
@@ -1122,7 +1282,33 @@ void* wolf_map_get(void* map_ptr, const char* key) {
     wolf_map_t* m = (wolf_map_t*)map_ptr;
     for (int64_t i = 0; i < m->size; i++) {
         if (strcmp(m->keys[i], key) == 0) {
-            return m->values[i];
+            void* val = m->values[i];
+            if (!val) return NULL;
+            // Unwrap tagged values back to string representation
+            wolf_value_t* tagged = (wolf_value_t*)val;
+            switch (tagged->type) {
+                case WOLF_TYPE_INT: {
+                    char* buf = (char*)malloc(32);
+                    snprintf(buf, 32, "%lld", (long long)tagged->val.i);
+                    return buf;
+                }
+                case WOLF_TYPE_FLOAT: {
+                    char* buf = (char*)malloc(64);
+                    snprintf(buf, 64, "%g", tagged->val.f);
+                    return buf;
+                }
+                case WOLF_TYPE_BOOL:
+                    return strdup(tagged->val.b ? "true" : "false");
+                case WOLF_TYPE_NULL:
+                    return NULL;
+                case WOLF_TYPE_STRING:
+                    return strdup(tagged->val.s);
+                case WOLF_TYPE_MAP:
+                case WOLF_TYPE_ARRAY:
+                    return tagged->val.ptr;
+                default:
+                    return val;
+            }
         }
     }
     return NULL;
