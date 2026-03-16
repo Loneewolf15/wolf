@@ -241,6 +241,16 @@ func (p *Parser) parseClassDecl() *ClassDecl {
 		p.addError("expected class name")
 	}
 
+	extends := ""
+	if p.check(lexer.TOKEN_IDENT) && p.peek().Literal == "extends" {
+		p.advance() // consume "extends"
+		if p.check(lexer.TOKEN_IDENT) {
+			extends = p.advance().Literal
+		} else {
+			p.addError("expected base class name after 'extends'")
+		}
+	}
+
 	p.expect(lexer.TOKEN_LBRACE, "expected '{' after class name")
 
 	var properties []*PropertyDecl
@@ -268,6 +278,7 @@ func (p *Parser) parseClassDecl() *ClassDecl {
 
 	return &ClassDecl{
 		Name:       name,
+		Extends:    extends,
 		Properties: properties,
 		Methods:    methods,
 		Pos_:       pos,
@@ -952,6 +963,9 @@ func (p *Parser) parseCallAndAccess() Expression {
 			propName := ""
 			if p.check(lexer.TOKEN_IDENT) {
 				propName = p.advance().Literal
+			} else if p.isKeywordIdent() {
+				// Allow keywords as property names: $this->error, $this->class, etc.
+				propName = p.advance().Literal
 			} else {
 				p.addError("expected property name after '->'")
 			}
@@ -1413,6 +1427,19 @@ func (p *Parser) expect(t lexer.TokenType, msg string) lexer.Token {
 
 func (p *Parser) isAtEnd() bool {
 	return p.peek().Type == lexer.TOKEN_EOF
+}
+
+// isKeywordIdent returns true if the current token is a keyword that can
+// also be used as an identifier in property/method positions (after ->).
+// This mirrors PHP where $this->error, $this->class, etc. are valid.
+func (p *Parser) isKeywordIdent() bool {
+	switch p.peek().Type {
+	case lexer.TOKEN_ERROR, lexer.TOKEN_CLASS, lexer.TOKEN_NEW,
+		lexer.TOKEN_MATCH, lexer.TOKEN_PRINT,
+		lexer.TOKEN_TRY, lexer.TOKEN_CATCH, lexer.TOKEN_IMPORT:
+		return true
+	}
+	return false
 }
 
 func (p *Parser) currentPos() lexer.Position {

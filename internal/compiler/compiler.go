@@ -80,14 +80,24 @@ func (c *Compiler) Compile(source, filename string) (*CompileResult, error) {
 		return result, fmt.Errorf("autodiscovery failed: %w", err)
 	}
 
-	for _, ast := range discoveredASTs {
-		program.Statements = append(program.Statements, ast.Statements...)
-	}
+	var allDiscovered []parser.Statement
+for _, ast := range discoveredASTs {
+    allDiscovered = append(allDiscovered, ast.Statements...)
+}
+// Prepend all discovered (including config defines) BEFORE main statements
+// so defines run before serve()
+program.Statements = append(allDiscovered, program.Statements...)
 
 	// Generate the __compiler_dispatch_controller method based on all discovered classes
 	dispatchFunc := generateDispatcherAST(program)
 	if dispatchFunc != nil {
 		program.Statements = append(program.Statements, dispatchFunc)
+	}
+
+	// Generate the __compiler_create_model method based on all discovered models
+	factoryFunc := generateModelFactoryAST(program)
+	if factoryFunc != nil {
+		program.Statements = append(program.Statements, factoryFunc)
 	}
 
 	// Phase 3: Resolve
@@ -118,6 +128,7 @@ func (c *Compiler) Compile(source, filename string) (*CompileResult, error) {
 
 	// Phase 6: Emit LLVM IR (WIR → .ll)
 	llvmEmit := emitter.NewLLVMEmitter()
+	llvmEmit.TargetTriple = detectTargetTriple()
 	llvmSource := llvmEmit.Emit(irProgram)
 	result.LLVMSource = llvmSource
 
@@ -228,7 +239,26 @@ func (c *Compiler) Build(source, filename string) (*CompileResult, error) {
 
 	// Compile wolf runtime
 	runtimeObj := filepath.Join(outDir, "wolf_runtime.o")
-	rtCmd := exec.Command(cc, "-c", "-O2", "-o", runtimeObj, runtimeC)
+	// Detect MySQL client flags using mysql_config
+mysqlCflags := ""
+mysqlLibs := "-lmysqlclient"
+for _, mysqlConfig := range []string{"/opt/lampp/bin/mysql_config", "/usr/local/mysql/bin/mysql_config", "mysql_config"} {
+    if path, err := exec.LookPath(mysqlConfig); err == nil {
+        if out, err := exec.Command(path, "--cflags").Output(); err == nil {
+            mysqlCflags = strings.TrimSpace(string(out))
+        }
+        if out, err := exec.Command(path, "--libs").Output(); err == nil {
+            mysqlLibs = strings.TrimSpace(string(out))
+        }
+        break
+    }
+}
+rtArgs := []string{"-c", "-O2"}
+if mysqlCflags != "" {
+    rtArgs = append(rtArgs, strings.Fields(mysqlCflags)...)
+}
+rtArgs = append(rtArgs, "-o", runtimeObj, runtimeC)
+rtCmd := exec.Command(cc, rtArgs...)
 	if out, err := rtCmd.CombinedOutput(); err != nil {
 		return result, fmt.Errorf("failed to compile wolf runtime: %s\n%s", err, string(out))
 	}
@@ -240,8 +270,17 @@ func (c *Compiler) Build(source, filename string) (*CompileResult, error) {
 	// Link everything into final binary
 	binaryPath := filepath.Join(outDir, baseName)
 	linkArgs := []string{"-o", binaryPath, objFile, runtimeObj, "-lpthread"}
+linkArgs = append(linkArgs, strings.Fields(mysqlLibs)...)
+// Auto-extract rpath from -L flags in mysqlLibs so binary finds the DB library at runtime
+for _, field := range strings.Fields(mysqlLibs) {
+    if strings.HasPrefix(field, "-L") {
+        libPath := strings.TrimPrefix(field, "-L")
+        libPath = strings.TrimSuffix(libPath, "/")
+        linkArgs = append(linkArgs, "-Wl,-rpath,"+libPath)
+    }
+}
 
-	if runtime.GOOS == "linux" {
+	if runtime.GOOS == "linux" || runtime.GOOS == "darwin" {
 		linkArgs = append(linkArgs, "-lm")
 	}
 
@@ -326,4 +365,52 @@ func hasLLC() bool {
 func hasClang() bool {
 	_, err := exec.LookPath("clang")
 	return err == nil
+}
+
+// detectTargetTriple returns the LLVM target triple for the current machine.
+func detectTargetTriple() string {
+	// Try llvm-config first
+	for _, tool := range []string{"llvm-config", "llvm-config-15", "llvm-config-14"} {
+		if path, err := exec.LookPath(tool); err == nil {
+			if out, err := exec.Command(path, "--host-target").Output(); err == nil {
+				triple := strings.TrimSpace(string(out))
+				if triple != "" {
+					return triple
+				}
+			}
+		}
+	}
+	// Try clang
+	if path, err := exec.LookPath("clang"); err == nil {
+		if out, err := exec.Command(path, "-dumpmachine").Output(); err == nil {
+			triple := strings.TrimSpace(string(out))
+			if triple != "" {
+				return triple
+			}
+		}
+	}
+	// Try gcc
+	if path, err := exec.LookPath("gcc"); err == nil {
+		if out, err := exec.Command(path, "-dumpmachine").Output(); err == nil {
+			triple := strings.TrimSpace(string(out))
+			if triple != "" {
+				return triple
+			}
+		}
+	}
+	// Platform fallbacks
+	switch runtime.GOOS {
+	case "darwin":
+		if runtime.GOARCH == "arm64" {
+			return "arm64-apple-macosx11.0.0"
+		}
+		return "x86_64-apple-macosx10.15.0"
+	case "windows":
+		return "x86_64-pc-windows-msvc"
+	default:
+		if runtime.GOARCH == "arm64" {
+			return "aarch64-unknown-linux-gnu"
+		}
+		return "x86_64-pc-linux-gnu"
+	}
 }

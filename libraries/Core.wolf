@@ -3,9 +3,9 @@
 # URL Format: /controller/method/param
 
 class Core {
-    $currentController: string
-    $currentMethod: string
-    $params: array
+    $currentController
+    $currentMethod
+    $params
 
     func __construct() {
         $this->currentController = "Home"
@@ -13,51 +13,50 @@ class Core {
         $this->params = []
     }
 
-    func getUrl($req: Request) -> array {
-        $path = $req->path()
+    func getUrl() {
+        $path = wolf_get_request_path()
         if $path == "/" {
             return []
         }
-        $parts = Wolf_Strings::Split(Wolf_Strings::TrimLeft($path, "/"), "/")
+        $parts = explode("/", trim($path, "/"))
         return $parts
     }
 
-    func init($port: int) {
+    func init($port) {
         print("🐺 Wolf Server starting on port {$port}...")
         wolf_http_serve($port, __dispatch_route)
     }
 }
 
-func __dispatch_route($req_id: int, $res_id: int) {
-    $req = new Request($req_id)
-    $res = new Response($res_id)
-    
-    $core = new Core()
-    $url = $core->getUrl($req)
+func __dispatch_route($req_id, $res_id) {
+    # Set thread-local context so wolf_get_request_* functions work
+    wolf_set_current_context($req_id, $res_id)
 
-    if Wolf_Array::Length($url) > 0 {
-        $cName = Wolf_Strings::Title($url[0])
+    $core = new Core()
+    $url = $core->getUrl()
+
+    if count($url) > 0 {
+        $cName = ucfirst($url[0])
         $core->currentController = $cName
     }
 
-    if Wolf_Array::Length($url) > 1 {
+    if count($url) > 1 {
         $core->currentMethod = $url[1]
     }
 
     # Extract params if they exist
-    if Wolf_Array::Length($url) > 2 {
-        $core->params = Wolf_Array::Slice($url, 2)
+    if count($url) > 2 {
+        $core->params = array_slice($url, 2, count($url) - 2)
     }
 
     # Call the compiler-generated global dispatch table
-    # It maps $core->currentController to the instantiated class
-    # and calls $core->currentMethod with $core->params
     $c = $core->currentController
     $m = $core->currentMethod
     $p = $core->params
-    $handled = __compiler_dispatch_controller($c, $m, $p, $req, $res)
-    
+    $handled = __compiler_dispatch_controller($c, $m, $p, $req_id, $res_id)
+
     if !$handled {
-        $res->sendError(404, "Controller or Method not found: /{$c}/{$m}")
+        http_response_code(404)
+        print(json_encode({"error": "Controller or Method not found: /{$c}/{$m}"}))
     }
 }

@@ -1,0 +1,69 @@
+# Http.wolf
+# Provides the Wolf Native HTTP Server implementation.
+
+# --- Request Class ---
+class Request {
+    $id: int
+
+    func __construct($req_id: int) {
+        $this->id = $req_id
+    }
+
+    func method() {
+        return wolf_http_req_method(wolf_intval($this->id))
+    }
+
+    func path() {
+        return wolf_http_req_path(wolf_intval($this->id))
+    }
+
+    func query($key) {
+        return wolf_http_req_query(wolf_intval($this->id), $key)
+    }
+
+    func header($key) {
+        return wolf_http_req_header(wolf_intval($this->id), $key)
+    }
+
+    func body() {
+        return wolf_http_req_body(wolf_intval($this->id))
+    }
+}
+
+# --- Response Class ---
+class Response {
+    $id: int
+
+    func __construct($res_id: int) {
+        $this->id = $res_id
+    }
+
+    func header($key: string, $value: string) {
+        wolf_http_res_header(wolf_intval($this->id), $key, $value)
+    }
+
+    func status($code: int) {
+        wolf_http_res_status(wolf_intval($this->id), $code)
+    }
+    
+    # Writes raw text to the browser
+    func text($t: string) {
+        $this->header("Content-Type", "text/plain")
+        $this->status(200)
+        wolf_http_res_write(wolf_intval($this->id), $t)
+    }
+    
+    # Writes JSON object to the browser
+    func json($data: map) {
+        $this->header("Content-Type", "application/json")
+        $this->status(200)
+        $json_str = json_encode($data)
+        wolf_http_res_write(wolf_intval($this->id), $json_str)
+    }
+    
+    # Helper to emit standard error responses
+    func sendError($code: int, $msg: string) {
+        $this->status($code)
+        $this->json({"error": $msg})
+    }
+}

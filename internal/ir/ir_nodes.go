@@ -31,6 +31,7 @@ type Param struct {
 // Class maps to a Go struct + methods.
 type Class struct {
 	Name        string
+	Extends     string
 	Fields      []*Field
 	Methods     []*Function
 	Constructor *Function // __construct

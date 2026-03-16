@@ -53,10 +53,33 @@ void wolf_session_set(const char* key, const char* value);
 const char* wolf_session_get(const char* key);
 void wolf_session_end();
 
+// --- Environment ---
+const char* wolf_env_get(const char* key, const char* def_val);
+
+// --- Extended Strings ---
+const char* wolf_strings_title(const char* s);
+const char* wolf_strings_trimleft(const char* s, const char* cutset);
+const char* wolf_strings_trimright(const char* s, const char* cutset);
+
 // --- Define System (PHP-style constants) ---
 void wolf_define(const char* key, const char* value);
 int wolf_defined(const char* key);
 const char* wolf_define_get(const char* key);
+
+// --- Database (Mock) ---
+void* wolf_db_connect(const char* host, const char* user, const char* pass, const char* dbname);
+void* wolf_db_prepare(void* conn, const char* sql);
+void wolf_db_bind(void* stmt, const char* param, const char* value);
+int64_t wolf_db_execute(void* stmt);
+void* wolf_db_fetch_all(void* stmt);
+void* wolf_db_fetch_one(void* stmt);
+int64_t wolf_db_row_count(void* stmt);
+int64_t wolf_db_last_insert_id(void* conn);
+void wolf_db_close(void* conn);
+void wolf_db_begin_transaction(void* conn);
+void wolf_db_commit(void* conn);
+void wolf_db_rollback(void* conn);
+
 
 // --- Redis (In-Memory Mock / hiredis swap) ---
 void* wolf_redis_connect(const char* host, int64_t port, const char* pass);
@@ -147,8 +170,8 @@ int wolf_str_ends_with(const char* s, const char* suffix);
 const char* wolf_str_replace(const char* find, const char* rep, const char* s);
 const char* wolf_str_repeat(const char* s, int64_t times);
 const char* wolf_str_pad(const char* s, int64_t len, const char* pad);
-const char* wolf_explode(const char* sep, const char* s);
-const char* wolf_implode(const char* sep, const char* arr);
+void* wolf_explode(const char* sep, const char* s);
+const char* wolf_implode(const char* sep, void* arr);
 const char* wolf_substr(const char* s, int64_t start, int64_t len);
 int64_t wolf_strpos(const char* s, const char* sub);
 int64_t wolf_strrpos(const char* s, const char* sub);
@@ -255,5 +278,26 @@ int wolf_dir_exists(const char* path);
 // --- Phase 3: Utilities ---
 const char* wolf_slug(const char* s);
 const char* wolf_truncate(const char* s, int64_t len, const char* suffix);
+
+// --- Thread-Local Request Context ---
+void wolf_set_current_context(void* req_id, void* res_id);
+const char* wolf_get_request_body(void);
+const char* wolf_get_request_header(const char* key);
+const char* wolf_get_request_method(void);
+const char* wolf_get_request_path(void);
+const char* wolf_input(const char* key);
+void wolf_http_response_code(int64_t code);
+void wolf_http_write_response(const char* body);
+
+// --- Sanitization ---
+const char* wolf_sanitize_string(const char* s);
+const char* wolf_sanitize_email(const char* s);
+const char* wolf_sanitize_url(const char* s);
+const char* wolf_sanitize_int(const char* s);
+const char* wolf_sanitize_float(const char* s);
+
+// --- JWT ---
+const char* wolf_jwt_encode(const char* payload, const char* secret);
+const char* wolf_jwt_decode(const char* token, const char* secret);
 
 #endif // WOLF_RUNTIME_H

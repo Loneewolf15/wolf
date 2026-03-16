@@ -1,0 +1,456 @@
+# controllers/Users.wolf
+# Users Controller — mirrors backendTemplate/app/controllers/v1/Users.php
+# Handles registration, login, profile management, and authentication
+# Extends Controller to get JWT, RouteProtection, getData, sendResponse, etc.
+
+class UsersController extends Controller {
+    $userModel
+    $serverKey
+
+    func __construct() {
+        $this->userModel = $this->model("User")
+        $this->serverKey = env("JWT_SECRET_KEY", "secret_server_key")
+    }
+
+    # GET /users — API index
+    func index() {
+        $this->sendResponse(true, "Market Plaza Users API", {
+            "version": "2.0",
+            "available_endpoints": {
+                "POST /users/registerUser": "Register new user",
+                "POST /users/loginfunc": "User login",
+                "GET /users/getUser": "Get user profile",
+                "POST /users/socialLogin": "Social login/signup",
+                "POST /users/editProfile": "Update profile",
+                "POST /users/changePassword": "Change password",
+                "POST /users/deleteProfile": "Delete account",
+                "POST /users/forgotPassword": "Send password reset",
+                "POST /users/resetPassword": "Reset password",
+                "POST /users/updateLocation": "Update user location",
+                "POST /users/logout": "Logout user",
+                "POST /users/verifyEmail": "Verify email address"
+            }
+        }, 200)
+    }
+
+    # POST /users/registerUser
+    func registerUser() {
+        $data = $this->getData()
+
+        $name = trim(sanitize_string($data["name"]))
+        $email = strtolower(trim(sanitize_email($data["email"])))
+        $phone = trim($data["phone"])
+        $password = trim($data["password"])
+        $confirm_password = trim($data["confirm_password"])
+        $referral_code = strtoupper(trim($data["referral_code"]))
+
+        # Validation
+        if $name == "" || $email == "" || $password == "" {
+            $this->sendResponse(false, "Name, email, and password are required", {}, 400)
+            return
+        }
+
+        if !is_email($email) {
+            $this->sendResponse(false, "Invalid email address", {}, 400)
+            return
+        }
+
+        if strlen($password) < 6 {
+            $this->sendResponse(false, "Password must be at least 6 characters", {}, 400)
+            return
+        }
+
+        if $password != $confirm_password {
+            $this->sendResponse(false, "Passwords do not match", {}, 400)
+            return
+        }
+
+        # Check if email already exists
+        if $this->userModel->findUserByEmail($email) {
+            $this->sendResponse(false, "Email is already taken.", {}, 409)
+            return
+        }
+
+        # Check if phone already exists
+        if $phone != "" {
+            if $this->userModel->findUserByPhone($phone) {
+                $this->sendResponse(false, "Phone number is already taken.", {}, 409)
+                return
+            }
+        }
+
+        # Hash password
+        $hashedPassword = password_hash($password)
+
+        # Generate user ID and referral code
+        $user_id = "mplaza" + md5(date("%Y%m%d%H%M%S", time()) + strval(rand(1000, 9999)))
+        $new_referral_code = strtoupper(substr($name, 0, 4)) + strval(rand(100, 999))
+
+        # Handle referral
+        $referrer_id = ""
+        if $referral_code != "" {
+            $referrer = $this->userModel->findUserByReferralCode($referral_code)
+            if !$referrer {
+                $this->sendResponse(false, "Invalid referral code.", {}, 400)
+                return
+            }
+            $referrer_id = $referrer->user_id
+        }
+
+        $regData = {
+            "name": $name,
+            "email": $email,
+            "phone": $phone,
+            "user_id": $user_id,
+            "password": $hashedPassword,
+            "referrer_id": $referrer_id,
+            "new_referral_code": $new_referral_code
+        }
+
+        $register = $this->userModel->register($regData)
+
+        if $register {
+            $registeredUser = $this->userModel->findUserByEmailAndGetDetails($email)
+            $this->sendResponse(true, "Registration successful", {
+                "user_id": $registeredUser->user_id,
+                "name": $registeredUser->name,
+                "email": $registeredUser->email,
+                "referral_code": $new_referral_code
+            }, 201)
+        } else {
+            $this->sendResponse(false, "Failed to register user. Please try again.", {}, 500)
+        }
+    }
+
+    # POST /users/loginfunc — User login
+    func loginfunc() {
+        $data = $this->getData()
+
+        $username = trim($data["username"])
+        $password = trim($data["password"])
+
+        if $username == "" || $password == "" {
+            $this->sendResponse(false, "Username and password are required", {}, 400)
+            return
+        }
+
+        # Find user by email or phone
+        $user = $this->userModel->findUserByEmailOrPhone($username)
+
+        if !$user {
+            $this->sendResponse(false, "Invalid credentials.", {}, 401)
+            return
+        }
+
+        # Verify password
+        if !password_verify($password, $user->password_hash) {
+            $this->sendResponse(false, "Invalid credentials.", {}, 401)
+            return
+        }
+
+        # Generate JWT
+        $tokenPayload = json_encode({"user_id": $user->user_id, "email": $user->email})
+        $accessToken = $this->generateJWT($tokenPayload, $this->serverKey)
+
+        # Store access token
+        $this->userModel->updateAccessToken($user->user_id, $accessToken)
+
+        # Update last login
+        $this->userModel->updateLastLogin($user->user_id)
+
+        $this->sendResponse(true, "Login successful", {
+            "access_token": $accessToken,
+            "user_data": {
+                "user_id": $user->user_id,
+                "name": $user->name,
+                "email": $user->email,
+                "phone": $user->phone
+            }
+        }, 200)
+    }
+
+    # GET /users/getUser — Get authenticated user profile
+    func getUser() {
+        $user = $this->RouteProtection()
+        if !$user {
+            return
+        }
+
+        $this->sendResponse(true, "User profile", {
+            "user_id": $user->user_id,
+            "name": $user->name,
+            "email": $user->email,
+            "phone": $user->phone,
+            "referral_code": $user->referral_code
+        }, 200)
+    }
+
+    # POST /users/editProfile
+    func editProfile() {
+        $user = $this->RouteProtection()
+        if !$user {
+            return
+        }
+
+        $data = $this->getData()
+
+        $profileData = {
+            "user_id": $user->user_id,
+            "name": trim(sanitize_string($data["name"])),
+            "phone": trim($data["phone"]),
+            "location": trim($data["location"])
+        }
+
+        if $this->userModel->updateProfile($profileData) {
+            $this->sendResponse(true, "Profile updated successfully", {}, 200)
+        } else {
+            $this->sendResponse(false, "Failed to update profile", {}, 500)
+        }
+    }
+
+    # POST /users/changePassword
+    func changePassword() {
+        $user = $this->RouteProtection()
+        if !$user {
+            return
+        }
+
+        $data = $this->getData()
+        $current_password = trim($data["current_password"])
+        $new_password = trim($data["new_password"])
+        $confirm_password = trim($data["confirm_password"])
+
+        if $current_password == "" || $new_password == "" {
+            $this->sendResponse(false, "Current and new passwords are required", {}, 400)
+            return
+        }
+
+        if !password_verify($current_password, $user->password_hash) {
+            $this->sendResponse(false, "Current password is incorrect", {}, 400)
+            return
+        }
+
+        if $new_password != $confirm_password {
+            $this->sendResponse(false, "New passwords do not match", {}, 400)
+            return
+        }
+
+        $hashed = password_hash($new_password)
+        if $this->userModel->updateUserPassword($user->user_id, $hashed) {
+            $this->sendResponse(true, "Password changed successfully", {}, 200)
+        } else {
+            $this->sendResponse(false, "Failed to change password", {}, 500)
+        }
+    }
+
+    # POST /users/forgotPassword
+    func forgotPassword() {
+        $data = $this->getData()
+        $email = strtolower(trim($data["email"]))
+
+        if !is_email($email) {
+            $this->sendResponse(false, "Invalid email address", {}, 400)
+            return
+        }
+
+        $user = $this->userModel->findUserByEmailAndGetDetails($email)
+        if !$user {
+            # Don't reveal if email exists
+            $this->sendResponse(true, "If this email exists, a reset link has been sent.", {}, 200)
+            return
+        }
+
+        $token = $this->userModel->generatePasswordResetToken($email)
+        if $token {
+            # TODO: Send email with reset token
+            $this->sendResponse(true, "Password reset token generated", {"token": $token}, 200)
+        } else {
+            $this->sendResponse(false, "Failed to generate reset token", {}, 500)
+        }
+    }
+
+    # POST /users/resetPassword
+    func resetPassword() {
+        $data = $this->getData()
+        $email = strtolower(trim($data["email"]))
+        $token = trim($data["token"])
+        $new_password = trim($data["new_password"])
+
+        if $email == "" || $token == "" || $new_password == "" {
+            $this->sendResponse(false, "Email, token, and new password are required", {}, 400)
+            return
+        }
+
+        $hashed = password_hash($new_password)
+        if $this->userModel->resetPasswordWithToken($email, $token, $hashed) {
+            $this->sendResponse(true, "Password reset successful", {}, 200)
+        } else {
+            $this->sendResponse(false, "Invalid or expired reset token", {}, 400)
+        }
+    }
+
+    # POST /users/updateLocation
+    func updateLocation() {
+        $user = $this->RouteProtection()
+        if !$user {
+            return
+        }
+
+        $data = $this->getData()
+        $locationData = {
+            "address": trim($data["address"]),
+            "city": trim($data["city"]),
+            "state": trim($data["state"]),
+            "lga": trim($data["lga"]),
+            "latitude": $data["latitude"],
+            "longitude": $data["longitude"]
+        }
+
+        if $this->userModel->updateLocation($user->user_id, $locationData) {
+            $this->sendResponse(true, "Location updated successfully", {}, 200)
+        } else {
+            $this->sendResponse(false, "Failed to update location", {}, 500)
+        }
+    }
+
+    # POST /users/deleteProfile
+    func deleteProfile() {
+        $user = $this->RouteProtection()
+        if !$user {
+            return
+        }
+
+        if $this->userModel->deleteUser($user->user_id) {
+            $this->sendResponse(true, "Account deleted successfully", {}, 200)
+        } else {
+            $this->sendResponse(false, "Failed to delete account", {}, 500)
+        }
+    }
+
+    # POST /users/logout
+    func logout() {
+        $user = $this->RouteProtection()
+        if !$user {
+            return
+        }
+
+        $this->userModel->clearAccessToken($user->user_id)
+        $this->sendResponse(true, "Logged out successfully", {}, 200)
+    }
+
+    # POST /users/socialLogin
+    func socialLogin() {
+        $data = $this->getData()
+
+        $social_id = trim($data["social_id"])
+        $provider = trim($data["provider"])
+        $email = strtolower(trim($data["email"]))
+        $name = trim($data["name"])
+
+        if $social_id == "" || $provider == "" {
+            $this->sendResponse(false, "Social ID and provider are required", {}, 400)
+            return
+        }
+
+        # Check if social account already exists
+        $existingUser = $this->userModel->findUserBySocialId($social_id, $provider)
+
+        if $existingUser {
+            # Login existing social user
+            $tokenPayload = json_encode({"user_id": $existingUser->user_id, "email": $existingUser->email})
+            $accessToken = $this->generateJWT($tokenPayload, $this->serverKey)
+            $this->userModel->updateAccessToken($existingUser->user_id, $accessToken)
+            $this->userModel->updateLastLogin($existingUser->user_id)
+
+            $this->sendResponse(true, "Social login successful", {
+                "access_token": $accessToken,
+                "is_new_user": false,
+                "user_data": {
+                    "user_id": $existingUser->user_id,
+                    "name": $existingUser->name,
+                    "email": $existingUser->email
+                }
+            }, 200)
+        } else {
+            # Check if email exists — link social account
+            if $email != "" {
+                $emailUser = $this->userModel->findUserByEmailAndGetDetails($email)
+                if $emailUser {
+                    $this->userModel->linkSocialAccount($emailUser->user_id, $social_id, $provider)
+                    $tokenPayload = json_encode({"user_id": $emailUser->user_id, "email": $emailUser->email})
+                    $accessToken = $this->generateJWT($tokenPayload, $this->serverKey)
+                    $this->userModel->updateAccessToken($emailUser->user_id, $accessToken)
+
+                    $this->sendResponse(true, "Social account linked", {
+                        "access_token": $accessToken,
+                        "is_new_user": false,
+                        "user_data": {
+                            "user_id": $emailUser->user_id,
+                            "name": $emailUser->name,
+                            "email": $emailUser->email
+                        }
+                    }, 200)
+                    return
+                }
+            }
+
+            # Register new social user
+            $user_id = "mplaza" + md5(date("%Y%m%d%H%M%S", time()) + $social_id)
+            $referral_code = strtoupper(substr($name, 0, 4)) + strval(rand(100, 999))
+
+            $socialData = {
+                "user_id": $user_id,
+                "name": $name,
+                "email": $email,
+                "social_id": $social_id,
+                "social_provider": $provider,
+                "is_verified": "1",
+                "profile_picture": $data["profile_picture"],
+                "referral_code": $referral_code
+            }
+
+            $newUserId = $this->userModel->registerSocialUser($socialData)
+
+            if $newUserId {
+                $tokenPayload = json_encode({"user_id": $newUserId, "email": $email})
+                $accessToken = $this->generateJWT($tokenPayload, $this->serverKey)
+                $this->userModel->updateAccessToken($newUserId, $accessToken)
+
+                $this->sendResponse(true, "Social registration successful", {
+                    "access_token": $accessToken,
+                    "is_new_user": true,
+                    "user_data": {
+                        "user_id": $newUserId,
+                        "name": $name,
+                        "email": $email
+                    }
+                }, 201)
+            } else {
+                $this->sendResponse(false, "Failed to register social user", {}, 500)
+            }
+        }
+    }
+
+    # POST /users/verifyEmail
+    func verifyEmail() {
+        $data = $this->getData()
+        $token = trim($data["token"])
+
+        if $token == "" {
+            $this->sendResponse(false, "Verification token is required", {}, 400)
+            return
+        }
+
+        $user = $this->userModel->findUserByVerificationToken($token)
+        if !$user {
+            $this->sendResponse(false, "Invalid or expired verification token", {}, 400)
+            return
+        }
+
+        if $this->userModel->markEmailAsVerified($user->user_id) {
+            $this->sendResponse(true, "Email verified successfully", {}, 200)
+        } else {
+            $this->sendResponse(false, "Failed to verify email", {}, 500)
+        }
+    }
+}

@@ -1,0 +1,31 @@
+# ============================================
+# .gitignore - Files to Exclude from Git
+# ============================================
+
+# Environment & Configuration Files
+.env
+app/config/payment_config.php
+app/config/email_config.php
+
+# Cache & Temporary Files
+app/cache/*
+!app/cache/.gitkeep
+*.log
+*.tmp
+
+# IDE Files
+.vscode/
+.idea/
+*.sublime-*
+
+# OS Files
+.DS_Store
+Thumbs.db
+
+# Dependencies
+/vendor/
+/node_modules/
+
+# Build Files
+/dist/
+/build/

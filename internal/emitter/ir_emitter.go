@@ -449,7 +449,8 @@ func (e *IREmitter) emitFunction(f *parser.FuncDecl) *ir.Function {
 
 func (e *IREmitter) emitClass(c *parser.ClassDecl) *ir.Class {
 	cls := &ir.Class{
-		Name: c.Name,
+		Name:    c.Name,
+		Extends: c.Extends,
 	}
 
 	for _, prop := range c.Properties {

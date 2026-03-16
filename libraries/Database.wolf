@@ -4,26 +4,27 @@
 
 class Database {
     $dbh
-    $stmt
     $error
-    $sql: string
-    $bindings
+    $stmt
 
     func __construct() {
-        # Auto-connect using define'd constants
         $host = define_get("DB_HOST")
         $user = define_get("DB_USER")
         $pass = define_get("DB_PASS")
         $name = define_get("DB_NAME")
-        $this->dbh = db_connect($host, $user, $pass, $name)
+
+        try {
+            $this->dbh = db_connect($host, $user, $pass, $name)
+        } catch ($e) {
+            $this->error = $e
+        }
     }
 
-    func query($sql: string) {
-        $this->sql = $sql
-        $this->stmt = db_prepare($this->dbh, $sql)
+    func query($query) {
+        $this->stmt = db_prepare($this->dbh, $query)
     }
 
-    func bind($param: string, $value) {
+    func bind($param, $value) {
         db_bind($this->stmt, $param, $value)
     }
 
@@ -49,19 +50,15 @@ class Database {
         return db_last_insert_id($this->dbh)
     }
 
-    func close() {
-        db_close($this->dbh)
-    }
-
     func beginTransaction() {
-        db_begin_transaction($this->dbh)
+        return db_begin_transaction($this->dbh)
     }
 
     func commit() {
-        db_commit($this->dbh)
+        return db_commit($this->dbh)
     }
 
     func rollBack() {
-        db_rollback($this->dbh)
+        return db_rollback($this->dbh)
     }
 }

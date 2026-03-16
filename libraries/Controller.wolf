@@ -1,52 +1,202 @@
 # libraries/Controller.wolf
-# Base Controller class — all controllers extend this
-# Provides model() and getData() — matches backendTemplate/app/libraries/Controller.php
+# Base Controller class — mirrors backendTemplate/app/libraries/Controller.php
+# Extend this in your controllers to get JWT, auth, email, and utility functions built-in.
+# Not mandatory to extend, but if you don't, you can't use the functions inside.
 
 class Controller {
+    $auth_header
+    $userModel
+    $serverKey
 
-    func model($name: string) {
-        # Auto-instantiate a model class by name
-        # The compiler generates __compiler_create_model() dispatch
-        return __compiler_create_model($name)
+    func __construct() {
+        $this->userModel = $this->model("User")
+        $this->serverKey = env("JWT_SECRET_KEY", "secret_server_key")
     }
 
+    # Load model — instantiate a model class by name
+    func model($model) {
+        return __compiler_create_model($model)
+    }
+
+    # Get POST data — reads JSON body from current request context
     func getData() {
-        # Read JSON body from current HTTP request context
-        # Equivalent to PHP: json_decode(file_get_contents('php://input'), true)
-        $raw = wolf_http_get_body()
+        $raw = wolf_get_request_body()
         $data = json_decode($raw)
         return $data
     }
 
-    func getAuthorizationHeader() {
-        return wolf_http_get_header("Authorization")
+    # Generate JWT token
+    func generateJWT($token, $serverKey) {
+        return jwt_encode($token, $serverKey)
     }
 
+    # Get Authorization header from current request
+    func getAuthorizationHeader() {
+        $headers = wolf_get_request_header("Authorization")
+        if $headers != "" {
+            return trim($headers)
+        }
+        return ""
+    }
+
+    # Extract Bearer token from Authorization header
     func bearer() {
-        $header = $this->getAuthorizationHeader()
-        if $header != "" {
-            # Extract token after "Bearer "
-            $parts = Wolf_Strings::Split($header, " ")
-            if Wolf_Array::Length($parts) > 1 {
+        $this->auth_header = $this->getAuthorizationHeader()
+
+        if $this->auth_header != "" {
+            $parts = explode(" ", $this->auth_header)
+            if count($parts) > 1 {
                 return $parts[1]
             }
         }
         return ""
     }
 
-    func RouteProtection() {
-        $bearer = $this->bearer()
-        if $bearer == "" {
-            http_response_code(401)
-            echo json_encode({"status": false, "message": "Unauthorized"})
-            die("")
-        }
-        $decoded = $this->myJsonID($bearer, env("JWT_SECRET_KEY", "secret_server_key"))
-        if !$decoded {
-            http_response_code(401)
-            echo json_encode({"status": false, "message": "Invalid token"})
-            die("")
+    # Decode JWT token
+    func myJsonID($bearer, $serverKey) {
+        $decoded = jwt_decode($bearer, $serverKey)
+        if $decoded == false {
+            return false
         }
         return $decoded
+    }
+
+    # Route Protection — validates JWT against database
+    func RouteProtection() {
+        $headers = $this->getAuthorizationHeader()
+
+        if $headers == "" {
+            $this->sendResponse(false, "Authorization header missing", {}, 401)
+            return false
+        }
+
+        $jwt = str_replace("Bearer ", "", $headers)
+
+        # Decode JWT token
+        $decoded = $this->myJsonID($jwt, $this->serverKey)
+
+        if !$decoded {
+            $this->sendResponse(false, "Invalid token format", {}, 401)
+            return false
+        }
+
+        $user_id = $decoded["user_id"]
+
+        # Get user from database
+        $userModel = $this->model("User")
+        $user = $userModel->findUserById($user_id)
+
+        # Check if user exists
+        if !$user {
+            $this->sendResponse(false, "User not found", {}, 401)
+            return false
+        }
+
+        # Validate token against database
+        if $user->access_token != $jwt {
+            $this->sendResponse(false, "Invalid or expired token", {}, 401)
+            return false
+        }
+
+        return $user
+    }
+
+    # Get user by JWT token
+    func getuserbyid() {
+        $bearer = $this->bearer()
+
+        if $bearer != "" {
+            $userId = $this->myJsonID($bearer, $this->serverKey)
+            if !$userId {
+                $this->sendResponse(false, "Oops Something Went Wrong!", {}, 401)
+                return false
+            }
+            $user = $this->userModel->getuserbyid($userId["user_id"])
+
+            if !$user {
+                $this->sendResponse(false, "No user with this userID!", {}, 404)
+                return false
+            }
+            return $user
+        }
+        return false
+    }
+
+    # Optional user — returns null if not authenticated
+    func getOptionalUser() {
+        try {
+            return $this->RouteProtection()
+        } catch ($e) {
+            return nil
+        }
+    }
+
+    # Get server key
+    func serverKey() {
+        return $this->serverKey
+    }
+
+    # Generate 6-digit OTP code
+    func generateSixDigitValue() {
+        $random = rand(0, 999)
+        $timeString = date("%S", time())
+        $combined = strval($random) + $timeString
+        return substr(str_pad($combined, 6, "0"), -6)
+    }
+
+    # Standard JSON response — this is just echo json_encode wrapped in a function
+    func sendResponse($status, $message, $data, $httpCode) {
+        http_response_code($httpCode)
+        $response = {
+            "status": $status,
+            "message": $message,
+            "data": $data,
+            "timestamp": time()
+        }
+        print(json_encode($response))
+    }
+
+    # ---- Email Methods (Phase 2) ----
+
+    func sendEmail($to, $subject, $body) {
+        # TODO: Implement email service
+        return false
+    }
+
+    func sendWelcomeEmail($userData) {
+        # TODO: Implement welcome email
+        return false
+    }
+
+    func sendPasswordResetEmail($token, $userData) {
+        # TODO: Implement password reset email
+        return false
+    }
+
+    func sendEmailVerification($token, $userData) {
+        # TODO: Implement email verification
+        return false
+    }
+
+    func passresetemailer($data, $sub) {
+        # TODO: Implement OTP emailer
+        return false
+    }
+
+    # ---- Rate Limiting (Phase 2) ----
+
+    func applyRateLimit($endpoint) {
+        # TODO: Implement rate limiting
+        return true
+    }
+
+    func checkRateLimit($endpoint) {
+        # TODO: Implement rate limit check
+        return {"allowed": true}
+    }
+
+    func getRateLimitStatus($endpoint) {
+        # TODO: Implement rate limit status
+        return nil
     }
 }

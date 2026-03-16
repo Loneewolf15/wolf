@@ -1,14 +1,29 @@
 # config/config.wolf
-# Database config using PHP-style define() constants
-# These are read by libraries/Database.wolf
+# Application configuration using PHP-style define() constants
+# These are read by libraries/Database.wolf and controllers
 
+# DB Params — matches backendTemplate/app/config/config.php
 define("DB_HOST", env("DB_HOST", "localhost"))
 define("DB_USER", env("DB_USER", "root"))
 define("DB_PASS", env("DB_PASS", ""))
-define("DB_NAME", env("DB_NAME", "wolfdb"))
+define("DB_NAME", env("DB_NAME", "market_plaza_pid2025"))
 define("DB_PORT", env("DB_PORT", "3306"))
 
-# App Config
+# App Root
 define("APPROOT", env("APPROOT", "."))
-define("SITENAME", env("SITENAME", "WolfApp"))
 define("URLROOT", env("URLROOT", "http://localhost"))
+
+# Site Name
+define("SITENAME", env("SITENAME", "MarketPlaza"))
+
+# Business Config
+define("RESELLER_UPGRADE_FEE", "500")
+
+# Social Login Credentials (Replace with your actual keys)
+define("GOOGLE_CLIENT_ID", env("GOOGLE_CLIENT_ID", ""))
+define("FACEBOOK_APP_ID", env("FACEBOOK_APP_ID", ""))
+define("FACEBOOK_APP_SECRET", env("FACEBOOK_APP_SECRET", ""))
+define("APPLE_CLIENT_ID", env("APPLE_CLIENT_ID", ""))
+
+# JWT
+define("JWT_SECRET_KEY", env("JWT_SECRET_KEY", "secret_server_key"))

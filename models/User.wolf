@@ -1,0 +1,381 @@
+# models/User.wolf
+# User Model — mirrors backendTemplate/app/models/User.php
+# All methods use $this->db->query/bind/execute pattern
+
+class User {
+    $db
+
+    func __construct() {
+        $this->db = new Database()
+    }
+
+    # Find user by email and return all details
+    func findUserByEmailAndGetDetails($email) {
+        try {
+            $this->db->query("SELECT * FROM initkey_rid WHERE email = :email")
+            $this->db->bind(":email", $email)
+            $row = $this->db->single()
+            if $this->db->rowCount() > 0 {
+                return $row
+            }
+            return false
+        } catch ($e) {
+            log_error("findUserByEmailAndGetDetails error")
+            return false
+        }
+    }
+
+    # Find user by email or phone (for login)
+    func findUserByEmailOrPhone($username) {
+        try {
+            $this->db->query("SELECT * FROM initkey_rid WHERE email = :username OR phone = :username")
+            $this->db->bind(":username", $username)
+            $row = $this->db->single()
+            if $this->db->rowCount() > 0 {
+                return $row
+            }
+            return false
+        } catch ($e) {
+            log_error("findUserByEmailOrPhone error")
+            return false
+        }
+    }
+
+    # Check if user exists by email (for registration validation)
+    func findUserByEmail($email) {
+        try {
+            $this->db->query("SELECT * FROM initkey_rid WHERE email = :email")
+            $this->db->bind(":email", $email)
+            $this->db->single()
+            if $this->db->rowCount() > 0 {
+                return true
+            }
+            return false
+        } catch ($e) {
+            log_error("findUserByEmail error")
+            return false
+        }
+    }
+
+    # Check if user exists by phone
+    func findUserByPhone($phone) {
+        try {
+            $this->db->query("SELECT * FROM initkey_rid WHERE phone = :phone")
+            $this->db->bind(":phone", $phone)
+            $this->db->single()
+            if $this->db->rowCount() > 0 {
+                return true
+            }
+            return false
+        } catch ($e) {
+            log_error("findUserByPhone error")
+            return false
+        }
+    }
+
+    # Find user by ID
+    func findUserById($userId) {
+        try {
+            $this->db->query("SELECT * FROM initkey_rid WHERE user_id = :user_id")
+            $this->db->bind(":user_id", $userId)
+            return $this->db->single()
+        } catch ($e) {
+            log_error("findUserById error")
+            return false
+        }
+    }
+
+    # Get user by ID (alias used by Controller.getuserbyid)
+    func getuserbyid($userId) {
+        return $this->findUserById($userId)
+    }
+
+    # Register a new user
+    func register($data) {
+        try {
+            $this->db->query("INSERT INTO initkey_rid (name, email, user_id, phone, password_hash, referrer_id, referral_code) VALUES (:name, :email, :user_id, :phone, :password_hash, :referrer_id, :referral_code)")
+
+            $this->db->bind(":name", $data["name"])
+            $this->db->bind(":email", $data["email"])
+            $this->db->bind(":phone", $data["phone"])
+            $this->db->bind(":user_id", $data["user_id"])
+            $this->db->bind(":password_hash", $data["password"])
+            $this->db->bind(":referrer_id", $data["referrer_id"])
+            $this->db->bind(":referral_code", $data["new_referral_code"])
+
+            return $this->db->execute()
+        } catch ($e) {
+            log_error("User registration failed")
+            return false
+        }
+    }
+
+    # Register from social login
+    func registerSocialUser($data) {
+        try {
+            $this->db->query("INSERT INTO initkey_rid (user_id, name, email, social_id, social_provider, is_verified, profile_pic_url, referral_code) VALUES (:user_id, :name, :email, :social_id, :social_provider, :is_verified, :profile_pic_url, :referral_code)")
+
+            $this->db->bind(":user_id", $data["user_id"])
+            $this->db->bind(":name", $data["name"])
+            $this->db->bind(":email", $data["email"])
+            $this->db->bind(":social_id", $data["social_id"])
+            $this->db->bind(":social_provider", $data["social_provider"])
+            $this->db->bind(":is_verified", $data["is_verified"])
+            $this->db->bind(":profile_pic_url", $data["profile_picture"])
+            $this->db->bind(":referral_code", $data["referral_code"])
+
+            if $this->db->execute() {
+                return $data["user_id"]
+            }
+            return false
+        } catch ($e) {
+            log_error("registerSocialUser error")
+            return false
+        }
+    }
+
+    # Find user by social ID and provider
+    func findUserBySocialId($socialId, $provider) {
+        try {
+            $this->db->query("SELECT * FROM initkey_rid WHERE social_id = :social_id AND social_provider = :social_provider")
+            $this->db->bind(":social_id", $socialId)
+            $this->db->bind(":social_provider", $provider)
+            return $this->db->single()
+        } catch ($e) {
+            log_error("findUserBySocialId error")
+            return false
+        }
+    }
+
+    # Update user profile
+    func updateProfile($data) {
+        try {
+            $this->db->query("UPDATE initkey_rid SET name = :name, phone = :phone, location = :location WHERE user_id = :user_id")
+            $this->db->bind(":user_id", $data["user_id"])
+            $this->db->bind(":name", $data["name"])
+            $this->db->bind(":phone", $data["phone"])
+            $this->db->bind(":location", $data["location"])
+            return $this->db->execute()
+        } catch ($e) {
+            log_error("updateProfile error")
+            return false
+        }
+    }
+
+    # Update user password
+    func updateUserPassword($userId, $new_password) {
+        try {
+            $this->db->query("UPDATE initkey_rid SET password_hash = :password_hash WHERE user_id = :user_id")
+            $this->db->bind(":password_hash", $new_password)
+            $this->db->bind(":user_id", $userId)
+            return $this->db->execute()
+        } catch ($e) {
+            log_error("updateUserPassword error")
+            return false
+        }
+    }
+
+    # Generate password reset token
+    func generatePasswordResetToken($email) {
+        try {
+            $token = rand_hex(16)
+            $expiry = date("%Y-%m-%d %H:%i:%s", time() + 1800)
+
+            $this->db->query("UPDATE initkey_rid SET password_reset_token = :token, reset_token_expires_at = :expiry WHERE email = :email")
+            $this->db->bind(":token", password_hash($token))
+            $this->db->bind(":expiry", $expiry)
+            $this->db->bind(":email", $email)
+
+            if $this->db->execute() {
+                return $token
+            }
+            return false
+        } catch ($e) {
+            log_error("generatePasswordResetToken error")
+            return false
+        }
+    }
+
+    # Reset password with token
+    func resetPasswordWithToken($email, $token, $new_password) {
+        try {
+            $this->db->query("SELECT password_reset_token, reset_token_expires_at FROM initkey_rid WHERE email = :email")
+            $this->db->bind(":email", $email)
+            $user = $this->db->single()
+
+            if !$user {
+                return false
+            }
+
+            # Verify the token
+            if !password_verify($token, $user->password_reset_token) {
+                return false
+            }
+
+            # Update password and clear reset token
+            $this->db->query("UPDATE initkey_rid SET password_hash = :password, password_reset_token = NULL, reset_token_expires_at = NULL WHERE email = :email")
+            $this->db->bind(":password", $new_password)
+            $this->db->bind(":email", $email)
+
+            return $this->db->execute()
+        } catch ($e) {
+            log_error("resetPasswordWithToken error")
+            return false
+        }
+    }
+
+    # Update access token
+    func updateAccessToken($userId, $token) {
+        try {
+            $this->db->query("UPDATE initkey_rid SET access_token = :access_token WHERE user_id = :user_id")
+            $this->db->bind(":access_token", $token)
+            $this->db->bind(":user_id", $userId)
+            return $this->db->execute()
+        } catch ($e) {
+            log_error("updateAccessToken error")
+            return false
+        }
+    }
+
+    # Update last login timestamp
+    func updateLastLogin($userId) {
+        try {
+            $this->db->query("UPDATE initkey_rid SET last_login_at = NOW() WHERE user_id = :user_id")
+            $this->db->bind(":user_id", $userId)
+            return $this->db->execute()
+        } catch ($e) {
+            log_error("updateLastLogin error")
+            return false
+        }
+    }
+
+    # Link social account to existing user
+    func linkSocialAccount($userId, $socialId, $provider) {
+        try {
+            $this->db->query("UPDATE initkey_rid SET social_id = :social_id, social_provider = :provider WHERE user_id = :user_id")
+            $this->db->bind(":social_id", $socialId)
+            $this->db->bind(":provider", $provider)
+            $this->db->bind(":user_id", $userId)
+            return $this->db->execute()
+        } catch ($e) {
+            log_error("linkSocialAccount error")
+            return false
+        }
+    }
+
+    # Update profile picture
+    func updateProfilePicture($userId, $pictureUrl) {
+        try {
+            $this->db->query("UPDATE initkey_rid SET profile_pic_url = :picture_url WHERE user_id = :user_id")
+            $this->db->bind(":picture_url", $pictureUrl)
+            $this->db->bind(":user_id", $userId)
+            return $this->db->execute()
+        } catch ($e) {
+            log_error("updateProfilePicture error")
+            return false
+        }
+    }
+
+    # Update user location
+    func updateLocation($userId, $locationData) {
+        try {
+            $this->db->query("UPDATE initkey_rid SET address = :address, city = :city, state = :state, lga = :lga, latitude = :latitude, longitude = :longitude WHERE user_id = :user_id")
+            $this->db->bind(":address", $locationData["address"])
+            $this->db->bind(":city", $locationData["city"])
+            $this->db->bind(":state", $locationData["state"])
+            $this->db->bind(":lga", $locationData["lga"])
+            $this->db->bind(":latitude", $locationData["latitude"])
+            $this->db->bind(":longitude", $locationData["longitude"])
+            $this->db->bind(":user_id", $userId)
+            return $this->db->execute()
+        } catch ($e) {
+            log_error("updateLocation error")
+            return false
+        }
+    }
+
+    # Add role to user
+    func addRoleToUser($userId, $roleName) {
+        try {
+            $this->db->query("INSERT INTO UserRoles (user_id, role_name) VALUES (:user_id, :role_name)")
+            $this->db->bind(":user_id", $userId)
+            $this->db->bind(":role_name", $roleName)
+            return $this->db->execute()
+        } catch ($e) {
+            log_error("addRoleToUser error")
+            return false
+        }
+    }
+
+    # Get roles for user
+    func getRolesForUser($userId) {
+        try {
+            $this->db->query("SELECT role_name FROM UserRoles WHERE user_id = :user_id")
+            $this->db->bind(":user_id", $userId)
+            return $this->db->resultset()
+        } catch ($e) {
+            log_error("getRolesForUser error")
+            return []
+        }
+    }
+
+    # Find user by referral code
+    func findUserByReferralCode($referralCode) {
+        try {
+            $this->db->query("SELECT * FROM initkey_rid WHERE referral_code = :referral_code")
+            $this->db->bind(":referral_code", $referralCode)
+            return $this->db->single()
+        } catch ($e) {
+            log_error("findUserByReferralCode error")
+            return false
+        }
+    }
+
+    # Find user by verification token
+    func findUserByVerificationToken($token) {
+        try {
+            $this->db->query("SELECT * FROM initkey_rid WHERE verification_token = :token AND email_verified_at IS NULL")
+            $this->db->bind(":token", $token)
+            return $this->db->single()
+        } catch ($e) {
+            log_error("findUserByVerificationToken error")
+            return false
+        }
+    }
+
+    # Mark email as verified
+    func markEmailAsVerified($userId) {
+        try {
+            $this->db->query("UPDATE initkey_rid SET email_verified_at = NOW(), verification_token = NULL WHERE user_id = :user_id")
+            $this->db->bind(":user_id", $userId)
+            return $this->db->execute()
+        } catch ($e) {
+            log_error("markEmailAsVerified error")
+            return false
+        }
+    }
+
+    # Delete user account
+    func deleteUser($userId) {
+        try {
+            $this->db->query("DELETE FROM initkey_rid WHERE user_id = :user_id")
+            $this->db->bind(":user_id", $userId)
+            return $this->db->execute()
+        } catch ($e) {
+            log_error("deleteUser error")
+            return false
+        }
+    }
+
+    # Clear access token (logout)
+    func clearAccessToken($userId) {
+        try {
+            $this->db->query("UPDATE initkey_rid SET access_token = NULL WHERE user_id = :user_id")
+            $this->db->bind(":user_id", $userId)
+            return $this->db->execute()
+        } catch ($e) {
+            log_error("clearAccessToken error")
+            return false
+        }
+    }
+}

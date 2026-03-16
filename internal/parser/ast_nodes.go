@@ -210,6 +210,7 @@ func (r *ReturnTypeSpec) Pos() lexer.Position { return r.Pos_ }
 // ClassDecl represents a class definition.
 type ClassDecl struct {
 	Name       string
+	Extends    string
 	Properties []*PropertyDecl
 	Methods    []*FuncDecl
 	Pos_       lexer.Position

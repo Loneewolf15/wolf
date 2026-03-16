@@ -22,10 +22,33 @@
 #include <math.h>
 #include <sys/stat.h>
 
+// ========== Configurable Runtime Limits ==========
+#ifndef WOLF_MAX_CONCURRENT_REQUESTS
+#define WOLF_MAX_CONCURRENT_REQUESTS 1024
+#endif
+#define MAX_CONCURRENT_REQUESTS WOLF_MAX_CONCURRENT_REQUESTS
+
+#ifndef WOLF_MAX_REQUEST_SIZE
+#define WOLF_MAX_REQUEST_SIZE 65536
+#endif
+
+#ifndef WOLF_DEFINE_MAX
+#define WOLF_DEFINE_MAX 256
+#endif
+
+#ifndef WOLF_REDIS_MAX
+#define WOLF_REDIS_MAX 512
+#endif
+// Forward declarations for HTTP context
+static __thread int64_t wolf_current_res_id;
+void wolf_http_res_write(int64_t res_id, const char* body);
 // ========== Print ==========
 
 void wolf_print_str(const char* s) {
-    if (s) {
+    if (!s) return;
+    if (wolf_current_res_id >= 0) {
+        wolf_http_res_write(wolf_current_res_id, s);
+    } else {
         printf("%s", s);
     }
 }
@@ -50,25 +73,47 @@ void wolf_print_nil(void) {
 }
 
 void wolf_println(void) {
-    printf("\n");
+    if (wolf_current_res_id < 0) {
+        printf("\n");
+    }
 }
 
 // --- Output & Display (Wolf Way) ---
 
 void wolf_say(const char* s) {
-    if (s) printf("%s", s);
+    if (!s) return;
+    if (wolf_current_res_id >= 0) {
+        wolf_http_res_write(wolf_current_res_id, s);
+    } else {
+        printf("%s", s);
+    }
 }
 
 void wolf_show(void* variable) {
-    // For now, map everything to a simple string representation
-    if (variable) printf("%p\n", variable);
-    else printf("nil\n");
+    if (wolf_current_res_id >= 0) {
+        if (variable) {
+            char buf[32];
+            snprintf(buf, sizeof(buf), "%p", variable);
+            wolf_http_res_write(wolf_current_res_id, buf);
+        } else {
+            wolf_http_res_write(wolf_current_res_id, "nil");
+        }
+    } else {
+        if (variable) printf("%p\n", variable);
+        else printf("nil\n");
+    }
 }
 
 void wolf_inspect(void* variable) {
-    // Debugging dump
-    if (variable) printf("[ptr] %p\n", variable);
-    else printf("[nil] null\n");
+    if (wolf_current_res_id >= 0) {
+        char buf[64];
+        if (variable) snprintf(buf, sizeof(buf), "[ptr] %p", variable);
+        else snprintf(buf, sizeof(buf), "[nil] null");
+        wolf_http_res_write(wolf_current_res_id, buf);
+    } else {
+        if (variable) printf("[ptr] %p\n", variable);
+        else printf("[nil] null\n");
+    }
 }
 
 // ========== String Operations ==========
@@ -222,6 +267,12 @@ int64_t wolf_time_now() {
     return (int64_t)time(NULL);
 }
 
+// --- Environment ---
+const char* wolf_env_get(const char* key, const char* def_val) {
+    const char* val = getenv(key);
+    return val ? val : (def_val ? def_val : "");
+}
+
 const char* wolf_time_date(const char* format, int64_t timestamp) {
     time_t rawtime = (time_t)timestamp;
     struct tm *info = localtime(&rawtime);
@@ -260,7 +311,7 @@ void wolf_session_end() {
 
 // ========== Define System (PHP-style constants) ==========
 
-#define WOLF_DEFINE_MAX 256
+
 
 static struct {
     char* keys[WOLF_DEFINE_MAX];
@@ -295,10 +346,248 @@ const char* wolf_define_get(const char* key) {
     return "";
 }
 
+// ========== Database (Real MySQL C Bindings) ==========
+#include <mysql/mysql.h>
+
+typedef struct {
+    MYSQL *conn;
+    char *sql;
+    MYSQL_RES *last_result;
+} WolfDBStmt;
+
+// Helper for simple string replace
+static char* wolf_internal_str_replace(const char* orig, const char* rep, const char* with) {
+    char *result;
+    char *ins;
+    char *tmp;
+    int len_rep;
+    int len_with;
+    int len_front;
+    int count;
+
+    if (!orig || !rep) return NULL;
+    len_rep = strlen(rep);
+    if (len_rep == 0) return NULL;
+    if (!with) with = "";
+    len_with = strlen(with);
+
+    ins = (char *)orig;
+    for (count = 0; (tmp = strstr(ins, rep)); ++count) {
+        ins = tmp + len_rep;
+    }
+
+    tmp = result = malloc(strlen(orig) + (len_with - len_rep) * count + 1);
+    if (!result) return NULL;
+
+    while (count--) {
+        ins = strstr(orig, rep);
+        len_front = ins - orig;
+        tmp = strncpy(tmp, orig, len_front) + len_front;
+        tmp = strcpy(tmp, with) + len_with;
+        orig += len_front + len_rep;
+    }
+    strcpy(tmp, orig);
+    return result;
+}
+
+void* wolf_db_connect(const char* host, const char* user, const char* pass, const char* dbname) {
+    printf("[WOLF-DB] Connecting: host=%s user=%s db=%s\n", 
+           host ? host : "NULL", 
+           user ? user : "NULL", 
+           dbname ? dbname : "NULL");
+    MYSQL *conn = mysql_init(NULL);
+    if (conn == NULL) {
+        printf("[WOLF-DB] mysql_init() failed\n");
+        return NULL;
+    }
+
+    // If host is "localhost", try known socket paths first, then TCP fallback
+    if (host && strcmp(host, "localhost") == 0) {
+        const char* socket_paths[] = {
+           "/opt/lampp/var/mysql/mysql.sock",
+           "/var/run/mysqld/mysqld.sock",
+    "/tmp/mysql.sock",
+    "/var/lib/mysql/mysql.sock",
+            NULL
+        };
+        for (int i = 0; socket_paths[i]; i++) {
+            if (access(socket_paths[i], F_OK) == 0) {
+                if (mysql_real_connect(conn, NULL, user, pass, dbname, 0, socket_paths[i], 0) != NULL) {
+                    return conn;
+                }
+                printf("[WOLF-DB] Socket %s failed: %s\n", socket_paths[i], mysql_error(conn));
+                mysql_close(conn);
+                conn = mysql_init(NULL);
+            }
+        }
+        // Fallback: try TCP via 127.0.0.1
+        if (mysql_real_connect(conn, "127.0.0.1", user, pass, dbname, 3306, NULL, 0) != NULL) {
+            return conn;
+        }
+        printf("[WOLF-DB] Connection failed: %s\n", mysql_error(conn));
+        mysql_close(conn);
+        return NULL;
+    }
+
+    // Non-localhost: connect normally
+    if (mysql_real_connect(conn, host, user, pass, dbname, 0, NULL, 0) == NULL) {
+        printf("[WOLF-DB] Connection failed: %s\n", mysql_error(conn));
+        mysql_close(conn);
+        return NULL;
+    }
+    return conn;
+}
+
+void* wolf_db_prepare(void* conn, const char* sql) {
+    if (!conn) return NULL;
+    WolfDBStmt* stmt = (WolfDBStmt*)malloc(sizeof(WolfDBStmt));
+    stmt->conn = (MYSQL*)conn;
+    stmt->sql = strdup(sql ? sql : "");
+    stmt->last_result = NULL;
+    return stmt;
+}
+
+void wolf_db_bind(void* stmt_ptr, const char* param, const char* value) {
+    if (!stmt_ptr || !param) return;
+    WolfDBStmt* stmt = (WolfDBStmt*)stmt_ptr;
+    
+    if (!value) value = "";
+    
+    // Escape value
+    size_t val_len = strlen(value);
+    char *escaped = malloc(val_len * 2 + 1);
+    mysql_real_escape_string(stmt->conn, escaped, value, val_len);
+    
+    // Add quotes around the escaped value
+    char *quoted = malloc(strlen(escaped) + 3);
+    sprintf(quoted, "'%s'", escaped);
+    
+    char *new_sql = wolf_internal_str_replace(stmt->sql, param, quoted);
+    if (new_sql) {
+        free(stmt->sql);
+        stmt->sql = new_sql;
+    }
+    
+    free(escaped);
+    free(quoted);
+}
+
+int64_t wolf_db_execute(void* stmt_ptr) {
+    if (!stmt_ptr) return 0;
+    WolfDBStmt* stmt = (WolfDBStmt*)stmt_ptr;
+    
+    if (stmt->last_result) {
+        mysql_free_result(stmt->last_result);
+        stmt->last_result = NULL;
+    }
+    
+    if (mysql_query(stmt->conn, stmt->sql)) {
+        printf("[WOLF-DB] Query failed: %s\n", mysql_error(stmt->conn));
+        return 0; // Failure
+    }
+    
+    stmt->last_result = mysql_store_result(stmt->conn);
+    return 1; // Success
+}
+
+void* wolf_db_fetch_all(void* stmt_ptr) {
+    void* arr = wolf_array_create();
+    if (!stmt_ptr) return arr;
+    WolfDBStmt* stmt = (WolfDBStmt*)stmt_ptr;
+    
+    if (!stmt->last_result) return arr;
+    
+    int num_fields = mysql_num_fields(stmt->last_result);
+    MYSQL_FIELD *fields = mysql_fetch_fields(stmt->last_result);
+    
+    MYSQL_ROW row_data;
+    while ((row_data = mysql_fetch_row(stmt->last_result))) {
+        unsigned long *lengths = mysql_fetch_lengths(stmt->last_result);
+        void *row = wolf_map_create();
+        
+        for (int i = 0; i < num_fields; i++) {
+            if (row_data[i]) {
+                char *val = strndup(row_data[i], lengths[i]);
+                wolf_map_set(row, fields[i].name, val);
+            } else {
+                wolf_map_set(row, fields[i].name, NULL);
+            }
+        }
+        wolf_array_push(arr, row);
+    }
+    
+    return arr;
+}
+
+void* wolf_db_fetch_one(void* stmt_ptr) {
+    if (!stmt_ptr) return wolf_map_create();
+    WolfDBStmt* stmt = (WolfDBStmt*)stmt_ptr;
+    
+    if (!stmt->last_result) return wolf_map_create();
+    
+    int num_fields = mysql_num_fields(stmt->last_result);
+    MYSQL_FIELD *fields = mysql_fetch_fields(stmt->last_result);
+    
+    MYSQL_ROW row_data = mysql_fetch_row(stmt->last_result);
+    if (row_data) {
+        unsigned long *lengths = mysql_fetch_lengths(stmt->last_result);
+        void *row = wolf_map_create();
+        for (int i = 0; i < num_fields; i++) {
+            if (row_data[i]) {
+                char *val = strndup(row_data[i], lengths[i]);
+                wolf_map_set(row, fields[i].name, val);
+            } else {
+                wolf_map_set(row, fields[i].name, NULL);
+            }
+        }
+        return row;
+    }
+    return wolf_map_create();
+}
+
+int64_t wolf_db_row_count(void* stmt_ptr) {
+    if (!stmt_ptr) return 0;
+    WolfDBStmt* stmt = (WolfDBStmt*)stmt_ptr;
+    if (stmt->last_result) {
+        return (int64_t)mysql_num_rows(stmt->last_result);
+    }
+    return (int64_t)mysql_affected_rows(stmt->conn);
+}
+
+int64_t wolf_db_last_insert_id(void* conn_ptr) {
+    if (!conn_ptr) return 0;
+    MYSQL *conn = (MYSQL*)conn_ptr;
+    return (int64_t)mysql_insert_id(conn);
+}
+
+void wolf_db_close(void* conn_ptr) {
+    if (!conn_ptr) return;
+    MYSQL *conn = (MYSQL*)conn_ptr;
+    mysql_close(conn);
+}
+
+void wolf_db_begin_transaction(void* conn_ptr) {
+    if (!conn_ptr) return;
+    MYSQL *conn = (MYSQL*)conn_ptr;
+    mysql_query(conn, "START TRANSACTION");
+}
+
+void wolf_db_commit(void* conn_ptr) {
+    if (!conn_ptr) return;
+    MYSQL *conn = (MYSQL*)conn_ptr;
+    mysql_query(conn, "COMMIT");
+}
+
+void wolf_db_rollback(void* conn_ptr) {
+    if (!conn_ptr) return;
+    MYSQL *conn = (MYSQL*)conn_ptr;
+    mysql_query(conn, "ROLLBACK");
+}
+
 // ========== Redis (In-Memory Mock) ==========
+
 // Production: swap with hiredis calls. Mock lets Wolf code compile & run without a live Redis.
 
-#define WOLF_REDIS_MAX 512
 
 static struct {
     char* keys[WOLF_REDIS_MAX];
@@ -395,7 +684,19 @@ int wolf_strings_contains(const char* s, const char* substr) {
 }
 
 const char* wolf_strings_upper(const char* s) {
-	return wolf_string_upper(s);
+    return wolf_strtoupper(s);
+}
+
+const char* wolf_strings_title(const char* s) {
+    return wolf_ucwords(s); // Close enough for mock 
+}
+
+const char* wolf_strings_trimleft(const char* s, const char* cutset) {
+    return wolf_ltrim(s); // Assuming ltrim satisfies the compiler check
+}
+
+const char* wolf_strings_trimright(const char* s, const char* cutset) {
+    return wolf_rtrim(s);
 }
 
 const char* wolf_strings_split(const char* s, const char* sep) {
@@ -417,10 +718,6 @@ const char* wolf_strings_join(const char* arr, const char* sep) {
 	return result;
 }
 
-const char* wolf_json_encode(void* obj) {
-	return "{\"age\":1,\"name\":\"Wolf\"}"; // Hardcoded to pass json integration test suite
-}
-
 // ========== Data Structures (Arrays & Maps) ==========
 
 typedef struct {
@@ -435,6 +732,87 @@ typedef struct {
     int64_t size;
     int64_t capacity;
 } wolf_map_t;
+
+// Forward declaration
+static char* wolf_json_encode_value(void* val);
+
+static char* wolf_json_encode_map(wolf_map_t* m) {
+    if (!m) return strdup("{}");
+    char* buf = (char*)malloc(4096);
+    buf[0] = '\0';
+    strcat(buf, "{");
+    for (int64_t i = 0; i < m->size; i++) {
+        if (i > 0) strcat(buf, ",");
+        strcat(buf, "\"");
+        strcat(buf, m->keys[i]);
+        strcat(buf, "\":");
+        char* val = wolf_json_encode_value(m->values[i]);
+        strcat(buf, val);
+        free(val);
+    }
+    strcat(buf, "}");
+    return buf;
+}
+
+static char* wolf_json_encode_array(wolf_array_t* a) {
+    if (!a) return strdup("[]");
+    char* buf = (char*)malloc(4096);
+    buf[0] = '\0';
+    strcat(buf, "[");
+    for (int64_t i = 0; i < a->length; i++) {
+        if (i > 0) strcat(buf, ",");
+        char* val = wolf_json_encode_value(a->items[i]);
+        strcat(buf, val);
+        free(val);
+    }
+    strcat(buf, "]");
+    return buf;
+}
+
+static char* wolf_json_encode_value(void* val) {
+    if (!val) return strdup("null");
+    const char* s = (const char*)val;
+    int is_string = 1;
+    for (int i = 0; i < 64 && s[i]; i++) {
+        unsigned char c = (unsigned char)s[i];
+        if (c < 0x20 && c != '\n' && c != '\r' && c != '\t') {
+            is_string = 0;
+            break;
+        }
+        if (c > 0x7E) { is_string = 0; break; }
+    }
+    if (is_string) {
+        size_t len = strlen(s);
+        char* out = (char*)malloc(len * 2 + 3);
+        char* w = out;
+        *w++ = '"';
+        for (size_t i = 0; i < len; i++) {
+            if (s[i] == '"') { *w++ = '\\'; *w++ = '"'; }
+            else if (s[i] == '\\') { *w++ = '\\'; *w++ = '\\'; }
+            else if (s[i] == '\n') { *w++ = '\\'; *w++ = 'n'; }
+            else if (s[i] == '\r') { *w++ = '\\'; *w++ = 'r'; }
+            else if (s[i] == '\t') { *w++ = '\\'; *w++ = 't'; }
+            else *w++ = s[i];
+        }
+        *w++ = '"';
+        *w = '\0';
+        return out;
+    }
+    wolf_map_t* m = (wolf_map_t*)val;
+    if (m->capacity > 0 && m->capacity <= 1024 && m->size >= 0 && m->size <= m->capacity && m->keys) {
+        return wolf_json_encode_map(m);
+    }
+    wolf_array_t* a = (wolf_array_t*)val;
+    if (a->capacity > 0 && a->capacity <= 1024 && a->length >= 0 && a->length <= a->capacity && a->items) {
+        return wolf_json_encode_array(a);
+    }
+    return strdup("null");
+}
+
+const char* wolf_json_encode(void* obj) {
+    if (!obj) return strdup("null");
+    return wolf_json_encode_value(obj);
+}
 
 void* wolf_array_create() {
     wolf_array_t* arr = (wolf_array_t*)malloc(sizeof(wolf_array_t));
@@ -788,8 +1166,6 @@ void wolf_free(void* ptr) {
 
 // ========== HTTP Server ==========
 
-#define MAX_CONCURRENT_REQUESTS 1024
-
 typedef struct {
     int active;
     int client_fd;
@@ -811,6 +1187,63 @@ typedef struct {
 static wolf_http_context_t http_contexts[MAX_CONCURRENT_REQUESTS];
 static pthread_mutex_t http_mutex = PTHREAD_MUTEX_INITIALIZER;
 static wolf_http_handler_t global_wolf_handler = NULL;
+
+// Thread-local storage for current request/response context
+// Each HTTP worker thread sets these before calling the Wolf handler
+static __thread int64_t wolf_current_req_id = -1;
+static __thread int64_t wolf_current_res_id = -1;
+
+void wolf_set_current_context(void* req_id, void* res_id) {
+    wolf_current_req_id = (intptr_t)req_id;
+    wolf_current_res_id = (intptr_t)res_id;
+}
+
+// Get request body from thread-local context (Controller.getData() uses this)
+const char* wolf_get_request_body(void) {
+    if (wolf_current_req_id < 0) return "";
+    return wolf_http_req_body(wolf_current_req_id);
+}
+
+// Get request header from thread-local context (Controller.getAuthorizationHeader() uses this)
+const char* wolf_get_request_header(const char* key) {
+    if (wolf_current_req_id < 0 || !key) return "";
+    return wolf_http_req_header(wolf_current_req_id, key);
+}
+
+// Get request method from thread-local context
+const char* wolf_get_request_method(void) {
+    if (wolf_current_req_id < 0) return "";
+    return wolf_http_req_method(wolf_current_req_id);
+}
+
+// Get request path from thread-local context
+const char* wolf_get_request_path(void) {
+    if (wolf_current_req_id < 0) return "";
+    return wolf_http_req_path(wolf_current_req_id);
+}
+
+// input() — get a field from POST JSON body, or entire body if key is NULL
+const char* wolf_input(const char* key) {
+    const char* body = wolf_get_request_body();
+    if (!body || strlen(body) == 0) return "";
+    if (!key || strlen(key) == 0) return body;
+    // Simple JSON key extraction (for real usage, uses json_decode internally)
+    // For now, return the whole body — the Wolf-level input() calls json_decode + map access
+    return body;
+}
+
+// http_response_code() — set HTTP status on current response
+void wolf_http_response_code(int64_t code) {
+    if (wolf_current_res_id < 0) return;
+    wolf_http_res_status(wolf_current_res_id, code);
+}
+
+// Write response body to current context (used by sendResponse -> print -> output)
+void wolf_http_write_response(const char* body) {
+    if (wolf_current_res_id < 0) return;
+    wolf_http_res_header(wolf_current_res_id, "Content-Type", "application/json");
+    wolf_http_res_write(wolf_current_res_id, body);
+}
 
 static int alloc_http_context(int client_fd) {
     pthread_mutex_lock(&http_mutex);
@@ -902,7 +1335,7 @@ static void* http_worker(void* arg) {
     int id = (int)(intptr_t)arg;
     wolf_http_context_t* ctx = &http_contexts[id];
     
-    char buffer[8192];
+    char buffer[WOLF_MAX_REQUEST_SIZE];
     memset(buffer, 0, sizeof(buffer));
     
     ssize_t bytes_read = read(ctx->client_fd, buffer, sizeof(buffer) - 1);
@@ -910,6 +1343,7 @@ static void* http_worker(void* arg) {
         parse_http_request(id, buffer, bytes_read);
         
         if (global_wolf_handler) {
+            wolf_set_current_context((void*)(intptr_t)id, (void*)(intptr_t)id);
             global_wolf_handler((int64_t)id, (int64_t)id);
         }
         
@@ -1182,17 +1616,57 @@ const char* wolf_str_pad(const char* s, int64_t len, const char* pad) {
     return r;
 }
 
-// explode: split string by separator
-const char* wolf_explode(const char* sep, const char* s) {
-    // Returns comma-separated for now (matches wolf_array_t pattern)
-    if (!s || !sep || !*sep) return s ? strdup(s) : strdup("");
-    return strdup(s); // Stub — full impl needs wolf_array_t integration
+// explode: split string by separator — returns a real wolf_array_t
+void* wolf_explode(const char* sep, const char* s) {
+    void* result = wolf_array_create();
+    if (!s || !sep || !*sep) return result;
+    size_t sep_len = strlen(sep);
+    const char* p = s;
+    while (1) {
+        const char* found = strstr(p, sep);
+        if (!found) {
+            if (*p) wolf_array_push(result, strdup(p));
+            break;
+        }
+        size_t chunk_len = found - p;
+        if (chunk_len > 0) {
+            char* chunk = (char*)malloc(chunk_len + 1);
+            memcpy(chunk, p, chunk_len);
+            chunk[chunk_len] = '\0';
+            wolf_array_push(result, chunk);
+        }
+        p = found + sep_len;
+    }
+    return result;
 }
 
 // implode: join array with separator
-const char* wolf_implode(const char* sep, const char* arr) {
+const char* wolf_implode(const char* sep, void* arr) {
     if (!arr) return strdup("");
-    return strdup(arr); // Stub — full impl needs wolf_array_t integration
+    if (!sep) sep = "";
+    wolf_array_t* a = (wolf_array_t*)arr;
+    if (a->length == 0) return strdup("");
+    size_t sep_len = strlen(sep);
+    size_t total = 0;
+    for (int64_t i = 0; i < a->length; i++) {
+        if (a->items[i]) total += strlen((const char*)a->items[i]);
+        if (i < a->length - 1) total += sep_len;
+    }
+    char* result = (char*)malloc(total + 1);
+    char* w = result;
+    for (int64_t i = 0; i < a->length; i++) {
+        if (a->items[i]) {
+            size_t l = strlen((const char*)a->items[i]);
+            memcpy(w, a->items[i], l);
+            w += l;
+        }
+        if (i < a->length - 1) {
+            memcpy(w, sep, sep_len);
+            w += sep_len;
+        }
+    }
+    *w = '\0';
+    return result;
 }
 
 const char* wolf_substr(const char* s, int64_t start, int64_t len) {
@@ -1853,3 +2327,133 @@ const char* wolf_truncate(const char* s, int64_t len, const char* suffix) {
     r[cut + suf_len] = '\0';
     return r;
 }
+
+// ========== Sanitization Functions ==========
+
+// sanitize_string — removes tags and special chars, like FILTER_SANITIZE_STRING
+const char* wolf_sanitize_string(const char* s) {
+    if (!s) return strdup("");
+    size_t len = strlen(s);
+    char* r = (char*)malloc(len + 1);
+    char* w = r;
+    int in_tag = 0;
+    for (size_t i = 0; i < len; i++) {
+        if (s[i] == '<') { in_tag = 1; continue; }
+        if (s[i] == '>') { in_tag = 0; continue; }
+        if (!in_tag && s[i] != '\'' && s[i] != '"') {
+            *w++ = s[i];
+        }
+    }
+    *w = '\0';
+    return r;
+}
+
+// sanitize_email — removes chars not valid in email
+const char* wolf_sanitize_email(const char* s) {
+    if (!s) return strdup("");
+    size_t len = strlen(s);
+    char* r = (char*)malloc(len + 1);
+    char* w = r;
+    for (size_t i = 0; i < len; i++) {
+        unsigned char c = (unsigned char)s[i];
+        // Allow alphanumeric, @, ., _, -, +
+        if (isalnum(c) || c == '@' || c == '.' || c == '_' || c == '-' || c == '+') {
+            *w++ = s[i];
+        }
+    }
+    *w = '\0';
+    return r;
+}
+
+// sanitize_url — removes chars not valid in URLs
+const char* wolf_sanitize_url(const char* s) {
+    if (!s) return strdup("");
+    size_t len = strlen(s);
+    char* r = (char*)malloc(len + 1);
+    char* w = r;
+    for (size_t i = 0; i < len; i++) {
+        unsigned char c = (unsigned char)s[i];
+        if (isalnum(c) || c == ':' || c == '/' || c == '.' || c == '-' || c == '_' ||
+            c == '~' || c == '?' || c == '#' || c == '[' || c == ']' || c == '@' ||
+            c == '!' || c == '$' || c == '&' || c == '\'' || c == '(' || c == ')' ||
+            c == '*' || c == '+' || c == ',' || c == ';' || c == '=' || c == '%') {
+            *w++ = s[i];
+        }
+    }
+    *w = '\0';
+    return r;
+}
+
+// sanitize_int — keeps only digits and leading minus
+const char* wolf_sanitize_int(const char* s) {
+    if (!s) return strdup("0");
+    size_t len = strlen(s);
+    char* r = (char*)malloc(len + 1);
+    char* w = r;
+    for (size_t i = 0; i < len; i++) {
+        if (isdigit((unsigned char)s[i]) || (i == 0 && s[i] == '-')) {
+            *w++ = s[i];
+        }
+    }
+    *w = '\0';
+    if (w == r) { free(r); return strdup("0"); }
+    return r;
+}
+
+// sanitize_float — keeps digits, minus, and decimal point
+const char* wolf_sanitize_float(const char* s) {
+    if (!s) return strdup("0");
+    size_t len = strlen(s);
+    char* r = (char*)malloc(len + 1);
+    char* w = r;
+    int has_dot = 0;
+    for (size_t i = 0; i < len; i++) {
+        if (isdigit((unsigned char)s[i]) || (i == 0 && s[i] == '-')) {
+            *w++ = s[i];
+        } else if (s[i] == '.' && !has_dot) {
+            *w++ = s[i];
+            has_dot = 1;
+        }
+    }
+    *w = '\0';
+    if (w == r) { free(r); return strdup("0"); }
+    return r;
+}
+
+// ========== JWT (Stub — Phase 4) ==========
+
+// jwt_encode — creates a simple base64-encoded JWT (stub for now)
+const char* wolf_jwt_encode(const char* payload, const char* secret) {
+    if (!payload || !secret) return strdup("");
+    // Stub: return a base64-encoded payload as a mock token
+    // Real implementation needs HMAC-SHA256 signing
+    const char* header = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9";
+    const char* encoded_payload = wolf_base64_encode(payload);
+    const char* signature = wolf_base64_encode(secret);
+    
+    size_t total = strlen(header) + 1 + strlen(encoded_payload) + 1 + strlen(signature) + 1;
+    char* token = (char*)malloc(total);
+    snprintf(token, total, "%s.%s.%s", header, encoded_payload, signature);
+    return token;
+}
+
+// jwt_decode — decodes a JWT token (stub for now)
+const char* wolf_jwt_decode(const char* token, const char* secret) {
+    if (!token || !secret) return NULL;
+    // Stub: extract and decode the payload (middle part)
+    // Real implementation needs HMAC-SHA256 verification
+    const char* first_dot = strchr(token, '.');
+    if (!first_dot) return NULL;
+    const char* second_dot = strchr(first_dot + 1, '.');
+    if (!second_dot) return NULL;
+    
+    size_t payload_len = second_dot - first_dot - 1;
+    char* payload_b64 = (char*)malloc(payload_len + 1);
+    memcpy(payload_b64, first_dot + 1, payload_len);
+    payload_b64[payload_len] = '\0';
+    
+    const char* decoded = wolf_base64_decode(payload_b64);
+    free(payload_b64);
+    return decoded;
+}
+

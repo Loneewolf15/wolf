@@ -19,15 +19,15 @@ class Redis {
         redis_set($this->handle, $key, $value, $ttl)
     }
 
-    func get($key: string) {
+    func get($key) {
         return redis_get($this->handle, $key)
     }
 
-    func del($key: string) {
+    func del($key) {
         return redis_del($this->handle, $key)
     }
 
-    func exists($key: string) {
+    func exists($key) {
         return redis_exists($this->handle, $key)
     }
 
@@ -35,7 +35,7 @@ class Redis {
         redis_hset($this->handle, $key, $field, $value)
     }
 
-    func hget($key: string, $field: string) {
+    func hget($key, $field) {
         return redis_hget($this->handle, $key, $field)
     }
 

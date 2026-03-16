@@ -3,5 +3,5 @@
 
 var $core = new Core()
 
-# Start the server on port 8080 (blocks execution)
-$core->init(8080)
+# Start the server on port 2006 (blocks execution)
+$core->init(2006)
