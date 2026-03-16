@@ -13,12 +13,12 @@ import (
 
 // LLVMEmitter generates LLVM IR text from WIR.
 type LLVMEmitter struct {
-	buf          strings.Builder
-	stringConsts map[string]string // value → @.str.N label
-	strCounter   int
-	localCounter int
-	labelCounter int
-	indent       int
+	buf             strings.Builder
+	stringConsts    map[string]string // value → @.str.N label
+	strCounter      int
+	localCounter    int
+	labelCounter    int
+	indent          int
 	varTypes        map[string]string
 	funcSigs        map[string]*ir.Function
 	currentRetType  string
@@ -1511,7 +1511,7 @@ func (e *LLVMEmitter) emitUnaryExpr(ex *ir.UnaryExpr) string {
 	reg := e.nextLocal()
 
 	switch ex.Op {
-case "!":
+	case "!":
 		boolReg := e.coerceToBool(operand, opType)
 		e.writelnIndent(fmt.Sprintf("%s = xor i1 %s, 1", reg, boolReg))
 	case "-":
@@ -2086,11 +2086,11 @@ func (e *LLVMEmitter) emitCallExpr(call *ir.CallExpr) string {
 			"wolf_array_sum":
 			retType = "double"
 		case "wolf_time_now", "wolf_time_strtotime", "wolf_redis_del",
-    "wolf_count", "wolf_array_search", "wolf_intval", "wolf_intdiv", "wolf_strpos", "wolf_strrpos", "wolf_str_word_count", "wolf_strcmp",
-    "wolf_time_ms", "wolf_time_ns", "wolf_mktime", "wolf_date_diff", "wolf_day_of_week", "wolf_days_in_month",
-    "wolf_strtotime", "wolf_file_size", "wolf_db_execute", "wolf_db_row_count", "wolf_db_last_insert_id", "wolf_math_random",
-    "wolf_string_length", "wolf_array_length":
-    retType = "i64"
+			"wolf_count", "wolf_array_search", "wolf_intval", "wolf_intdiv", "wolf_strpos", "wolf_strrpos", "wolf_str_word_count", "wolf_strcmp",
+			"wolf_time_ms", "wolf_time_ns", "wolf_mktime", "wolf_date_diff", "wolf_day_of_week", "wolf_days_in_month",
+			"wolf_strtotime", "wolf_file_size", "wolf_db_execute", "wolf_db_row_count", "wolf_db_last_insert_id", "wolf_math_random",
+			"wolf_string_length", "wolf_array_length":
+			retType = "i64"
 		case "wolf_defined", "wolf_redis_exists",
 			"wolf_str_contains", "wolf_str_starts_with", "wolf_str_ends_with",
 			"wolf_boolval", "wolf_is_numeric", "wolf_password_verify",

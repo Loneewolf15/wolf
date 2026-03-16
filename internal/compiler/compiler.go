@@ -81,12 +81,12 @@ func (c *Compiler) Compile(source, filename string) (*CompileResult, error) {
 	}
 
 	var allDiscovered []parser.Statement
-for _, ast := range discoveredASTs {
-    allDiscovered = append(allDiscovered, ast.Statements...)
-}
-// Prepend all discovered (including config defines) BEFORE main statements
-// so defines run before serve()
-program.Statements = append(allDiscovered, program.Statements...)
+	for _, ast := range discoveredASTs {
+		allDiscovered = append(allDiscovered, ast.Statements...)
+	}
+	// Prepend all discovered (including config defines) BEFORE main statements
+	// so defines run before serve()
+	program.Statements = append(allDiscovered, program.Statements...)
 
 	// Generate the __compiler_dispatch_controller method based on all discovered classes
 	dispatchFunc := generateDispatcherAST(program)
@@ -240,25 +240,25 @@ func (c *Compiler) Build(source, filename string) (*CompileResult, error) {
 	// Compile wolf runtime
 	runtimeObj := filepath.Join(outDir, "wolf_runtime.o")
 	// Detect MySQL client flags using mysql_config
-mysqlCflags := ""
-mysqlLibs := "-lmysqlclient"
-for _, mysqlConfig := range []string{"/opt/lampp/bin/mysql_config", "/usr/local/mysql/bin/mysql_config", "mysql_config"} {
-    if path, err := exec.LookPath(mysqlConfig); err == nil {
-        if out, err := exec.Command(path, "--cflags").Output(); err == nil {
-            mysqlCflags = strings.TrimSpace(string(out))
-        }
-        if out, err := exec.Command(path, "--libs").Output(); err == nil {
-            mysqlLibs = strings.TrimSpace(string(out))
-        }
-        break
-    }
-}
-rtArgs := []string{"-c", "-O2"}
-if mysqlCflags != "" {
-    rtArgs = append(rtArgs, strings.Fields(mysqlCflags)...)
-}
-rtArgs = append(rtArgs, "-o", runtimeObj, runtimeC)
-rtCmd := exec.Command(cc, rtArgs...)
+	mysqlCflags := ""
+	mysqlLibs := "-lmysqlclient"
+	for _, mysqlConfig := range []string{"/opt/lampp/bin/mysql_config", "/usr/local/mysql/bin/mysql_config", "mysql_config"} {
+		if path, err := exec.LookPath(mysqlConfig); err == nil {
+			if out, err := exec.Command(path, "--cflags").Output(); err == nil {
+				mysqlCflags = strings.TrimSpace(string(out))
+			}
+			if out, err := exec.Command(path, "--libs").Output(); err == nil {
+				mysqlLibs = strings.TrimSpace(string(out))
+			}
+			break
+		}
+	}
+	rtArgs := []string{"-c", "-O2"}
+	if mysqlCflags != "" {
+		rtArgs = append(rtArgs, strings.Fields(mysqlCflags)...)
+	}
+	rtArgs = append(rtArgs, "-o", runtimeObj, runtimeC)
+	rtCmd := exec.Command(cc, rtArgs...)
 	if out, err := rtCmd.CombinedOutput(); err != nil {
 		return result, fmt.Errorf("failed to compile wolf runtime: %s\n%s", err, string(out))
 	}
@@ -270,15 +270,15 @@ rtCmd := exec.Command(cc, rtArgs...)
 	// Link everything into final binary
 	binaryPath := filepath.Join(outDir, baseName)
 	linkArgs := []string{"-o", binaryPath, objFile, runtimeObj, "-lpthread"}
-linkArgs = append(linkArgs, strings.Fields(mysqlLibs)...)
-// Auto-extract rpath from -L flags in mysqlLibs so binary finds the DB library at runtime
-for _, field := range strings.Fields(mysqlLibs) {
-    if strings.HasPrefix(field, "-L") {
-        libPath := strings.TrimPrefix(field, "-L")
-        libPath = strings.TrimSuffix(libPath, "/")
-        linkArgs = append(linkArgs, "-Wl,-rpath,"+libPath)
-    }
-}
+	linkArgs = append(linkArgs, strings.Fields(mysqlLibs)...)
+	// Auto-extract rpath from -L flags in mysqlLibs so binary finds the DB library at runtime
+	for _, field := range strings.Fields(mysqlLibs) {
+		if strings.HasPrefix(field, "-L") {
+			libPath := strings.TrimPrefix(field, "-L")
+			libPath = strings.TrimSuffix(libPath, "/")
+			linkArgs = append(linkArgs, "-Wl,-rpath,"+libPath)
+		}
+	}
 
 	if runtime.GOOS == "linux" || runtime.GOOS == "darwin" {
 		linkArgs = append(linkArgs, "-lm")
