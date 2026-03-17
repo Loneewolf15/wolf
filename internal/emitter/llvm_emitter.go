@@ -450,6 +450,9 @@ func (e *LLVMEmitter) Emit(program *ir.Program) string {
 	e.writeln("declare ptr @wolf_map_get(ptr, ptr)")
 	e.writeln("declare ptr @wolf_class_create(ptr)")
 	e.writeln("declare i1 @wolf_env_has(ptr)")
+	e.writeln("declare ptr @wolf_val_int(i64)")
+	e.writeln("declare ptr @wolf_val_float(double)")
+	e.writeln("declare ptr @wolf_val_bool(i1)")
 	e.writeln("")
 
 	e.writeln("; --- Thread-Local Request Context ---")
@@ -1309,8 +1312,27 @@ func (e *LLVMEmitter) emitSliceLit(ex *ir.SliceLit) string {
 	arrReg := e.nextLocal()
 	e.writelnIndent(fmt.Sprintf("%s = call ptr @wolf_array_create()", arrReg))
 	for _, elem := range ex.Elements {
-		elemVal := e.emitArgAsString(elem)
-		e.writelnIndent(fmt.Sprintf("call void @wolf_array_push(ptr %s, ptr %s)", arrReg, elemVal))
+		elemType := e.inferExprType(elem)
+		switch elemType {
+		case "i64":
+			intVal := e.emitExpr(elem, "i64")
+			reg := e.nextLocal()
+			e.writelnIndent(fmt.Sprintf("%s = call ptr @wolf_val_int(i64 %s)", reg, intVal))
+			e.writelnIndent(fmt.Sprintf("call void @wolf_array_push(ptr %s, ptr %s)", arrReg, reg))
+		case "double":
+			floatVal := e.emitExpr(elem, "double")
+			reg := e.nextLocal()
+			e.writelnIndent(fmt.Sprintf("%s = call ptr @wolf_val_float(double %s)", reg, floatVal))
+			e.writelnIndent(fmt.Sprintf("call void @wolf_array_push(ptr %s, ptr %s)", arrReg, reg))
+		case "i1":
+			boolVal := e.emitExpr(elem, "i1")
+			reg := e.nextLocal()
+			e.writelnIndent(fmt.Sprintf("%s = call ptr @wolf_val_bool(i1 %s)", reg, boolVal))
+			e.writelnIndent(fmt.Sprintf("call void @wolf_array_push(ptr %s, ptr %s)", arrReg, reg))
+		default:
+			elemVal := e.emitArgAsString(elem)
+			e.writelnIndent(fmt.Sprintf("call void @wolf_array_push(ptr %s, ptr %s)", arrReg, elemVal))
+		}
 	}
 	return arrReg
 }

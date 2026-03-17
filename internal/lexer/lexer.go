@@ -237,6 +237,12 @@ func (l *Lexer) scanString() {
 				hasInterpolation = true
 				break
 			}
+			// {expr} interpolation — {count($x)}, {func()}, etc.
+			// Only trigger for valid identifier starts (letter or underscore)
+			if (next >= 'a' && next <= 'z') || (next >= 'A' && next <= 'Z') || next == '_' {
+				hasInterpolation = true
+				break
+			}
 		}
 		if ch == '$' && !l.isAtEnd() {
 			next := l.peekNext()
@@ -374,6 +380,25 @@ func (l *Lexer) scanInterpolatedString() {
 				sb.WriteByte('\\')
 				sb.WriteRune(escaped)
 			}
+			continue
+		}
+
+		// {expr} interpolation — handles {count($x)}, {someFunc()}, etc.
+		next := l.peekNext()
+		if ch == '{' && ((next >= 'a' && next <= 'z') || (next >= 'A' && next <= 'Z') || next == '_') {
+			if sb.Len() > 0 {
+				l.emitStringLitPart(sb.String())
+				sb.Reset()
+			}
+			interpStartPos := Position{File: l.file, Line: l.line, Col: l.col, Offset: l.current}
+			l.advance() // consume {
+			l.tokens = append(l.tokens, Token{
+				Type:    TOKEN_DOLLAR_LBRACE,
+				Literal: "${",
+				Pos:     interpStartPos,
+			})
+			// Scan expression tokens until }
+			l.scanInterpExpression()
 			continue
 		}
 

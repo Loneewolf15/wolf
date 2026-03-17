@@ -1,0 +1,9 @@
+$arr = [1, 2, 3]
+$s = Wolf_JSON::Encode($arr)
+print("array: {$s}")
+$m = {"name": "Wolf", "scores": [10, 20, 30], "age": 1}
+$s2 = Wolf_JSON::Encode($m)
+print("nested: {$s2}")
+$json = "[1,2,3]"
+$decoded = json_decode($json)
+print("decoded length: {count($decoded)}")

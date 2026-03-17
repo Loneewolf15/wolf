@@ -3,6 +3,26 @@
 
 #include <stdint.h>
 
+// --- Typed Value System ---
+#define WOLF_TYPE_STRING  0
+#define WOLF_TYPE_INT     1
+#define WOLF_TYPE_FLOAT   2
+#define WOLF_TYPE_BOOL    3
+#define WOLF_TYPE_NULL    4
+#define WOLF_TYPE_MAP     5
+#define WOLF_TYPE_ARRAY   6
+
+typedef struct {
+    int type;
+    union {
+        char*   s;
+        int64_t i;
+        double  f;
+        int     b;
+        void*   ptr;
+    } val;
+} wolf_value_t;
+
 // --- Output & Display (Wolf Way) ---
 void wolf_say(const char* s);
 void wolf_show(void* variable);
@@ -35,6 +55,10 @@ void wolf_map_set_int(void* map, const char* key, int64_t value);
 void wolf_map_set_float(void* map, const char* key, double value);
 void wolf_map_set_bool(void* map, const char* key, int value);
 void* wolf_map_get(void* map, const char* key);
+// --- Typed Value Constructors ---
+wolf_value_t* wolf_val_int(int64_t i);
+wolf_value_t* wolf_val_float(double f);
+wolf_value_t* wolf_val_bool(int b);
 int wolf_env_has(const char* key);
 
 void* wolf_class_create(const char* name);

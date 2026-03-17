@@ -747,27 +747,6 @@ typedef struct {
     int64_t capacity;
 } wolf_map_t;
 
-// ========== Typed Value System ==========
-
-#define WOLF_TYPE_STRING  0
-#define WOLF_TYPE_INT     1
-#define WOLF_TYPE_FLOAT   2
-#define WOLF_TYPE_BOOL    3
-#define WOLF_TYPE_NULL    4
-#define WOLF_TYPE_MAP     5
-#define WOLF_TYPE_ARRAY   6
-
-typedef struct {
-    int type;
-    union {
-        char*   s;
-        int64_t i;
-        double  f;
-        int     b;
-        void*   ptr;
-    } val;
-} wolf_value_t;
-
 static wolf_value_t* wolf_val_make(int type) {
     wolf_value_t* v = (wolf_value_t*)malloc(sizeof(wolf_value_t));
     v->type = type;
@@ -777,12 +756,106 @@ static wolf_value_t* wolf_val_make(int type) {
 // Forward declaration
 static char* wolf_json_encode_value(void* val);
 
+// Unwrap any wolf value to its string representation.
+// This is the single canonical conversion used by all print/concat/comparison ops.
+static const char* wolf_value_unwrap_string(void* val) {
+    if (!val) return "";
+    wolf_value_t* tagged = (wolf_value_t*)val;
+    // Validate type field is in known range before trusting it
+    if (tagged->type < WOLF_TYPE_STRING || tagged->type > WOLF_TYPE_ARRAY) {
+        // Not a tagged value — treat as plain C string
+        return (const char*)val;
+    }
+    switch (tagged->type) {
+        case WOLF_TYPE_INT: {
+            char* buf = (char*)malloc(32);
+            if (!buf) return "";
+            snprintf(buf, 32, "%lld", (long long)tagged->val.i);
+            return buf;
+        }
+        case WOLF_TYPE_FLOAT: {
+            char* buf = (char*)malloc(64);
+            if (!buf) return "";
+            snprintf(buf, 64, "%g", tagged->val.f);
+            return buf;
+        }
+        case WOLF_TYPE_BOOL:
+            return tagged->val.b ? "true" : "false";
+        case WOLF_TYPE_NULL:
+            return "";
+        case WOLF_TYPE_STRING:
+            return tagged->val.s ? tagged->val.s : "";
+        case WOLF_TYPE_MAP:
+        case WOLF_TYPE_ARRAY:
+            return wolf_json_encode_value(val);
+        default:
+            return (const char*)val;
+    }
+}
+
+wolf_value_t* wolf_val_int(int64_t i) {
+    wolf_value_t* v = wolf_val_make(WOLF_TYPE_INT);
+    v->val.i = i;
+    return v;
+}
+
+wolf_value_t* wolf_val_float(double f) {
+    wolf_value_t* v = wolf_val_make(WOLF_TYPE_FLOAT);
+    v->val.f = f;
+    return v;
+}
+
+wolf_value_t* wolf_val_bool(int b) {
+    wolf_value_t* v = wolf_val_make(WOLF_TYPE_BOOL);
+    v->val.b = b;
+    return v;
+}
+
+// Dynamic string buffer for safe JSON building
+typedef struct {
+    char* data;
+    size_t len;
+    size_t cap;
+} wolf_strbuf_t;
+
+static wolf_strbuf_t* wolf_strbuf_new() {
+    wolf_strbuf_t* b = (wolf_strbuf_t*)malloc(sizeof(wolf_strbuf_t));
+    if (!b) return NULL;
+    b->cap = 256;
+    b->len = 0;
+    b->data = (char*)malloc(b->cap);
+    if (!b->data) { free(b); return NULL; }
+    b->data[0] = '\0';
+    return b;
+}
+
+static int wolf_strbuf_append(wolf_strbuf_t* b, const char* s) {
+    if (!b || !s) return 0;
+    size_t slen = strlen(s);
+    while (b->len + slen + 1 > b->cap) {
+        b->cap *= 2;
+        char* newdata = (char*)realloc(b->data, b->cap);
+        if (!newdata) return 0;
+        b->data = newdata;
+    }
+    memcpy(b->data + b->len, s, slen);
+    b->len += slen;
+    b->data[b->len] = '\0';
+    return 1;
+}
+
+static char* wolf_strbuf_take(wolf_strbuf_t* b) {
+    if (!b) return strdup("");
+    char* result = b->data;
+    free(b);
+    return result;
+}
+
 static char* wolf_json_encode_map(wolf_map_t* m) {
     if (!m) return strdup("{}");
-
-    // Sort keys alphabetically
     int64_t n = m->size;
     int64_t* order = (int64_t*)malloc(n * sizeof(int64_t));
+    if (!order) return strdup("{}");
     for (int64_t i = 0; i < n; i++) order[i] = i;
     for (int64_t i = 0; i < n - 1; i++) {
         for (int64_t j = i + 1; j < n; j++) {
@@ -791,38 +864,38 @@ static char* wolf_json_encode_map(wolf_map_t* m) {
             }
         }
     }
-
-    char* buf = (char*)malloc(4096);
-    buf[0] = '\0';
-    strcat(buf, "{");
+    wolf_strbuf_t* buf = wolf_strbuf_new();
+    if (!buf) { free(order); return strdup("{}"); }
+    wolf_strbuf_append(buf, "{");
     for (int64_t i = 0; i < n; i++) {
-        if (i > 0) strcat(buf, ",");
-        strcat(buf, "\"");
-        strcat(buf, m->keys[order[i]]);
-        strcat(buf, "\":");
+        if (i > 0) wolf_strbuf_append(buf, ",");
+        wolf_strbuf_append(buf, "\"");
+        wolf_strbuf_append(buf, m->keys[order[i]]);
+        wolf_strbuf_append(buf, "\":");
         char* val = wolf_json_encode_value(m->values[order[i]]);
-        strcat(buf, val);
+        wolf_strbuf_append(buf, val);
         free(val);
     }
-    strcat(buf, "}");
+    wolf_strbuf_append(buf, "}");
     free(order);
-    return buf;
+    return wolf_strbuf_take(buf);
 }
 
 static char* wolf_json_encode_array(wolf_array_t* a) {
     if (!a) return strdup("[]");
-    char* buf = (char*)malloc(4096);
-    buf[0] = '\0';
-    strcat(buf, "[");
+    wolf_strbuf_t* buf = wolf_strbuf_new();
+    if (!buf) return strdup("[]");
+    wolf_strbuf_append(buf, "[");
     for (int64_t i = 0; i < a->length; i++) {
-        if (i > 0) strcat(buf, ",");
+        if (i > 0) wolf_strbuf_append(buf, ",");
         char* val = wolf_json_encode_value(a->items[i]);
-        strcat(buf, val);
+        wolf_strbuf_append(buf, val);
         free(val);
     }
-    strcat(buf, "]");
-    return buf;
+    wolf_strbuf_append(buf, "]");
+    return wolf_strbuf_take(buf);
 }
+
 
 static char* wolf_json_encode_value(void* val) {
     if (!val) return strdup("null");
@@ -872,22 +945,21 @@ static char* wolf_json_encode_value(void* val) {
         return wolf_json_encode_array(a);
     }
 
-    // Fallback: treat as raw pointer — could be map, array, or plain string
-    const char* s = (const char*)val;
-
-    // Try map
-    wolf_map_t* m = (wolf_map_t*)val;
-    if (m->capacity > 0 && m->capacity <= 1024 && m->size >= 0 &&
-        m->size <= m->capacity && m->keys) {
-        return wolf_json_encode_map(m);
-    }
-
-    // Try array
+  // Fallback: treat as raw pointer — could be map, array, or plain string
+    // Try array FIRST (before map) — array has items ptr, map has keys ptr
     wolf_array_t* a = (wolf_array_t*)val;
-    if (a->capacity > 0 && a->capacity <= 1024 && a->length >= 0 &&
-        a->length <= a->capacity && a->items) {
+    if (a != NULL && a->capacity > 0 && a->capacity <= 65536 &&
+        a->length >= 0 && a->length <= a->capacity && a->items != NULL) {
         return wolf_json_encode_array(a);
     }
+    // Try map
+    wolf_map_t* m = (wolf_map_t*)val;
+    if (m != NULL && m->capacity > 0 && m->capacity <= 65536 &&
+        m->size >= 0 && m->size <= m->capacity && m->keys != NULL) {
+        return wolf_json_encode_map(m);
+    }
+    // Plain string
+    const char* s = (const char*)val;
 
     // Plain string — quote it
     size_t len = strlen(s);
@@ -934,7 +1006,14 @@ void* wolf_array_get(void* a, int64_t index) {
     if (!a) return NULL;
     wolf_array_t* arr = (wolf_array_t*)a;
     if (index < 0 || index >= arr->length) return NULL;
-    return arr->items[index];
+    void* val = arr->items[index];
+    if (!val) return NULL;
+    wolf_value_t* tagged = (wolf_value_t*)val;
+    if (tagged->type < WOLF_TYPE_STRING || tagged->type > WOLF_TYPE_ARRAY) {
+        return val; // plain string pointer, return as-is
+    }
+    // Unwrap typed values to string for use in Wolf code
+    return (void*)wolf_value_unwrap_string(val);
 }
 
 int64_t wolf_array_length(void* a) {
@@ -2222,8 +2301,80 @@ const char* wolf_json_pretty(const char* json) {
 
 void* wolf_json_decode(const char* json) {
     if (!json) return wolf_map_create();
-    // Skip whitespace
     while (*json && (*json == ' ' || *json == '\t' || *json == '\n')) json++;
+
+    // Handle JSON arrays
+    if (*json == '[') {
+        void* arr = wolf_array_create();
+        json++; // skip '['
+        while (*json) {
+            while (*json && (*json == ' ' || *json == '\t' ||
+                   *json == '\n' || *json == ',')) json++;
+            if (*json == ']') break;
+            if (*json == '"') {
+                json++;
+                char val[4096] = {0};
+                int vi = 0;
+                while (*json && *json != '"' && vi < 4095) {
+                    val[vi++] = *json++;
+                }
+                if (*json == '"') json++;
+                wolf_array_push(arr, strdup(val));
+            } else if (*json == '{') {
+                const char* start = json;
+                int depth = 0;
+                while (*json) {
+                    if (*json == '{') depth++;
+                    else if (*json == '}') { depth--; if (depth == 0) { json++; break; } }
+                    json++;
+                }
+                char* nested = strndup(start, json - start);
+                wolf_array_push(arr, wolf_json_decode(nested));
+                free(nested);
+            } else if (*json == '[') {
+                const char* start = json;
+                int depth = 0;
+                while (*json) {
+                    if (*json == '[') depth++;
+                    else if (*json == ']') { depth--; if (depth == 0) { json++; break; } }
+                    json++;
+                }
+                char* nested = strndup(start, json - start);
+                wolf_array_push(arr, wolf_json_decode(nested));
+                free(nested);
+            } else if (*json == 't' && strncmp(json, "true", 4) == 0) {
+                json += 4;
+                wolf_value_t* v = wolf_val_make(WOLF_TYPE_BOOL);
+                v->val.b = 1;
+                wolf_array_push(arr, v);
+            } else if (*json == 'f' && strncmp(json, "false", 5) == 0) {
+                json += 5;
+                wolf_value_t* v = wolf_val_make(WOLF_TYPE_BOOL);
+                v->val.b = 0;
+                wolf_array_push(arr, v);
+            } else if (*json == 'n' && strncmp(json, "null", 4) == 0) {
+                json += 4;
+                wolf_array_push(arr, NULL);
+            } else {
+                // Number
+                char num[64] = {0};
+                int ni = 0;
+                int is_float = 0;
+                if (*json == '-') num[ni++] = *json++;
+                while (*json && ((*json >= '0' && *json <= '9') ||
+                       *json == '.') && ni < 63) {
+                    if (*json == '.') is_float = 1;
+                    num[ni++] = *json++;
+                }
+                wolf_value_t* v = wolf_val_make(is_float ? WOLF_TYPE_FLOAT : WOLF_TYPE_INT);
+                if (is_float) v->val.f = atof(num);
+                else v->val.i = atoll(num);
+                wolf_array_push(arr, v);
+            }
+        }
+        return arr;
+    }
+
     if (*json != '{') return wolf_map_create();
 
     void* map = wolf_map_create();
@@ -2237,9 +2388,20 @@ void* wolf_json_decode(const char* json) {
         json++; // skip opening quote
 
         // Read key
-        char key[256] = {0};
+        size_t key_cap = 256;
+        char* key = (char*)malloc(key_cap);
+        if (!key) break;
         int ki = 0;
-        while (*json && *json != '"' && ki < 255) key[ki++] = *json++;
+        while (*json && *json != '"') {
+            if ((size_t)ki >= key_cap - 1) {
+                key_cap *= 2;
+                char* newkey = (char*)realloc(key, key_cap);
+                if (!newkey) { free(key); break; }
+                key = newkey;
+            }
+            key[ki++] = *json++;
+        }
+        key[ki] = '\0';
         if (*json == '"') json++; // skip closing quote
 
         // Skip whitespace and colon
@@ -2248,9 +2410,17 @@ void* wolf_json_decode(const char* json) {
         // Read value
         if (*json == '"') {
             json++; // skip opening quote
-            char val[4096] = {0};
+            size_t val_cap = 256;
+            char* val = (char*)malloc(val_cap);
+            if (!val) { free(key); break; }
             int vi = 0;
-            while (*json && *json != '"' && vi < 4095) {
+            while (*json && *json != '"') {
+                if ((size_t)vi >= val_cap - 1) {
+                    val_cap *= 2;
+                    char* newval = (char*)realloc(val, val_cap);
+                    if (!newval) { free(val); val = NULL; break; }
+                    val = newval;
+                }
                 if (*json == '\\' && *(json+1)) {
                     json++;
                     switch (*json) {
@@ -2275,8 +2445,21 @@ void* wolf_json_decode(const char* json) {
         } else if (*json == 'n' && strncmp(json, "null", 4) == 0) {
             json += 4;
             wolf_map_set(map, key, NULL);
+        } else if (*json == '[') {
+            // Nested array — recurse
+            const char* start = json;
+            int depth = 0;
+            while (*json) {
+                if (*json == '[') depth++;
+                else if (*json == ']') { depth--; if (depth == 0) { json++; break; } }
+                json++;
+            }
+            char* nested = strndup(start, json - start);
+            wolf_value_t* v = wolf_val_make(WOLF_TYPE_ARRAY);
+            v->val.ptr = wolf_json_decode(nested);
+            free(nested);
+            wolf_map_set(map, key, v);
         } else if (*json == '{') {
-            // Nested object — recurse
             // Find the matching closing brace
             int depth = 0;
             const char* start = json;
