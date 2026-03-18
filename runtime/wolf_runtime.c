@@ -8,6 +8,7 @@
 #define _POSIX_C_SOURCE 200809L
 
 #include "wolf_runtime.h"
+#include "wolf_config_runtime.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -2313,13 +2314,66 @@ void* wolf_json_decode(const char* json) {
             if (*json == ']') break;
             if (*json == '"') {
                 json++;
-                char val[4096] = {0};
+                size_t vcap = 256;
+                char* val = (char*)malloc(vcap);
                 int vi = 0;
-                while (*json && *json != '"' && vi < 4095) {
-                    val[vi++] = *json++;
+                while (*json && *json != '"') {
+                    if ((size_t)vi >= vcap - 8) {
+                        vcap *= 2;
+                        char* nv = (char*)realloc(val, vcap);
+                        if (!nv) { free(val); val = NULL; break; }
+                        val = nv;
+                    }
+                    if (*json == '\\' && *(json+1)) {
+                        json++;
+                        switch (*json) {
+                            case 'n':  val[vi++] = '\n'; break;
+                            case 't':  val[vi++] = '\t'; break;
+                            case 'r':  val[vi++] = '\r'; break;
+                            case 'b':  val[vi++] = '\b'; break;
+                            case 'f':  val[vi++] = '\f'; break;
+                            case '"':  val[vi++] = '"';  break;
+                            case '\\': val[vi++] = '\\'; break;
+                            case '/':  val[vi++] = '/';  break;
+                            case 'u': {
+                                /* \uXXXX — decode to UTF-8 */
+                                json++;
+                                unsigned int codepoint = 0;
+                                for (int ci = 0; ci < 4 && *json; ci++, json++) {
+                                    codepoint <<= 4;
+                                    char hx = *json;
+                                    if (hx >= '0' && hx <= '9') codepoint |= (hx - '0');
+                                    else if (hx >= 'a' && hx <= 'f') codepoint |= (hx - 'a' + 10);
+                                    else if (hx >= 'A' && hx <= 'F') codepoint |= (hx - 'A' + 10);
+                                }
+                                json--; /* loop will ++ */
+                                /* encode as UTF-8 */
+                                if (codepoint < 0x80) {
+                                    val[vi++] = (char)codepoint;
+                                } else if (codepoint < 0x800) {
+                                    val[vi++] = (char)(0xC0 | (codepoint >> 6));
+                                    val[vi++] = (char)(0x80 | (codepoint & 0x3F));
+                                } else {
+                                    val[vi++] = (char)(0xE0 | (codepoint >> 12));
+                                    val[vi++] = (char)(0x80 | ((codepoint >> 6) & 0x3F));
+                                    val[vi++] = (char)(0x80 | (codepoint & 0x3F));
+                                }
+                                break;
+                            }
+                            default: val[vi++] = *json; break;
+                        }
+                    } else {
+                        val[vi++] = *json;
+                    }
+                    json++;
                 }
+                if (val) val[vi] = '\0';
                 if (*json == '"') json++;
-                wolf_array_push(arr, strdup(val));
+                /* Wrap as typed string value */
+                wolf_value_t* sv = wolf_val_make(WOLF_TYPE_STRING);
+                sv->val.s = val ? strdup(val) : strdup("");
+                free(val);
+                wolf_array_push(arr, sv);
             } else if (*json == '{') {
                 const char* start = json;
                 int depth = 0;
@@ -2415,7 +2469,7 @@ void* wolf_json_decode(const char* json) {
             if (!val) { free(key); break; }
             int vi = 0;
             while (*json && *json != '"') {
-                if ((size_t)vi >= val_cap - 1) {
+                if ((size_t)vi >= val_cap - 8) {
                     val_cap *= 2;
                     char* newval = (char*)realloc(val, val_cap);
                     if (!newval) { free(val); val = NULL; break; }
@@ -2424,9 +2478,39 @@ void* wolf_json_decode(const char* json) {
                 if (*json == '\\' && *(json+1)) {
                     json++;
                     switch (*json) {
-                        case 'n': val[vi++] = '\n'; break;
-                        case 't': val[vi++] = '\t'; break;
-                        case 'r': val[vi++] = '\r'; break;
+                        case 'n':  val[vi++] = '\n'; break;
+                        case 't':  val[vi++] = '\t'; break;
+                        case 'r':  val[vi++] = '\r'; break;
+                        case 'b':  val[vi++] = '\b'; break;
+                        case 'f':  val[vi++] = '\f'; break;
+                        case '"':  val[vi++] = '"';  break;
+                        case '\\': val[vi++] = '\\'; break;
+                        case '/':  val[vi++] = '/';  break;
+                        case 'u': {
+                            /* \uXXXX — decode to UTF-8 */
+                            json++;
+                            unsigned int codepoint = 0;
+                            for (int ci = 0; ci < 4 && *json; ci++, json++) {
+                                codepoint <<= 4;
+                                char hx = *json;
+                                if (hx >= '0' && hx <= '9') codepoint |= (hx - '0');
+                                else if (hx >= 'a' && hx <= 'f') codepoint |= (hx - 'a' + 10);
+                                else if (hx >= 'A' && hx <= 'F') codepoint |= (hx - 'A' + 10);
+                            }
+                            json--; /* loop will ++ */
+                            /* encode as UTF-8 */
+                            if (codepoint < 0x80) {
+                                val[vi++] = (char)codepoint;
+                            } else if (codepoint < 0x800) {
+                                val[vi++] = (char)(0xC0 | (codepoint >> 6));
+                                val[vi++] = (char)(0x80 | (codepoint & 0x3F));
+                            } else {
+                                val[vi++] = (char)(0xE0 | (codepoint >> 12));
+                                val[vi++] = (char)(0x80 | ((codepoint >> 6) & 0x3F));
+                                val[vi++] = (char)(0x80 | (codepoint & 0x3F));
+                            }
+                            break;
+                        }
                         default:  val[vi++] = *json; break;
                     }
                 } else {
@@ -2434,8 +2518,13 @@ void* wolf_json_decode(const char* json) {
                 }
                 json++;
             }
+            if (val) val[vi] = '\0';
             if (*json == '"') json++; // skip closing quote
-            wolf_map_set(map, key, strdup(val));
+            /* Wrap as tagged WOLF_TYPE_STRING so json_encode_value identifies it correctly */
+            wolf_value_t* sv = wolf_val_make(WOLF_TYPE_STRING);
+            sv->val.s = (val && vi > 0) ? strdup(val) : strdup("");
+            free(val);
+            wolf_map_set(map, key, sv);
         } else if (*json == 't' && strncmp(json, "true", 4) == 0) {
             json += 4;
             wolf_map_set_bool(map, key, 1);

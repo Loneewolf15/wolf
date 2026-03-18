@@ -474,7 +474,7 @@ func (l *Lexer) scanInterpContent() {
 		Pos:     Position{File: l.file, Line: varLine, Col: varCol, Offset: varStart},
 	})
 
-	// Handle optional ->property access chains inside interpolation
+	// Handle optional ->property or ->method() access chains inside interpolation
 	for !l.isAtEnd() && l.peek() == '-' && l.peekNext() == '>' {
 		arrowPos := Position{File: l.file, Line: l.line, Col: l.col, Offset: l.current}
 		l.advance() // consume -
@@ -498,6 +498,55 @@ func (l *Lexer) scanInterpContent() {
 				Literal: propName,
 				Pos:     Position{File: l.file, Line: propLine, Col: propCol, Offset: propStart},
 			})
+		}
+
+		// If followed by '(' this is a method call — scan the call args and
+		// then the closing } using depth tracking.
+		if !l.isAtEnd() && l.peek() == '(' {
+			// Emit '(' token
+			parenPos := Position{File: l.file, Line: l.line, Col: l.col, Offset: l.current}
+			l.advance() // consume (
+			l.tokens = append(l.tokens, Token{
+				Type:    TOKEN_LPAREN,
+				Literal: "(",
+				Pos:     parenPos,
+			})
+			// Scan until matching ) — track paren depth
+			parenDepth := 1
+			for !l.isAtEnd() && parenDepth > 0 {
+				l.start = l.current
+				l.startLine = l.line
+				l.startCol = l.col
+				ch := l.peek()
+				if ch == ')' {
+					parenDepth--
+					if parenDepth == 0 {
+						l.advance()
+						l.tokens = append(l.tokens, Token{
+							Type:    TOKEN_RPAREN,
+							Literal: ")",
+							Pos:     Position{File: l.file, Line: l.line, Col: l.col - 1, Offset: l.current - 1},
+						})
+						break
+					}
+				}
+				if ch == '(' {
+					parenDepth++
+				}
+				l.scanToken()
+			}
+			// After method call, expect closing } and emit it; no more chaining
+			if !l.isAtEnd() && l.peek() == '}' {
+				l.advance()
+				l.tokens = append(l.tokens, Token{
+					Type:    TOKEN_RBRACE,
+					Literal: "}",
+					Pos:     Position{File: l.file, Line: l.line, Col: l.col - 1, Offset: l.current - 1},
+				})
+			} else {
+				l.addError("expected '}' to close string interpolation after method call")
+			}
+			return
 		}
 	}
 
