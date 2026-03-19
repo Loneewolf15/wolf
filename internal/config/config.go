@@ -9,13 +9,13 @@ package config
 // to parse strings themselves.
 type WolfConfig struct {
 	// ---- Project ----
-	App     AppConfig
-	Server  ServerConfig
-	DB      DBConfig
-	Redis   RedisConfig
-	JWT     JWTConfig
-	Log     LogConfig
-	Build   BuildConfig
+	App    AppConfig
+	Server ServerConfig
+	DB     DBConfig
+	Redis  RedisConfig
+	JWT    JWTConfig
+	Log    LogConfig
+	Build  BuildConfig
 }
 
 // AppConfig holds general application identity.
@@ -41,6 +41,7 @@ type ServerConfig struct {
 // DBConfig controls MySQL connection pooling and credentials.
 // This is the section most relevant to the connection pool work.
 type DBConfig struct {
+	Driver   string // DB_DRIVER (mysql | postgres | mssql)
 	Host     string // DB_HOST
 	Port     int    // DB_PORT (default 3306)
 	Name     string // DB_NAME
@@ -82,10 +83,10 @@ type LogConfig struct {
 
 // BuildConfig controls the compiler and output.
 type BuildConfig struct {
-	OutDir    string // BUILD_OUT_DIR (default "wolf_out")
-	Optimise  bool   // BUILD_OPTIMISE: -O2 vs -O0 (default true in production)
-	KeepLL    bool   // BUILD_KEEP_LL: retain .ll file for debugging (default false)
-	StrictMode bool  // BUILD_STRICT_MODE
+	OutDir     string // BUILD_OUT_DIR (default "wolf_out")
+	Optimise   bool   // BUILD_OPTIMISE: -O2 vs -O0 (default true in production)
+	KeepLL     bool   // BUILD_KEEP_LL: retain .ll file for debugging (default false)
+	StrictMode bool   // BUILD_STRICT_MODE
 }
 
 // Defaults returns a WolfConfig with every field set to its production default.
