@@ -47,7 +47,7 @@
 #endif
 
 /* Forward declarations */
-static __thread int64_t wolf_current_res_id;
+static __thread int64_t wolf_current_res_id = -1;  /* -1 = no active HTTP context → use stdout */
 void wolf_http_res_write(int64_t res_id, const char* body);
 
 /* ================================================================ *

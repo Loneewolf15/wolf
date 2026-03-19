@@ -48,6 +48,8 @@ jobs:
 
       - name: Test
         run: |
+          # pythonenv tests do real pip installs (~10 min total).
+          # Use -timeout 30m so they don't blow the default 10m budget.
           make test-cover > test_log.txt 2>&1 || (
             echo "::error title=make test-cover failed::See step summary for details"
             echo "### 🔴 Test Suite Failure Log" >> $GITHUB_STEP_SUMMARY
