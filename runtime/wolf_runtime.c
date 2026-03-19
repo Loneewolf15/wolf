@@ -41,9 +41,79 @@
 #ifndef WOLF_REDIS_MAX
 #define WOLF_REDIS_MAX 512
 #endif
-// Forward declarations for HTTP context
+/* Forward declarations for HTTP context */
 static __thread int64_t wolf_current_res_id;
 void wolf_http_res_write(int64_t res_id, const char* body);
+
+/* ================================================================ *
+ * Per-Request Memory Arena                                         *
+ *                                                                  *
+ * All allocations that should live exactly as long as one HTTP     *
+ * request register themselves here via wolf_req_alloc() /         *
+ * wolf_req_strdup(). At end of request, wolf_req_arena_flush()    *
+ * frees everything in O(n) — one call, no leaks.                  *
+ *                                                                  *
+ * Thread-safe: each worker thread has its own arena (__thread).   *
+ * ================================================================ */
+
+#define WOLF_ARENA_CHUNK 256  /* grow by this many entries at once */
+
+typedef struct {
+    void   **ptrs;      /* pointers registered for deferred free */
+    int      count;     /* number of entries currently in use    */
+    int      cap;       /* allocated capacity of ptrs[]          */
+    int      active;    /* 1 while handling a request            */
+} WolfReqArena;
+
+static __thread WolfReqArena wolf_req_arena = {NULL, 0, 0, 0};
+
+/* Call at start of every HTTP request (before running Wolf handler). */
+void wolf_req_arena_init(void) {
+    wolf_req_arena.count  = 0;  /* reset counters — reuse existing ptrs[] */
+    wolf_req_arena.active = 1;
+}
+
+/* Register ptr for deferred free at end of request.
+ * Safe to call with NULL (no-op). Returns ptr unchanged for chaining. */
+void* wolf_req_alloc_register(void* ptr) {
+    if (!ptr || !wolf_req_arena.active) return ptr;
+    if (wolf_req_arena.count >= wolf_req_arena.cap) {
+        int new_cap = wolf_req_arena.cap + WOLF_ARENA_CHUNK;
+        void** new_ptrs = realloc(wolf_req_arena.ptrs, new_cap * sizeof(void*));
+        if (!new_ptrs) return ptr;  /* on OOM — leak rather than crash */
+        wolf_req_arena.ptrs = new_ptrs;
+        wolf_req_arena.cap  = new_cap;
+    }
+    wolf_req_arena.ptrs[wolf_req_arena.count++] = ptr;
+    return ptr;
+}
+
+/* Convenience: malloc + register + zero out (like calloc). */
+void* wolf_req_alloc(size_t sz) {
+    void* p = malloc(sz);
+    if (p) memset(p, 0, sz);
+    return wolf_req_alloc_register(p);
+}
+
+/* Convenience: strdup + register. */
+char* wolf_req_strdup(const char* s) {
+    if (!s) return NULL;
+    char* p = strdup(s);
+    return (char*)wolf_req_alloc_register(p);
+}
+
+/* Call at end of every HTTP request (after writing response). *
+ * Frees every registered pointer and resets the arena.        */
+void wolf_req_arena_flush(void) {
+    wolf_req_arena.active = 0;
+    for (int i = 0; i < wolf_req_arena.count; i++) {
+        free(wolf_req_arena.ptrs[i]);
+        wolf_req_arena.ptrs[i] = NULL;
+    }
+    wolf_req_arena.count = 0;
+    /* Keep ptrs[] buffer alive for next request — avoids repeated realloc */
+}
+
 // ========== Print ==========
 
 void wolf_print_str(const char* s) {
@@ -125,7 +195,7 @@ const char* wolf_string_concat(const char* a, const char* b) {
     if (!b) b = "";
     size_t la = strlen(a);
     size_t lb = strlen(b);
-    char* result = (char*)malloc(la + lb + 1);
+    char* result = (char*)wolf_req_alloc(la + lb + 1);
     memcpy(result, a, la);
     memcpy(result + la, b, lb);
     result[la + lb] = '\0';
@@ -140,7 +210,7 @@ int64_t wolf_string_length(const char* s) {
 const char* wolf_string_upper(const char* s) {
     if (!s) return "";
     size_t len = strlen(s);
-    char* result = (char*)malloc(len + 1);
+    char* result = (char*)wolf_req_alloc(len + 1);
     for (size_t i = 0; i < len; i++) {
         result[i] = (char)toupper((unsigned char)s[i]);
     }
@@ -151,7 +221,7 @@ const char* wolf_string_upper(const char* s) {
 const char* wolf_string_lower(const char* s) {
     if (!s) return "";
     size_t len = strlen(s);
-    char* result = (char*)malloc(len + 1);
+    char* result = (char*)wolf_req_alloc(len + 1);
     for (size_t i = 0; i < len; i++) {
         result[i] = (char)tolower((unsigned char)s[i]);
     }
@@ -166,7 +236,7 @@ const char* wolf_string_trim(const char* s) {
     size_t len = strlen(s);
     // Skip trailing whitespace
     while (len > 0 && isspace((unsigned char)s[len - 1])) len--;
-    char* result = (char*)malloc(len + 1);
+    char* result = (char*)wolf_req_alloc(len + 1);
     memcpy(result, s, len);
     result[len] = '\0';
     return result;
@@ -237,7 +307,7 @@ const char* wolf_number_format(double number, int64_t decimals, const char* dec_
     // Count commas needed
     int commas = (int_len - 1) / 3;
     int result_len = (number < 0 ? 1 : 0) + int_len + commas + (dot ? (int)strlen(dec_point) + (int)strlen(dot + 1) : 0) + 1;
-    char* result = (char*)malloc(result_len + 16); // extra safety
+    char* result = (char*)wolf_req_alloc(result_len + 16); // extra safety
     char* p = result;
 
     if (number < 0) *p++ = '-';
@@ -278,7 +348,7 @@ const char* wolf_env_get(const char* key, const char* def_val) {
 const char* wolf_time_date(const char* format, int64_t timestamp) {
     time_t rawtime = (time_t)timestamp;
     struct tm *info = localtime(&rawtime);
-    char* buf = (char*)malloc(256);
+    char* buf = (char*)wolf_req_alloc(256);
     strftime(buf, 256, format, info);
     return buf;
 }
@@ -327,8 +397,8 @@ void wolf_define(const char* key, const char* value) {
     for (int i = 0; i < wolf_defines.count; i++) {
         if (strcmp(wolf_defines.keys[i], key) == 0) return;
     }
-    wolf_defines.keys[wolf_defines.count] = strdup(key);
-    wolf_defines.values[wolf_defines.count] = value ? strdup(value) : strdup("");
+    wolf_defines.keys[wolf_defines.count] = wolf_req_strdup(key);
+    wolf_defines.values[wolf_defines.count] = value ? wolf_req_strdup(value) : wolf_req_strdup("");
     wolf_defines.count++;
 }
 
@@ -515,10 +585,10 @@ void* wolf_db_connect(const char* host, const char* user,
     pthread_mutex_lock(&wolf_pool_mutex);
     /* Seed credentials on first call (from wolf source like Database.wolf) */
     if (!wolf_pool_host && host && *host) {
-        wolf_pool_host   = strdup(host);
-        wolf_pool_user   = user   && *user   ? strdup(user)   : NULL;
-        wolf_pool_pass   = pass   && *pass   ? strdup(pass)   : NULL;
-        wolf_pool_dbname = dbname && *dbname ? strdup(dbname) : NULL;
+        wolf_pool_host   = wolf_req_strdup(host);
+        wolf_pool_user   = user   && *user   ? wolf_req_strdup(user)   : NULL;
+        wolf_pool_pass   = pass   && *pass   ? wolf_req_strdup(pass)   : NULL;
+        wolf_pool_dbname = dbname && *dbname ? wolf_req_strdup(dbname) : NULL;
     }
     pthread_mutex_unlock(&wolf_pool_mutex);
 
@@ -545,7 +615,7 @@ static char* wolf_internal_str_replace(const char* orig, const char* rep,
     for (count = 0; (tmp = strstr(ins, rep)); ++count)
         ins = tmp + len_rep;
 
-    tmp = result = malloc(strlen(orig) + (len_with - len_rep) * count + 1);
+    tmp = result = wolf_req_alloc(strlen(orig) + (len_with - len_rep) * count + 1);
     if (!result) return NULL;
 
     while (count--) {
@@ -562,9 +632,9 @@ static char* wolf_internal_str_replace(const char* orig, const char* rep,
 
 void* wolf_db_prepare(void* conn, const char* sql) {
     if (!conn) return NULL;
-    WolfDBStmt* stmt = (WolfDBStmt*)malloc(sizeof(WolfDBStmt));
+    WolfDBStmt* stmt = (WolfDBStmt*)wolf_req_alloc(sizeof(WolfDBStmt));
     stmt->conn = (MYSQL*)conn;
-    stmt->sql = strdup(sql ? sql : "");
+    stmt->sql = wolf_req_strdup(sql ? sql : "");
     stmt->last_result = NULL;
     return stmt;
 }
@@ -577,11 +647,11 @@ void wolf_db_bind(void* stmt_ptr, const char* param, const char* value) {
     
     // Escape value
     size_t val_len = strlen(value);
-    char *escaped = malloc(val_len * 2 + 1);
+    char *escaped = wolf_req_alloc(val_len * 2 + 1);
     mysql_real_escape_string(stmt->conn, escaped, value, val_len);
     
     // Add quotes around the escaped value
-    char *quoted = malloc(strlen(escaped) + 3);
+    char *quoted = wolf_req_alloc(strlen(escaped) + 3);
     sprintf(quoted, "'%s'", escaped);
     
     char *new_sql = wolf_internal_str_replace(stmt->sql, param, quoted);
@@ -738,13 +808,13 @@ void wolf_redis_set(void* handle, const char* key, const char* value, int64_t tt
     int idx = wolf_redis_find(key);
     if (idx >= 0) {
         free(wolf_redis_store.values[idx]);
-        wolf_redis_store.values[idx] = value ? strdup(value) : strdup("");
+        wolf_redis_store.values[idx] = value ? wolf_req_strdup(value) : wolf_req_strdup("");
         wolf_redis_store.ttls[idx] = ttl;
         return;
     }
     if (wolf_redis_store.count >= WOLF_REDIS_MAX) return;
-    wolf_redis_store.keys[wolf_redis_store.count] = strdup(key);
-    wolf_redis_store.values[wolf_redis_store.count] = value ? strdup(value) : strdup("");
+    wolf_redis_store.keys[wolf_redis_store.count] = wolf_req_strdup(key);
+    wolf_redis_store.values[wolf_redis_store.count] = value ? wolf_req_strdup(value) : wolf_req_strdup("");
     wolf_redis_store.ttls[wolf_redis_store.count] = ttl;
     wolf_redis_store.count++;
 }
@@ -778,7 +848,7 @@ void wolf_redis_hset(void* handle, const char* key, const char* field, const cha
     // Store as "key:field" -> value
     if (!key || !field) return;
     size_t klen = strlen(key) + strlen(field) + 2;
-    char* compound = (char*)malloc(klen);
+    char* compound = (char*)wolf_req_alloc(klen);
     snprintf(compound, klen, "%s:%s", key, field);
     wolf_redis_set(handle, compound, value, 0);
     free(compound);
@@ -787,7 +857,7 @@ void wolf_redis_hset(void* handle, const char* key, const char* field, const cha
 const char* wolf_redis_hget(void* handle, const char* key, const char* field) {
     if (!key || !field) return "";
     size_t klen = strlen(key) + strlen(field) + 2;
-    char* compound = (char*)malloc(klen);
+    char* compound = (char*)wolf_req_alloc(klen);
     snprintf(compound, klen, "%s:%s", key, field);
     const char* result = wolf_redis_get(handle, compound);
     free(compound);
@@ -828,7 +898,7 @@ const char* wolf_strings_split(const char* s, const char* sep) {
 const char* wolf_strings_join(const char* arr, const char* sep) {
 	if (!arr) return "";
 	size_t len = strlen(arr);
-	char* result = (char*)malloc(len + 1);
+	char* result = (char*)wolf_req_alloc(len + 1);
 	for (size_t i = 0; i < len; i++) {
 		if (arr[i] == ',') {
 			result[i] = sep ? sep[0] : '-';
@@ -856,7 +926,7 @@ typedef struct {
 } wolf_map_t;
 
 static wolf_value_t* wolf_val_make(int type) {
-    wolf_value_t* v = (wolf_value_t*)malloc(sizeof(wolf_value_t));
+    wolf_value_t* v = (wolf_value_t*)wolf_req_alloc(sizeof(wolf_value_t));
     v->type = type;
     return v;
 }
@@ -876,13 +946,13 @@ static const char* wolf_value_unwrap_string(void* val) {
     }
     switch (tagged->type) {
         case WOLF_TYPE_INT: {
-            char* buf = (char*)malloc(32);
+            char* buf = (char*)wolf_req_alloc(32);
             if (!buf) return "";
             snprintf(buf, 32, "%lld", (long long)tagged->val.i);
             return buf;
         }
         case WOLF_TYPE_FLOAT: {
-            char* buf = (char*)malloc(64);
+            char* buf = (char*)wolf_req_alloc(64);
             if (!buf) return "";
             snprintf(buf, 64, "%g", tagged->val.f);
             return buf;
@@ -927,11 +997,11 @@ typedef struct {
 } wolf_strbuf_t;
 
 static wolf_strbuf_t* wolf_strbuf_new() {
-    wolf_strbuf_t* b = (wolf_strbuf_t*)malloc(sizeof(wolf_strbuf_t));
+    wolf_strbuf_t* b = (wolf_strbuf_t*)wolf_req_alloc(sizeof(wolf_strbuf_t));
     if (!b) return NULL;
     b->cap = 256;
     b->len = 0;
-    b->data = (char*)malloc(b->cap);
+    b->data = (char*)wolf_req_alloc(b->cap);
     if (!b->data) { free(b); return NULL; }
     b->data[0] = '\0';
     return b;
@@ -953,17 +1023,17 @@ static int wolf_strbuf_append(wolf_strbuf_t* b, const char* s) {
 }
 
 static char* wolf_strbuf_take(wolf_strbuf_t* b) {
-    if (!b) return strdup("");
+    if (!b) return wolf_req_strdup("");
     char* result = b->data;
     free(b);
     return result;
 }
 
 static char* wolf_json_encode_map(wolf_map_t* m) {
-    if (!m) return strdup("{}");
+    if (!m) return wolf_req_strdup("{}");
     int64_t n = m->size;
-    int64_t* order = (int64_t*)malloc(n * sizeof(int64_t));
-    if (!order) return strdup("{}");
+    int64_t* order = (int64_t*)wolf_req_alloc(n * sizeof(int64_t));
+    if (!order) return wolf_req_strdup("{}");
     for (int64_t i = 0; i < n; i++) order[i] = i;
     for (int64_t i = 0; i < n - 1; i++) {
         for (int64_t j = i + 1; j < n; j++) {
@@ -973,7 +1043,7 @@ static char* wolf_json_encode_map(wolf_map_t* m) {
         }
     }
     wolf_strbuf_t* buf = wolf_strbuf_new();
-    if (!buf) { free(order); return strdup("{}"); }
+    if (!buf) { free(order); return wolf_req_strdup("{}"); }
     wolf_strbuf_append(buf, "{");
     for (int64_t i = 0; i < n; i++) {
         if (i > 0) wolf_strbuf_append(buf, ",");
@@ -990,9 +1060,9 @@ static char* wolf_json_encode_map(wolf_map_t* m) {
 }
 
 static char* wolf_json_encode_array(wolf_array_t* a) {
-    if (!a) return strdup("[]");
+    if (!a) return wolf_req_strdup("[]");
     wolf_strbuf_t* buf = wolf_strbuf_new();
-    if (!buf) return strdup("[]");
+    if (!buf) return wolf_req_strdup("[]");
     wolf_strbuf_append(buf, "[");
     for (int64_t i = 0; i < a->length; i++) {
         if (i > 0) wolf_strbuf_append(buf, ",");
@@ -1006,30 +1076,30 @@ static char* wolf_json_encode_array(wolf_array_t* a) {
 
 
 static char* wolf_json_encode_value(void* val) {
-    if (!val) return strdup("null");
+    if (!val) return wolf_req_strdup("null");
 
     // Check if this is a tagged wolf_value_t
     wolf_value_t* tagged = (wolf_value_t*)val;
     if (tagged->type == WOLF_TYPE_INT) {
-        char* buf = (char*)malloc(32);
+        char* buf = (char*)wolf_req_alloc(32);
         snprintf(buf, 32, "%lld", (long long)tagged->val.i);
         return buf;
     }
     if (tagged->type == WOLF_TYPE_FLOAT) {
-        char* buf = (char*)malloc(64);
+        char* buf = (char*)wolf_req_alloc(64);
         snprintf(buf, 64, "%g", tagged->val.f);
         return buf;
     }
     if (tagged->type == WOLF_TYPE_BOOL) {
-        return strdup(tagged->val.b ? "true" : "false");
+        return wolf_req_strdup(tagged->val.b ? "true" : "false");
     }
     if (tagged->type == WOLF_TYPE_NULL) {
-        return strdup("null");
+        return wolf_req_strdup("null");
     }
     if (tagged->type == WOLF_TYPE_STRING) {
         const char* s = tagged->val.s;
         size_t len = strlen(s);
-        char* out = (char*)malloc(len * 2 + 3);
+        char* out = (char*)wolf_req_alloc(len * 2 + 3);
         char* w = out;
         *w++ = '"';
         for (size_t i = 0; i < len; i++) {
@@ -1071,7 +1141,7 @@ static char* wolf_json_encode_value(void* val) {
 
     // Plain string — quote it
     size_t len = strlen(s);
-    char* out = (char*)malloc(len * 2 + 3);
+    char* out = (char*)wolf_req_alloc(len * 2 + 3);
     char* w = out;
     *w++ = '"';
     for (size_t i = 0; i < len; i++) {
@@ -1088,15 +1158,15 @@ static char* wolf_json_encode_value(void* val) {
 }
 
 const char* wolf_json_encode(void* obj) {
-    if (!obj) return strdup("null");
+    if (!obj) return wolf_req_strdup("null");
     return wolf_json_encode_value(obj);
 }
 
 void* wolf_array_create() {
-    wolf_array_t* arr = (wolf_array_t*)malloc(sizeof(wolf_array_t));
+    wolf_array_t* arr = (wolf_array_t*)wolf_req_alloc(sizeof(wolf_array_t));
     arr->capacity = 8;
     arr->length = 0;
-    arr->items = (void**)malloc(sizeof(void*) * arr->capacity);
+    arr->items = (void**)wolf_req_alloc(sizeof(void*) * arr->capacity);
     return arr;
 }
 
@@ -1357,7 +1427,7 @@ void* wolf_array_flip(void* a) {
     for (int64_t i = 0; i < arr->length; i++) {
         char idx[32];
         snprintf(idx, sizeof(idx), "%lld", (long long)i);
-        wolf_map_set(result, (const char*)arr->items[i], strdup(idx));
+        wolf_map_set(result, (const char*)arr->items[i], wolf_req_strdup(idx));
     }
     return result;
 }
@@ -1367,7 +1437,7 @@ void* wolf_range(int64_t start, int64_t end) {
     void* result = wolf_array_create();
     int64_t step = start <= end ? 1 : -1;
     for (int64_t i = start; step > 0 ? i <= end : i >= end; i += step) {
-        char* s = (char*)malloc(32);
+        char* s = (char*)wolf_req_alloc(32);
         snprintf(s, 32, "%lld", (long long)i);
         wolf_array_push(result, s);
     }
@@ -1375,11 +1445,11 @@ void* wolf_range(int64_t start, int64_t end) {
 }
 
 void* wolf_map_create() {
-    wolf_map_t* m = (wolf_map_t*)malloc(sizeof(wolf_map_t));
+    wolf_map_t* m = (wolf_map_t*)wolf_req_alloc(sizeof(wolf_map_t));
     m->capacity = 8;
     m->size = 0;
-    m->keys = (char**)malloc(sizeof(char*) * m->capacity);
-    m->values = (void**)malloc(sizeof(void*) * m->capacity);
+    m->keys = (char**)wolf_req_alloc(sizeof(char*) * m->capacity);
+    m->values = (void**)wolf_req_alloc(sizeof(void*) * m->capacity);
     return m;
 }
 
@@ -1392,7 +1462,7 @@ static wolf_value_t* wolf_val_from_ptr(void* ptr) {
         return v;
     }
     wolf_value_t* v = wolf_val_make(WOLF_TYPE_STRING);
-    v->val.s = strdup((const char*)ptr);
+    v->val.s = wolf_req_strdup((const char*)ptr);
     return v;
 }
 void wolf_map_set_int(void* map_ptr, const char* key, int64_t value) {
@@ -1412,7 +1482,7 @@ void wolf_map_set_int(void* map_ptr, const char* key, int64_t value) {
         m->keys = (char**)realloc(m->keys, sizeof(char*) * m->capacity);
         m->values = (void**)realloc(m->values, sizeof(void*) * m->capacity);
     }
-    m->keys[m->size] = strdup(key);
+    m->keys[m->size] = wolf_req_strdup(key);
     m->values[m->size] = v;
     m->size++;
 }
@@ -1433,7 +1503,7 @@ void wolf_map_set_float(void* map_ptr, const char* key, double value) {
         m->keys = (char**)realloc(m->keys, sizeof(char*) * m->capacity);
         m->values = (void**)realloc(m->values, sizeof(void*) * m->capacity);
     }
-    m->keys[m->size] = strdup(key);
+    m->keys[m->size] = wolf_req_strdup(key);
     m->values[m->size] = v;
     m->size++;
 }
@@ -1454,7 +1524,7 @@ void wolf_map_set_bool(void* map_ptr, const char* key, int value) {
         m->keys = (char**)realloc(m->keys, sizeof(char*) * m->capacity);
         m->values = (void**)realloc(m->values, sizeof(void*) * m->capacity);
     }
-    m->keys[m->size] = strdup(key);
+    m->keys[m->size] = wolf_req_strdup(key);
     m->values[m->size] = v;
     m->size++;
 }
@@ -1473,7 +1543,7 @@ void wolf_map_set(void* map_ptr, const char* key, void* value) {
         m->keys = (char**)realloc(m->keys, sizeof(char*) * m->capacity);
         m->values = (void**)realloc(m->values, sizeof(void*) * m->capacity);
     }
-    m->keys[m->size] = strdup(key);
+    m->keys[m->size] = wolf_req_strdup(key);
     m->values[m->size] = value;
     m->size++;
 }
@@ -1489,21 +1559,21 @@ void* wolf_map_get(void* map_ptr, const char* key) {
             wolf_value_t* tagged = (wolf_value_t*)val;
             switch (tagged->type) {
                 case WOLF_TYPE_INT: {
-                    char* buf = (char*)malloc(32);
+                    char* buf = (char*)wolf_req_alloc(32);
                     snprintf(buf, 32, "%lld", (long long)tagged->val.i);
                     return buf;
                 }
                 case WOLF_TYPE_FLOAT: {
-                    char* buf = (char*)malloc(64);
+                    char* buf = (char*)wolf_req_alloc(64);
                     snprintf(buf, 64, "%g", tagged->val.f);
                     return buf;
                 }
                 case WOLF_TYPE_BOOL:
-                    return strdup(tagged->val.b ? "true" : "false");
+                    return wolf_req_strdup(tagged->val.b ? "true" : "false");
                 case WOLF_TYPE_NULL:
                     return NULL;
                 case WOLF_TYPE_STRING:
-                    return strdup(tagged->val.s);
+                    return wolf_req_strdup(tagged->val.s);
                 case WOLF_TYPE_MAP:
                 case WOLF_TYPE_ARRAY:
                     return tagged->val.ptr;
@@ -1526,13 +1596,13 @@ int wolf_env_has(const char* key) {
 // ========== Conversions ==========
 
 const char* wolf_int_to_string(int64_t n) {
-    char* buf = (char*)malloc(32);
+    char* buf = (char*)wolf_req_alloc(32);
     snprintf(buf, 32, "%lld", (long long)n);
     return buf;
 }
 
 const char* wolf_float_to_string(double f) {
-    char* buf = (char*)malloc(64);
+    char* buf = (char*)wolf_req_alloc(64);
     snprintf(buf, 64, "%g", f);
     return buf;
 }
@@ -1544,7 +1614,7 @@ const char* wolf_bool_to_string(int b) {
 // ========== Memory ==========
 
 void* wolf_alloc(int64_t size) {
-    return malloc((size_t)size);
+    return wolf_req_alloc((size_t)size);
 }
 
 void wolf_free(void* ptr) {
@@ -1680,9 +1750,9 @@ static void parse_http_request(int id, char* raw_req, size_t len) {
     if (body_start) {
         *body_start = '\0';
         body_start += 4;
-        ctx->body = strdup(body_start);
+        ctx->body = wolf_req_strdup(body_start);
     } else {
-        ctx->body = strdup("");
+        ctx->body = wolf_req_strdup("");
     }
     
     char* saveptr;
@@ -1693,16 +1763,16 @@ static void parse_http_request(int id, char* raw_req, size_t len) {
     char* method = strtok_r(line, " ", &l_save);
     char* full_path = strtok_r(NULL, " ", &l_save);
     
-    if (method) ctx->method = strdup(method);
+    if (method) ctx->method = wolf_req_strdup(method);
     if (full_path) {
         char* q_mark = strchr(full_path, '?');
         if (q_mark) {
             *q_mark = '\0';
-            ctx->path = strdup(full_path);
-            ctx->query = strdup(q_mark + 1);
+            ctx->path = wolf_req_strdup(full_path);
+            ctx->query = wolf_req_strdup(q_mark + 1);
         } else {
-            ctx->path = strdup(full_path);
-            ctx->query = strdup("");
+            ctx->path = wolf_req_strdup(full_path);
+            ctx->query = wolf_req_strdup("");
         }
     }
     
@@ -1712,8 +1782,8 @@ static void parse_http_request(int id, char* raw_req, size_t len) {
             *colon = '\0';
             char* val = colon + 1;
             while (*val == ' ') val++;
-            ctx->header_keys[ctx->header_count] = strdup(line);
-            ctx->header_vals[ctx->header_count] = strdup(val);
+            ctx->header_keys[ctx->header_count] = wolf_req_strdup(line);
+            ctx->header_vals[ctx->header_count] = wolf_req_strdup(val);
             ctx->header_count++;
         }
     }
@@ -1732,6 +1802,7 @@ static void* http_worker(void* arg) {
         parse_http_request(id, buffer, bytes_read);
         
         if (global_wolf_handler) {
+            wolf_req_arena_init();  /* ← start per-request arena */
             wolf_set_current_context((void*)(intptr_t)id, (void*)(intptr_t)id);
             global_wolf_handler((int64_t)id, (int64_t)id);
         }
@@ -1756,6 +1827,7 @@ static void* http_worker(void* arg) {
     
     close(ctx->client_fd);
     free_http_context(id);
+    wolf_req_arena_flush();  /* ← free all arena allocations for this request */
     mysql_thread_end();  // ← add this
     return NULL;
 }
@@ -1830,7 +1902,7 @@ const char* wolf_http_req_query(int64_t req_id, const char* key) {
     char* query = http_contexts[req_id].query;
     if (!query) return "";
     
-    char* q_copy = strdup(query);
+    char* q_copy = wolf_req_strdup(query);
     char* saveptr;
     char* pair = strtok_r(q_copy, "&", &saveptr);
     
@@ -1839,7 +1911,7 @@ const char* wolf_http_req_query(int64_t req_id, const char* key) {
         if (eq) {
             *eq = '\0';
             if (strcmp(pair, key) == 0) {
-                char* result = strdup(eq + 1);
+                char* result = wolf_req_strdup(eq + 1);
                 free(q_copy);
                 return result;
             }
@@ -1872,8 +1944,8 @@ void wolf_http_res_header(int64_t res_id, const char* key, const char* value) {
     if (res_id < 0 || res_id >= MAX_CONCURRENT_REQUESTS || !key || !value) return;
     wolf_http_context_t* ctx = &http_contexts[res_id];
     if (ctx->res_header_count < 32) {
-        ctx->res_header_keys[ctx->res_header_count] = strdup(key);
-        ctx->res_header_vals[ctx->res_header_count] = strdup(value);
+        ctx->res_header_keys[ctx->res_header_count] = wolf_req_strdup(key);
+        ctx->res_header_vals[ctx->res_header_count] = wolf_req_strdup(value);
         ctx->res_header_count++;
     }
 }
@@ -1889,13 +1961,13 @@ void wolf_http_res_write(int64_t res_id, const char* body) {
     if (ctx->res_body) {
         size_t old_len = strlen(ctx->res_body);
         size_t new_len = strlen(body);
-        char* new_body = malloc(old_len + new_len + 1);
+        char* new_body = wolf_req_alloc(old_len + new_len + 1);
         strcpy(new_body, ctx->res_body);
         strcat(new_body, body);
         free(ctx->res_body);
         ctx->res_body = new_body;
     } else {
-        ctx->res_body = strdup(body);
+        ctx->res_body = wolf_req_strdup(body);
     }
 }
 
@@ -1905,15 +1977,15 @@ const char* wolf_strtoupper(const char* s) { return wolf_string_upper(s); }
 const char* wolf_strtolower(const char* s) { return wolf_string_lower(s); }
 
 const char* wolf_ucfirst(const char* s) {
-    if (!s || !*s) return s ? strdup(s) : strdup("");
-    char* r = strdup(s);
+    if (!s || !*s) return s ? wolf_req_strdup(s) : wolf_req_strdup("");
+    char* r = wolf_req_strdup(s);
     r[0] = (char)toupper((unsigned char)r[0]);
     return r;
 }
 
 const char* wolf_ucwords(const char* s) {
-    if (!s) return strdup("");
-    char* r = strdup(s);
+    if (!s) return wolf_req_strdup("");
+    char* r = wolf_req_strdup(s);
     int cap = 1;
     for (int i = 0; r[i]; i++) {
         if (r[i] == ' ' || r[i] == '\t' || r[i] == '\n') { cap = 1; }
@@ -1923,8 +1995,8 @@ const char* wolf_ucwords(const char* s) {
 }
 
 const char* wolf_lcfirst(const char* s) {
-    if (!s || !*s) return s ? strdup(s) : strdup("");
-    char* r = strdup(s);
+    if (!s || !*s) return s ? wolf_req_strdup(s) : wolf_req_strdup("");
+    char* r = wolf_req_strdup(s);
     r[0] = (char)tolower((unsigned char)r[0]);
     return r;
 }
@@ -1932,16 +2004,16 @@ const char* wolf_lcfirst(const char* s) {
 const char* wolf_trim(const char* s) { return wolf_string_trim(s); }
 
 const char* wolf_ltrim(const char* s) {
-    if (!s) return strdup("");
+    if (!s) return wolf_req_strdup("");
     while (*s && isspace((unsigned char)*s)) s++;
-    return strdup(s);
+    return wolf_req_strdup(s);
 }
 
 const char* wolf_rtrim(const char* s) {
-    if (!s) return strdup("");
+    if (!s) return wolf_req_strdup("");
     size_t len = strlen(s);
     while (len > 0 && isspace((unsigned char)s[len - 1])) len--;
-    char* r = (char*)malloc(len + 1);
+    char* r = (char*)wolf_req_alloc(len + 1);
     memcpy(r, s, len);
     r[len] = '\0';
     return r;
@@ -1965,14 +2037,14 @@ int wolf_str_ends_with(const char* s, const char* suffix) {
 }
 
 const char* wolf_str_replace(const char* find, const char* rep, const char* s) {
-    if (!s || !find || !rep || !*find) return s ? strdup(s) : strdup("");
+    if (!s || !find || !rep || !*find) return s ? wolf_req_strdup(s) : wolf_req_strdup("");
     size_t fl = strlen(find), rl = strlen(rep);
     // Count occurrences
     int count = 0;
     const char* p = s;
     while ((p = strstr(p, find))) { count++; p += fl; }
     size_t new_len = strlen(s) + count * (rl - fl);
-    char* result = (char*)malloc(new_len + 1);
+    char* result = (char*)wolf_req_alloc(new_len + 1);
     char* w = result;
     p = s;
     while (*p) {
@@ -1985,20 +2057,20 @@ const char* wolf_str_replace(const char* find, const char* rep, const char* s) {
 }
 
 const char* wolf_str_repeat(const char* s, int64_t times) {
-    if (!s || times <= 0) return strdup("");
+    if (!s || times <= 0) return wolf_req_strdup("");
     size_t sl = strlen(s);
-    char* r = (char*)malloc(sl * times + 1);
+    char* r = (char*)wolf_req_alloc(sl * times + 1);
     r[0] = '\0';
     for (int64_t i = 0; i < times; i++) strcat(r, s);
     return r;
 }
 
 const char* wolf_str_pad(const char* s, int64_t len, const char* pad) {
-    if (!s) return strdup("");
+    if (!s) return wolf_req_strdup("");
     if (!pad || !*pad) pad = " ";
     size_t sl = strlen(s);
-    if ((int64_t)sl >= len) return strdup(s);
-    char* r = (char*)malloc(len + 1);
+    if ((int64_t)sl >= len) return wolf_req_strdup(s);
+    char* r = (char*)wolf_req_alloc(len + 1);
     strcpy(r, s);
     size_t pl = strlen(pad);
     size_t pos = sl;
@@ -2016,12 +2088,12 @@ void* wolf_explode(const char* sep, const char* s) {
     while (1) {
         const char* found = strstr(p, sep);
         if (!found) {
-            if (*p) wolf_array_push(result, strdup(p));
+            if (*p) wolf_array_push(result, wolf_req_strdup(p));
             break;
         }
         size_t chunk_len = found - p;
         if (chunk_len > 0) {
-            char* chunk = (char*)malloc(chunk_len + 1);
+            char* chunk = (char*)wolf_req_alloc(chunk_len + 1);
             memcpy(chunk, p, chunk_len);
             chunk[chunk_len] = '\0';
             wolf_array_push(result, chunk);
@@ -2033,17 +2105,17 @@ void* wolf_explode(const char* sep, const char* s) {
 
 // implode: join array with separator
 const char* wolf_implode(const char* sep, void* arr) {
-    if (!arr) return strdup("");
+    if (!arr) return wolf_req_strdup("");
     if (!sep) sep = "";
     wolf_array_t* a = (wolf_array_t*)arr;
-    if (a->length == 0) return strdup("");
+    if (a->length == 0) return wolf_req_strdup("");
     size_t sep_len = strlen(sep);
     size_t total = 0;
     for (int64_t i = 0; i < a->length; i++) {
         if (a->items[i]) total += strlen((const char*)a->items[i]);
         if (i < a->length - 1) total += sep_len;
     }
-    char* result = (char*)malloc(total + 1);
+    char* result = (char*)wolf_req_alloc(total + 1);
     char* w = result;
     for (int64_t i = 0; i < a->length; i++) {
         if (a->items[i]) {
@@ -2061,15 +2133,15 @@ const char* wolf_implode(const char* sep, void* arr) {
 }
 
 const char* wolf_substr(const char* s, int64_t start, int64_t len) {
-    if (!s) return strdup("");
+    if (!s) return wolf_req_strdup("");
     size_t sl = strlen(s);
     if (start < 0) start = (int64_t)sl + start;
     if (start < 0) start = 0;
-    if ((size_t)start >= sl) return strdup("");
+    if ((size_t)start >= sl) return wolf_req_strdup("");
     if (len < 0) len = (int64_t)sl - start + len;
-    if (len <= 0) return strdup("");
+    if (len <= 0) return wolf_req_strdup("");
     if ((size_t)(start + len) > sl) len = (int64_t)sl - start;
-    char* r = (char*)malloc(len + 1);
+    char* r = (char*)wolf_req_alloc(len + 1);
     memcpy(r, s + start, len);
     r[len] = '\0';
     return r;
@@ -2110,10 +2182,10 @@ int64_t wolf_strcmp(const char* a, const char* b) {
 }
 
 const char* wolf_nl2br(const char* s) {
-    if (!s) return strdup("");
+    if (!s) return wolf_req_strdup("");
     size_t len = strlen(s), nl = 0;
     for (size_t i = 0; i < len; i++) if (s[i] == '\n') nl++;
-    char* r = (char*)malloc(len + nl * 5 + 1); // "<br>\n" = 5 chars per \n
+    char* r = (char*)wolf_req_alloc(len + nl * 5 + 1); // "<br>\n" = 5 chars per \n
     char* w = r;
     for (size_t i = 0; i < len; i++) {
         if (s[i] == '\n') { memcpy(w, "<br>\n", 5); w += 5; }
@@ -2124,9 +2196,9 @@ const char* wolf_nl2br(const char* s) {
 }
 
 const char* wolf_strip_tags(const char* s) {
-    if (!s) return strdup("");
+    if (!s) return wolf_req_strdup("");
     size_t len = strlen(s);
-    char* r = (char*)malloc(len + 1);
+    char* r = (char*)wolf_req_alloc(len + 1);
     char* w = r;
     int in_tag = 0;
     for (size_t i = 0; i < len; i++) {
@@ -2139,9 +2211,9 @@ const char* wolf_strip_tags(const char* s) {
 }
 
 const char* wolf_htmlspecialchars(const char* s) {
-    if (!s) return strdup("");
+    if (!s) return wolf_req_strdup("");
     size_t len = strlen(s);
-    char* r = (char*)malloc(len * 6 + 1); // worst case &amp; = 5x
+    char* r = (char*)wolf_req_alloc(len * 6 + 1); // worst case &amp; = 5x
     char* w = r;
     for (size_t i = 0; i < len; i++) {
         switch (s[i]) {
@@ -2158,9 +2230,9 @@ const char* wolf_htmlspecialchars(const char* s) {
 }
 
 const char* wolf_addslashes(const char* s) {
-    if (!s) return strdup("");
+    if (!s) return wolf_req_strdup("");
     size_t len = strlen(s);
-    char* r = (char*)malloc(len * 2 + 1);
+    char* r = (char*)wolf_req_alloc(len * 2 + 1);
     char* w = r;
     for (size_t i = 0; i < len; i++) {
         if (s[i] == '\'' || s[i] == '"' || s[i] == '\\') *w++ = '\\';
@@ -2171,9 +2243,9 @@ const char* wolf_addslashes(const char* s) {
 }
 
 const char* wolf_stripslashes(const char* s) {
-    if (!s) return strdup("");
+    if (!s) return wolf_req_strdup("");
     size_t len = strlen(s);
-    char* r = (char*)malloc(len + 1);
+    char* r = (char*)wolf_req_alloc(len + 1);
     char* w = r;
     for (size_t i = 0; i < len; i++) {
         if (s[i] == '\\' && i + 1 < len) { i++; *w++ = s[i]; }
@@ -2185,9 +2257,9 @@ const char* wolf_stripslashes(const char* s) {
 
 const char* wolf_sprintf(const char* fmt, const char* arg1) {
     // Simplified: only supports one %s or %d replacement
-    if (!fmt) return strdup("");
+    if (!fmt) return wolf_req_strdup("");
     if (!arg1) arg1 = "";
-    char* r = (char*)malloc(strlen(fmt) + strlen(arg1) + 64);
+    char* r = (char*)wolf_req_alloc(strlen(fmt) + strlen(arg1) + 64);
     snprintf(r, strlen(fmt) + strlen(arg1) + 64, fmt, arg1);
     return r;
 }
@@ -2247,10 +2319,10 @@ int wolf_is_numeric(const char* s) {
 static const char b64_table[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
 const char* wolf_base64_encode(const char* s) {
-    if (!s) return strdup("");
+    if (!s) return wolf_req_strdup("");
     size_t len = strlen(s);
     size_t out_len = 4 * ((len + 2) / 3);
-    char* out = (char*)malloc(out_len + 1);
+    char* out = (char*)wolf_req_alloc(out_len + 1);
     char* p = out;
     for (size_t i = 0; i < len; i += 3) {
         uint32_t n = ((uint32_t)(unsigned char)s[i]) << 16;
@@ -2275,10 +2347,10 @@ static int b64_decode_char(char c) {
 }
 
 const char* wolf_base64_decode(const char* s) {
-    if (!s) return strdup("");
+    if (!s) return wolf_req_strdup("");
     size_t len = strlen(s);
     size_t out_len = len * 3 / 4;
-    char* out = (char*)malloc(out_len + 1);
+    char* out = (char*)wolf_req_alloc(out_len + 1);
     char* p = out;
     for (size_t i = 0; i < len; i += 4) {
         int a = b64_decode_char(s[i]), b = b64_decode_char(s[i+1]);
@@ -2294,9 +2366,9 @@ const char* wolf_base64_decode(const char* s) {
 }
 
 const char* wolf_url_encode(const char* s) {
-    if (!s) return strdup("");
+    if (!s) return wolf_req_strdup("");
     size_t len = strlen(s);
-    char* r = (char*)malloc(len * 3 + 1);
+    char* r = (char*)wolf_req_alloc(len * 3 + 1);
     char* w = r;
     for (size_t i = 0; i < len; i++) {
         unsigned char c = (unsigned char)s[i];
@@ -2308,9 +2380,9 @@ const char* wolf_url_encode(const char* s) {
 }
 
 const char* wolf_url_decode(const char* s) {
-    if (!s) return strdup("");
+    if (!s) return wolf_req_strdup("");
     size_t len = strlen(s);
-    char* r = (char*)malloc(len + 1);
+    char* r = (char*)wolf_req_alloc(len + 1);
     char* w = r;
     for (size_t i = 0; i < len; i++) {
         if (s[i] == '%' && i + 2 < len) {
@@ -2328,20 +2400,20 @@ const char* wolf_url_decode(const char* s) {
 
 const char* wolf_md5(const char* s) {
     // Simplified stub — returns fixed-length hash representation
-    if (!s) return strdup("d41d8cd98f00b204e9800998ecf8427e"); // md5 of empty string
+    if (!s) return wolf_req_strdup("d41d8cd98f00b204e9800998ecf8427e"); // md5 of empty string
     unsigned long hash = 5381;
     while (*s) hash = ((hash << 5) + hash) + (unsigned char)*s++;
-    char* r = (char*)malloc(33);
+    char* r = (char*)wolf_req_alloc(33);
     snprintf(r, 33, "%016lx%016lx", hash, hash ^ 0xDEADBEEF);
     return r;
 }
 
 const char* wolf_sha256(const char* s) {
     // Stub — real impl needs OpenSSL
-    if (!s) return strdup("");
+    if (!s) return wolf_req_strdup("");
     unsigned long hash = 5381;
     while (*s) hash = ((hash << 5) + hash) + (unsigned char)*s++;
-    char* r = (char*)malloc(65);
+    char* r = (char*)wolf_req_alloc(65);
     snprintf(r, 65, "%016lx%016lx%016lx%016lx", hash, hash ^ 0xCAFEBABE, hash ^ 0xDEADBEEF, hash ^ 0xBAADF00D);
     return r;
 }
@@ -2357,7 +2429,7 @@ int wolf_password_verify(const char* password, const char* hash) {
 }
 
 const char* wolf_uuid_v4() {
-    char* r = (char*)malloc(37);
+    char* r = (char*)wolf_req_alloc(37);
     srand(time(NULL) ^ clock());
     snprintf(r, 37, "%04x%04x-%04x-%04x-%04x-%04x%04x%04x",
              rand() & 0xFFFF, rand() & 0xFFFF,
@@ -2369,7 +2441,7 @@ const char* wolf_uuid_v4() {
 }
 
 const char* wolf_rand_hex(int64_t length) {
-    char* r = (char*)malloc(length * 2 + 1);
+    char* r = (char*)wolf_req_alloc(length * 2 + 1);
     srand(time(NULL) ^ clock());
     for (int64_t i = 0; i < length; i++) {
         sprintf(r + i * 2, "%02x", rand() & 0xFF);
@@ -2404,7 +2476,7 @@ void wolf_log_error(const char* msg) {
 
 const char* wolf_json_pretty(const char* json) {
     // Stub — returns as-is for now
-    return json ? strdup(json) : strdup("null");
+    return json ? wolf_req_strdup(json) : wolf_req_strdup("null");
 }
 
 void* wolf_json_decode(const char* json) {
@@ -2422,7 +2494,7 @@ void* wolf_json_decode(const char* json) {
             if (*json == '"') {
                 json++;
                 size_t vcap = 256;
-                char* val = (char*)malloc(vcap);
+                char* val = (char*)wolf_req_alloc(vcap);
                 int vi = 0;
                 while (*json && *json != '"') {
                     if ((size_t)vi >= vcap - 8) {
@@ -2478,7 +2550,7 @@ void* wolf_json_decode(const char* json) {
                 if (*json == '"') json++;
                 /* Wrap as typed string value */
                 wolf_value_t* sv = wolf_val_make(WOLF_TYPE_STRING);
-                sv->val.s = val ? strdup(val) : strdup("");
+                sv->val.s = val ? wolf_req_strdup(val) : wolf_req_strdup("");
                 free(val);
                 wolf_array_push(arr, sv);
             } else if (*json == '{') {
@@ -2550,7 +2622,7 @@ void* wolf_json_decode(const char* json) {
 
         // Read key
         size_t key_cap = 256;
-        char* key = (char*)malloc(key_cap);
+        char* key = (char*)wolf_req_alloc(key_cap);
         if (!key) break;
         int ki = 0;
         while (*json && *json != '"') {
@@ -2572,7 +2644,7 @@ void* wolf_json_decode(const char* json) {
         if (*json == '"') {
             json++; // skip opening quote
             size_t val_cap = 256;
-            char* val = (char*)malloc(val_cap);
+            char* val = (char*)wolf_req_alloc(val_cap);
             if (!val) { free(key); break; }
             int vi = 0;
             while (*json && *json != '"') {
@@ -2629,7 +2701,7 @@ void* wolf_json_decode(const char* json) {
             if (*json == '"') json++; // skip closing quote
             /* Wrap as tagged WOLF_TYPE_STRING so json_encode_value identifies it correctly */
             wolf_value_t* sv = wolf_val_make(WOLF_TYPE_STRING);
-            sv->val.s = (val && vi > 0) ? strdup(val) : strdup("");
+            sv->val.s = (val && vi > 0) ? wolf_req_strdup(val) : wolf_req_strdup("");
             free(val);
             wolf_map_set(map, key, sv);
         } else if (*json == 't' && strncmp(json, "true", 4) == 0) {
@@ -2881,13 +2953,13 @@ int wolf_file_exists(const char* path) {
 }
 
 const char* wolf_file_read(const char* path) {
-    if (!path) return strdup("");
+    if (!path) return wolf_req_strdup("");
     FILE* f = fopen(path, "rb");
-    if (!f) return strdup("");
+    if (!f) return wolf_req_strdup("");
     fseek(f, 0, SEEK_END);
     long size = ftell(f);
     fseek(f, 0, SEEK_SET);
-    char* buf = (char*)malloc(size + 1);
+    char* buf = (char*)wolf_req_alloc(size + 1);
     fread(buf, 1, size, f);
     buf[size] = '\0';
     fclose(f);
@@ -2928,25 +3000,25 @@ int64_t wolf_file_size(const char* path) {
 }
 
 const char* wolf_file_extension(const char* path) {
-    if (!path) return strdup("");
+    if (!path) return wolf_req_strdup("");
     const char* dot = strrchr(path, '.');
-    if (!dot || dot == path) return strdup("");
-    return strdup(dot + 1);
+    if (!dot || dot == path) return wolf_req_strdup("");
+    return wolf_req_strdup(dot + 1);
 }
 
 const char* wolf_file_basename(const char* path) {
-    if (!path) return strdup("");
+    if (!path) return wolf_req_strdup("");
     const char* slash = strrchr(path, '/');
-    if (!slash) return strdup(path);
-    return strdup(slash + 1);
+    if (!slash) return wolf_req_strdup(path);
+    return wolf_req_strdup(slash + 1);
 }
 
 const char* wolf_file_dirname(const char* path) {
-    if (!path) return strdup("");
+    if (!path) return wolf_req_strdup("");
     const char* slash = strrchr(path, '/');
-    if (!slash) return strdup(".");
+    if (!slash) return wolf_req_strdup(".");
     size_t len = slash - path;
-    char* r = (char*)malloc(len + 1);
+    char* r = (char*)wolf_req_alloc(len + 1);
     memcpy(r, path, len);
     r[len] = '\0';
     return r;
@@ -2961,9 +3033,9 @@ int wolf_dir_exists(const char* path) {
 // ========== Phase 3 Stdlib — Slug & Truncate ==========
 
 const char* wolf_slug(const char* s) {
-    if (!s) return strdup("");
+    if (!s) return wolf_req_strdup("");
     size_t len = strlen(s);
-    char* r = (char*)malloc(len + 1);
+    char* r = (char*)wolf_req_alloc(len + 1);
     char* w = r;
     for (size_t i = 0; i < len; i++) {
         unsigned char c = (unsigned char)s[i];
@@ -2980,14 +3052,14 @@ const char* wolf_slug(const char* s) {
 }
 
 const char* wolf_truncate(const char* s, int64_t len, const char* suffix) {
-    if (!s) return strdup("");
+    if (!s) return wolf_req_strdup("");
     if (!suffix) suffix = "...";
     size_t sl = strlen(s);
-    if ((int64_t)sl <= len) return strdup(s);
+    if ((int64_t)sl <= len) return wolf_req_strdup(s);
     size_t suf_len = strlen(suffix);
     int64_t cut = len - (int64_t)suf_len;
     if (cut < 0) cut = 0;
-    char* r = (char*)malloc(cut + suf_len + 1);
+    char* r = (char*)wolf_req_alloc(cut + suf_len + 1);
     memcpy(r, s, cut);
     memcpy(r + cut, suffix, suf_len);
     r[cut + suf_len] = '\0';
@@ -2998,9 +3070,9 @@ const char* wolf_truncate(const char* s, int64_t len, const char* suffix) {
 
 // sanitize_string — removes tags and special chars, like FILTER_SANITIZE_STRING
 const char* wolf_sanitize_string(const char* s) {
-    if (!s) return strdup("");
+    if (!s) return wolf_req_strdup("");
     size_t len = strlen(s);
-    char* r = (char*)malloc(len + 1);
+    char* r = (char*)wolf_req_alloc(len + 1);
     char* w = r;
     int in_tag = 0;
     for (size_t i = 0; i < len; i++) {
@@ -3016,9 +3088,9 @@ const char* wolf_sanitize_string(const char* s) {
 
 // sanitize_email — removes chars not valid in email
 const char* wolf_sanitize_email(const char* s) {
-    if (!s) return strdup("");
+    if (!s) return wolf_req_strdup("");
     size_t len = strlen(s);
-    char* r = (char*)malloc(len + 1);
+    char* r = (char*)wolf_req_alloc(len + 1);
     char* w = r;
     for (size_t i = 0; i < len; i++) {
         unsigned char c = (unsigned char)s[i];
@@ -3033,9 +3105,9 @@ const char* wolf_sanitize_email(const char* s) {
 
 // sanitize_url — removes chars not valid in URLs
 const char* wolf_sanitize_url(const char* s) {
-    if (!s) return strdup("");
+    if (!s) return wolf_req_strdup("");
     size_t len = strlen(s);
-    char* r = (char*)malloc(len + 1);
+    char* r = (char*)wolf_req_alloc(len + 1);
     char* w = r;
     for (size_t i = 0; i < len; i++) {
         unsigned char c = (unsigned char)s[i];
@@ -3052,9 +3124,9 @@ const char* wolf_sanitize_url(const char* s) {
 
 // sanitize_int — keeps only digits and leading minus
 const char* wolf_sanitize_int(const char* s) {
-    if (!s) return strdup("0");
+    if (!s) return wolf_req_strdup("0");
     size_t len = strlen(s);
-    char* r = (char*)malloc(len + 1);
+    char* r = (char*)wolf_req_alloc(len + 1);
     char* w = r;
     for (size_t i = 0; i < len; i++) {
         if (isdigit((unsigned char)s[i]) || (i == 0 && s[i] == '-')) {
@@ -3062,15 +3134,15 @@ const char* wolf_sanitize_int(const char* s) {
         }
     }
     *w = '\0';
-    if (w == r) { free(r); return strdup("0"); }
+    if (w == r) { free(r); return wolf_req_strdup("0"); }
     return r;
 }
 
 // sanitize_float — keeps digits, minus, and decimal point
 const char* wolf_sanitize_float(const char* s) {
-    if (!s) return strdup("0");
+    if (!s) return wolf_req_strdup("0");
     size_t len = strlen(s);
-    char* r = (char*)malloc(len + 1);
+    char* r = (char*)wolf_req_alloc(len + 1);
     char* w = r;
     int has_dot = 0;
     for (size_t i = 0; i < len; i++) {
@@ -3082,7 +3154,7 @@ const char* wolf_sanitize_float(const char* s) {
         }
     }
     *w = '\0';
-    if (w == r) { free(r); return strdup("0"); }
+    if (w == r) { free(r); return wolf_req_strdup("0"); }
     return r;
 }
 
@@ -3090,7 +3162,7 @@ const char* wolf_sanitize_float(const char* s) {
 
 // jwt_encode — creates a simple base64-encoded JWT (stub for now)
 const char* wolf_jwt_encode(const char* payload, const char* secret) {
-    if (!payload || !secret) return strdup("");
+    if (!payload || !secret) return wolf_req_strdup("");
     // Stub: return a base64-encoded payload as a mock token
     // Real implementation needs HMAC-SHA256 signing
     const char* header = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9";
@@ -3098,7 +3170,7 @@ const char* wolf_jwt_encode(const char* payload, const char* secret) {
     const char* signature = wolf_base64_encode(secret);
     
     size_t total = strlen(header) + 1 + strlen(encoded_payload) + 1 + strlen(signature) + 1;
-    char* token = (char*)malloc(total);
+    char* token = (char*)wolf_req_alloc(total);
     snprintf(token, total, "%s.%s.%s", header, encoded_payload, signature);
     return token;
 }
@@ -3114,7 +3186,7 @@ const char* wolf_jwt_decode(const char* token, const char* secret) {
     if (!second_dot) return NULL;
     
     size_t payload_len = second_dot - first_dot - 1;
-    char* payload_b64 = (char*)malloc(payload_len + 1);
+    char* payload_b64 = (char*)wolf_req_alloc(payload_len + 1);
     memcpy(payload_b64, first_dot + 1, payload_len);
     payload_b64[payload_len] = '\0';
     
