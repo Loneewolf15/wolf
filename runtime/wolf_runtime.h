@@ -2,6 +2,7 @@
 #define WOLF_RUNTIME_H
 
 #include <stdint.h>
+#include <stddef.h>  /* size_t */
 
 /* ================================================================ *
  * wolf_runtime.h — Public API for the Wolf runtime library         *
