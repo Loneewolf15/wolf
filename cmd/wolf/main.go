@@ -35,7 +35,12 @@ database layer, and embeds CPython for native ML library access.`,
 				return fmt.Errorf("cannot read file: %w", err)
 			}
 
-			c := compiler.New()
+			projectRoot, _ := os.Getwd()
+			c, err := compiler.NewWithConfig(projectRoot)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "wolf: config warning: %v\n", err)
+				c = compiler.New()
+			}
 			c.Verbose = verbose
 			c.StrictMode = strict
 
@@ -62,7 +67,12 @@ database layer, and embeds CPython for native ML library access.`,
 				return fmt.Errorf("cannot read file: %w", err)
 			}
 
-			c := compiler.New()
+			projectRoot, _ := os.Getwd()
+			c, err := compiler.NewWithConfig(projectRoot)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "wolf: config warning: %v\n", err)
+				c = compiler.New()
+			}
 			c.Verbose = verbose
 			c.StrictMode = strict
 

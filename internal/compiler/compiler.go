@@ -10,6 +10,7 @@ import (
 	"runtime"
 	"strings"
 
+	"github.com/wolflang/wolf/internal/config"
 	"github.com/wolflang/wolf/internal/emitter"
 	"github.com/wolflang/wolf/internal/lexer"
 	"github.com/wolflang/wolf/internal/parser"
@@ -22,13 +23,30 @@ type Compiler struct {
 	StrictMode bool
 	OutDir     string // default: wolf_out/
 	Verbose    bool
+	Config     *config.WolfConfig // loaded from wolf.config + env vars
 }
 
-// New creates a new Compiler with defaults.
+// New creates a Compiler with defaults and no config file.
+// Prefer NewWithConfig when a project root is available.
 func New() *Compiler {
 	return &Compiler{
 		OutDir: "wolf_out",
 	}
+}
+
+// NewWithConfig creates a Compiler that loads wolf.config from projectRoot,
+// walking up the directory tree until it finds one. Environment variables
+// always override file values. If no wolf.config exists the defaults are used.
+func NewWithConfig(projectRoot string) (*Compiler, error) {
+	cfg, err := config.Load(projectRoot)
+	if err != nil {
+		return nil, fmt.Errorf("configuration error: %w", err)
+	}
+	return &Compiler{
+		OutDir:     cfg.Build.OutDir,
+		StrictMode: cfg.Build.StrictMode,
+		Config:     cfg,
+	}, nil
 }
 
 // CompileResult holds the output of a compilation.
@@ -160,6 +178,10 @@ func (c *Compiler) Build(source, filename string) (*CompileResult, error) {
 
 	if c.Verbose {
 		fmt.Printf("wolf: using C compiler: %s\n", cc)
+		if c.Config != nil {
+			fmt.Printf("wolf: config env=%s pool_size=%d port=%d\n",
+				c.Config.App.Env, c.Config.DB.PoolSize, c.Config.Server.Port)
+		}
 	}
 
 	// Write LLVM IR
@@ -170,6 +192,11 @@ func (c *Compiler) Build(source, filename string) (*CompileResult, error) {
 
 	if c.Verbose {
 		fmt.Printf("wolf: wrote LLVM IR → %s\n", llFile)
+	}
+
+	// Clean up .ll file unless keep_ll is set
+	if c.Config == nil || !c.Config.Build.KeepLL {
+		defer func() { _ = os.Remove(llFile) }()
 	}
 
 	// Find wolf runtime
@@ -239,6 +266,7 @@ func (c *Compiler) Build(source, filename string) (*CompileResult, error) {
 
 	// Compile wolf runtime
 	runtimeObj := filepath.Join(outDir, "wolf_runtime.o")
+
 	// Detect MySQL client flags using mysql_config
 	mysqlCflags := ""
 	mysqlLibs := "-lmysqlclient"
@@ -253,10 +281,24 @@ func (c *Compiler) Build(source, filename string) (*CompileResult, error) {
 			break
 		}
 	}
-	rtArgs := []string{"-c", "-O2"}
+
+	// Build runtime compile args — optimisation level from config
+	optFlag := "-O2"
+	if c.Config != nil && !c.Config.Build.Optimise {
+		optFlag = "-O0"
+	}
+	rtArgs := []string{"-c", optFlag}
+
+	// MySQL include flags
 	if mysqlCflags != "" {
 		rtArgs = append(rtArgs, strings.Fields(mysqlCflags)...)
 	}
+
+	// Bake wolf.config values into the runtime as -D constants.
+	// This is how pool size, timeouts, credentials, and server limits
+	// reach wolf_runtime.c without needing a config file at runtime.
+	rtArgs = append(rtArgs, c.configCFlags()...)
+
 	rtArgs = append(rtArgs, "-o", runtimeObj, runtimeC)
 	rtCmd := exec.Command(cc, rtArgs...)
 	if out, err := rtCmd.CombinedOutput(); err != nil {
@@ -295,6 +337,9 @@ func (c *Compiler) Build(source, filename string) (*CompileResult, error) {
 		fmt.Printf("wolf: linked → %s\n", binaryPath)
 	}
 
+	// Write build config snapshot (excludes credentials)
+	_ = c.writeConfigSnapshot(outDir)
+
 	return result, nil
 }
 
@@ -313,9 +358,85 @@ func (c *Compiler) Run(source, filename string) error {
 	return cmd.Run()
 }
 
-// ========== Helpers ==========
+// ========== Config helpers ==========
 
-// findWolfRoot locates the wolf compiler's root directory to find the runtime.
+// configCFlags returns -D flags that bake wolf.config values into wolf_runtime.c
+// at compile time. Called nil-safe — returns nil when no config is loaded.
+func (c *Compiler) configCFlags() []string {
+	if c.Config == nil {
+		return nil
+	}
+	cfg := c.Config
+	return []string{
+		// DB pool
+		fmt.Sprintf("-DWOLF_DB_POOL_SIZE=%d", cfg.DB.PoolSize),
+		fmt.Sprintf("-DWOLF_DB_POOL_MIN_IDLE=%d", cfg.DB.PoolMinIdle),
+		fmt.Sprintf("-DWOLF_DB_POOL_TIMEOUT=%d", cfg.DB.PoolTimeout),
+		fmt.Sprintf("-DWOLF_DB_MAX_RETRIES=%d", cfg.DB.MaxRetries),
+		// Server limits
+		fmt.Sprintf("-DWOLF_MAX_CONCURRENT_REQUESTS=%d", cfg.Server.MaxConcurrent),
+		fmt.Sprintf("-DWOLF_MAX_REQUEST_SIZE=%d", cfg.Server.MaxRequestSize),
+		// DB credentials — baked as string literals so wolf source just calls db_connect()
+		fmt.Sprintf("-DWOLF_DB_HOST=\"%s\"", escapeCStr(cfg.DB.Host)),
+		fmt.Sprintf("-DWOLF_DB_PORT=%d", cfg.DB.Port),
+		fmt.Sprintf("-DWOLF_DB_NAME=\"%s\"", escapeCStr(cfg.DB.Name)),
+		fmt.Sprintf("-DWOLF_DB_USER=\"%s\"", escapeCStr(cfg.DB.User)),
+		fmt.Sprintf("-DWOLF_DB_PASS=\"%s\"", escapeCStr(cfg.DB.Password)),
+		// App environment
+		fmt.Sprintf("-DWOLF_APP_ENV=\"%s\"", escapeCStr(cfg.App.Env)),
+		fmt.Sprintf("-DWOLF_APP_DEBUG=%d", boolToInt(cfg.App.Debug)),
+	}
+}
+
+// writeConfigSnapshot writes a .wolf_build_config file to outDir so deployment
+// tooling can inspect compiled-in settings. Never contains credentials.
+func (c *Compiler) writeConfigSnapshot(outDir string) error {
+	if c.Config == nil {
+		return nil
+	}
+	cfg := c.Config
+	lines := []string{
+		"# Wolf build config snapshot — generated at compile time",
+		"# Does not contain credentials.",
+		"",
+		fmt.Sprintf("app_name        = %s", cfg.App.Name),
+		fmt.Sprintf("app_env         = %s", cfg.App.Env),
+		fmt.Sprintf("app_version     = %s", cfg.App.Version),
+		"",
+		fmt.Sprintf("server_host     = %s", cfg.Server.Host),
+		fmt.Sprintf("server_port     = %d", cfg.Server.Port),
+		fmt.Sprintf("server_workers  = %d", cfg.Server.Workers),
+		fmt.Sprintf("max_concurrent  = %d", cfg.Server.MaxConcurrent),
+		"",
+		fmt.Sprintf("db_host         = %s", cfg.DB.Host),
+		fmt.Sprintf("db_port         = %d", cfg.DB.Port),
+		fmt.Sprintf("db_name         = %s", cfg.DB.Name),
+		fmt.Sprintf("db_pool_size    = %d", cfg.DB.PoolSize),
+		fmt.Sprintf("db_pool_min_idle= %d", cfg.DB.PoolMinIdle),
+		fmt.Sprintf("db_pool_timeout = %d", cfg.DB.PoolTimeout),
+		"",
+		fmt.Sprintf("redis_host      = %s", cfg.Redis.Host),
+		fmt.Sprintf("redis_port      = %d", cfg.Redis.Port),
+	}
+	path := filepath.Join(outDir, ".wolf_build_config")
+	return os.WriteFile(path, []byte(strings.Join(lines, "\n")+"\n"), 0644)
+}
+
+func escapeCStr(s string) string {
+	s = strings.ReplaceAll(s, `\`, `\\`)
+	s = strings.ReplaceAll(s, `"`, `\"`)
+	return s
+}
+
+func boolToInt(b bool) int {
+	if b {
+		return 1
+	}
+	return 0
+}
+
+// ========== Build helpers ==========
+
 func findWolfRoot() (string, error) {
 	exePath, err := os.Executable()
 	if err == nil {
@@ -337,7 +458,6 @@ func findWolfRoot() (string, error) {
 		if _, err := os.Stat(runtimePath); err == nil {
 			return cwd, nil
 		}
-		// When running tests from a subdirectory like `e2e/` or `internal/`
 		parentDir := filepath.Dir(cwd)
 		runtimePath = filepath.Join(parentDir, "runtime", "wolf_runtime.c")
 		if _, err := os.Stat(runtimePath); err == nil {
@@ -367,38 +487,30 @@ func hasClang() bool {
 	return err == nil
 }
 
-// detectTargetTriple returns the LLVM target triple for the current machine.
 func detectTargetTriple() string {
-	// Try llvm-config first
 	for _, tool := range []string{"llvm-config", "llvm-config-15", "llvm-config-14"} {
 		if path, err := exec.LookPath(tool); err == nil {
 			if out, err := exec.Command(path, "--host-target").Output(); err == nil {
-				triple := strings.TrimSpace(string(out))
-				if triple != "" {
+				if triple := strings.TrimSpace(string(out)); triple != "" {
 					return triple
 				}
 			}
 		}
 	}
-	// Try clang
 	if path, err := exec.LookPath("clang"); err == nil {
 		if out, err := exec.Command(path, "-dumpmachine").Output(); err == nil {
-			triple := strings.TrimSpace(string(out))
-			if triple != "" {
+			if triple := strings.TrimSpace(string(out)); triple != "" {
 				return triple
 			}
 		}
 	}
-	// Try gcc
 	if path, err := exec.LookPath("gcc"); err == nil {
 		if out, err := exec.Command(path, "-dumpmachine").Output(); err == nil {
-			triple := strings.TrimSpace(string(out))
-			if triple != "" {
+			if triple := strings.TrimSpace(string(out)); triple != "" {
 				return triple
 			}
 		}
 	}
-	// Platform fallbacks
 	switch runtime.GOOS {
 	case "darwin":
 		if runtime.GOARCH == "arm64" {

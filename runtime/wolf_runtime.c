@@ -22,6 +22,7 @@
 #include <time.h>
 #include <math.h>
 #include <sys/stat.h>
+#include <errno.h>
 
 // ========== Configurable Runtime Limits ==========
 #ifndef WOLF_MAX_CONCURRENT_REQUESTS
@@ -347,26 +348,192 @@ const char* wolf_define_get(const char* key) {
     return "";
 }
 
-// ========== Database (Real MySQL C Bindings) ==========
+// ========== Database — Connection Pool ==========
 #include <mysql/mysql.h>
 
+/* ------------------------------------------------------------------ *
+ * Pool internals — all touched under wolf_pool_mutex                 *
+ * ------------------------------------------------------------------ */
+typedef struct {
+    MYSQL *conn;     /* MySQL handle; NULL = slot empty / failed init */
+    int    in_use;   /* 1 = checked out to a worker thread            */
+} WolfPoolSlot;
+
+static WolfPoolSlot    wolf_pool[WOLF_DB_POOL_SIZE];
+static int             wolf_pool_inited  = 0;
+static pthread_mutex_t wolf_pool_mutex   = PTHREAD_MUTEX_INITIALIZER;
+static pthread_cond_t  wolf_pool_cond    = PTHREAD_COND_INITIALIZER;
+
+/* Saved credentials for reconnect — set on first wolf_db_connect() */
+static char *wolf_pool_host   = NULL;
+static char *wolf_pool_user   = NULL;
+static char *wolf_pool_pass   = NULL;
+static char *wolf_pool_dbname = NULL;
+
+/* Legacy per-stmt mutex kept for wolf_db_bind safety */
 static pthread_mutex_t db_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 typedef struct {
     MYSQL *conn;
-    char *sql;
+    char  *sql;
     MYSQL_RES *last_result;
 } WolfDBStmt;
 
-// Helper for simple string replace
-static char* wolf_internal_str_replace(const char* orig, const char* rep, const char* with) {
-    char *result;
-    char *ins;
-    char *tmp;
-    int len_rep;
-    int len_with;
-    int len_front;
-    int count;
+/* --- Internal: open one MySQL connection with socket fallback ---- */
+static MYSQL* wolf_pool_open_one(void) {
+    MYSQL *conn = mysql_init(NULL);
+    if (!conn) return NULL;
+
+    const char *host   = wolf_pool_host   ? wolf_pool_host   : WOLF_DB_HOST;
+    const char *user   = wolf_pool_user   ? wolf_pool_user   : WOLF_DB_USER;
+    const char *pass   = wolf_pool_pass   ? wolf_pool_pass   : WOLF_DB_PASS;
+    const char *dbname = wolf_pool_dbname ? wolf_pool_dbname : WOLF_DB_NAME;
+
+    if (host && (strcmp(host, "localhost") == 0 || strcmp(host, "") == 0)) {
+        const char *sockets[] = {
+            "/opt/lampp/var/mysql/mysql.sock",
+            "/var/run/mysqld/mysqld.sock",
+            "/tmp/mysql.sock",
+            "/var/lib/mysql/mysql.sock",
+            NULL
+        };
+        for (int i = 0; sockets[i]; i++) {
+            if (access(sockets[i], F_OK) == 0) {
+                if (mysql_real_connect(conn, NULL, user, pass, dbname,
+                                       0, sockets[i], 0)) {
+                    mysql_set_character_set(conn, "utf8mb4");
+                    return conn;
+                }
+                mysql_close(conn);
+                conn = mysql_init(NULL);
+                if (!conn) return NULL;
+            }
+        }
+        /* Socket failed — fall through to TCP 127.0.0.1 */
+        if (mysql_real_connect(conn, "127.0.0.1", user, pass, dbname,
+                               WOLF_DB_PORT, NULL, 0)) {
+            mysql_set_character_set(conn, "utf8mb4");
+            return conn;
+        }
+    } else {
+        if (mysql_real_connect(conn, host, user, pass, dbname,
+                               WOLF_DB_PORT, NULL, 0)) {
+            mysql_set_character_set(conn, "utf8mb4");
+            return conn;
+        }
+    }
+
+    fprintf(stderr, "[WOLF-POOL] connect failed: %s\n", mysql_error(conn));
+    mysql_close(conn);
+    return NULL;
+}
+
+/* --- Init the pool (called once from wolf_db_connect or wolf_http_serve) */
+static void wolf_pool_init_locked(void) {
+    /* Already done */
+    if (wolf_pool_inited) return;
+
+    fprintf(stderr, "[WOLF-POOL] Initializing pool (size=%d) host=%s db=%s\n",
+            WOLF_DB_POOL_SIZE,
+            wolf_pool_host ? wolf_pool_host : WOLF_DB_HOST,
+            wolf_pool_dbname ? wolf_pool_dbname : WOLF_DB_NAME);
+
+    for (int i = 0; i < WOLF_DB_POOL_SIZE; i++) {
+        wolf_pool[i].in_use = 0;
+        wolf_pool[i].conn   = wolf_pool_open_one();
+        if (wolf_pool[i].conn) {
+            fprintf(stderr, "[WOLF-POOL] slot %d OK\n", i);
+        } else {
+            fprintf(stderr, "[WOLF-POOL] slot %d FAILED (will retry on acquire)\n", i);
+        }
+    }
+    wolf_pool_inited = 1;
+}
+
+/* --- Acquire a connection from the pool (blocks up to WOLF_DB_POOL_TIMEOUT s) */
+static MYSQL* wolf_pool_acquire(void) {
+    struct timespec deadline;
+    clock_gettime(CLOCK_REALTIME, &deadline);
+    deadline.tv_sec += WOLF_DB_POOL_TIMEOUT;
+
+    pthread_mutex_lock(&wolf_pool_mutex);
+    wolf_pool_init_locked(); /* idempotent */
+
+    while (1) {
+        /* Look for a free, live slot */
+        for (int i = 0; i < WOLF_DB_POOL_SIZE; i++) {
+            if (!wolf_pool[i].in_use) {
+                /* Health-check — reconnect if stale */
+                if (wolf_pool[i].conn && mysql_ping(wolf_pool[i].conn) != 0) {
+                    fprintf(stderr, "[WOLF-POOL] slot %d stale, reconnecting\n", i);
+                    mysql_close(wolf_pool[i].conn);
+                    wolf_pool[i].conn = wolf_pool_open_one();
+                }
+                /* If slot was NULL (failed init), try now */
+                if (!wolf_pool[i].conn) {
+                    wolf_pool[i].conn = wolf_pool_open_one();
+                }
+                if (wolf_pool[i].conn) {
+                    wolf_pool[i].in_use = 1;
+                    fprintf(stderr, "[WOLF-POOL] acquire slot=%d\n", i);
+                    pthread_mutex_unlock(&wolf_pool_mutex);
+                    return wolf_pool[i].conn;
+                }
+            }
+        }
+        /* All busy — wait for a release signal */
+        int rc = pthread_cond_timedwait(&wolf_pool_cond, &wolf_pool_mutex, &deadline);
+        if (rc == ETIMEDOUT) {
+            fprintf(stderr, "[WOLF-POOL] timeout waiting for free slot (%ds)\n",
+                    WOLF_DB_POOL_TIMEOUT);
+            pthread_mutex_unlock(&wolf_pool_mutex);
+            return NULL;
+        }
+    }
+}
+
+/* --- Release a connection back to the pool */
+static void wolf_pool_release(MYSQL *conn) {
+    if (!conn) return;
+    pthread_mutex_lock(&wolf_pool_mutex);
+    for (int i = 0; i < WOLF_DB_POOL_SIZE; i++) {
+        if (wolf_pool[i].conn == conn) {
+            wolf_pool[i].in_use = 0;
+            fprintf(stderr, "[WOLF-POOL] release slot=%d\n", i);
+            pthread_cond_signal(&wolf_pool_cond);
+            break;
+        }
+    }
+    pthread_mutex_unlock(&wolf_pool_mutex);
+}
+
+/* Public: wolf Wolf source calls db_connect(host,user,pass,db) —
+ * first call seeds the credentials and starts the pool;
+ * every subsequent call just checks out a pooled connection.     */
+void* wolf_db_connect(const char* host, const char* user,
+                      const char* pass, const char* dbname) {
+    pthread_mutex_lock(&wolf_pool_mutex);
+    /* Seed credentials on first call (from wolf source like Database.wolf) */
+    if (!wolf_pool_host && host && *host) {
+        wolf_pool_host   = strdup(host);
+        wolf_pool_user   = user   && *user   ? strdup(user)   : NULL;
+        wolf_pool_pass   = pass   && *pass   ? strdup(pass)   : NULL;
+        wolf_pool_dbname = dbname && *dbname ? strdup(dbname) : NULL;
+    }
+    pthread_mutex_unlock(&wolf_pool_mutex);
+
+    MYSQL *conn = wolf_pool_acquire();
+    if (!conn) {
+        fprintf(stderr, "[WOLF-POOL] failed to acquire connection\n");
+    }
+    return (void*)conn;
+}
+
+// Helper for simple string replace (used by wolf_db_bind)
+static char* wolf_internal_str_replace(const char* orig, const char* rep,
+                                        const char* with) {
+    char *result, *ins, *tmp;
+    int len_rep, len_with, len_front, count;
 
     if (!orig || !rep) return NULL;
     len_rep = strlen(rep);
@@ -375,9 +542,8 @@ static char* wolf_internal_str_replace(const char* orig, const char* rep, const 
     len_with = strlen(with);
 
     ins = (char *)orig;
-    for (count = 0; (tmp = strstr(ins, rep)); ++count) {
+    for (count = 0; (tmp = strstr(ins, rep)); ++count)
         ins = tmp + len_rep;
-    }
 
     tmp = result = malloc(strlen(orig) + (len_with - len_rep) * count + 1);
     if (!result) return NULL;
@@ -393,65 +559,6 @@ static char* wolf_internal_str_replace(const char* orig, const char* rep, const 
     return result;
 }
 
-void* wolf_db_connect(const char* host, const char* user, const char* pass, const char* dbname) {
-    pthread_mutex_lock(&db_mutex);
-    printf("[WOLF-DB] Connecting: host=%s user=%s db=%s\n",
-           host ? host : "NULL",
-           user ? user : "NULL",
-           dbname ? dbname : "NULL");
-
-    MYSQL *conn = mysql_init(NULL);
-    if (conn == NULL) {
-        printf("[WOLF-DB] mysql_init() failed\n");
-        pthread_mutex_unlock(&db_mutex);
-        return NULL;
-    }
-
-    if (host && strcmp(host, "localhost") == 0) {
-        const char* socket_paths[] = {
-            "/opt/lampp/var/mysql/mysql.sock",
-            "/var/run/mysqld/mysqld.sock",
-            "/tmp/mysql.sock",
-            "/var/lib/mysql/mysql.sock",
-            NULL
-        };
-        for (int i = 0; socket_paths[i]; i++) {
-            if (access(socket_paths[i], F_OK) == 0) {
-                if (mysql_real_connect(conn, NULL, user, pass, dbname, 0, socket_paths[i], 0) != NULL) {
-                    pthread_mutex_unlock(&db_mutex);
-                    return conn;
-                }
-                printf("[WOLF-DB] Socket %s failed: %s\n", socket_paths[i], mysql_error(conn));
-                mysql_close(conn);
-                conn = mysql_init(NULL);
-                if (conn == NULL) {
-                    pthread_mutex_unlock(&db_mutex);
-                    return NULL;
-                }
-            }
-        }
-        // Fallback: TCP via 127.0.0.1
-        if (mysql_real_connect(conn, "127.0.0.1", user, pass, dbname, 3306, NULL, 0) != NULL) {
-            pthread_mutex_unlock(&db_mutex);
-            return conn;
-        }
-        printf("[WOLF-DB] Connection failed: %s\n", mysql_error(conn));
-        mysql_close(conn);
-        pthread_mutex_unlock(&db_mutex);
-        return NULL;
-    }
-
-    // Non-localhost
-    if (mysql_real_connect(conn, host, user, pass, dbname, 0, NULL, 0) == NULL) {
-        printf("[WOLF-DB] Connection failed: %s\n", mysql_error(conn));
-        mysql_close(conn);
-        pthread_mutex_unlock(&db_mutex);
-        return NULL;
-    }
-
-    pthread_mutex_unlock(&db_mutex);
-    return conn;
-}
 
 void* wolf_db_prepare(void* conn, const char* sql) {
     if (!conn) return NULL;
@@ -577,8 +684,8 @@ int64_t wolf_db_last_insert_id(void* conn_ptr) {
 
 void wolf_db_close(void* conn_ptr) {
     if (!conn_ptr) return;
-    MYSQL *conn = (MYSQL*)conn_ptr;
-    mysql_close(conn);
+    /* Return to pool instead of closing — keeps the connection warm */
+    wolf_pool_release((MYSQL*)conn_ptr);
 }
 
 void wolf_db_begin_transaction(void* conn_ptr) {
