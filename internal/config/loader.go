@@ -201,6 +201,8 @@ func applyKey(cfg *WolfConfig, section, key, val string, line int) error {
 
 	case "database", "db":
 		switch key {
+		case "driver":
+			cfg.DB.Driver = val
 		case "host":
 			cfg.DB.Host = val
 		case "port":
@@ -379,6 +381,7 @@ func overlayEnv(cfg *WolfConfig) {
 	intEnv("SERVER_WORKERS", &cfg.Server.Workers)
 
 	// Database
+	strEnv("DB_DRIVER", &cfg.DB.Driver)
 	strEnv("DB_HOST", &cfg.DB.Host)
 	intEnv("DB_PORT", &cfg.DB.Port)
 	strEnv("DB_NAME", &cfg.DB.Name)
@@ -424,6 +427,11 @@ func validate(cfg *WolfConfig) error {
 
 	if cfg.Server.Port < 1 || cfg.Server.Port > 65535 {
 		return fmt.Errorf("[server] port must be 1–65535, got %d", cfg.Server.Port)
+	}
+
+	validDBs := map[string]bool{"mysql": true, "postgres": true, "mssql": true}
+	if !validDBs[cfg.DB.Driver] {
+		return fmt.Errorf("[database] driver must be mysql|postgres|mssql, got %q", cfg.DB.Driver)
 	}
 
 	if cfg.DB.PoolSize < 1 {

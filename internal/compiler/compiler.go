@@ -267,20 +267,46 @@ func (c *Compiler) Build(source, filename string) (*CompileResult, error) {
 	// Compile wolf runtime
 	runtimeObj := filepath.Join(outDir, "wolf_runtime.o")
 
-	// Detect MySQL client flags using mysql_config
-	mysqlCflags := ""
-	mysqlLibs := "-lmysqlclient"
-	for _, mysqlConfig := range []string{"/opt/lampp/bin/mysql_config", "/usr/local/mysql/bin/mysql_config", "mysql_config"} {
-		if path, err := exec.LookPath(mysqlConfig); err == nil {
-			if out, err := exec.Command(path, "--cflags").Output(); err == nil {
-				mysqlCflags = strings.TrimSpace(string(out))
-			}
-			if out, err := exec.Command(path, "--libs").Output(); err == nil {
-				mysqlLibs = strings.TrimSpace(string(out))
-			}
-			break
-		}
+	// Detect DB client flags
+	dbCflags := ""
+	dbLibs := ""
+
+	driver := "mysql"
+	if c.Config != nil && c.Config.DB.Driver != "" {
+		driver = c.Config.DB.Driver
 	}
+
+	if driver == "mysql" {
+		dbLibs = "-lmysqlclient"
+		for _, mysqlConfig := range []string{"/opt/lampp/bin/mysql_config", "/usr/local/mysql/bin/mysql_config", "mysql_config"} {
+			if path, err := exec.LookPath(mysqlConfig); err == nil {
+				if out, err := exec.Command(path, "--cflags").Output(); err == nil {
+					dbCflags = strings.TrimSpace(string(out))
+				}
+				if out, err := exec.Command(path, "--libs").Output(); err == nil {
+					dbLibs = strings.TrimSpace(string(out))
+				}
+				break
+			}
+		}
+	} else if driver == "postgres" {
+		dbLibs = "-lpq"
+		if path, err := exec.LookPath("pg_config"); err == nil {
+			if out, err := exec.Command(path, "--includedir").Output(); err == nil {
+				dbCflags = "-I" + strings.TrimSpace(string(out))
+			}
+			if out, err := exec.Command(path, "--libdir").Output(); err == nil {
+				dbLibs = "-L" + strings.TrimSpace(string(out)) + " -lpq"
+			}
+		}
+	} else if driver == "mssql" {
+		// Mock MSSQL - no library needed yet
+		dbCflags = ""
+		dbLibs = ""
+	}
+
+	// Always link hiredis for Redis support
+	redisLibs := "-lhiredis"
 
 	// Build runtime compile args — optimisation level from config
 	optFlag := "-O2"
@@ -289,9 +315,9 @@ func (c *Compiler) Build(source, filename string) (*CompileResult, error) {
 	}
 	rtArgs := []string{"-c", optFlag}
 
-	// MySQL include flags
-	if mysqlCflags != "" {
-		rtArgs = append(rtArgs, strings.Fields(mysqlCflags)...)
+	// DB include flags
+	if dbCflags != "" {
+		rtArgs = append(rtArgs, strings.Fields(dbCflags)...)
 	}
 
 	// Bake wolf.config values into the runtime as -D constants.
@@ -312,9 +338,10 @@ func (c *Compiler) Build(source, filename string) (*CompileResult, error) {
 	// Link everything into final binary
 	binaryPath := filepath.Join(outDir, baseName)
 	linkArgs := []string{"-o", binaryPath, objFile, runtimeObj, "-lpthread"}
-	linkArgs = append(linkArgs, strings.Fields(mysqlLibs)...)
-	// Auto-extract rpath from -L flags in mysqlLibs so binary finds the DB library at runtime
-	for _, field := range strings.Fields(mysqlLibs) {
+	linkArgs = append(linkArgs, strings.Fields(dbLibs)...)
+	linkArgs = append(linkArgs, strings.Fields(redisLibs)...)
+	// Auto-extract rpath from -L flags in dbLibs so binary finds the DB library at runtime
+	for _, field := range strings.Fields(dbLibs) {
 		if strings.HasPrefix(field, "-L") {
 			libPath := strings.TrimPrefix(field, "-L")
 			libPath = strings.TrimSuffix(libPath, "/")
@@ -367,7 +394,18 @@ func (c *Compiler) configCFlags() []string {
 		return nil
 	}
 	cfg := c.Config
+	var driverFlag string
+	switch cfg.DB.Driver {
+	case "postgres":
+		driverFlag = "-DWOLF_DB_POSTGRES=1"
+	case "mssql":
+		driverFlag = "-DWOLF_DB_MSSQL=1"
+	default:
+		driverFlag = "-DWOLF_DB_MYSQL=1"
+	}
+
 	return []string{
+		driverFlag,
 		// DB pool
 		fmt.Sprintf("-DWOLF_DB_POOL_SIZE=%d", cfg.DB.PoolSize),
 		fmt.Sprintf("-DWOLF_DB_POOL_MIN_IDLE=%d", cfg.DB.PoolMinIdle),

@@ -111,6 +111,7 @@ func Defaults() *WolfConfig {
 			Workers:         0, // 0 = auto-detect CPU count at runtime
 		},
 		DB: DBConfig{
+			Driver:      "mysql",
 			Host:        "localhost",
 			Port:        3306,
 			Name:        "",

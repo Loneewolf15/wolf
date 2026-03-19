@@ -419,14 +419,33 @@ const char* wolf_define_get(const char* key) {
 }
 
 // ========== Database — Connection Pool ==========
+
+#if defined(WOLF_DB_POSTGRES)
+#include <libpq-fe.h>
+typedef PGconn WolfDBConn;
+typedef PGresult WolfDBRes;
+#define WOLF_DB_PING(conn) (PQstatus(conn) == CONNECTION_OK ? 0 : 1)
+#define WOLF_DB_CLOSE(conn) PQfinish(conn)
+#elif defined(WOLF_DB_MSSQL)
+/* Mock MSSQL */
+typedef void WolfDBConn;
+typedef void WolfDBRes;
+#define WOLF_DB_PING(conn) 0
+#define WOLF_DB_CLOSE(conn) do {} while(0)
+#else
 #include <mysql/mysql.h>
+typedef MYSQL WolfDBConn;
+typedef MYSQL_RES WolfDBRes;
+#define WOLF_DB_PING(conn) mysql_ping(conn)
+#define WOLF_DB_CLOSE(conn) mysql_close(conn)
+#endif
 
 /* ------------------------------------------------------------------ *
  * Pool internals — all touched under wolf_pool_mutex                 *
  * ------------------------------------------------------------------ */
 typedef struct {
-    MYSQL *conn;     /* MySQL handle; NULL = slot empty / failed init */
-    int    in_use;   /* 1 = checked out to a worker thread            */
+    WolfDBConn *conn;     /* DB handle; NULL = slot empty / failed init */
+    int         in_use;   /* 1 = checked out to a worker thread            */
 } WolfPoolSlot;
 
 static WolfPoolSlot    wolf_pool[WOLF_DB_POOL_SIZE];
@@ -440,24 +459,42 @@ static char *wolf_pool_user   = NULL;
 static char *wolf_pool_pass   = NULL;
 static char *wolf_pool_dbname = NULL;
 
-/* Legacy per-stmt mutex kept for wolf_db_bind safety */
-static pthread_mutex_t db_mutex = PTHREAD_MUTEX_INITIALIZER;
+
 
 typedef struct {
-    MYSQL *conn;
-    char  *sql;
-    MYSQL_RES *last_result;
+    WolfDBConn *conn;
+    char       *sql;
+    WolfDBRes  *last_result;
 } WolfDBStmt;
 
-/* --- Internal: open one MySQL connection with socket fallback ---- */
-static MYSQL* wolf_pool_open_one(void) {
-    MYSQL *conn = mysql_init(NULL);
-    if (!conn) return NULL;
-
+/* --- Internal: open one DB connection ---- */
+static WolfDBConn* wolf_pool_open_one(void) {
     const char *host   = wolf_pool_host   ? wolf_pool_host   : WOLF_DB_HOST;
     const char *user   = wolf_pool_user   ? wolf_pool_user   : WOLF_DB_USER;
     const char *pass   = wolf_pool_pass   ? wolf_pool_pass   : WOLF_DB_PASS;
     const char *dbname = wolf_pool_dbname ? wolf_pool_dbname : WOLF_DB_NAME;
+
+#if defined(WOLF_DB_POSTGRES)
+    char conninfo[512];
+    snprintf(conninfo, sizeof(conninfo), "host=%s port=%d dbname=%s user=%s password=%s",
+             host && *host ? host : "localhost", WOLF_DB_PORT, 
+             dbname ? dbname : "", 
+             user ? user : "", 
+             pass ? pass : "");
+    WolfDBConn *conn = PQconnectdb(conninfo);
+    if (PQstatus(conn) != CONNECTION_OK) {
+        fprintf(stderr, "[WOLF-POOL] PG connect failed: %s\n", PQerrorMessage(conn));
+        PQfinish(conn);
+        return NULL;
+    }
+    return conn;
+
+#elif defined(WOLF_DB_MSSQL)
+    return (WolfDBConn*)1;
+
+#else
+    MYSQL *conn = mysql_init(NULL);
+    if (!conn) return NULL;
 
     if (host && (strcmp(host, "localhost") == 0 || strcmp(host, "") == 0)) {
         const char *sockets[] = {
@@ -493,9 +530,10 @@ static MYSQL* wolf_pool_open_one(void) {
         }
     }
 
-    fprintf(stderr, "[WOLF-POOL] connect failed: %s\n", mysql_error(conn));
+    fprintf(stderr, "[WOLF-POOL] MySQL connect failed: %s\n", mysql_error(conn));
     mysql_close(conn);
     return NULL;
+#endif
 }
 
 /* --- Init the pool (called once from wolf_db_connect or wolf_http_serve) */
@@ -521,7 +559,7 @@ static void wolf_pool_init_locked(void) {
 }
 
 /* --- Acquire a connection from the pool (blocks up to WOLF_DB_POOL_TIMEOUT s) */
-static MYSQL* wolf_pool_acquire(void) {
+static WolfDBConn* wolf_pool_acquire(void) {
     struct timespec deadline;
     clock_gettime(CLOCK_REALTIME, &deadline);
     deadline.tv_sec += WOLF_DB_POOL_TIMEOUT;
@@ -534,9 +572,9 @@ static MYSQL* wolf_pool_acquire(void) {
         for (int i = 0; i < WOLF_DB_POOL_SIZE; i++) {
             if (!wolf_pool[i].in_use) {
                 /* Health-check — reconnect if stale */
-                if (wolf_pool[i].conn && mysql_ping(wolf_pool[i].conn) != 0) {
+                if (wolf_pool[i].conn && WOLF_DB_PING(wolf_pool[i].conn) != 0) {
                     fprintf(stderr, "[WOLF-POOL] slot %d stale, reconnecting\n", i);
-                    mysql_close(wolf_pool[i].conn);
+                    WOLF_DB_CLOSE(wolf_pool[i].conn);
                     wolf_pool[i].conn = wolf_pool_open_one();
                 }
                 /* If slot was NULL (failed init), try now */
@@ -563,7 +601,7 @@ static MYSQL* wolf_pool_acquire(void) {
 }
 
 /* --- Release a connection back to the pool */
-static void wolf_pool_release(MYSQL *conn) {
+static void wolf_pool_release(WolfDBConn *conn) {
     if (!conn) return;
     pthread_mutex_lock(&wolf_pool_mutex);
     for (int i = 0; i < WOLF_DB_POOL_SIZE; i++) {
@@ -592,7 +630,7 @@ void* wolf_db_connect(const char* host, const char* user,
     }
     pthread_mutex_unlock(&wolf_pool_mutex);
 
-    MYSQL *conn = wolf_pool_acquire();
+    WolfDBConn *conn = wolf_pool_acquire();
     if (!conn) {
         fprintf(stderr, "[WOLF-POOL] failed to acquire connection\n");
     }
@@ -633,7 +671,7 @@ static char* wolf_internal_str_replace(const char* orig, const char* rep,
 void* wolf_db_prepare(void* conn, const char* sql) {
     if (!conn) return NULL;
     WolfDBStmt* stmt = (WolfDBStmt*)wolf_req_alloc(sizeof(WolfDBStmt));
-    stmt->conn = (MYSQL*)conn;
+    stmt->conn = (WolfDBConn*)conn;
     stmt->sql = wolf_req_strdup(sql ? sql : "");
     stmt->last_result = NULL;
     return stmt;
@@ -645,10 +683,18 @@ void wolf_db_bind(void* stmt_ptr, const char* param, const char* value) {
     
     if (!value) value = "";
     
-    // Escape value
+#if defined(WOLF_DB_POSTGRES)
+    char *escaped = wolf_req_alloc(strlen(value) * 2 + 1);
+    int err;
+    PQescapeStringConn(stmt->conn, escaped, value, strlen(value), &err);
+#elif defined(WOLF_DB_MSSQL)
+    char *escaped = wolf_req_alloc(strlen(value) * 2 + 1);
+    strcpy(escaped, value);
+#else
     size_t val_len = strlen(value);
     char *escaped = wolf_req_alloc(val_len * 2 + 1);
     mysql_real_escape_string(stmt->conn, escaped, value, val_len);
+#endif
     
     // Add quotes around the escaped value
     char *quoted = wolf_req_alloc(strlen(escaped) + 3);
@@ -656,39 +702,75 @@ void wolf_db_bind(void* stmt_ptr, const char* param, const char* value) {
     
     char *new_sql = wolf_internal_str_replace(stmt->sql, param, quoted);
     if (new_sql) {
-        free(stmt->sql);
+        // Omitting free() because pointers are managed by wolf_req_arena
         stmt->sql = new_sql;
     }
-    
-    free(escaped);
-    free(quoted);
 }
 
 int64_t wolf_db_execute(void* stmt_ptr) {
     if (!stmt_ptr) return 0;
     WolfDBStmt* stmt = (WolfDBStmt*)stmt_ptr;
     
+#if defined(WOLF_DB_POSTGRES)
+    if (stmt->last_result) {
+        PQclear(stmt->last_result);
+        stmt->last_result = NULL;
+    }
+    WolfDBRes *res = PQexec(stmt->conn, stmt->sql);
+    if (PQresultStatus(res) != PGRES_COMMAND_OK && PQresultStatus(res) != PGRES_TUPLES_OK) {
+        printf("[WOLF-DB] PG Query failed: %s\n", PQerrorMessage(stmt->conn));
+        PQclear(res);
+        return 0;
+    }
+    stmt->last_result = res;
+    return 1;
+#elif defined(WOLF_DB_MSSQL)
+    return 1;
+#else
     if (stmt->last_result) {
         mysql_free_result(stmt->last_result);
         stmt->last_result = NULL;
     }
     
     if (mysql_query(stmt->conn, stmt->sql)) {
-        printf("[WOLF-DB] Query failed: %s\n", mysql_error(stmt->conn));
+        printf("[WOLF-DB] MySQL Query failed: %s\n", mysql_error(stmt->conn));
         return 0; // Failure
     }
     
     stmt->last_result = mysql_store_result(stmt->conn);
     return 1; // Success
+#endif
 }
 
 void* wolf_db_fetch_all(void* stmt_ptr) {
     void* arr = wolf_array_create();
     if (!stmt_ptr) return arr;
     WolfDBStmt* stmt = (WolfDBStmt*)stmt_ptr;
-    
     if (!stmt->last_result) return arr;
     
+#if defined(WOLF_DB_POSTGRES)
+    WolfDBRes *res = stmt->last_result;
+    int num_fields = PQnfields(res);
+    int num_rows = PQntuples(res);
+    
+    for (int r = 0; r < num_rows; r++) {
+        void *row = wolf_map_create();
+        for (int i = 0; i < num_fields; i++) {
+            if (PQgetisnull(res, r, i)) {
+                wolf_map_set(row, PQfname(res, i), NULL);
+            } else {
+                char *val = wolf_req_strdup(PQgetvalue(res, r, i));
+                wolf_map_set(row, PQfname(res, i), val);
+            }
+        }
+        wolf_array_push(arr, row);
+    }
+    return arr;
+    
+#elif defined(WOLF_DB_MSSQL)
+    return arr;
+    
+#else
     int num_fields = mysql_num_fields(stmt->last_result);
     MYSQL_FIELD *fields = mysql_fetch_fields(stmt->last_result);
     
@@ -699,7 +781,9 @@ void* wolf_db_fetch_all(void* stmt_ptr) {
         
         for (int i = 0; i < num_fields; i++) {
             if (row_data[i]) {
-                char *val = strndup(row_data[i], lengths[i]);
+                char *val = wolf_req_alloc(lengths[i] + 1);
+                memcpy(val, row_data[i], lengths[i]);
+                val[lengths[i]] = '\0';
                 wolf_map_set(row, fields[i].name, val);
             } else {
                 wolf_map_set(row, fields[i].name, NULL);
@@ -707,16 +791,36 @@ void* wolf_db_fetch_all(void* stmt_ptr) {
         }
         wolf_array_push(arr, row);
     }
-    
     return arr;
+#endif
 }
 
 void* wolf_db_fetch_one(void* stmt_ptr) {
     if (!stmt_ptr) return wolf_map_create();
     WolfDBStmt* stmt = (WolfDBStmt*)stmt_ptr;
-    
     if (!stmt->last_result) return wolf_map_create();
     
+#if defined(WOLF_DB_POSTGRES)
+    WolfDBRes *res = stmt->last_result;
+    if (PQntuples(res) > 0) {
+        int num_fields = PQnfields(res);
+        void *row = wolf_map_create();
+        for (int i = 0; i < num_fields; i++) {
+            if (PQgetisnull(res, 0, i)) {
+                wolf_map_set(row, PQfname(res, i), NULL);
+            } else {
+                char *val = wolf_req_strdup(PQgetvalue(res, 0, i));
+                wolf_map_set(row, PQfname(res, i), val);
+            }
+        }
+        return row;
+    }
+    return wolf_map_create();
+    
+#elif defined(WOLF_DB_MSSQL)
+    return wolf_map_create();
+    
+#else
     int num_fields = mysql_num_fields(stmt->last_result);
     MYSQL_FIELD *fields = mysql_fetch_fields(stmt->last_result);
     
@@ -726,7 +830,9 @@ void* wolf_db_fetch_one(void* stmt_ptr) {
         void *row = wolf_map_create();
         for (int i = 0; i < num_fields; i++) {
             if (row_data[i]) {
-                char *val = strndup(row_data[i], lengths[i]);
+                char *val = wolf_req_alloc(lengths[i] + 1);
+                memcpy(val, row_data[i], lengths[i]);
+                val[lengths[i]] = '\0';
                 wolf_map_set(row, fields[i].name, val);
             } else {
                 wolf_map_set(row, fields[i].name, NULL);
@@ -735,45 +841,71 @@ void* wolf_db_fetch_one(void* stmt_ptr) {
         return row;
     }
     return wolf_map_create();
+#endif
 }
 
 int64_t wolf_db_row_count(void* stmt_ptr) {
     if (!stmt_ptr) return 0;
     WolfDBStmt* stmt = (WolfDBStmt*)stmt_ptr;
+#if defined(WOLF_DB_POSTGRES)
+    if (stmt->last_result) {
+        return (int64_t)PQntuples(stmt->last_result);
+    }
+    return 0; // PQcmdTuples might be needed for affected rows, but sticking to result sets for now
+#elif defined(WOLF_DB_MSSQL)
+    return 0;
+#else
     if (stmt->last_result) {
         return (int64_t)mysql_num_rows(stmt->last_result);
     }
     return (int64_t)mysql_affected_rows(stmt->conn);
+#endif
 }
 
 int64_t wolf_db_last_insert_id(void* conn_ptr) {
     if (!conn_ptr) return 0;
-    MYSQL *conn = (MYSQL*)conn_ptr;
-    return (int64_t)mysql_insert_id(conn);
+#if defined(WOLF_DB_POSTGRES)
+    return 0; // Postgres uses RETURNING id instead
+#elif defined(WOLF_DB_MSSQL)
+    return 0;
+#else
+    return (int64_t)mysql_insert_id((WolfDBConn*)conn_ptr);
+#endif
 }
 
 void wolf_db_close(void* conn_ptr) {
     if (!conn_ptr) return;
-    /* Return to pool instead of closing — keeps the connection warm */
-    wolf_pool_release((MYSQL*)conn_ptr);
+    wolf_pool_release((WolfDBConn*)conn_ptr);
 }
 
 void wolf_db_begin_transaction(void* conn_ptr) {
     if (!conn_ptr) return;
-    MYSQL *conn = (MYSQL*)conn_ptr;
-    mysql_query(conn, "START TRANSACTION");
+#if defined(WOLF_DB_POSTGRES)
+    PQexec((WolfDBConn*)conn_ptr, "BEGIN");
+#elif defined(WOLF_DB_MSSQL)
+#else
+    mysql_query((WolfDBConn*)conn_ptr, "START TRANSACTION");
+#endif
 }
 
 void wolf_db_commit(void* conn_ptr) {
     if (!conn_ptr) return;
-    MYSQL *conn = (MYSQL*)conn_ptr;
-    mysql_query(conn, "COMMIT");
+#if defined(WOLF_DB_POSTGRES)
+    PQexec((WolfDBConn*)conn_ptr, "COMMIT");
+#elif defined(WOLF_DB_MSSQL)
+#else
+    mysql_query((WolfDBConn*)conn_ptr, "COMMIT");
+#endif
 }
 
 void wolf_db_rollback(void* conn_ptr) {
     if (!conn_ptr) return;
-    MYSQL *conn = (MYSQL*)conn_ptr;
-    mysql_query(conn, "ROLLBACK");
+#if defined(WOLF_DB_POSTGRES)
+    PQexec((WolfDBConn*)conn_ptr, "ROLLBACK");
+#elif defined(WOLF_DB_MSSQL)
+#else
+    mysql_query((WolfDBConn*)conn_ptr, "ROLLBACK");
+#endif
 }
 
 // ========== Redis (In-Memory Mock) ==========
@@ -781,91 +913,120 @@ void wolf_db_rollback(void* conn_ptr) {
 // Production: swap with hiredis calls. Mock lets Wolf code compile & run without a live Redis.
 
 
-static struct {
-    char* keys[WOLF_REDIS_MAX];
-    char* values[WOLF_REDIS_MAX];
-    int64_t ttls[WOLF_REDIS_MAX];   // 0 = no expiry
-    int count;
-} wolf_redis_store = { .count = 0 };
+#include <hiredis/hiredis.h>
 
-static int wolf_redis_find(const char* key) {
-    if (!key) return -1;
-    for (int i = 0; i < wolf_redis_store.count; i++) {
-        if (wolf_redis_store.keys[i] && strcmp(wolf_redis_store.keys[i], key) == 0) {
-            return i;
-        }
-    }
-    return -1;
-}
+static __thread redisContext* wolf_redis_ctx = NULL;
 
 void* wolf_redis_connect(const char* host, int64_t port, const char* pass) {
-    // In-memory mock: always succeeds
-    return (void*)1;
+    if (wolf_redis_ctx) {
+        return wolf_redis_ctx;
+    }
+    
+    struct timeval tv = {1, 500000}; // 1.5 seconds timeout
+    wolf_redis_ctx = redisConnectWithTimeout(host, port, tv);
+    
+    if (wolf_redis_ctx == NULL || wolf_redis_ctx->err) {
+        if (wolf_redis_ctx) {
+            fprintf(stderr, "[WOLF-REDIS] Connection error: %s\n", wolf_redis_ctx->errstr);
+            redisFree(wolf_redis_ctx);
+            wolf_redis_ctx = NULL;
+        } else {
+            fprintf(stderr, "[WOLF-REDIS] Connection error: can't allocate redis context\n");
+        }
+        return NULL;
+    }
+    
+    if (pass && strlen(pass) > 0) {
+        redisReply *reply = redisCommand(wolf_redis_ctx, "AUTH %s", pass);
+        if (reply) freeReplyObject(reply);
+    }
+    
+    return wolf_redis_ctx;
 }
 
 void wolf_redis_set(void* handle, const char* key, const char* value, int64_t ttl) {
-    if (!key) return;
-    int idx = wolf_redis_find(key);
-    if (idx >= 0) {
-        free(wolf_redis_store.values[idx]);
-        wolf_redis_store.values[idx] = value ? wolf_req_strdup(value) : wolf_req_strdup("");
-        wolf_redis_store.ttls[idx] = ttl;
-        return;
+    redisContext* c = (redisContext*)handle;
+    if (!c || !key) return;
+    
+    redisReply *reply;
+    if (ttl > 0) {
+        reply = redisCommand(c, "SET %s %s EX %lld", key, value ? value : "", (long long)ttl);
+    } else {
+        reply = redisCommand(c, "SET %s %s", key, value ? value : "");
     }
-    if (wolf_redis_store.count >= WOLF_REDIS_MAX) return;
-    wolf_redis_store.keys[wolf_redis_store.count] = wolf_req_strdup(key);
-    wolf_redis_store.values[wolf_redis_store.count] = value ? wolf_req_strdup(value) : wolf_req_strdup("");
-    wolf_redis_store.ttls[wolf_redis_store.count] = ttl;
-    wolf_redis_store.count++;
+    if (reply) freeReplyObject(reply);
 }
 
 const char* wolf_redis_get(void* handle, const char* key) {
-    int idx = wolf_redis_find(key);
-    if (idx >= 0) return wolf_redis_store.values[idx];
+    redisContext* c = (redisContext*)handle;
+    if (!c || !key) return "";
+    
+    redisReply *reply = redisCommand(c, "GET %s", key);
+    if (reply && reply->type == REDIS_REPLY_STRING) {
+        char *str = wolf_req_strdup(reply->str);
+        freeReplyObject(reply);
+        return str;
+    }
+    if (reply) freeReplyObject(reply);
     return "";
 }
 
 int64_t wolf_redis_del(void* handle, const char* key) {
-    int idx = wolf_redis_find(key);
-    if (idx < 0) return 0;
-    free(wolf_redis_store.keys[idx]);
-    free(wolf_redis_store.values[idx]);
-    // Shift remaining entries down
-    for (int i = idx; i < wolf_redis_store.count - 1; i++) {
-        wolf_redis_store.keys[i] = wolf_redis_store.keys[i + 1];
-        wolf_redis_store.values[i] = wolf_redis_store.values[i + 1];
-        wolf_redis_store.ttls[i] = wolf_redis_store.ttls[i + 1];
+    redisContext* c = (redisContext*)handle;
+    if (!c || !key) return 0;
+    
+    redisReply *reply = redisCommand(c, "DEL %s", key);
+    int64_t result = 0;
+    if (reply && reply->type == REDIS_REPLY_INTEGER) {
+        result = reply->integer;
     }
-    wolf_redis_store.count--;
-    return 1;
-}
-
-int wolf_redis_exists(void* handle, const char* key) {
-    return wolf_redis_find(key) >= 0 ? 1 : 0;
-}
-
-void wolf_redis_hset(void* handle, const char* key, const char* field, const char* value) {
-    // Store as "key:field" -> value
-    if (!key || !field) return;
-    size_t klen = strlen(key) + strlen(field) + 2;
-    char* compound = (char*)wolf_req_alloc(klen);
-    snprintf(compound, klen, "%s:%s", key, field);
-    wolf_redis_set(handle, compound, value, 0);
-    free(compound);
-}
-
-const char* wolf_redis_hget(void* handle, const char* key, const char* field) {
-    if (!key || !field) return "";
-    size_t klen = strlen(key) + strlen(field) + 2;
-    char* compound = (char*)wolf_req_alloc(klen);
-    snprintf(compound, klen, "%s:%s", key, field);
-    const char* result = wolf_redis_get(handle, compound);
-    free(compound);
+    if (reply) freeReplyObject(reply);
     return result;
 }
 
+int wolf_redis_exists(void* handle, const char* key) {
+    redisContext* c = (redisContext*)handle;
+    if (!c || !key) return 0;
+    
+    redisReply *reply = redisCommand(c, "EXISTS %s", key);
+    int result = 0;
+    if (reply && reply->type == REDIS_REPLY_INTEGER) {
+        result = reply->integer > 0 ? 1 : 0;
+    }
+    if (reply) freeReplyObject(reply);
+    return result;
+}
+
+void wolf_redis_hset(void* handle, const char* key, const char* field, const char* value) {
+    redisContext* c = (redisContext*)handle;
+    if (!c || !key || !field) return;
+    
+    redisReply *reply = redisCommand(c, "HSET %s %s %s", key, field, value ? value : "");
+    if (reply) freeReplyObject(reply);
+}
+
+const char* wolf_redis_hget(void* handle, const char* key, const char* field) {
+    redisContext* c = (redisContext*)handle;
+    if (!c || !key || !field) return "";
+    
+    redisReply *reply = redisCommand(c, "HGET %s %s", key, field);
+    if (reply && reply->type == REDIS_REPLY_STRING) {
+        char *str = wolf_req_strdup(reply->str);
+        freeReplyObject(reply);
+        return str;
+    }
+    if (reply) freeReplyObject(reply);
+    return "";
+}
+
 void wolf_redis_close(void* handle) {
-    // No-op for mock
+    redisContext* c = (redisContext*)handle;
+    if (c) {
+        redisFree(c);
+        if (c == wolf_redis_ctx) {
+            wolf_redis_ctx = NULL;
+        }
+    }
 }
 
 // ========== Stdlib Strings & JSON ==========
@@ -1790,7 +1951,9 @@ static void parse_http_request(int id, char* raw_req, size_t len) {
 }
 
 static void* http_worker(void* arg) {
+#if !defined(WOLF_DB_POSTGRES) && !defined(WOLF_DB_MSSQL)
     mysql_thread_init();  // ← add this
+#endif
     int id = (int)(intptr_t)arg;
     wolf_http_context_t* ctx = &http_contexts[id];
     
@@ -1828,13 +1991,17 @@ static void* http_worker(void* arg) {
     close(ctx->client_fd);
     free_http_context(id);
     wolf_req_arena_flush();  /* ← free all arena allocations for this request */
+#if !defined(WOLF_DB_POSTGRES) && !defined(WOLF_DB_MSSQL)
     mysql_thread_end();  // ← add this
+#endif
     return NULL;
 }
 
 void wolf_http_serve(int64_t port, void* handler_ptr) {
     global_wolf_handler = (wolf_http_handler_t)handler_ptr;
+#if !defined(WOLF_DB_POSTGRES) && !defined(WOLF_DB_MSSQL)
     mysql_library_init(0, NULL, NULL);  // ← add this
+#endif
     
     int server_fd;
     struct sockaddr_in address;

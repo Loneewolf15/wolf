@@ -1,31 +1,28 @@
-# Handoff — 2026-03-19 (Session 1)
+# Handoff — 2026-03-19 (Session 2)
 
 ## Where We Left Off
-- **Wolf Vault** created and populated (Execution Plan, Roadmap, Architecture, Bugs list).
-- **/resume** and **/wrap-up** workflow commands created in `.agents/workflows/`.
-- **Memory arena allocator** implemented in C runtime (`wolf_req_arena.c`), fixing `BUG-017` logic leaks.
+- Verified that `AgSkill` and `BackendTemplate` were removed and deleted from the remote repository.
+- Upgraded the DB Architecture to support **Real Redis**, **PostgreSQL**, and **MSSQL (Mock)** alongside MySQL.
+- Implemented `hiredis` with thread-local connection contexts in `wolf_runtime.c`.
+- Modified the Wolf compiler (`internal/compiler.go`) to automatically select compiler flags (`-DWOLF_DB_POSTGRES`, `-DWOLF_DB_MYSQL`, `-DWOLF_DB_MSSQL`) and linker flags (`-lpq`, `-lmysqlclient`) based on `wolf.config`'s `driver=` field.
 
 ## Commits This Session
-`840e116` feat: Project Vault + Per-request Memory Arena Allocator
-`208de88` feat: wolf.config system (php.ini equivalent) + MySQL connection pool
-`73818ba` fix: sendResponse data, json_decode unicode, method interpolation
+`...` chore: push recent fixes, remove AgSkill and BackendTemplate
+`...` feat: Multi-DB Driver Support (Postgres, MSSQL Mock) and Real Redis (hiredis)
 
 ## Tests Status
 - 21/21 e2e tests passing (`go test ./internal/... ./e2e/...`)
-- C runtime compiles cleanly with 1 acceptable warning (unused `db_mutex`).
+- C runtime compiles cleanly with all driver flags (MSSQL emits a few unused variable warnings but is a safe mock).
 
 ## Next Immediate Task
-- **Fix Real Redis Integration** (hiredis).
-- Replace the in-memory mock in `wolf_runtime.c` with actual `hiredis` calls.
-- Connect via `.wolf-config` `[redis]` section.
+- **Fix Real MSSQL Support**: Install `freetds-dev` or `unixodbc-dev` and replace the mock `#ifdef WOLF_DB_MSSQL` block with the real implementation.
+- **Graceful Shutdown**: The DB pool and HTTP server lack a clean shutdown trap (Ctrl+C).
 
 ## Open Issues / Watch Out For
-- Ensure you run `./resume` to get the context at the start of next session.
-- The `db_mutex` in `wolf_runtime.c` is kept alive solely for `wolf_db_bind()`. If you touch `bind()`, ensure it's made safe or refactored to use the new connection pool slots.
+- Ensure the correct database driver header is installed on target environments (e.g. `libpq-dev` for Postgres, `freetds-dev` for MSSQL, `libhiredis-dev` for Redis).
 
 ## Relevant Files Modified This Session
+- `internal/config/config.go`
+- `internal/config/loader.go`
+- `internal/compiler/compiler.go`
 - `runtime/wolf_runtime.c`
-- `runtime/wolf_config_runtime.h` (new)
-- `wolf.config` (new)
-- `cmd/wolf/main.go`
-- `.wolf-vault/*` (all new files)
