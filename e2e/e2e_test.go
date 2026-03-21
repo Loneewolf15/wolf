@@ -19,7 +19,7 @@ func TestEndToEnd(t *testing.T) {
 	}
 
 	for _, file := range files {
-		if !file.Type().IsRegular() || !strings.HasSuffix(file.Name(), ".wolf") {
+		if !file.Type().IsRegular() || !strings.HasSuffix(file.Name(), ".wolf") || strings.HasPrefix(file.Name(), "_") {
 			continue
 		}
 

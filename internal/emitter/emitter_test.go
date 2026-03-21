@@ -241,7 +241,7 @@ func TestLLVMEmitHeader(t *testing.T) {
 
 func TestLLVMEmitMainFunction(t *testing.T) {
 	llSrc := parseAndEmitLLVM(t, `$x = 42`)
-	if !strings.Contains(llSrc, "define i32 @main()") {
+	if !strings.Contains(llSrc, "define i32 @main(") {
 		t.Error("Expected main function definition")
 	}
 	if !strings.Contains(llSrc, "ret i32 0") {
@@ -328,7 +328,7 @@ func TestLLVMEmitFunction(t *testing.T) {
 	llSrc := parseAndEmitLLVM(t, `func greet($name) {
 		print($name)
 	}`)
-	if !strings.Contains(llSrc, "define void @greet(") {
+	if !strings.Contains(llSrc, "define void @wolf_greet(") {
 		t.Errorf("Expected function definition, got:\n%s", llSrc)
 	}
 }

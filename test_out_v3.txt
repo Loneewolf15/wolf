@@ -1,0 +1,15 @@
+=== RUN   TestEndToEnd
+=== RUN   TestEndToEnd/01_hello.wolf
+wolf: lexed 5 tokens
+wolf: parsed 1 top-level statements from main file
+wolf: LLVM IR generated successfully
+wolf: using C compiler: /usr/bin/clang
+wolf: wrote LLVM IR → /home/askme/Pictures/wolf-lang/e2e/testdata/wolf_out_01_hello.wolf/01_hello.ll
+wolf: compiled .ll → .o via llc
+wolf: compiled wolf_runtime.c → /home/askme/Pictures/wolf-lang/e2e/testdata/wolf_out_01_hello.wolf/wolf_runtime.o
+wolf: linking with args: -o /home/askme/Pictures/wolf-lang/e2e/testdata/wolf_out_01_hello.wolf/01_hello /home/askme/Pictures/wolf-lang/e2e/testdata/wolf_out_01_hello.wolf/01_hello.o /home/askme/Pictures/wolf-lang/e2e/testdata/wolf_out_01_hello.wolf/wolf_runtime.o -lpthread -L/usr/lib/x86_64-linux-gnu -L/opt/lampp/lib/ -lmariadb -lhiredis -lsodium -L/usr/lib/x86_64-linux-gnu -lssl -lcrypto -Wl,-rpath,/opt/lampp/lib -lm
+wolf: linked → /home/askme/Pictures/wolf-lang/e2e/testdata/wolf_out_01_hello.wolf/01_hello
+--- PASS: TestEndToEnd (8.73s)
+    --- PASS: TestEndToEnd/01_hello.wolf (8.73s)
+PASS
+ok  	github.com/wolflang/wolf/e2e	8.738s

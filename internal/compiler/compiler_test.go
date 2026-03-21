@@ -35,7 +35,7 @@ func TestCompileHelloWorld(t *testing.T) {
 	if !strings.Contains(src, `wolf_print_str`) {
 		t.Error("Expected wolf_print_str in output")
 	}
-	if !strings.Contains(src, `define i32 @main()`) {
+	if !strings.Contains(src, `define i32 @main(`) {
 		t.Error("Expected main function")
 	}
 	if !strings.Contains(src, `Hello from Wolf!`) {
@@ -80,7 +80,7 @@ func TestCompileFunction(t *testing.T) {
 	src := compileSource(t, `func greet($name) {
 		print("hello")
 	}`)
-	if !strings.Contains(src, `define void @greet(`) {
+	if !strings.Contains(src, `define void @wolf_greet(`) {
 		t.Errorf("Expected function definition, got:\n%s", src)
 	}
 }
@@ -89,14 +89,14 @@ func TestCompileFunctionWithReturn(t *testing.T) {
 	src := compileSource(t, `func add($a, $b) -> int {
 		return $a + $b
 	}`)
-	if !strings.Contains(src, `define i64 @add(`) {
+	if !strings.Contains(src, `define i64 @wolf_add(`) {
 		t.Errorf("Expected int return function, got:\n%s", src)
 	}
 }
 
 func TestCompileArrowFunction(t *testing.T) {
 	src := compileSource(t, `func double($x) => $x * 2`)
-	if !strings.Contains(src, `define`) && !strings.Contains(src, `@double`) {
+	if !strings.Contains(src, `define`) && !strings.Contains(src, `@wolf_double`) {
 		t.Errorf("Expected arrow function, got:\n%s", src)
 	}
 }
@@ -150,7 +150,7 @@ foreach $items as $item {
 	print($item)
 }`)
 	// Should at least compile without error
-	if !strings.Contains(src, `define i32 @main()`) {
+	if !strings.Contains(src, `define i32 @main(`) {
 		t.Error("Expected main function")
 	}
 }
@@ -162,7 +162,7 @@ match $status {
 	"error" => { print("fail") }
 	_ => { print("unknown") }
 }`)
-	if !strings.Contains(src, `define i32 @main()`) {
+	if !strings.Contains(src, `define i32 @main(`) {
 		t.Error("Expected main function")
 	}
 }
@@ -171,21 +171,21 @@ match $status {
 
 func TestCompileNewExpr(t *testing.T) {
 	src := compileSource(t, `$user = new User("Ada", "ada@wolf.dev")`)
-	if !strings.Contains(src, `define i32 @main()`) {
+	if !strings.Contains(src, `define i32 @main(`) {
 		t.Error("Expected main function")
 	}
 }
 
 func TestCompileArrayLiteral(t *testing.T) {
 	src := compileSource(t, `$items = [1, 2, 3]`)
-	if !strings.Contains(src, `define i32 @main()`) {
+	if !strings.Contains(src, `define i32 @main(`) {
 		t.Error("Expected main function")
 	}
 }
 
 func TestCompileMapLiteral(t *testing.T) {
 	src := compileSource(t, `$config = {"host": "localhost", "port": 8080}`)
-	if !strings.Contains(src, `define i32 @main()`) {
+	if !strings.Contains(src, `define i32 @main(`) {
 		t.Error("Expected main function")
 	}
 }
@@ -197,14 +197,14 @@ func TestCompileParallel(t *testing.T) {
 	print("task1")
 	print("task2")
 }`)
-	if !strings.Contains(src, `define i32 @main()`) {
+	if !strings.Contains(src, `define i32 @main(`) {
 		t.Error("Expected main function")
 	}
 }
 
 func TestCompileChannel(t *testing.T) {
 	src := compileSource(t, `$ch = channel(int)`)
-	if !strings.Contains(src, `define i32 @main()`) {
+	if !strings.Contains(src, `define i32 @main(`) {
 		t.Error("Expected main function")
 	}
 }
@@ -251,10 +251,10 @@ if $count > 0 {
 	print("done")
 }
 `)
-	if !strings.Contains(src, `define void @sayHello(`) {
+	if !strings.Contains(src, `define void @wolf_sayHello(`) {
 		t.Error("Missing function definition")
 	}
-	if !strings.Contains(src, `define i32 @main()`) {
+	if !strings.Contains(src, `define i32 @main(`) {
 		t.Error("Missing main function")
 	}
 }

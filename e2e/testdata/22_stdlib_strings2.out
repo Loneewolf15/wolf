@@ -1,0 +1,11 @@
+Hi world
+5 > 3 & 1 < 2
+similar_text works
+wordwrap works
+qp_encode works
+preg_match digits ok
+preg_match no-match ok
+preg_match case-insensitive ok
+preg_match_all ok
+fooNUMbarNUM
+preg_split ok

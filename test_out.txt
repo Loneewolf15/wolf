@@ -1,0 +1,23 @@
+=== RUN   TestEndToEnd
+=== RUN   TestEndToEnd/01_hello.wolf
+wolf: lexed 5 tokens
+wolf: parsed 1 top-level statements from main file
+wolf: LLVM IR generated successfully
+wolf: using C compiler: /usr/bin/clang
+wolf: wrote LLVM IR → /home/askme/Pictures/wolf-lang/e2e/testdata/wolf_out_01_hello.wolf/01_hello.ll
+wolf: compiled .ll → .o via llc
+wolf: compiled wolf_runtime.c → /home/askme/Pictures/wolf-lang/e2e/testdata/wolf_out_01_hello.wolf/wolf_runtime.o
+wolf: linking with args: -o /home/askme/Pictures/wolf-lang/e2e/testdata/wolf_out_01_hello.wolf/01_hello /home/askme/Pictures/wolf-lang/e2e/testdata/wolf_out_01_hello.wolf/01_hello.o /home/askme/Pictures/wolf-lang/e2e/testdata/wolf_out_01_hello.wolf/wolf_runtime.o -lpthread -L/opt/lampp/lib/ -lmariadb -lhiredis -lsodium -lssl -lcrypto -Wl,-rpath,/opt/lampp/lib -lm
+    e2e_test.go:53: Compilation failed:
+        linking failed: exit status 1
+        /usr/bin/ld: /home/askme/Pictures/wolf-lang/e2e/testdata/wolf_out_01_hello.wolf/wolf_runtime.o: in function `wolf_sign':
+        wolf_runtime.c:(.text+0xe955): undefined reference to `EVP_DigestSignUpdate'
+        /usr/bin/ld: /home/askme/Pictures/wolf-lang/e2e/testdata/wolf_out_01_hello.wolf/wolf_runtime.o: in function `wolf_verify':
+        wolf_runtime.c:(.text+0xec89): undefined reference to `EVP_DigestVerifyUpdate'
+        clang: error: linker command failed with exit code 1 (use -v to see invocation)
+        
+--- FAIL: TestEndToEnd (6.09s)
+    --- FAIL: TestEndToEnd/01_hello.wolf (6.08s)
+FAIL
+FAIL	github.com/wolflang/wolf/e2e	6.091s
+FAIL

@@ -1,0 +1,8 @@
+func handler($req_id: int, $res_id: int) {
+    print("Received request, sleeping...")
+    wolf_system_sleep(5)
+    wolf_http_res_status($res_id, 200)
+    wolf_http_res_write($res_id, "OK after sleep")
+}
+
+wolf_http_serve(9998, handler)

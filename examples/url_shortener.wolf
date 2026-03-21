@@ -1,0 +1,117 @@
+# Wolf URL Shortener POC
+# Support for both HTTP Server and CLI Mode!
+# CLI Usage: ./url_shortener shorten http://google.com
+# CLI Usage: ./url_shortener get {id}
+
+func handler($req_id: int, $res_id: int) {
+    $path = wolf_get_request_path()
+    $method = wolf_get_request_method()
+
+    # 1. Route: POST /shorten
+    if $path == "/shorten" && $method == "POST" {
+        $body_str = wolf_get_request_body()
+        $body = json_decode($body_str)
+        $url = $body["url"]
+        
+        if $url == "" {
+            wolf_http_response_code(400)
+            wolf_http_write_response("{\"error\":\"Missing URL field in JSON\"}")
+            return
+        }
+
+        $short_id = wolf_nanoid(8)
+        $conn = wolf_db_connect("localhost", "root", "", "wolf_test")
+        
+        $stmt = wolf_db_prepare($conn, "INSERT INTO urls (short_id, original_url) VALUES (?, ?)")
+        wolf_db_bind($stmt, "?", $short_id)
+        wolf_db_bind($stmt, "?", $url)
+        wolf_db_execute($stmt)
+        
+        wolf_http_response_code(201)
+        wolf_http_write_response("{\"short_url\":\"http://localhost:8080/{$short_id}\", \"id\":\"{$short_id}\"}")
+        return
+    }
+
+    # 2. Route: GET /{short_id}
+    if $method == "GET" && $path != "/" {
+        $id = wolf_preg_replace("/([^/]+)", "$1", $path)
+        $conn = wolf_db_connect("localhost", "root", "", "wolf_test")
+        $stmt = wolf_db_prepare($conn, "SELECT original_url FROM urls WHERE short_id = ? LIMIT 1")
+        wolf_db_bind($stmt, "?", $id)
+        wolf_db_execute($stmt)
+        $results = wolf_db_fetch_all($stmt)
+        
+        if count($results) > 0 {
+            $row = $results[0]
+            $target = $row["original_url"]
+            wolf_http_response_code(302)
+            wolf_http_res_header($res_id, "Location", $target)
+            wolf_http_write_response("Redirecting to {$target}")
+        } else {
+            wolf_http_response_code(404)
+            wolf_http_write_response("{\"error\":\"URL not found\"}")
+        }
+        return
+    }
+
+    wolf_http_response_code(404)
+    wolf_http_write_response("{\"error\":\"Not Found\"}")
+}
+
+func main() {
+    $argc = argc()
+    
+    # Check for CLI Mode
+    if $argc > 1 {
+        $cmd = argv(1)
+        
+        if $cmd == "shorten" && $argc == 3 {
+             $url = argv(2)
+             $short_id = wolf_nanoid(8)
+             $conn = wolf_db_connect("localhost", "root", "", "wolf_test")
+             if !$conn {
+                 print("Error: Could not connect to database 'wolf_test'. Please ensure it exists.")
+                 return
+             }
+             $stmt = wolf_db_prepare($conn, "INSERT INTO urls (short_id, original_url) VALUES (?, ?)")
+             wolf_db_bind($stmt, "?", $short_id)
+             wolf_db_bind($stmt, "?", $url)
+             wolf_db_execute($stmt)
+             print("Shortened URL: http://localhost:8080/{$short_id}")
+             print("ID: {$short_id}")
+             return
+        }
+        
+        if $cmd == "get" && $argc == 3 {
+             $id = argv(2)
+             $conn = wolf_db_connect("localhost", "root", "", "wolf_test")
+             if !$conn {
+                 print("Error: Could not connect to database 'wolf_test'.")
+                 return
+             }
+             $stmt = wolf_db_prepare($conn, "SELECT original_url FROM urls WHERE short_id = ? LIMIT 1")
+             wolf_db_bind($stmt, "?", $id)
+             wolf_db_execute($stmt)
+             $results = wolf_db_fetch_all($stmt)
+             if count($results) > 0 {
+                 $row = $results[0]
+                 $target = $row["original_url"]
+                 print("Original URL: {$target}")
+             } else {
+                 print("Error: Short ID '{$id}' not found.")
+             }
+             return
+        }
+        
+        print("Usage:")
+        print("  - Serve: ./url_shortener")
+        print("  - Shorten: ./url_shortener shorten {url}")
+        print("  - Resolve: ./url_shortener get {id}")
+        return
+    }
+
+    print("🐺 Starting Wolf URL Shortener on port 8080...")
+    wolf_http_serve(8080, handler)
+}
+
+main()

@@ -1,0 +1,48 @@
+=== RUN   TestEndToEnd
+=== RUN   TestEndToEnd/01_hello.wolf
+=== RUN   TestEndToEnd/02_vars.wolf
+=== RUN   TestEndToEnd/03_math.wolf
+=== RUN   TestEndToEnd/04_strings.wolf
+=== RUN   TestEndToEnd/05_stdlib_math.wolf
+=== RUN   TestEndToEnd/06_stdlib_strings.wolf
+=== RUN   TestEndToEnd/07_stdlib_json.wolf
+=== RUN   TestEndToEnd/08_logic.wolf
+=== RUN   TestEndToEnd/09_if_else.wolf
+=== RUN   TestEndToEnd/10_for.wolf
+=== RUN   TestEndToEnd/11_while.wolf
+=== RUN   TestEndToEnd/12_foreach.wolf
+=== RUN   TestEndToEnd/13_functions.wolf
+=== RUN   TestEndToEnd/14_classes.wolf
+=== RUN   TestEndToEnd/15_maps.wolf
+=== RUN   TestEndToEnd/16_match.wolf
+=== RUN   TestEndToEnd/17_arrays.wolf
+=== RUN   TestEndToEnd/18_func_returns.wolf
+=== RUN   TestEndToEnd/19_nested_loops.wolf
+=== RUN   TestEndToEnd/20_struct_like_classes.wolf
+=== RUN   TestEndToEnd/21_json_arrays.wolf
+=== RUN   TestEndToEnd/22_stdlib_strings2.wolf
+--- PASS: TestEndToEnd (334.16s)
+    --- PASS: TestEndToEnd/01_hello.wolf (20.44s)
+    --- PASS: TestEndToEnd/02_vars.wolf (18.96s)
+    --- PASS: TestEndToEnd/03_math.wolf (15.77s)
+    --- PASS: TestEndToEnd/04_strings.wolf (15.55s)
+    --- PASS: TestEndToEnd/05_stdlib_math.wolf (14.56s)
+    --- PASS: TestEndToEnd/06_stdlib_strings.wolf (15.41s)
+    --- PASS: TestEndToEnd/07_stdlib_json.wolf (14.38s)
+    --- PASS: TestEndToEnd/08_logic.wolf (14.24s)
+    --- PASS: TestEndToEnd/09_if_else.wolf (14.27s)
+    --- PASS: TestEndToEnd/10_for.wolf (14.57s)
+    --- PASS: TestEndToEnd/11_while.wolf (14.92s)
+    --- PASS: TestEndToEnd/12_foreach.wolf (14.47s)
+    --- PASS: TestEndToEnd/13_functions.wolf (14.39s)
+    --- PASS: TestEndToEnd/14_classes.wolf (15.35s)
+    --- PASS: TestEndToEnd/15_maps.wolf (14.45s)
+    --- PASS: TestEndToEnd/16_match.wolf (14.96s)
+    --- PASS: TestEndToEnd/17_arrays.wolf (14.88s)
+    --- PASS: TestEndToEnd/18_func_returns.wolf (14.47s)
+    --- PASS: TestEndToEnd/19_nested_loops.wolf (14.51s)
+    --- PASS: TestEndToEnd/20_struct_like_classes.wolf (14.49s)
+    --- PASS: TestEndToEnd/21_json_arrays.wolf (14.74s)
+    --- PASS: TestEndToEnd/22_stdlib_strings2.wolf (14.37s)
+PASS
+ok  	github.com/wolflang/wolf/e2e	334.212s

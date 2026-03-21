@@ -72,7 +72,7 @@ func TestCompileLargeProgram(t *testing.T) {
 	}
 
 	src := compileSource(t, sb.String())
-	if !strings.Contains(src, "define i32 @main()") {
+	if !strings.Contains(src, "define i32 @main(") {
 		t.Error("Large program should compile with main")
 	}
 
@@ -175,7 +175,7 @@ func TestFunctionNoParams(t *testing.T) {
 	src := compileSource(t, `func hello() {
 	print("hello")
 }`)
-	if !strings.Contains(src, "define void @hello()") {
+	if !strings.Contains(src, "define void @wolf_hello()") {
 		t.Errorf("Expected no-param function, got:\n%s", src)
 	}
 }
@@ -184,7 +184,7 @@ func TestFunctionManyParams(t *testing.T) {
 	src := compileSource(t, `func many($a, $b, $c, $d, $e) -> float {
 	return $a
 }`)
-	if !strings.Contains(src, "define double @many(") {
+	if !strings.Contains(src, "define double @wolf_many(") {
 		t.Errorf("Expected function with many params, got:\n%s", src)
 	}
 }
@@ -197,7 +197,7 @@ func TestRecursiveFunction(t *testing.T) {
 	}
 	return 0.0
 }`)
-	if !strings.Contains(src, "define double @countdown(") {
+	if !strings.Contains(src, "define double @wolf_countdown(") {
 		t.Errorf("Expected recursive function, got:\n%s", src)
 	}
 }

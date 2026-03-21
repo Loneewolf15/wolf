@@ -1,0 +1,39 @@
+say(str_ireplace("WORLD", "world", "Hi WORLD"))
+say(htmlspecialchars_decode("5 &gt; 3 &amp; 1 &lt; 2"))
+
+$sim = similar_text("Wolf Lang", "Wolf Language")
+if ($sim > 50.0) {
+    say("similar_text works")
+}
+
+$wrapped = wordwrap("This is a long line that should be wrapped.", 10, "\n", true)
+if (str_contains($wrapped, "\n")) {
+    say("wordwrap works")
+}
+
+$encoded = quoted_printable_encode("Hello 🐺!")
+if (str_contains($encoded, "=F0=9F=90=BA")) {
+    say("qp_encode works")
+}
+
+if (preg_match("/[0-9]+/", "Wolf 2026")) {
+    say("preg_match digits ok")
+}
+
+if (!preg_match("/abc/", "def")) {
+    say("preg_match no-match ok")
+}
+
+if (preg_match("/WOLF/i", "wolf")) {
+    say("preg_match case-insensitive ok")
+}
+
+$all = preg_match_all("/[0-9]+/", "123 abc 456")
+if ($all == 2) {
+    say("preg_match_all ok")
+}
+
+say(preg_replace("/[0-9]+/", "NUM", "foo123bar456"))
+
+$parts = preg_split("/\s+/", "preg_split ok")
+say(implode(" ", $parts))

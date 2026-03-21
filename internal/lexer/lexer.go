@@ -108,7 +108,11 @@ func (l *Lexer) scanToken() {
 			l.addToken(TOKEN_STAR)
 		}
 	case '/':
-		if l.match('=') {
+		if l.match('/') {
+			l.scanComment()
+		} else if l.match('*') {
+			l.scanMultiLineComment()
+		} else if l.match('=') {
 			l.addToken(TOKEN_SLASH_ASSIGN)
 		} else {
 			l.addToken(TOKEN_SLASH)
@@ -201,12 +205,29 @@ func (l *Lexer) scanToken() {
 
 // --- Scanning helpers ---
 
-// scanComment consumes a # comment to the end of the line.
+// scanComment consumes a # or // comment to the end of the line.
 func (l *Lexer) scanComment() {
 	for !l.isAtEnd() && l.peek() != '\n' {
 		l.advance()
 	}
 	// Comments are discarded — no token emitted
+}
+
+// scanMultiLineComment consumes a /* ... */ comment.
+func (l *Lexer) scanMultiLineComment() {
+	for !l.isAtEnd() {
+		if l.peek() == '*' && l.peekNext() == '/' {
+			l.advance() // consume *
+			l.advance() // consume /
+			return
+		}
+		if l.peek() == '\n' {
+			l.line++
+			l.col = 1
+		}
+		l.advance()
+	}
+	l.addError("unterminated multi-line comment")
 }
 
 // scanString handles double-quoted strings with interpolation support.

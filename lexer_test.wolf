@@ -1,0 +1,9 @@
+// This is a single-line comment
+print("Line 1") /* This is an inline
+multi-line comment */
+# Existing comment style
+$x = 10 // comment at end of line
+print($x)
+/*
+   Final block comment
+*/

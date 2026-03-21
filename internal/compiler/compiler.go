@@ -308,6 +308,61 @@ func (c *Compiler) Build(source, filename string) (*CompileResult, error) {
 	// Always link hiredis for Redis support
 	redisLibs := "-lhiredis"
 
+	// Production-grade library discovery via bundled static libs or pkg-config
+	wolfRoot, _ = findWolfRoot()
+	staticDir := filepath.Join(wolfRoot, "third_party", "lib")
+
+	// Platform-specific static paths
+	var bundledPath string
+	if runtime.GOOS == "linux" && runtime.GOARCH == "amd64" {
+		bundledPath = filepath.Join(staticDir, "linux_x64")
+	} else if runtime.GOOS == "darwin" {
+		bundledPath = filepath.Join(staticDir, "macos")
+	}
+
+	useStatic := false
+	if bundledPath != "" {
+		if _, err := os.Stat(filepath.Join(bundledPath, "libcrypto.a")); err == nil {
+			useStatic = true
+		}
+	}
+
+	sslLibs, sslCflags := getPkgConfig("openssl")
+	sodiumLibs, sodiumCflags := getPkgConfig("libsodium")
+
+	// Fallback to defaults if pkg-config fails
+	if sslLibs == "" {
+		sslLibs = "-lssl -lcrypto"
+	}
+	if sodiumLibs == "" {
+		sodiumLibs = "-lsodium"
+	}
+
+	cryptoLibs := sodiumLibs + " " + sslLibs
+	cryptoCflags := sodiumCflags + " " + sslCflags
+
+	if useStatic {
+		// Use absolute paths to .a files to force static linking
+		cryptoLibs = fmt.Sprintf("%s %s %s",
+			filepath.Join(bundledPath, "libsodium.a"),
+			filepath.Join(bundledPath, "libssl.a"),
+			filepath.Join(bundledPath, "libcrypto.a"))
+	}
+
+	// Special case: If user has XAMPP installed, its mysql_config might add a -L path
+	// that contains an outdated libcrypto.so.1.1. We MUST prioritize the system path
+	// found by pkg-config (if any) to ensure OpenSSL 3.x symbols like EVP_DigestSignUpdate work.
+	// NOTE: If using static libs, we don't need to prioritize path as much, but we keep it for other libs.
+	var prioritizedPath string
+	if !useStatic {
+		for _, lib := range []string{"openssl", "libsodium"} {
+			if path, _ := getPkgConfigVariable(lib, "libdir"); path != "" {
+				prioritizedPath = "-L" + path
+				break
+			}
+		}
+	}
+
 	// Build runtime compile args — optimisation level from config
 	optFlag := "-O2"
 	if c.Config != nil && !c.Config.Build.Optimise {
@@ -318,6 +373,9 @@ func (c *Compiler) Build(source, filename string) (*CompileResult, error) {
 	// DB include flags
 	if dbCflags != "" {
 		rtArgs = append(rtArgs, strings.Fields(dbCflags)...)
+	}
+	if cryptoCflags != "" {
+		rtArgs = append(rtArgs, strings.Fields(cryptoCflags)...)
 	}
 
 	// Bake wolf.config values into the runtime as -D constants.
@@ -338,8 +396,15 @@ func (c *Compiler) Build(source, filename string) (*CompileResult, error) {
 	// Link everything into final binary
 	binaryPath := filepath.Join(outDir, baseName)
 	linkArgs := []string{"-o", binaryPath, objFile, runtimeObj, "-lpthread"}
+
+	// Prioritize system libraries to avoid XAMPP version conflicts
+	if prioritizedPath != "" {
+		linkArgs = append(linkArgs, prioritizedPath)
+	}
+
 	linkArgs = append(linkArgs, strings.Fields(dbLibs)...)
 	linkArgs = append(linkArgs, strings.Fields(redisLibs)...)
+	linkArgs = append(linkArgs, strings.Fields(cryptoLibs)...)
 	// Auto-extract rpath from -L flags in dbLibs so binary finds the DB library at runtime
 	for _, field := range strings.Fields(dbLibs) {
 		if strings.HasPrefix(field, "-L") {
@@ -563,4 +628,27 @@ func detectTargetTriple() string {
 		}
 		return "x86_64-pc-linux-gnu"
 	}
+}
+
+func getPkgConfig(lib string) (libs string, cflags string) {
+	if path, err := exec.LookPath("pkg-config"); err == nil {
+		if out, err := exec.Command(path, "--libs", lib).Output(); err == nil {
+			libs = strings.TrimSpace(string(out))
+		}
+		if out, err := exec.Command(path, "--cflags", lib).Output(); err == nil {
+			cflags = strings.TrimSpace(string(out))
+		}
+	}
+	return
+}
+
+func getPkgConfigVariable(lib, variable string) (string, error) {
+	if path, err := exec.LookPath("pkg-config"); err == nil {
+		out, err := exec.Command(path, "--variable="+variable, lib).Output()
+		if err == nil {
+			return strings.TrimSpace(string(out)), nil
+		}
+		return "", err
+	}
+	return "", fmt.Errorf("pkg-config not found")
 }

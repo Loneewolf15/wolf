@@ -8,11 +8,11 @@
 
 Wolf is a compiled programming language with PHP-like syntax that compiles to **native machine code via LLVM IR**.
 
-**Target:** 100X faster than any language available today (Rust, C, Zig).
+**Target:** 100X faster than PHP, with the safety of Rust and simplicity of Go.
 **Timeline:**
-- **Year 1 (2027):** Wolf compiler self-hosted in Wolf (Go as backup parity)
-- **Year 1.5 (2027-mid):** Go dropped entirely — Wolf compiles Wolf
-- **Forever:** Wolf is the fastest, most developer-friendly production language on earth
+- **Phase 1 (March 2026):** Production Hardening ✅ (Static linking, Graceful shutdown, DB pooling, CLI mode)
+- **Phase 2 (Current):** Stdlib Expansion (Regex, Arrays, HTTP Client)
+- **Year 1:** Wolf compiler self-hosted
 
 ## Vault Structure
 

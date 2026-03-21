@@ -89,6 +89,9 @@ int64_t     wolf_time_now(void);
 const char* wolf_time_date(const char* format, int64_t timestamp);
 
 /* --- System Utilities --- */
+int64_t     wolf_argc(void);
+const char* wolf_argv(int64_t index);
+void        wolf_init_args(int argc, char** argv);
 void        wolf_system_sleep(int64_t seconds);
 void        wolf_system_exit(int64_t code);
 void        wolf_system_die(const char* message);
@@ -121,6 +124,7 @@ void*   wolf_db_fetch_one(void* stmt);
 int64_t wolf_db_row_count(void* stmt);
 int64_t wolf_db_last_insert_id(void* conn);
 void    wolf_db_close(void* conn);
+void    wolf_db_pool_destroy(void);        /* ← add this */
 void    wolf_db_begin_transaction(void* conn);
 void    wolf_db_commit(void* conn);
 void    wolf_db_rollback(void* conn);
@@ -231,12 +235,38 @@ const char* wolf_addslashes(const char* s);
 const char* wolf_stripslashes(const char* s);
 const char* wolf_sprintf(const char* fmt, const char* arg1);
 
+/* --- STDLIB-01: Additional String Functions --- */
+const char* wolf_str_ireplace(const char* find, const char* rep, const char* s);
+const char* wolf_htmlspecialchars_decode(const char* s);
+double      wolf_similar_text(const char* a, const char* b);
+const char* wolf_wordwrap(const char* s, int64_t width, const char* brk, int cut_long);
+const char* wolf_quoted_printable_encode(const char* s);
+
+/* --- STDLIB-01: Regex (POSIX ERE) --- */
+int         wolf_preg_match(const char* pattern, const char* s);
+const char* wolf_preg_match_captures(const char* pattern, const char* s);
+int64_t     wolf_preg_match_all(const char* pattern, const char* s);
+const char* wolf_preg_replace(const char* pattern, const char* rep, const char* s);
+void*       wolf_preg_split(const char* pattern, const char* s);
+
 /* --- Math Extras --- */
 double wolf_deg2rad(double deg);
 double wolf_rad2deg(double rad);
 double wolf_clamp(double n, double mn, double mx);
 
+/* --- Math Additions (STDLIB-03) --- */
+double  wolf_rand_float(void);
+int64_t wolf_rand_secure(int64_t min, int64_t max);
+double  wolf_math_inf(void);
+double  wolf_math_nan(void);
+int     wolf_is_nan(double v);
+int     wolf_is_inf(double v);
+int     wolf_is_finite(double v);
+double  wolf_math_log_base(double n, double base);
+double  wolf_math_hypot(double a, double b);
+ 
 /* --- Type Casting --- */
+ 
 int64_t     wolf_intval(const char* s);
 double      wolf_floatval(const char* s);
 const char* wolf_strval(int64_t n);
@@ -254,12 +284,56 @@ const char* wolf_json_pretty(const char* json);
 void*       wolf_json_decode(const char* json);
 
 /* --- Security --- */
+/* --- Crypto Init --- */
+void wolf_crypto_init(void);
+/* --- Hashing --- */
 const char* wolf_md5(const char* s);
 const char* wolf_sha256(const char* s);
+const char* wolf_sha512(const char* s);
+const char* wolf_hash(const char* algo, const char* s);
+const char* wolf_hash_hmac(const char* algo, const char* data, const char* key);
+int         wolf_hash_equals(const char* known, const char* user);
+
+/* --- Password Hashing (Argon2id) --- */
 const char* wolf_password_hash(const char* password);
 int         wolf_password_verify(const char* password, const char* hash);
-const char* wolf_uuid_v4(void);
+int         wolf_password_needs_rehash(const char* hash);
+
+/* --- Symmetric Encryption (XSalsa20-Poly1305) --- */
+const char* wolf_encrypt(const char* data, const char* key);
+const char* wolf_decrypt(const char* data, const char* key);
+
+/* --- Random / Token Generation --- */
+const char* wolf_rand_bytes(int64_t length);
 const char* wolf_rand_hex(int64_t length);
+const char* wolf_rand_token(void);
+
+/* --- ID Generation --- */
+const char* wolf_uuid_v4(void);
+const char* wolf_uuid_v7(void);
+const char* wolf_nanoid(int64_t size);
+const char* wolf_custom_id(const char* prefix, int64_t entropy);
+
+/* --- Encoding --- */
+const char* wolf_base64_url_encode(const char* s);
+const char* wolf_base64_url_decode(const char* s);
+const char* wolf_hex_encode(const char* s);
+const char* wolf_hex_decode(const char* s);
+
+/* --- JWT (HMAC-SHA256) --- */
+const char* wolf_jwt_encode(const char* payload, const char* secret);
+const char* wolf_jwt_encode_exp(const char* payload, const char* secret, int64_t expiry_sec);
+const char* wolf_jwt_decode(const char* token, const char* secret);
+const char* wolf_jwt_decode_unverified(const char* token);
+int         wolf_jwt_expired(const char* token);
+
+/* --- Curve25519 ECDH (Signal/WhatsApp key exchange primitive) --- */
+const char* wolf_curve25519_keypair(void);
+const char* wolf_curve25519_shared(const char* my_secret_hex, const char* their_public_hex);
+
+/* --- RSA Sign / Verify --- */
+const char* wolf_sign(const char* data, const char* privkey_pem);
+int         wolf_verify(const char* data, const char* sig_b64, const char* pubkey_pem);
 
 /* --- Output / Debugging --- */
 void wolf_dump(const char* val);
@@ -289,6 +363,24 @@ void*   wolf_array_intersect(void* a, void* b);
 void*   wolf_array_flip(void* a);
 void*   wolf_range(int64_t start, int64_t end);
 
+/* --- Phase 2 Stdlib: Additional Array Functions --- */
+void*   wolf_array_fill(int64_t start, int64_t num, const char* value);
+void*   wolf_array_combine(void* keys, void* values);
+void*   wolf_array_chunk(void* a, int64_t size);
+void*   wolf_array_column(void* a, const char* col);
+double  wolf_array_product(void* a);
+void*   wolf_array_diff_key(void* a, void* b);
+void*   wolf_array_splice(void* a, int64_t offset, int64_t length);
+void*   wolf_array_pad(void* a, int64_t size, const char* value);
+void*   wolf_array_count_values(void* a);
+int64_t wolf_array_rand_one(void* a);
+double  wolf_array_mean(void* a);
+double  wolf_array_median(void* a);
+const char* wolf_array_mode(void* a);
+double  wolf_array_variance(void* a);
+double  wolf_array_std_dev(void* a);
+double  wolf_array_percentile(void* a, double p);
+ 
 /* --- Phase 3: Date/Time --- */
 int64_t     wolf_time_ms(void);
 int64_t     wolf_time_ns(void);

@@ -1,0 +1,50 @@
+=== RUN   TestEndToEnd
+=== RUN   TestEndToEnd/01_hello.wolf
+=== RUN   TestEndToEnd/02_vars.wolf
+=== RUN   TestEndToEnd/03_math.wolf
+=== RUN   TestEndToEnd/04_strings.wolf
+=== RUN   TestEndToEnd/05_stdlib_math.wolf
+=== RUN   TestEndToEnd/06_stdlib_strings.wolf
+=== RUN   TestEndToEnd/07_stdlib_json.wolf
+=== RUN   TestEndToEnd/08_logic.wolf
+=== RUN   TestEndToEnd/09_if_else.wolf
+=== RUN   TestEndToEnd/10_for.wolf
+=== RUN   TestEndToEnd/11_while.wolf
+=== RUN   TestEndToEnd/12_foreach.wolf
+=== RUN   TestEndToEnd/13_functions.wolf
+=== RUN   TestEndToEnd/14_classes.wolf
+=== RUN   TestEndToEnd/15_maps.wolf
+=== RUN   TestEndToEnd/16_match.wolf
+=== RUN   TestEndToEnd/17_arrays.wolf
+=== RUN   TestEndToEnd/18_func_returns.wolf
+=== RUN   TestEndToEnd/19_nested_loops.wolf
+=== RUN   TestEndToEnd/20_struct_like_classes.wolf
+=== RUN   TestEndToEnd/21_json_arrays.wolf
+--- PASS: TestEndToEnd (143.96s)
+    --- PASS: TestEndToEnd/01_hello.wolf (5.50s)
+    --- PASS: TestEndToEnd/02_vars.wolf (4.93s)
+    --- PASS: TestEndToEnd/03_math.wolf (4.89s)
+    --- PASS: TestEndToEnd/04_strings.wolf (4.66s)
+    --- PASS: TestEndToEnd/05_stdlib_math.wolf (6.40s)
+    --- PASS: TestEndToEnd/06_stdlib_strings.wolf (8.21s)
+    --- PASS: TestEndToEnd/07_stdlib_json.wolf (9.89s)
+    --- PASS: TestEndToEnd/08_logic.wolf (8.68s)
+    --- PASS: TestEndToEnd/09_if_else.wolf (9.23s)
+    --- PASS: TestEndToEnd/10_for.wolf (9.29s)
+    --- PASS: TestEndToEnd/11_while.wolf (8.33s)
+    --- PASS: TestEndToEnd/12_foreach.wolf (6.76s)
+    --- PASS: TestEndToEnd/13_functions.wolf (5.75s)
+    --- PASS: TestEndToEnd/14_classes.wolf (5.78s)
+    --- PASS: TestEndToEnd/15_maps.wolf (5.78s)
+    --- PASS: TestEndToEnd/16_match.wolf (5.86s)
+    --- PASS: TestEndToEnd/17_arrays.wolf (6.35s)
+    --- PASS: TestEndToEnd/18_func_returns.wolf (6.12s)
+    --- PASS: TestEndToEnd/19_nested_loops.wolf (5.91s)
+    --- PASS: TestEndToEnd/20_struct_like_classes.wolf (6.37s)
+    --- PASS: TestEndToEnd/21_json_arrays.wolf (9.26s)
+=== RUN   TestGracefulShutdown
+    shutdown_test.go:63: Server failed to start in time
+--- FAIL: TestGracefulShutdown (35.81s)
+FAIL
+FAIL	github.com/wolflang/wolf/e2e	179.775s
+FAIL

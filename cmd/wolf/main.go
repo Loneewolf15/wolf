@@ -229,21 +229,28 @@ database layer, and embeds CPython for native ML library access.`,
 	rootCmd.PersistentFlags().BoolVar(&strict, "strict", false, "Enable strict type checking mode")
 
 	// New project scaffold
+	var projectType string
 	newCmd := &cobra.Command{
 		Use:   "new [name]",
 		Short: "Create a new Wolf project",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			name := args[0]
-			fmt.Printf("wolf: creating project '%s'...\n", name)
-			if err := scaffold.Project(name); err != nil {
+			fmt.Printf("wolf: creating %s project '%s'...\n", projectType, name)
+			if err := scaffold.Project(name, scaffold.ProjectType(projectType)); err != nil {
 				return err
 			}
 			fmt.Printf("wolf: project '%s' created ✓\n", name)
-			fmt.Printf("  cd %s && wolf run src/main.wolf\n", name)
+
+			entry := "src/main.wolf"
+			if projectType == "api" {
+				entry = "public/index.wolf"
+			}
+			fmt.Printf("  cd %s && wolf run %s\n", name, entry)
 			return nil
 		},
 	}
+	newCmd.Flags().StringVarP(&projectType, "type", "t", "script", "Project type: script or api")
 
 	generateCmd := &cobra.Command{
 		Use:   "generate [type] [name]",

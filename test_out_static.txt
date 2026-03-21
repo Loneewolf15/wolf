@@ -1,0 +1,6 @@
+=== RUN   TestEndToEnd
+=== RUN   TestEndToEnd/01_hello.wolf
+--- PASS: TestEndToEnd (16.95s)
+    --- PASS: TestEndToEnd/01_hello.wolf (16.95s)
+PASS
+ok  	github.com/wolflang/wolf/e2e	16.966s
