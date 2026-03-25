@@ -22,12 +22,21 @@
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
+#include <stdarg.h>
+#include <strings.h>
+#include <time.h>
+#include <math.h>
+#include <sys/stat.h>
+#include <errno.h>
+
+/* --- Server / OS-dependent headers (stripped on bare-metal targets) --- */
+#ifndef WOLF_FREESTANDING
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <unistd.h>
 #include <pthread.h>
-#include <strings.h>
+#endif /* WOLF_FREESTANDING */
 #include <time.h>
 #include <math.h>
 #include <sys/stat.h>
@@ -68,6 +77,8 @@
  */
 static volatile sig_atomic_t wolf_shutdown_requested = 0;
 static volatile sig_atomic_t wolf_active_requests    = 0;
+static pthread_mutex_t wolf_drain_mutex = PTHREAD_MUTEX_INITIALIZER;
+static pthread_cond_t  wolf_drain_cond  = PTHREAD_COND_INITIALIZER;
 
 /* CLI Arguments */
 static int    wolf_argc_val = 0;
@@ -759,6 +770,7 @@ int64_t wolf_db_execute(void* stmt_ptr) {
     }
     stmt->last_result = res; return 1;
 #elif defined(WOLF_DB_MSSQL)
+    (void)stmt;
     return 1;
 #else
     if (stmt->last_result) { mysql_free_result(stmt->last_result); stmt->last_result = NULL; }
@@ -867,6 +879,7 @@ int64_t wolf_db_row_count(void* stmt_ptr) {
 #if defined(WOLF_DB_POSTGRES)
     return stmt->last_result ? (int64_t)PQntuples(stmt->last_result) : 0;
 #elif defined(WOLF_DB_MSSQL)
+    (void)stmt;
     return 0;
 #else
     if (stmt->last_result) return (int64_t)mysql_num_rows(stmt->last_result);
@@ -1875,7 +1888,18 @@ const char* wolf_bool_to_string(int b) { return b ? "true" : "false"; }
 void* wolf_alloc(int64_t size) { return wolf_req_alloc((size_t)size); }
 void  wolf_free(void* ptr)     { free(ptr); }
 
-/* ========== HTTP Server ========== */
+/* ========== HTTP Server (requires OS networking — disabled on bare-metal) ========== */
+#ifndef WOLF_FREESTANDING
+
+/* --- Per-request file upload slot --- */
+#define WOLF_MAX_UPLOADS 8
+typedef struct {
+    const char* field_name;   /* form field name (e.g. "avatar") */
+    const char* filename;     /* original filename from browser */
+    const char* content_type; /* MIME type of the part */
+    const char* data;         /* raw bytes, arena-allocated */
+    size_t      size;         /* byte length of data */
+} wolf_upload_t;
 
 typedef struct {
     int    active;
@@ -1892,6 +1916,8 @@ typedef struct {
     char*  res_header_vals[32];
     int    res_header_count;
     char*  res_body;
+    wolf_upload_t uploads[WOLF_MAX_UPLOADS];
+    int           upload_count;
 } wolf_http_context_t;
 
 static wolf_http_context_t http_contexts[MAX_CONCURRENT_REQUESTS];
@@ -1980,16 +2006,157 @@ static void free_http_context(int id) {
     pthread_mutex_unlock(&http_mutex);
 }
 
-static void parse_http_request(int id, char* raw_req, size_t len) {
-    (void)len;
-    wolf_http_context_t* ctx = &http_contexts[id];
-    char* body_start = strstr(raw_req, "\r\n\r\n");
-    if (body_start) {
-        *body_start = '\0'; body_start += 4;
-        ctx->body = wolf_req_strdup(body_start);
-    } else {
-        ctx->body = wolf_req_strdup("");
+/* ---------------------------------------------------------------
+ * wolf_parse_multipart — parse multipart/form-data body.
+ * Boundary is extracted from the Content-Type header value, e.g.:
+ *   "multipart/form-data; boundary=----WebKitFormBoundaryXXX"
+ * All memory allocated via wolf_req_alloc (per-request arena).
+ * --------------------------------------------------------------- */
+static void wolf_parse_multipart(wolf_http_context_t* ctx,
+                                  const char* ct_header,
+                                  const char* body, size_t body_len) {
+    /* Extract boundary string */
+    const char* bp = strstr(ct_header, "boundary=");
+    bp += 9;
+    /* Strip optional quotes */
+    char boundary[256];
+    size_t bi = 0;
+    while (*bp && *bp != ';' && *bp != '\r' && *bp != '\n' && bi < 254) {
+        if (*bp != '"') { boundary[bi++] = *bp; }
+        bp++;
     }
+    boundary[bi] = '\0';
+
+    /* Full delimiter: "--" + boundary */
+    char delim[260];
+    snprintf(delim, sizeof(delim), "--%s", boundary);
+    size_t delim_len = strlen(delim);
+
+    const char* p   = body;
+    const char* end = body + body_len;
+
+    while (p < end && ctx->upload_count < WOLF_MAX_UPLOADS) {
+        /* Find next delimiter */
+        const char* part_start = NULL;
+        for (const char* s = p; s + delim_len <= end; s++) {
+            if (memcmp(s, delim, delim_len) == 0) { part_start = s; break; }
+        }
+        p = part_start + delim_len;
+
+        /* End-of-multipart marker: "--" after boundary */
+
+        /* Skip CRLF after delimiter */
+        if (p + 2 <= end && p[0] == '\r' && p[1] == '\n') p += 2;
+
+        /* Parse part headers until blank line */
+        const char* field_name   = NULL;
+        const char* filename     = NULL;
+        const char* part_ct      = "application/octet-stream";
+        const char* part_hdr_end = NULL;
+
+        const char* hp = p;
+        while (hp < end) {
+            /* Find end of this header line */
+            const char* eol = NULL;
+            for (const char* s = hp; s + 1 < end; s++) {
+                if (s[0] == '\r' && s[1] == '\n') { eol = s; break; }
+            }
+            if (eol == hp) { /* Blank line = part header end */
+                part_hdr_end = eol + 2; 
+                break;
+            }
+
+            /* Copy header line for parsing */
+            size_t hlen = (size_t)(eol - hp);
+            char* hline = (char*)wolf_req_alloc(hlen + 1);
+            memcpy(hline, hp, hlen);
+            hline[hlen] = '\0';
+
+            /* Content-Disposition */
+            if (strncasecmp(hline, "Content-Disposition:", 20) == 0) {
+                char* np = strstr(hline, "name=");
+                if (np) {
+                    np += 5;
+                    int quoted = (*np == '"');
+                    if (quoted) np++;
+                    char* ne = np;
+                    while (*ne && (quoted ? *ne != '"' : (*ne != ';' && *ne != '\r'))) ne++;
+                    size_t nl = (size_t)(ne - np);
+                    char* nbuf = (char*)wolf_req_alloc(nl + 1);
+                    memcpy(nbuf, np, nl); nbuf[nl] = '\0';
+                    field_name = nbuf;
+                }
+                char* fp = strstr(hline, "filename=");
+                if (fp) {
+                    fp += 9;
+                    int quoted = (*fp == '"');
+                    if (quoted) fp++;
+                    char* fe = fp;
+                    while (*fe && (quoted ? *fe != '"' : (*fe != ';' && *fe != '\r'))) fe++;
+                    size_t fl = (size_t)(fe - fp);
+                    char* fbuf = (char*)wolf_req_alloc(fl + 1);
+                    memcpy(fbuf, fp, fl); fbuf[fl] = '\0';
+                    filename = fbuf;
+                }
+            }
+
+            /* Content-Type of part */
+            if (strncasecmp(hline, "Content-Type:", 13) == 0) {
+                char* ctv = hline + 13;
+                while (*ctv == ' ') ctv++;
+                part_ct = wolf_req_strdup(ctv);
+            }
+
+            hp = eol + 2;
+        }
+        if (!part_hdr_end || !field_name || !filename) {
+            /* Not a file part — skip */
+            p = part_hdr_end ? part_hdr_end : hp;
+            continue;
+        }
+
+        /* Part body: from part_hdr_end to next delimiter */
+        const char* data_start = part_hdr_end;
+        const char* data_end   = end;
+        for (const char* s = data_start; s + delim_len + 2 <= end; s++) {
+            if (s[0]=='\r' && s[1]=='\n' && memcmp(s+2, delim, delim_len)==0) {
+                data_end = s; break;
+            }
+        }
+
+        size_t data_size = (size_t)(data_end - data_start);
+        char*  data_buf  = (char*)wolf_req_alloc(data_size + 1);
+        memcpy(data_buf, data_start, data_size);
+        data_buf[data_size] = '\0';
+
+        wolf_upload_t* up = &ctx->uploads[ctx->upload_count++];
+        up->field_name   = field_name;
+        up->filename     = filename;
+        up->content_type = part_ct;
+        up->data         = data_buf;
+        up->size         = data_size;
+
+        p = data_end;
+    }
+}
+
+static void parse_http_request(int id, char* raw_req, size_t len) {
+    wolf_http_context_t* ctx = &http_contexts[id];
+    ctx->upload_count = 0;
+
+    /* Split headers from body at \r\n\r\n */
+    char* body_start = NULL;
+    for (size_t i = 0; i + 3 < len; i++) {
+        if (raw_req[i]=='\r' && raw_req[i+1]=='\n' &&
+            raw_req[i+2]=='\r' && raw_req[i+3]=='\n') {
+            raw_req[i] = '\0';
+            body_start = raw_req + i + 4;
+            break;
+        }
+    }
+    size_t body_len = body_start ? (size_t)(len - (size_t)(body_start - raw_req)) : 0;
+    ctx->body = wolf_req_strdup(body_start ? body_start : "");
+
     char* saveptr;
     char* line = strtok_r(raw_req, "\r\n", &saveptr);
     if (!line) return;
@@ -2002,14 +2169,22 @@ static void parse_http_request(int id, char* raw_req, size_t len) {
         if (q) { *q = '\0'; ctx->path = wolf_req_strdup(full_path); ctx->query = wolf_req_strdup(q+1); }
         else   { ctx->path = wolf_req_strdup(full_path); ctx->query = wolf_req_strdup(""); }
     }
+    const char* content_type_val = NULL;
     while ((line = strtok_r(NULL, "\r\n", &saveptr))) {
         char* colon = strchr(line, ':');
         if (colon && ctx->header_count < 32) {
             *colon = '\0'; char* val = colon + 1; while (*val==' ') val++;
             ctx->header_keys[ctx->header_count] = wolf_req_strdup(line);
             ctx->header_vals[ctx->header_count] = wolf_req_strdup(val);
+            if (strcasecmp(line, "Content-Type") == 0) content_type_val = ctx->header_vals[ctx->header_count];
             ctx->header_count++;
         }
+    }
+    /* If multipart body, parse uploads */
+    if (body_start && body_len > 0 && content_type_val &&
+        strstr(content_type_val, "multipart/form-data")) {
+        wolf_parse_multipart(ctx, content_type_val, body_start, body_len);
+    } else {
     }
 }
 
@@ -2100,6 +2275,11 @@ static void* http_worker(void* arg) {
 
     /* Decrement in-flight counter AFTER arena flush */
     __atomic_fetch_sub(&wolf_active_requests, 1, __ATOMIC_SEQ_CST);
+    if (wolf_shutdown_requested && wolf_active_requests == 0) {
+        pthread_mutex_lock(&wolf_drain_mutex);
+        pthread_cond_signal(&wolf_drain_cond);
+        pthread_mutex_unlock(&wolf_drain_mutex);
+    }
 
 #if !defined(WOLF_DB_POSTGRES) && !defined(WOLF_DB_MSSQL)
     mysql_thread_end();
@@ -2197,6 +2377,11 @@ void wolf_http_serve(int64_t port, void* handler_ptr) {
                                (void*)(intptr_t)id) != 0) {
                 /* Thread creation failed — undo counter, free context */
                 __atomic_fetch_sub(&wolf_active_requests, 1, __ATOMIC_SEQ_CST);
+                if (wolf_shutdown_requested && wolf_active_requests == 0) {
+                    pthread_mutex_lock(&wolf_drain_mutex);
+                    pthread_cond_signal(&wolf_drain_cond);
+                    pthread_mutex_unlock(&wolf_drain_mutex);
+                }
                 free_http_context(id);
                 close(client_fd);
             } else {
@@ -2219,18 +2404,20 @@ void wolf_http_serve(int64_t port, void* handler_ptr) {
     close(server_fd);
 
     /*
-     * Busy-wait for in-flight requests to finish.
+     * Wait for in-flight requests to finish using condition variable.
      * Each http_worker decrements wolf_active_requests on exit.
      * Timeout: WOLF_REQUEST_TIMEOUT_SEC + 2s grace.
      */
-    int drain_wait = 0;
-    int drain_limit = (WOLF_REQUEST_TIMEOUT_SEC + 2) * 10; /* units of 100ms */
+    pthread_mutex_lock(&wolf_drain_mutex);
+    struct timespec ts;
+    clock_gettime(CLOCK_REALTIME, &ts);
+    ts.tv_sec += WOLF_REQUEST_TIMEOUT_SEC + 2;
 
-    while (wolf_active_requests > 0 && drain_wait < drain_limit) {
-        struct timespec ts = {0, 100000000L}; /* 100ms */
-        nanosleep(&ts, NULL);
-        drain_wait++;
+    while (wolf_active_requests > 0) {
+        int rc = pthread_cond_timedwait(&wolf_drain_cond, &wolf_drain_mutex, &ts);
+        if (rc == ETIMEDOUT) break;
     }
+    pthread_mutex_unlock(&wolf_drain_mutex);
 
     if (wolf_active_requests > 0) {
         fprintf(stderr, "[Wolf] Drain timeout — %d request(s) still in flight. Forcing exit.\n",
@@ -2250,7 +2437,10 @@ void wolf_http_serve(int64_t port, void* handler_ptr) {
     exit(0);
 }
 
-/* --- Request API --- */
+#endif /* WOLF_FREESTANDING — end of HTTP server block */
+
+/* --- Request API (requires HTTP server context) --- */
+#ifndef WOLF_FREESTANDING
 
 const char* wolf_http_req_method(int64_t req_id) {
     if (req_id < 0 || req_id >= MAX_CONCURRENT_REQUESTS) return "";
@@ -2286,6 +2476,60 @@ const char* wolf_http_req_body(int64_t req_id) {
     return http_contexts[req_id].body ? http_contexts[req_id].body : "";
 }
 
+static const char WOLF_B64_CHARS[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+static char* wolf_base64_encode_bin(const char* data, size_t len) {
+    if (!data || len == 0) return wolf_req_strdup("");
+    size_t out_len = 4 * ((len + 2) / 3);
+    char* out = (char*)wolf_req_alloc(out_len + 1);
+    char* p = out;
+    for (size_t i = 0; i < len; i += 3) {
+        uint32_t n = ((uint32_t)(unsigned char)data[i]) << 16;
+        if (i + 1 < len) n |= ((uint32_t)(unsigned char)data[i+1]) << 8;
+        if (i + 2 < len) n |= (uint32_t)(unsigned char)data[i+2];
+        *p++ = WOLF_B64_CHARS[(n >> 18) & 0x3F];
+        *p++ = WOLF_B64_CHARS[(n >> 12) & 0x3F];
+        *p++ = (i + 1 < len) ? WOLF_B64_CHARS[(n >> 6) & 0x3F] : '=';
+        *p++ = (i + 2 < len) ? WOLF_B64_CHARS[n & 0x3F] : '=';
+    }
+    *p = '\0';
+    return out;
+}
+
+/* Returns JSON object with upload metadata, or "" if not found.
+ * Format: {"name":"photo.jpg","type":"image/jpeg","size":12345,"data":"<base64>"}
+ * The caller can then json_decode() it and use Wolf_File::Save() to persist. */
+const char* wolf_http_req_file(int64_t req_id, const char* field_name) {
+    if (req_id < 0 || req_id >= MAX_CONCURRENT_REQUESTS || !field_name) {
+        return "";
+    }
+    wolf_http_context_t* ctx = &http_contexts[req_id];
+    for (int i = 0; i < ctx->upload_count; i++) {
+        wolf_upload_t* up = &ctx->uploads[i];
+        if (strcmp(up->field_name, field_name) == 0) {
+            /* Base64-encode the raw bytes using binary size */
+            const char* b64 = wolf_base64_encode_bin(up->data, up->size);
+            /* Build compact JSON using arena-based string buffer */
+            wolf_strbuf_t* buf = wolf_strbuf_new();
+            char sizebuf[32];
+            snprintf(sizebuf, sizeof(sizebuf), "%zu", up->size);
+            wolf_strbuf_append(buf, "{");
+            wolf_strbuf_append(buf, "\"name\":\""); wolf_strbuf_append(buf, up->filename);     wolf_strbuf_append(buf, "\",");
+            wolf_strbuf_append(buf, "\"type\":\""); wolf_strbuf_append(buf, up->content_type); wolf_strbuf_append(buf, "\",");
+            wolf_strbuf_append(buf, "\"size\":");  wolf_strbuf_append(buf, sizebuf);           wolf_strbuf_append(buf, ",");
+            wolf_strbuf_append(buf, "\"data\":\""); wolf_strbuf_append(buf, b64 ? b64 : "");  wolf_strbuf_append(buf, "\"");
+            wolf_strbuf_append(buf, "}");
+            const char* result = wolf_req_strdup(buf->data);
+            return result;
+        }
+    }
+    return "";
+}
+
+int64_t wolf_http_req_file_count(int64_t req_id) {
+    if (req_id < 0 || req_id >= MAX_CONCURRENT_REQUESTS) return 0;
+    return (int64_t)http_contexts[req_id].upload_count;
+}
+
 /* --- Response API --- */
 
 void wolf_http_res_header(int64_t res_id, const char* key, const char* value) {
@@ -2317,6 +2561,8 @@ void wolf_http_res_write(int64_t res_id, const char* body) {
         ctx->res_body = wolf_req_strdup(body);
     }
 }
+
+#endif /* WOLF_FREESTANDING — end of HTTP request/response API */
 
 /* ========== Phase 1 Stdlib — Strings ========== */
 
@@ -2550,11 +2796,17 @@ const char* wolf_stripslashes(const char* s) {
     *w='\0'; return r;
 }
 
-const char* wolf_sprintf(const char* fmt, const char* arg1) {
+const char* wolf_sprintf(const char* fmt, ...) {
     if (!fmt) return wolf_req_strdup("");
-    if (!arg1) arg1="";
-    char* r=(char*)wolf_req_alloc(strlen(fmt)+strlen(arg1)+64);
-    snprintf(r,strlen(fmt)+strlen(arg1)+64,fmt,arg1);
+    va_list args;
+    va_start(args, fmt);
+    int len = vsnprintf(NULL, 0, fmt, args);
+    va_end(args);
+    if (len < 0) return wolf_req_strdup("");
+    char* r = (char*)wolf_req_alloc(len + 1);
+    va_start(args, fmt);
+    vsnprintf(r, len + 1, fmt, args);
+    va_end(args);
     return r;
 }
 
@@ -3671,7 +3923,14 @@ void* wolf_json_decode(const char* json) {
                                 json++; unsigned int cp=0;
                                 for(int ci=0;ci<4&&*json;ci++,json++){cp<<=4;char hx=*json;if(hx>='0'&&hx<='9')cp|=(hx-'0');else if(hx>='a'&&hx<='f')cp|=(hx-'a'+10);else if(hx>='A'&&hx<='F')cp|=(hx-'A'+10);}
                                 json--;
-                                if(cp<0x80){val[vi++]=(char)cp;}else if(cp<0x800){val[vi++]=(char)(0xC0|(cp>>6));val[vi++]=(char)(0x80|(cp&0x3F));}else{val[vi++]=(char)(0xE0|(cp>>12));val[vi++]=(char)(0x80|((cp>>6)&0x3F));val[vi++]=(char)(0x80|(cp&0x3F));}
+                                if(cp>=0xD800&&cp<=0xDBFF&&json[1]=='\\'&&json[2]=='u') {
+                                    json+=3; unsigned int low_cp=0;
+                                    for(int ci=0;ci<4&&*json;ci++,json++){low_cp<<=4;char hx=*json;if(hx>='0'&&hx<='9')low_cp|=(hx-'0');else if(hx>='a'&&hx<='f')low_cp|=(hx-'a'+10);else if(hx>='A'&&hx<='F')low_cp|=(hx-'A'+10);}
+                                    json--;
+                                    if(low_cp>=0xDC00&&low_cp<=0xDFFF) cp=0x10000+((cp-0xD800)<<10)+(low_cp-0xDC00);
+                                }
+                                if((size_t)vi>=vcap-8){ vcap*=2; char* nv=(char*)realloc(val,vcap); if(!nv){free(val);val=NULL;break;} val=nv; }
+                                if(cp<0x80){val[vi++]=(char)cp;}else if(cp<0x800){val[vi++]=(char)(0xC0|(cp>>6));val[vi++]=(char)(0x80|(cp&0x3F));}else if(cp<0x10000){val[vi++]=(char)(0xE0|(cp>>12));val[vi++]=(char)(0x80|((cp>>6)&0x3F));val[vi++]=(char)(0x80|(cp&0x3F));}else{val[vi++]=(char)(0xF0|(cp>>18));val[vi++]=(char)(0x80|((cp>>12)&0x3F));val[vi++]=(char)(0x80|((cp>>6)&0x3F));val[vi++]=(char)(0x80|(cp&0x3F));}
                                 break;
                             }
                             default: val[vi++]=*json; break;
@@ -3742,11 +4001,18 @@ void* wolf_json_decode(const char* json) {
                         case 'n':val[vi++]='\n';break; case 't':val[vi++]='\t';break;
                         case 'r':val[vi++]='\r';break; case '"':val[vi++]='"'; break;
                         case '\\':val[vi++]='\\';break; case '/':val[vi++]='/'; break;
-                        case 'u':{
+                        case 'u': {
                             json++; unsigned int cp=0;
                             for(int ci=0;ci<4&&*json;ci++,json++){cp<<=4;char hx=*json;if(hx>='0'&&hx<='9')cp|=(hx-'0');else if(hx>='a'&&hx<='f')cp|=(hx-'a'+10);else if(hx>='A'&&hx<='F')cp|=(hx-'A'+10);}
                             json--;
-                            if(cp<0x80){val[vi++]=(char)cp;}else if(cp<0x800){val[vi++]=(char)(0xC0|(cp>>6));val[vi++]=(char)(0x80|(cp&0x3F));}else{val[vi++]=(char)(0xE0|(cp>>12));val[vi++]=(char)(0x80|((cp>>6)&0x3F));val[vi++]=(char)(0x80|(cp&0x3F));}
+                            if(cp>=0xD800&&cp<=0xDBFF&&json[1]=='\\'&&json[2]=='u') {
+                                json+=3; unsigned int low_cp=0;
+                                for(int ci=0;ci<4&&*json;ci++,json++){low_cp<<=4;char hx=*json;if(hx>='0'&&hx<='9')low_cp|=(hx-'0');else if(hx>='a'&&hx<='f')low_cp|=(hx-'a'+10);else if(hx>='A'&&hx<='F')low_cp|=(hx-'A'+10);}
+                                json--;
+                                if(low_cp>=0xDC00&&low_cp<=0xDFFF) cp=0x10000+((cp-0xD800)<<10)+(low_cp-0xDC00);
+                            }
+                            if((size_t)vi>=val_cap-8){val_cap*=2;char* nv=(char*)realloc(val,val_cap);if(!nv){free(val);val=NULL;break;}val=nv;}
+                            if(cp<0x80){val[vi++]=(char)cp;}else if(cp<0x800){val[vi++]=(char)(0xC0|(cp>>6));val[vi++]=(char)(0x80|(cp&0x3F));}else if(cp<0x10000){val[vi++]=(char)(0xE0|(cp>>12));val[vi++]=(char)(0x80|((cp>>6)&0x3F));val[vi++]=(char)(0x80|(cp&0x3F));}else{val[vi++]=(char)(0xF0|(cp>>18));val[vi++]=(char)(0x80|((cp>>12)&0x3F));val[vi++]=(char)(0x80|((cp>>6)&0x3F));val[vi++]=(char)(0x80|(cp&0x3F));}
                             break;
                         }
                         default: val[vi++]=*json; break;
@@ -3910,6 +4176,46 @@ int wolf_file_write(const char* path, const char* data) {
     if (!path||!data) return 0;
     FILE* f=fopen(path,"wb"); if(!f) return 0;
     fwrite(data,1,strlen(data),f); fclose(f); return 1;
+}
+
+/* wolf_file_save — decodes a base64 data blob and writes raw binary to path.
+ * Usage: $ok = wolf_file_save("/uploads/avatar.jpg", $meta["data"])
+ * This is the Wolf_File::Save companion to wolf_http_req_file(). */
+int wolf_file_save(const char* path, const char* b64_data) {
+    if (!path || !b64_data || !*b64_data) return 0;
+    /* Base64 decode */
+    size_t b64_len = strlen(b64_data);
+    size_t out_max = (b64_len * 3) / 4 + 4;
+    unsigned char* out = (unsigned char*)wolf_req_alloc(out_max);
+    size_t out_len = 0;
+    static const char b64_inv[256] = {
+        ['+'] = 62, ['/'] = 63,
+        ['0']=52,['1']=53,['2']=54,['3']=55,['4']=56,
+        ['5']=57,['6']=58,['7']=59,['8']=60,['9']=61,
+        ['A']=0,['B']=1,['C']=2,['D']=3,['E']=4,['F']=5,['G']=6,
+        ['H']=7,['I']=8,['J']=9,['K']=10,['L']=11,['M']=12,
+        ['N']=13,['O']=14,['P']=15,['Q']=16,['R']=17,['S']=18,
+        ['T']=19,['U']=20,['V']=21,['W']=22,['X']=23,['Y']=24,['Z']=25,
+        ['a']=26,['b']=27,['c']=28,['d']=29,['e']=30,['f']=31,['g']=32,
+        ['h']=33,['i']=34,['j']=35,['k']=36,['l']=37,['m']=38,
+        ['n']=39,['o']=40,['p']=41,['q']=42,['r']=43,['s']=44,
+        ['t']=45,['u']=46,['v']=47,['w']=48,['x']=49,['y']=50,['z']=51,
+    };
+    for (size_t i = 0; i + 3 < b64_len; i += 4) {
+        uint32_t n =  ((uint32_t)(unsigned char)b64_inv[(unsigned char)b64_data[i]])   << 18
+                    | ((uint32_t)(unsigned char)b64_inv[(unsigned char)b64_data[i+1]]) << 12
+                    | ((uint32_t)(unsigned char)b64_inv[(unsigned char)b64_data[i+2]]) << 6
+                    |  (uint32_t)(unsigned char)b64_inv[(unsigned char)b64_data[i+3]];
+        out[out_len++] = (n >> 16) & 0xFF;
+        if (b64_data[i+2] != '=') out[out_len++] = (n >> 8) & 0xFF;
+        if (b64_data[i+3] != '=') out[out_len++] =  n       & 0xFF;
+    }
+    /* Write raw bytes */
+    FILE* f = fopen(path, "wb");
+    if (!f) return 0;
+    size_t written = fwrite(out, 1, out_len, f);
+    fclose(f);
+    return (int)(written == out_len);
 }
 int wolf_file_append(const char* path, const char* data) {
     if (!path||!data) return 0;

@@ -1,0 +1,28 @@
+// A Wolf HTTP server that handles a multipart/form-data file upload.
+// Field name: "avatar"
+// The server reads the upload metadata and responds with a JSON summary.
+// Prefix: "_server" so the standard E2E loop skips it.
+
+func handler($req_id: int, $res_id: int) {
+    $method = wolf_http_req_method($req_id)
+    $path   = wolf_http_req_path($req_id)
+
+    if ($method == "POST" && $path == "/upload") {
+        $file = wolf_http_req_file($req_id, "avatar")
+        if ($file == "") {
+            wolf_http_res_status($res_id, 400)
+            wolf_http_res_write($res_id, "{\"error\":\"no file\"}")
+        } else {
+            $meta = json_decode($file)
+            $name = $meta["name"]
+            $size = $meta["size"]
+            wolf_http_res_write($res_id, "{\"received\":true,\"name\":\"{$name}\",\"size\":{$size}}")
+        }
+        return
+    }
+
+    wolf_http_res_status($res_id, 404)
+    wolf_http_res_write($res_id, "{\"error\":\"not found\"}")
+}
+
+wolf_http_serve(9292, handler)

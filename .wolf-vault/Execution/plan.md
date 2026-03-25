@@ -2,22 +2,24 @@
 
 > Updated every session via `/wrap-up`. Read via `/resume`.
 
-## Current Sprint: Runtime Production Hardening
+## Current Sprint: Sprint 5 — File Uploads & Metal-Ready Audit ✅
 
-### Active Tasks (this session)
+### Active Tasks
 | Task | Status | Blocking |
 |------|--------|---------|
-| Memory arena allocator | ✅ Done (was already in runtime) | — |
+| Memory arena allocator | ✅ Done | — |
 | Real Redis / hiredis | ✅ Done (session 2) | — |
 | wolf.config system | ✅ Done | — |
 | MySQL connection pool | ✅ Done | — |
-| wolf_db_pool_destroy() | ✅ Done (this session) | — |
-| Graceful shutdown (SIGTERM/SIGINT) | ✅ Done (this session) | — |
-| Request timeout (SO_RCVTIMEO, 408) | ✅ Done (this session) | — |
+| wolf_db_pool_destroy() | ✅ Done (session 3) | — |
+| Graceful shutdown (SIGTERM/SIGINT) | ✅ Done (session 3) | — |
+| Request timeout (SO_RCVTIMEO, 408) | ✅ Done (session 3) | — |
+| File upload handling (multipart/form-data) | ✅ Done (session 5) | — |
+| Metal-Ready audit (#ifdef WOLF_FREESTANDING) | ✅ Done (session 5) | — |
+| Wolf_File::Save stdlib helper | ✅ Done (session 5) | — |
 | MSSQL real implementation | 🔄 Next | freetds-dev or unixodbc-dev |
-| File upload handling | ⬜ Queued | — |
 | WebSocket support | ⬜ Queued | — |
-| Production load test | ⬜ Queued | MSSQL or skip to test |
+| Production load test | ⬜ Queued | — |
 
 ### Dependency Graph (Mermaid)
 
@@ -26,6 +28,7 @@ graph TD
     A[Graceful Shutdown ✅] --> D[Production Load Test]
     B[Real Redis ✅] --> D
     C[Request Timeout ✅] --> D
+    FILES[File Uploads ✅] --> D
     D --> E[Phase 2: Language Completeness]
     E --> F[Interfaces / Traits]
     E --> G[Generics]
@@ -42,71 +45,39 @@ graph TD
 
 ### Next Unblocked Tasks
 1. **Real MSSQL** — install `freetds-dev`, replace `#ifdef WOLF_DB_MSSQL` mock
-2. **Production load test** — benchmark against p50/p95/p99 targets
-3. **File upload handling** — multipart/form-data in http_worker
-4. **WebSocket support** — wolf_ws_* in wolf_runtime.c
-5. **Stdlib expansion** — HTTP client (STDLIB-06)
+2. **WebSocket support** — `wolf_ws_*` in `wolf_runtime.c`
+3. **Production load test** — benchmark against p50/p95/p99 targets
+4. **Stdlib HTTP client** — outbound HTTP requests from Wolf scripts (STDLIB-06)
+5. **wolf_http_serve multi-port** — multiple handlers on different ports
 
 ## Session History
 
-### 2026-03-20 (Session 3)
+### 2026-03-25 (Session 5 — File Uploads & Metal-Ready Audit)
 **Done:**
-- Confirmed arena allocator was already shipped (plan was stale)
-- Confirmed hiredis was already shipped (plan was stale)
-- Implemented `wolf_db_pool_destroy()` — closes all pool slots, broadcasts
-  cond to unblock waiting threads, frees credential strings
-- Implemented graceful shutdown:
-  - `SIGTERM` / `SIGINT` handler sets `wolf_shutdown_requested`
-  - `accept()` loop exits on signal (no SA_RESTART)
-  - New connections get 503 during drain window
-  - Drain loop busy-waits up to `WOLF_REQUEST_TIMEOUT_SEC + 2s`
-  - Calls `wolf_db_pool_destroy()` → `mysql_library_end()` → `exit(0)`
-- Implemented request timeout:
-  - `SO_RCVTIMEO` set to `WOLF_REQUEST_TIMEOUT_SEC` (default 30s) per worker
-  - Timeout returns HTTP 408, logs the fd
-  - Override with `-DWOLF_REQUEST_TIMEOUT_SEC=N`
-- Added `SIGPIPE` ignore (prevents process death on broken client socket)
-- Atomic in-flight counter (`wolf_active_requests`) using `__atomic_fetch_add/sub`
-- Added `wolf_db_pool_destroy()` declaration to `wolf_runtime.h`
-- Implemented real JWT encode/decode (`wolf_jwt_encode`, `wolf_jwt_decode`), replacing the fake HMAC stub
-- Implemented STDLIB-02 (Array functions: `array_chunk`, `array_column`, `array_sum`, etc.)
-- Written `LICENSE` (MIT, Divine Osarumwense Victor / Loneewolf15, 2026)
+- Implemented native `multipart/form-data` parsing (`wolf_parse_multipart`)
+- Added `wolf_upload_t` struct to `wolf_http_context_t` (arena-allocated, up to 8 files/req)
+- Added `wolf_http_req_file(req_id, field_name)` → JSON `{name,type,size,data}` public API
+- Added `wolf_http_req_file_count(req_id)` helper
+- Added `wolf_file_save(path, b64_data)` — binary-safe file persist from upload
+- Added `wolf_base64_encode_bin(data, size)` — binary-safe base64 (replaces strlen-based version)
+- Fixed LLVM emitter: `wolf_http_req_file` arg0 now correctly emitted as `i64` not `ptr`
+- Metal-Ready audit: wrapped OS-only includes + entire HTTP server + Req/Res API in `#ifndef WOLF_FREESTANDING`
+- Both normal and freestanding compiles: zero errors
+- All 24 E2E tests pass (22 standard + TestGracefulShutdown + TestFileUpload)
 
-**Files modified:**
-- `runtime/wolf_runtime.c`
-- `runtime/wolf_runtime.h`
-- `LICENSE` (new)
-
-**Next:** Real MSSQL → load test → file uploads
-
-### 2026-03-19 (Session 2)
-**Commits:** `...` chore: push recent fixes · `...` feat: Multi-DB + Real Redis
+### 2026-03-25 (Session 4 — Technical Debt Resolution)
 **Done:**
-- Removed AgSkill and BackendTemplate from repo
-- Multi-DB driver support (Postgres, MSSQL mock)
-- Real Redis via hiredis with thread-local contexts
-- Compiler auto-selects -D flags and linker flags from wolf.config driver=
+- Audited technical debt; addressed 4 high/medium priority targets:
+  - `wolf_sprintf` updated to use variadic `vsnprintf`
+  - JSON decoder updated for surrogate pairs (emojis)
+  - Shutdown drain converted from busy-wait to `pthread_cond_t`
+  - MSSQL mock warnings silenced
 
-### 2026-03-18 (Sessions 1–2)
-**Commits:** `73818ba` · `208de88`
-**Done:**
-- Fixed 3 critical bugs: sendResponse data, json_decode unicode, method interpolation
-- Built wolf.config system (INI parser, Go struct, C header, -D baking)
-- MySQL connection pool (C, mutex+cond_var, WOLF_DB_POOL_SIZE)
-- Fixed main.go broken NewWithConfig calls
+### 2026-03-20 (Session 3 — Production Hardening)
+**Done:** Graceful shutdown, request timeout (SO_RCVTIMEO), SIGPIPE guard, pool destroy, CLI args
 
-### 2026-03-05 to 2026-03-15 (Earlier sessions)
-**Done:**
-- Full LLVM IR emitter (replacing Go transpilation)
-- 21 e2e tests written and passing
-- HTTP server with MySQL/Redis/JWT stdlib
-- All 16 early bugs fixed
+### 2026-03-19 (Session 2 — Real Redis + Multi-DB)
+**Done:** hiredis integration, Postgres, MSSQL mock, DB driver auto-selection
 
-## Parallel Agent Instructions
-
-When spawning multiple agents, assign tasks from the graph above by unblocked status.
-Always reference vault files:
-- Architecture: `.wolf-vault/RnD/architecture.md`
-- Bugs: `.wolf-vault/RnD/bugs_fixed.md`
-- This plan: `.wolf-vault/Execution/plan.md`
-- Last handoff: `.wolf-vault/Sessions/latest_handoff.md`
+### 2026-03-18 (Session 1 — Production Baseline)
+**Done:** LLVM IR backend, wolf.config, MySQL pool, JSON, arrays, maps, E2E suite (22 tests)

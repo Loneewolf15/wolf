@@ -205,6 +205,9 @@ const char* wolf_http_req_body(int64_t req_id);
 void        wolf_http_res_header(int64_t res_id, const char* key, const char* value);
 void        wolf_http_res_status(int64_t res_id, int64_t status_code);
 void        wolf_http_res_write(int64_t res_id, const char* body);
+/* --- File Uploads --- */
+const char* wolf_http_req_file(int64_t req_id, const char* field_name);
+int64_t     wolf_http_req_file_count(int64_t req_id);
 
 /* --- Phase 1 Stdlib: Strings --- */
 const char* wolf_strtoupper(const char* s);
@@ -233,7 +236,7 @@ const char* wolf_strip_tags(const char* s);
 const char* wolf_htmlspecialchars(const char* s);
 const char* wolf_addslashes(const char* s);
 const char* wolf_stripslashes(const char* s);
-const char* wolf_sprintf(const char* fmt, const char* arg1);
+const char* wolf_sprintf(const char* fmt, ...);
 
 /* --- STDLIB-01: Additional String Functions --- */
 const char* wolf_str_ireplace(const char* find, const char* rep, const char* s);
@@ -407,6 +410,7 @@ int wolf_is_alpha_num(const char* s);
 int         wolf_file_exists(const char* path);
 const char* wolf_file_read(const char* path);
 int         wolf_file_write(const char* path, const char* data);
+int         wolf_file_save(const char* path, const char* b64_data);  /* Save binary upload to disk (b64 decode + binary write) */
 int         wolf_file_append(const char* path, const char* data);
 int         wolf_file_delete(const char* path);
 int64_t     wolf_file_size(const char* path);

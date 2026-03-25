@@ -296,7 +296,9 @@ func (e *LLVMEmitter) Emit(program *ir.Program) string {
 	e.writeln("declare ptr @wolf_htmlspecialchars(ptr)")
 	e.writeln("declare ptr @wolf_addslashes(ptr)")
 	e.writeln("declare ptr @wolf_stripslashes(ptr)")
-	e.writeln("declare ptr @wolf_sprintf(ptr, ptr)")
+	e.writeln("declare ptr @wolf_sprintf(ptr, ...)")
+	e.writeln("declare ptr @wolf_http_req_file(i64, ptr)")
+	e.writeln("declare i64 @wolf_http_req_file_count(i64)")
 	e.writeln("declare ptr @wolf_str_ireplace(ptr, ptr, ptr)")
 	e.writeln("declare ptr @wolf_htmlspecialchars_decode(ptr)")
 	e.writeln("declare double @wolf_similar_text(ptr, ptr)")
@@ -2186,7 +2188,8 @@ func (e *LLVMEmitter) emitCallExpr(call *ir.CallExpr) string {
 				}
 			case "wolf_argv":
 				expectedType = "i64"
-			case "wolf_http_serve", "wolf_http_req_method", "wolf_http_req_path", "wolf_http_req_query", "wolf_http_req_header", "wolf_http_req_body", "wolf_http_res_header", "wolf_http_res_status", "wolf_http_res_write":
+			case "wolf_http_serve", "wolf_http_req_method", "wolf_http_req_path", "wolf_http_req_query", "wolf_http_req_header", "wolf_http_req_body", "wolf_http_res_header", "wolf_http_res_status", "wolf_http_res_write",
+				"wolf_http_req_file", "wolf_http_req_file_count":
 				if i == 0 {
 					expectedType = "i64" // the request/response ID or port is always i64
 				} else if calleeName == "wolf_http_res_status" && i == 1 {
@@ -2332,6 +2335,8 @@ func (e *LLVMEmitter) emitCallExpr(call *ir.CallExpr) string {
 				if i == 1 {
 					expectedType = "i64"
 				}
+			case "wolf_sprintf":
+				expectedType = "ptr"
 			}
 		}
 		var val string
@@ -2414,12 +2419,25 @@ func (e *LLVMEmitter) emitCallExpr(call *ir.CallExpr) string {
 	}
 
 	reg := e.nextLocal()
+	callParams := ""
+	if calleeName == "wolf_sprintf" {
+		callParams = "(ptr, ...)"
+	}
+
 	if retType == "void" {
-		e.writelnIndent(fmt.Sprintf("call void @%s(%s)", calleeName, strings.Join(args, ", ")))
+		if callParams != "" {
+			e.writelnIndent(fmt.Sprintf("call void %s @%s(%s)", callParams, calleeName, strings.Join(args, ", ")))
+		} else {
+			e.writelnIndent(fmt.Sprintf("call void @%s(%s)", calleeName, strings.Join(args, ", ")))
+		}
 		return "null" // return null as dummy
 	}
 
-	e.writelnIndent(fmt.Sprintf("%s = call %s @%s(%s)", reg, retType, calleeName, strings.Join(args, ", ")))
+	if callParams != "" {
+		e.writelnIndent(fmt.Sprintf("%s = call %s %s @%s(%s)", reg, retType, callParams, calleeName, strings.Join(args, ", ")))
+	} else {
+		e.writelnIndent(fmt.Sprintf("%s = call %s @%s(%s)", reg, retType, calleeName, strings.Join(args, ", ")))
+	}
 	e.emittedTypes[reg] = retType
 	return reg
 }
