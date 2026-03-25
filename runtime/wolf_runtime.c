@@ -77,8 +77,11 @@
  */
 static volatile sig_atomic_t wolf_shutdown_requested = 0;
 static volatile sig_atomic_t wolf_active_requests    = 0;
+#ifndef WOLF_FREESTANDING
 static pthread_mutex_t wolf_drain_mutex = PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t  wolf_drain_cond  = PTHREAD_COND_INITIALIZER;
+#endif /* WOLF_FREESTANDING */
+
 
 /* CLI Arguments */
 static int    wolf_argc_val = 0;
@@ -444,57 +447,67 @@ void wolf_session_end(void) {}
 #define WOLF_DEFINE_MAX 256
 #endif
 
+#ifndef WOLF_FREESTANDING
 static pthread_mutex_t wolf_defines_mutex = PTHREAD_MUTEX_INITIALIZER;
+#endif /* WOLF_FREESTANDING */
 static struct {
     char* keys[WOLF_DEFINE_MAX];
     char* values[WOLF_DEFINE_MAX];
     int   count;
 } wolf_defines = { .count = 0 };
 
+/* Convenience macros — no-ops when compiling without pthreads */
+#ifdef WOLF_FREESTANDING
+#  define WOLF_DEFINES_LOCK()
+#  define WOLF_DEFINES_UNLOCK()
+#else
+#  define WOLF_DEFINES_LOCK()   pthread_mutex_lock(&wolf_defines_mutex)
+#  define WOLF_DEFINES_UNLOCK() pthread_mutex_unlock(&wolf_defines_mutex)
+#endif
+
 void wolf_define(const char* key, const char* value) {
     if (!key) return;
-    pthread_mutex_lock(&wolf_defines_mutex);
+    WOLF_DEFINES_LOCK();
     if (wolf_defines.count >= WOLF_DEFINE_MAX) {
-        pthread_mutex_unlock(&wolf_defines_mutex);
+        WOLF_DEFINES_UNLOCK();
         return;
     }
     for (int i = 0; i < wolf_defines.count; i++) {
         if (strcmp(wolf_defines.keys[i], key) == 0) {
-            pthread_mutex_unlock(&wolf_defines_mutex);
+            WOLF_DEFINES_UNLOCK();
             return; /* immutable */
         }
     }
-    wolf_defines.keys[wolf_defines.count]   = strdup(key);           /* persistent */
-    wolf_defines.values[wolf_defines.count] = value ? strdup(value)  /* persistent */
-                                                     : strdup("");
+    wolf_defines.keys[wolf_defines.count]   = strdup(key);
+    wolf_defines.values[wolf_defines.count] = value ? strdup(value) : strdup("");
     wolf_defines.count++;
-    pthread_mutex_unlock(&wolf_defines_mutex);
+    WOLF_DEFINES_UNLOCK();
 }
 
 int wolf_defined(const char* key) {
     if (!key) return 0;
-    pthread_mutex_lock(&wolf_defines_mutex);
+    WOLF_DEFINES_LOCK();
     for (int i = 0; i < wolf_defines.count; i++) {
         if (strcmp(wolf_defines.keys[i], key) == 0) {
-            pthread_mutex_unlock(&wolf_defines_mutex);
+            WOLF_DEFINES_UNLOCK();
             return 1;
         }
     }
-    pthread_mutex_unlock(&wolf_defines_mutex);
+    WOLF_DEFINES_UNLOCK();
     return 0;
 }
 
 const char* wolf_define_get(const char* key) {
     if (!key) return "";
-    pthread_mutex_lock(&wolf_defines_mutex);
+    WOLF_DEFINES_LOCK();
     for (int i = 0; i < wolf_defines.count; i++) {
         if (strcmp(wolf_defines.keys[i], key) == 0) {
             const char* val = wolf_defines.values[i];
-            pthread_mutex_unlock(&wolf_defines_mutex);
+            WOLF_DEFINES_UNLOCK();
             return val;
         }
     }
-    pthread_mutex_unlock(&wolf_defines_mutex);
+    WOLF_DEFINES_UNLOCK();
     return "";
 }
 
@@ -526,8 +539,10 @@ typedef struct {
 
 static WolfPoolSlot    wolf_pool[WOLF_DB_POOL_SIZE];
 static int             wolf_pool_inited = 0;
+#ifndef WOLF_FREESTANDING
 static pthread_mutex_t wolf_pool_mutex  = PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t  wolf_pool_cond   = PTHREAD_COND_INITIALIZER;
+#endif /* WOLF_FREESTANDING */
 
 /* FIX: pool credentials are application-lifetime — use plain strdup(),
  * NOT wolf_req_strdup() which is per-request and gets freed after
@@ -625,12 +640,25 @@ static void wolf_pool_init_locked(void) {
     wolf_pool_inited = 1;
 }
 
+/* DB pool lock macros — no-ops when compiling without pthreads */
+#ifdef WOLF_FREESTANDING
+#  define WOLF_POOL_LOCK()
+#  define WOLF_POOL_UNLOCK()
+#  define WOLF_POOL_SIGNAL()
+#  define WOLF_POOL_TIMEDWAIT(d)  ETIMEDOUT   /* always "timeout" — no blocking in freestanding */
+#else
+#  define WOLF_POOL_LOCK()        pthread_mutex_lock(&wolf_pool_mutex)
+#  define WOLF_POOL_UNLOCK()      pthread_mutex_unlock(&wolf_pool_mutex)
+#  define WOLF_POOL_SIGNAL()      pthread_cond_signal(&wolf_pool_cond)
+#  define WOLF_POOL_TIMEDWAIT(d)  pthread_cond_timedwait(&wolf_pool_cond, &wolf_pool_mutex, (d))
+#endif
+
 static WolfDBConn* wolf_pool_acquire(void) {
     struct timespec deadline;
     clock_gettime(CLOCK_REALTIME, &deadline);
     deadline.tv_sec += WOLF_DB_POOL_TIMEOUT;
 
-    pthread_mutex_lock(&wolf_pool_mutex);
+    WOLF_POOL_LOCK();
     wolf_pool_init_locked();
 
     while (1) {
@@ -646,16 +674,16 @@ static WolfDBConn* wolf_pool_acquire(void) {
                 if (wolf_pool[i].conn) {
                     wolf_pool[i].in_use = 1;
                     WOLF_LOG("[WOLF-POOL] acquire slot=%d\n", i);
-                    pthread_mutex_unlock(&wolf_pool_mutex);
+                    WOLF_POOL_UNLOCK();
                     return wolf_pool[i].conn;
                 }
             }
         }
-        int rc = pthread_cond_timedwait(&wolf_pool_cond, &wolf_pool_mutex, &deadline);
+        int rc = WOLF_POOL_TIMEDWAIT(&deadline);
         if (rc == ETIMEDOUT) {
             fprintf(stderr, "[WOLF-POOL] timeout waiting for free slot (%ds)\n",
                     WOLF_DB_POOL_TIMEOUT);
-            pthread_mutex_unlock(&wolf_pool_mutex);
+            WOLF_POOL_UNLOCK();
             return NULL;
         }
     }
@@ -663,30 +691,30 @@ static WolfDBConn* wolf_pool_acquire(void) {
 
 static void wolf_pool_release(WolfDBConn *conn) {
     if (!conn) return;
-    pthread_mutex_lock(&wolf_pool_mutex);
+    WOLF_POOL_LOCK();
     for (int i = 0; i < WOLF_DB_POOL_SIZE; i++) {
         if (wolf_pool[i].conn == conn) {
             wolf_pool[i].in_use = 0;
             WOLF_LOG("[WOLF-POOL] release slot=%d\n", i);
-            pthread_cond_signal(&wolf_pool_cond);
+            WOLF_POOL_SIGNAL();
             break;
         }
     }
-    pthread_mutex_unlock(&wolf_pool_mutex);
+    WOLF_POOL_UNLOCK();
 }
 
 /* FIX: pool credentials stored with plain strdup() so they survive
  * across all HTTP requests for the entire process lifetime.          */
 void* wolf_db_connect(const char* host, const char* user,
                       const char* pass, const char* dbname) {
-    pthread_mutex_lock(&wolf_pool_mutex);
+    WOLF_POOL_LOCK();
     if (!wolf_pool_host && host && *host) {
-        wolf_pool_host   = strdup(host);                        /* persistent */
+        wolf_pool_host   = strdup(host);
         wolf_pool_user   = (user   && *user)   ? strdup(user)   : NULL;
         wolf_pool_pass   = (pass   && *pass)   ? strdup(pass)   : NULL;
         wolf_pool_dbname = (dbname && *dbname) ? strdup(dbname) : NULL;
     }
-    pthread_mutex_unlock(&wolf_pool_mutex);
+    WOLF_POOL_UNLOCK();
 
     WolfDBConn *conn = wolf_pool_acquire();
     if (!conn) fprintf(stderr, "[WOLF-POOL] failed to acquire connection\n");
@@ -912,7 +940,7 @@ void wolf_db_close(void* conn_ptr) {
  * After this call the pool is unusable — intended for process exit.
  */
 void wolf_db_pool_destroy(void) {
-    pthread_mutex_lock(&wolf_pool_mutex);
+    WOLF_POOL_LOCK();
 
     fprintf(stderr, "[WOLF-POOL] Destroying pool (%d slots)...\n",
             WOLF_DB_POOL_SIZE);
@@ -928,11 +956,12 @@ void wolf_db_pool_destroy(void) {
 
     wolf_pool_inited = 0;
 
-    /* Wake every thread waiting in wolf_pool_acquire() so they
-     * see a NULL conn and return, rather than hanging forever. */
+#ifndef WOLF_FREESTANDING
+    /* Wake every thread waiting in wolf_pool_acquire() */
     pthread_cond_broadcast(&wolf_pool_cond);
+#endif
 
-    pthread_mutex_unlock(&wolf_pool_mutex);
+    WOLF_POOL_UNLOCK();
 
     /* Free persistent credential strings */
     if (wolf_pool_host)   { free(wolf_pool_host);   wolf_pool_host   = NULL; }
@@ -2007,16 +2036,46 @@ static void free_http_context(int id) {
 }
 
 /* ---------------------------------------------------------------
+ * wolfBMH — Boyer-Moore-Horspool search for a fixed-length pattern
+ * inside a binary buffer.  Returns pointer to first match or NULL.
+ * Average-case complexity: O(n / m) — dramatically better than the
+ * naive O(n × m) memcmp scan for large uploads.
+ * --------------------------------------------------------------- */
+static const char* wolfBMH(const char* haystack, size_t hay_len,
+                            const char* needle,   size_t ndl_len) {
+    if (ndl_len == 0 || ndl_len > hay_len) return NULL;
+    /* Build bad-character shift table */
+    size_t skip[256];
+    for (size_t i = 0; i < 256; i++) skip[i] = ndl_len;
+    for (size_t i = 0; i < ndl_len - 1; i++)
+        skip[(unsigned char)needle[i]] = ndl_len - 1 - i;
+    /* Search */
+    size_t i = ndl_len - 1;
+    while (i < hay_len) {
+        size_t j = ndl_len - 1;
+        size_t k = i;
+        while (j < ndl_len && haystack[k] == needle[j]) {
+            if (j == 0) return haystack + k;
+            j--; k--;
+        }
+        i += skip[(unsigned char)haystack[i]];
+    }
+    return NULL;
+}
+
+/* ---------------------------------------------------------------
  * wolf_parse_multipart — parse multipart/form-data body.
  * Boundary is extracted from the Content-Type header value, e.g.:
  *   "multipart/form-data; boundary=----WebKitFormBoundaryXXX"
  * All memory allocated via wolf_req_alloc (per-request arena).
+ * Boundary search uses Boyer-Moore-Horspool (O(n/m) average).
  * --------------------------------------------------------------- */
 static void wolf_parse_multipart(wolf_http_context_t* ctx,
                                   const char* ct_header,
                                   const char* body, size_t body_len) {
     /* Extract boundary string */
     const char* bp = strstr(ct_header, "boundary=");
+    if (!bp) return;
     bp += 9;
     /* Strip optional quotes */
     char boundary[256];
@@ -2026,6 +2085,7 @@ static void wolf_parse_multipart(wolf_http_context_t* ctx,
         bp++;
     }
     boundary[bi] = '\0';
+    if (bi == 0) return;
 
     /* Full delimiter: "--" + boundary */
     char delim[260];
@@ -2036,16 +2096,13 @@ static void wolf_parse_multipart(wolf_http_context_t* ctx,
     const char* end = body + body_len;
 
     while (p < end && ctx->upload_count < WOLF_MAX_UPLOADS) {
-        /* Find next delimiter */
-        const char* part_start = NULL;
-        for (const char* s = p; s + delim_len <= end; s++) {
-            if (memcmp(s, delim, delim_len) == 0) { part_start = s; break; }
-        }
+        /* Boyer-Moore-Horspool: find next boundary delimiter */
+        const char* part_start = wolfBMH(p, (size_t)(end - p), delim, delim_len);
+        if (!part_start) break;
         p = part_start + delim_len;
 
         /* End-of-multipart marker: "--" after boundary */
-
-        /* Skip CRLF after delimiter */
+        if (p + 2 <= end && p[0] == '-' && p[1] == '-') break;
         if (p + 2 <= end && p[0] == '\r' && p[1] == '\n') p += 2;
 
         /* Parse part headers until blank line */

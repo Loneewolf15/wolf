@@ -479,6 +479,7 @@ func (c *Compiler) configCFlags() []string {
 		// Server limits
 		fmt.Sprintf("-DWOLF_MAX_CONCURRENT_REQUESTS=%d", cfg.Server.MaxConcurrent),
 		fmt.Sprintf("-DWOLF_MAX_REQUEST_SIZE=%d", cfg.Server.MaxRequestSize),
+		fmt.Sprintf("-DWOLF_MAX_UPLOADS=%d", cfg.Server.MaxUploads),
 		// DB credentials — baked as string literals so wolf source just calls db_connect()
 		fmt.Sprintf("-DWOLF_DB_HOST=\"%s\"", escapeCStr(cfg.DB.Host)),
 		fmt.Sprintf("-DWOLF_DB_PORT=%d", cfg.DB.Port),

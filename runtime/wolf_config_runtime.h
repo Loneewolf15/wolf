@@ -60,6 +60,10 @@
 #  define WOLF_MAX_REQUEST_SIZE 65536
 #endif
 
+#ifndef WOLF_MAX_UPLOADS
+#  define WOLF_MAX_UPLOADS 8   /* max multipart file parts per request — set via wolf.config: server.max_uploads */
+#endif
+
 /* ---- App environment ---- */
 #ifndef WOLF_APP_ENV
 #  define WOLF_APP_ENV "development"

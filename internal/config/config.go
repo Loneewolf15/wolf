@@ -35,6 +35,7 @@ type ServerConfig struct {
 	WriteTimeoutSec int    // SERVER_WRITE_TIMEOUT (default 30)
 	MaxRequestSize  int    // SERVER_MAX_REQUEST_SIZE bytes (default 65536)
 	MaxConcurrent   int    // SERVER_MAX_CONCURRENT (default 1024)
+	MaxUploads      int    // SERVER_MAX_UPLOADS — max multipart file parts per request (default 8)
 	Workers         int    // SERVER_WORKERS: OS threads for http_worker (default = CPU count)
 }
 
@@ -108,6 +109,7 @@ func Defaults() *WolfConfig {
 			WriteTimeoutSec: 30,
 			MaxRequestSize:  65536,
 			MaxConcurrent:   1024,
+			MaxUploads:      8,
 			Workers:         0, // 0 = auto-detect CPU count at runtime
 		},
 		DB: DBConfig{

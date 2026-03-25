@@ -189,6 +189,12 @@ func applyKey(cfg *WolfConfig, section, key, val string, line int) error {
 				return errorf("expected integer, got %q", val)
 			}
 			cfg.Server.MaxConcurrent = n
+		case "max_uploads":
+			n, err := strconv.Atoi(val)
+			if err != nil {
+				return errorf("expected integer, got %q", val)
+			}
+			cfg.Server.MaxUploads = n
 		case "workers":
 			n, err := strconv.Atoi(val)
 			if err != nil {
@@ -378,6 +384,7 @@ func overlayEnv(cfg *WolfConfig) {
 	intEnv("SERVER_WRITE_TIMEOUT", &cfg.Server.WriteTimeoutSec)
 	intEnv("SERVER_MAX_REQUEST_SIZE", &cfg.Server.MaxRequestSize)
 	intEnv("SERVER_MAX_CONCURRENT", &cfg.Server.MaxConcurrent)
+	intEnv("SERVER_MAX_UPLOADS", &cfg.Server.MaxUploads)
 	intEnv("SERVER_WORKERS", &cfg.Server.Workers)
 
 	// Database
@@ -427,6 +434,10 @@ func validate(cfg *WolfConfig) error {
 
 	if cfg.Server.Port < 1 || cfg.Server.Port > 65535 {
 		return fmt.Errorf("[server] port must be 1–65535, got %d", cfg.Server.Port)
+	}
+
+	if cfg.Server.MaxUploads < 1 || cfg.Server.MaxUploads > 64 {
+		return fmt.Errorf("[server] max_uploads must be 1–64, got %d", cfg.Server.MaxUploads)
 	}
 
 	validDBs := map[string]bool{"mysql": true, "postgres": true, "mssql": true}
