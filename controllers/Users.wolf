@@ -44,6 +44,18 @@ class UsersController extends Controller {
         $confirm_password = trim($data["confirm_password"])
         $referral_code = strtoupper(trim($data["referral_code"]))
 
+        print("=== DEBUG START ===")
+        print("Raw Body = " + wolf_get_request_body())
+        print("Raw email = " + $data["email"])
+        print("Sanitized email = " + $email)
+        print("Is Email Result: ")
+        if is_email($email) {
+            print("TRUE")
+        } else {
+            print("FALSE")
+        }
+        print("=== DEBUG END ===")
+
         # Validation
         if $name == "" || $email == "" || $password == "" {
             $this->sendResponse(false, "Name, email, and password are required", {}, 400)
@@ -51,7 +63,7 @@ class UsersController extends Controller {
         }
 
         if !is_email($email) {
-            $this->sendResponse(false, "Invalid email address", {}, 400)
+            $this->sendResponse(false, "Invalid email address: [" + $email + "]", {}, 400)
             return
         }
 
@@ -84,7 +96,18 @@ class UsersController extends Controller {
 
         # Generate user ID and referral code
         $user_id = "mplaza" + md5(date("%Y%m%d%H%M%S", time()) + strval(rand(1000, 9999)))
-        $new_referral_code = strtoupper(substr($name, 0, 4)) + strval(rand(10, 99))
+        $new_referral_code = strtoupper(substr($name, 0, 4)) + strval(rand(10000, 99999))
+
+        # Handle referral
+        $referrer_id = ""
+        if $referral_code != "" {
+            $referrer = $this->userModel->findUserByReferralCode($referral_code)
+            if !$referrer {
+                $this->sendResponse(false, "Invalid referral code.", {}, 400)
+                return
+            }
+            $referrer_id = $referrer->user_id
+        }
 
         # Handle referral
         $referrer_id = ""

@@ -29,13 +29,50 @@ type LLVMEmitter struct {
 
 // NewLLVMEmitter creates a new LLVM IR emitter.
 func NewLLVMEmitter() *LLVMEmitter {
-	return &LLVMEmitter{
+	e := &LLVMEmitter{
 		stringConsts:    make(map[string]string),
 		varTypes:        make(map[string]string),
 		funcSigs:        make(map[string]*ir.Function),
 		declaredExterns: make(map[string]bool),
 		emittedTypes:    make(map[string]string),
 	}
+	e.registerStdlib()
+	return e
+}
+
+func (e *LLVMEmitter) registerStdlib() {
+	// Redis
+	e.funcSigs["wolf_redis_connect"] = &ir.Function{Name: "wolf_redis_connect", ReturnTypes: []string{"ptr"}, Params: []*ir.Param{{Type: "ptr"}, {Type: "i64"}, {Type: "ptr"}}}
+	e.funcSigs["wolf_redis_get"] = &ir.Function{Name: "wolf_redis_get", ReturnTypes: []string{"ptr"}, Params: []*ir.Param{{Type: "ptr"}, {Type: "ptr"}}}
+	e.funcSigs["wolf_redis_set"] = &ir.Function{Name: "wolf_redis_set", ReturnTypes: []string{"void"}, Params: []*ir.Param{{Type: "ptr"}, {Type: "ptr"}, {Type: "i64"}}}
+
+	// HTTP / URL
+	e.funcSigs["wolf_http_req_query"] = &ir.Function{Name: "wolf_http_req_query", ReturnTypes: []string{"ptr"}, Params: []*ir.Param{{Type: "ptr"}}}
+	e.funcSigs["wolf_url_encode"] = &ir.Function{Name: "wolf_url_encode", ReturnTypes: []string{"ptr"}, Params: []*ir.Param{{Type: "ptr"}}}
+	e.funcSigs["wolf_url_decode"] = &ir.Function{Name: "wolf_url_decode", ReturnTypes: []string{"ptr"}, Params: []*ir.Param{{Type: "ptr"}}}
+	e.funcSigs["wolf_http_header"] = &ir.Function{Name: "wolf_http_header", ReturnTypes: []string{"void"}, Params: []*ir.Param{{Type: "ptr"}, {Type: "ptr"}}}
+	e.funcSigs["wolf_http_status"] = &ir.Function{Name: "wolf_http_status", ReturnTypes: []string{"void"}, Params: []*ir.Param{{Type: "i64"}}}
+	e.funcSigs["wolf_http_query"] = &ir.Function{Name: "wolf_http_query", ReturnTypes: []string{"ptr"}, Params: []*ir.Param{{Type: "ptr"}}}
+	e.funcSigs["wolf_strings_isempty"] = &ir.Function{Name: "wolf_strings_isempty", ReturnTypes: []string{"i1"}, Params: []*ir.Param{{Type: "ptr"}}}
+	e.funcSigs["wolf_math_randomint"] = &ir.Function{Name: "wolf_math_randomint", ReturnTypes: []string{"i64"}, Params: []*ir.Param{{Type: "i64"}}}
+
+	// Strings
+	e.funcSigs["wolf_strings_length"] = &ir.Function{Name: "wolf_strings_length", ReturnTypes: []string{"i64"}, Params: []*ir.Param{{Type: "ptr"}}}
+	e.funcSigs["wolf_strings_substring"] = &ir.Function{Name: "wolf_strings_substring", ReturnTypes: []string{"ptr"}, Params: []*ir.Param{{Type: "ptr"}, {Type: "i64"}, {Type: "i64"}}}
+
+	// Database
+	e.funcSigs["wolf_db_connect"] = &ir.Function{Name: "wolf_db_connect", ReturnTypes: []string{"ptr"}, Params: []*ir.Param{{Type: "ptr"}, {Type: "ptr"}, {Type: "ptr"}, {Type: "ptr"}}}
+	e.funcSigs["wolf_db_prepare"] = &ir.Function{Name: "wolf_db_prepare", ReturnTypes: []string{"ptr"}, Params: []*ir.Param{{Type: "ptr"}, {Type: "ptr"}}}
+	e.funcSigs["wolf_db_bind"] = &ir.Function{Name: "wolf_db_bind", ReturnTypes: []string{"void"}, Params: []*ir.Param{{Type: "ptr"}, {Type: "ptr"}, {Type: "ptr"}}}
+	e.funcSigs["wolf_db_execute"] = &ir.Function{Name: "wolf_db_execute", ReturnTypes: []string{"i64"}, Params: []*ir.Param{{Type: "ptr"}}}
+	e.funcSigs["wolf_db_fetch_all"] = &ir.Function{Name: "wolf_db_fetch_all", ReturnTypes: []string{"ptr"}, Params: []*ir.Param{{Type: "ptr"}}}
+	e.funcSigs["wolf_db_fetch_one"] = &ir.Function{Name: "wolf_db_fetch_one", ReturnTypes: []string{"ptr"}, Params: []*ir.Param{{Type: "ptr"}}}
+	e.funcSigs["wolf_db_row_count"] = &ir.Function{Name: "wolf_db_row_count", ReturnTypes: []string{"i64"}, Params: []*ir.Param{{Type: "ptr"}}}
+	e.funcSigs["wolf_db_last_insert_id"] = &ir.Function{Name: "wolf_db_last_insert_id", ReturnTypes: []string{"i64"}, Params: []*ir.Param{{Type: "ptr"}}}
+	e.funcSigs["wolf_db_close"] = &ir.Function{Name: "wolf_db_close", ReturnTypes: []string{"void"}, Params: []*ir.Param{{Type: "ptr"}}}
+	e.funcSigs["wolf_db_begin_transaction"] = &ir.Function{Name: "wolf_db_begin_transaction", ReturnTypes: []string{"void"}, Params: []*ir.Param{{Type: "ptr"}}}
+	e.funcSigs["wolf_db_commit"] = &ir.Function{Name: "wolf_db_commit", ReturnTypes: []string{"void"}, Params: []*ir.Param{{Type: "ptr"}}}
+	e.funcSigs["wolf_db_rollback"] = &ir.Function{Name: "wolf_db_rollback", ReturnTypes: []string{"void"}, Params: []*ir.Param{{Type: "ptr"}}}
 }
 
 // nextLocal returns a fresh LLVM local register name.
@@ -231,10 +268,11 @@ func (e *LLVMEmitter) Emit(program *ir.Program) string {
 	e.writeln("declare double @wolf_math_log(double)")
 	e.writeln("declare double @wolf_math_log10(double)")
 	e.writeln("declare double @wolf_math_exp(double)")
-	e.writeln("declare double @wolf_math_round(double)")
+	e.writeln("declare double @wolf_math_round(double, i64)")
 	e.writeln("declare double @wolf_math_fmod(double, double)")
 	e.writeln("declare double @wolf_math_pi()")
 	e.writeln("declare ptr @wolf_number_format(double, i64, ptr, ptr)")
+	e.writeln("declare i64 @wolf_strings_length(ptr)")
 	e.writeln("")
 
 	e.writeln("; --- Database (Mock) ---")
@@ -299,11 +337,19 @@ func (e *LLVMEmitter) Emit(program *ir.Program) string {
 	e.writeln("declare ptr @wolf_sprintf(ptr, ...)")
 	e.writeln("declare ptr @wolf_http_req_file(i64, ptr)")
 	e.writeln("declare i64 @wolf_http_req_file_count(i64)")
+	e.writeln("declare void @wolf_http_header(ptr, ptr)")
+	e.writeln("declare void @wolf_http_status(i64)")
+	e.writeln("declare ptr @wolf_http_query(ptr)")
+	e.writeln("declare i1 @wolf_strings_isempty(ptr)")
+	e.writeln("declare ptr @wolf_strings_substring(ptr, i64, i64)")
+	e.writeln("declare i64 @wolf_math_randomint(i64)")
 	e.writeln("declare ptr @wolf_str_ireplace(ptr, ptr, ptr)")
 	e.writeln("declare ptr @wolf_htmlspecialchars_decode(ptr)")
 	e.writeln("declare double @wolf_similar_text(ptr, ptr)")
 	e.writeln("declare ptr @wolf_wordwrap(ptr, i64, ptr, i1)")
 	e.writeln("declare ptr @wolf_quoted_printable_encode(ptr)")
+	e.writeln("declare ptr @wolf_ws_on_message(ptr)")
+	e.writeln("declare ptr @wolf_ws_send(i64, ptr)")
 	e.writeln("")
 	e.writeln("; --- Phase 1 Stdlib: Regex ---")
 	e.writeln("declare i1 @wolf_preg_match(ptr, ptr)")
@@ -332,8 +378,6 @@ func (e *LLVMEmitter) Emit(program *ir.Program) string {
 	e.writeln("; --- Encoding ---")
 	e.writeln("declare ptr @wolf_base64_encode(ptr)")
 	e.writeln("declare ptr @wolf_base64_decode(ptr)")
-	e.writeln("declare ptr @wolf_url_encode(ptr)")
-	e.writeln("declare ptr @wolf_url_decode(ptr)")
 	e.writeln("declare ptr @wolf_json_pretty(ptr)")
 	e.writeln("declare ptr @wolf_json_decode(ptr)")
 	e.writeln("")
@@ -440,6 +484,13 @@ func (e *LLVMEmitter) Emit(program *ir.Program) string {
 	e.writeln("declare i64 @wolf_days_in_month(i64, i64)")
 	e.writeln("declare i1 @wolf_is_leap_year(i64)")
 	e.writeln("declare i64 @wolf_strtotime(ptr)")
+	e.writeln("declare i64 @wolf_date_create(ptr)")
+	e.writeln("declare i64 @wolf_date_add_days(i64, i64)")
+	e.writeln("declare i64 @wolf_date_add_months(i64, i64)")
+	e.writeln("declare i64 @wolf_date_diff_days(i64, i64)")
+	e.writeln("declare i1 @wolf_date_is_past(i64)")
+	e.writeln("declare i1 @wolf_date_is_future(i64)")
+	e.writeln("declare ptr @wolf_date_to_iso(i64)")
 	e.writeln("")
 
 	e.writeln("; --- Phase 3: Validation ---")
@@ -486,13 +537,13 @@ func (e *LLVMEmitter) Emit(program *ir.Program) string {
 
 	e.writeln("; --- Redis ---")
 	e.writeln("declare ptr @wolf_redis_connect(ptr, i64, ptr)")
-	e.writeln("declare void @wolf_redis_set(ptr, ptr, ptr, i64)")
-	e.writeln("declare ptr @wolf_redis_get(ptr, ptr)")
-	e.writeln("declare i64 @wolf_redis_del(ptr, ptr)")
-	e.writeln("declare i1 @wolf_redis_exists(ptr, ptr)")
-	e.writeln("declare void @wolf_redis_hset(ptr, ptr, ptr, ptr)")
-	e.writeln("declare ptr @wolf_redis_hget(ptr, ptr, ptr)")
-	e.writeln("declare void @wolf_redis_close(ptr)")
+	e.writeln("declare void @wolf_redis_set(ptr, ptr, i64)")
+	e.writeln("declare ptr @wolf_redis_get(ptr)")
+	e.writeln("declare i64 @wolf_redis_del(ptr)")
+	e.writeln("declare i1 @wolf_redis_exists(ptr)")
+	e.writeln("declare void @wolf_redis_hset(ptr, ptr, ptr)")
+	e.writeln("declare ptr @wolf_redis_hget(ptr, ptr)")
+	e.writeln("declare void @wolf_redis_close()")
 	e.writeln("")
 
 	e.writeln("; --- Data Structures ---")
@@ -547,6 +598,15 @@ func (e *LLVMEmitter) Emit(program *ir.Program) string {
 	e.writeln("declare void @wolf_http_res_header(i64, ptr, ptr)")
 	e.writeln("declare void @wolf_http_res_status(i64, i64)")
 	e.writeln("declare void @wolf_http_res_write(i64, ptr)")
+	e.writeln("")
+	e.writeln("; --- HTTP Client (libcurl) ---")
+	e.writeln("declare ptr @wolf_http_get(ptr)")
+	e.writeln("declare ptr @wolf_http_post(ptr, ptr)")
+	e.writeln("declare ptr @wolf_http_put(ptr, ptr)")
+	e.writeln("declare ptr @wolf_http_delete(ptr)")
+	e.writeln("declare ptr @wolf_http_patch(ptr, ptr)")
+	e.writeln("declare ptr @wolf_url_encode(ptr)")
+	e.writeln("declare ptr @wolf_url_decode(ptr)")
 	e.writeln("")
 
 	// Body
@@ -806,6 +866,10 @@ func (e *LLVMEmitter) emitStmt(stmt ir.Stmt) {
 		e.emitRange(s)
 	case *ir.SwitchStmt:
 		e.emitSwitch(s)
+	case *ir.ServeStmt:
+		e.emitServe(s)
+	case *ir.RespondStmt:
+		e.emitRespond(s)
 	case *ir.BlockStmt:
 		for _, inner := range s.Stmts {
 			e.emitStmt(inner)
@@ -815,6 +879,21 @@ func (e *LLVMEmitter) emitStmt(stmt ir.Stmt) {
 	default:
 		e.writelnIndent(fmt.Sprintf("; TODO: unhandled statement type %T", stmt))
 	}
+}
+
+func (e *LLVMEmitter) emitServe(s *ir.ServeStmt) {
+	portVal := e.emitExpr(s.Port, "i64")
+	handlerVal := e.emitExpr(s.Handler, "ptr")
+	e.writelnIndent(fmt.Sprintf("call void @wolf_http_serve(i64 %s, ptr %s)", portVal, handlerVal))
+}
+
+func (e *LLVMEmitter) emitRespond(s *ir.RespondStmt) {
+	statusVal := e.emitExpr(s.Status, "i64")
+	bodyVal := e.emitArgAsString(s.Body)
+	// RespondStmt in WIR usually maps to the modern wolf_http_res_status/write in LLVM
+	// However, for pure LLVM compatibility with the old respond() built-in:
+	e.writelnIndent(fmt.Sprintf("call void @wolf_http_res_status(i64 0, i64 %s)", statusVal))
+	e.writelnIndent(fmt.Sprintf("call void @wolf_http_res_write(i64 0, ptr %s)", bodyVal))
 }
 
 func (e *LLVMEmitter) emitVarDecl(s *ir.VarDeclStmt) {
@@ -915,19 +994,30 @@ func (e *LLVMEmitter) inferExprType(expr ir.Expr) string {
 	case *ir.CallExpr:
 		if ident, ok := ex.Callee.(*ir.Ident); ok {
 			switch ident.Name {
-			case "time", "strtotime", "redis_del", "db_execute", "db_row_count", "db_last_insert_id",
+			case "time", "strtotime", "db_execute", "db_row_count", "db_last_insert_id",
 				"count", "strlen", "strpos", "strrpos", "str_word_count", "strcmp",
 				"intval", "intdiv", "array_length", "array_search", "rand", "argc",
+				"time_now", "time_ms", "time_ns", "wolf_time_now", "wolf_time_ms", "wolf_time_ns",
+				"date_create", "date_add_days", "date_add_months", "date_diff_days",
+				"wolf_date_create", "wolf_date_add_days", "wolf_date_add_months", "wolf_date_diff_days",
 				"wolf_intval", "wolf_intdiv", "wolf_count", "wolf_strcmp", "wolf_strlen", "wolf_strpos", "wolf_strrpos", "wolf_argc",
-				"wolf_math_random", "wolf_rand_hex", "wolf_string_length", "wolf_array_length",
-				"preg_match_all", "wolf_preg_match_all":
+				"wolf_math_random", "wolf_rand_hex", "wolf_strings_length", "wolf_array_length",
+				"preg_match_all", "wolf_preg_match_all",
+				"redis_del", "wolf_redis_del", "randomint", "wolf_math_randomint":
 				return "i64"
-			case "date", "env", "session_get":
+			case "wolf_http_get", "wolf_http_post", "wolf_http_put", "wolf_http_delete", "wolf_http_patch",
+				"wolf_url_encode", "wolf_url_decode", "http_query", "wolf_http_query", "redis_connect", "wolf_redis_connect", "redis_get", "wolf_redis_get":
+				return "ptr"
+			case "date", "env", "session_get", "date_to_iso", "wolf_date_to_iso":
 				return "ptr"
 			case "redis_exists", "wolf_redis_exists", "wolf_boolval", "wolf_is_numeric", "wolf_defined", "wolf_is_email",
+				"date_is_past", "date_is_future", "isempty", "wolf_strings_isempty",
+				"wolf_date_is_past", "wolf_date_is_future",
 				"preg_match", "wolf_preg_match":
 				return "i1"
-			case "similar_text", "wolf_similar_text":
+			case "http_header", "wolf_http_header", "http_status", "http_response_code", "wolf_http_status", "redis_set", "wolf_redis_set":
+				return "void"
+			case "similar_text", "wolf_similar_text", "array_mean", "wolf_array_mean", "array_std_dev", "wolf_array_std_dev", "round", "wolf_math_round":
 				return "double"
 			}
 			if fnSig, exists := e.funcSigs[ident.Name]; exists && len(fnSig.ReturnTypes) > 0 {
@@ -967,14 +1057,16 @@ func (e *LLVMEmitter) inferExprType(expr ir.Expr) string {
 			"math_sqrt", "math_pow", "math_log", "math_log10", "math_exp",
 			"math_round", "math_fmod", "math_pi":
 			return "double"
-		case "wolf_math_random", "math_random", "db_execute", "db_row_count", "db_last_insert_id", "wolf_array_length":
+		case "wolf_math_random", "math_random", "db_execute", "db_row_count", "db_last_insert_id", "wolf_array_length", "wolf_math_randomint":
 			return "i64"
 		case "wolf_number_format":
 			return "ptr"
-		case "wolf_json_encode", "wolf_json_decode", "wolf_strings_upper", "wolf_strings_join", "wolf_strings_replace":
+		case "wolf_json_encode", "wolf_json_decode", "wolf_strings_upper", "wolf_strings_join", "wolf_strings_replace", "wolf_redis_connect", "wolf_redis_get", "wolf_http_query", "wolf_strings_substring":
 			return "ptr"
-		case "wolf_strings_contains", "wolf_env_has":
+		case "wolf_strings_contains", "wolf_env_has", "wolf_strings_isempty", "wolf_redis_exists":
 			return "i1"
+		case "wolf_redis_set", "wolf_http_header", "wolf_http_status":
+			return "void"
 		case "db_connect", "db_prepare", "db_fetch_all", "db_fetch_one":
 			return "ptr"
 		}
@@ -1793,7 +1885,7 @@ func (e *LLVMEmitter) emitCallExpr(call *ir.CallExpr) string {
 
 		// --- Strings ---
 		case "strlen":
-			calleeName = "wolf_string_length"
+			calleeName = "wolf_strings_length"
 		case "strtoupper":
 			calleeName = "wolf_strtoupper"
 		case "strtolower":
@@ -2018,6 +2110,20 @@ func (e *LLVMEmitter) emitCallExpr(call *ir.CallExpr) string {
 			calleeName = "wolf_days_in_month"
 		case "is_leap_year":
 			calleeName = "wolf_is_leap_year"
+		case "date_create":
+			calleeName = "wolf_date_create"
+		case "date_add_days":
+			calleeName = "wolf_date_add_days"
+		case "date_add_months":
+			calleeName = "wolf_date_add_months"
+		case "date_diff_days":
+			calleeName = "wolf_date_diff_days"
+		case "date_is_past":
+			calleeName = "wolf_date_is_past"
+		case "date_is_future":
+			calleeName = "wolf_date_is_future"
+		case "date_to_iso":
+			calleeName = "wolf_date_to_iso"
 
 		// --- Phase 3: Validation ---
 		case "is_email":
@@ -2092,14 +2198,20 @@ func (e *LLVMEmitter) emitCallExpr(call *ir.CallExpr) string {
 			calleeName = "wolf_get_request_method"
 		case "wolf_get_request_path":
 			calleeName = "wolf_get_request_path"
-		case "wolf_set_current_context":
-			calleeName = "wolf_set_current_context"
-		case "input":
-			calleeName = "wolf_input"
-		case "http_response_code":
-			calleeName = "wolf_http_response_code"
+		case "wolf_http_req_query":
+			calleeName = "wolf_http_req_query"
+		case "wolf_http_res_header":
+			calleeName = "wolf_http_res_header"
+		case "wolf_http_res_status":
+			calleeName = "wolf_http_res_status"
+		case "http_response_code", "http_status":
+			calleeName = "wolf_http_status"
+		case "http_header":
+			calleeName = "wolf_http_header"
 		case "wolf_http_write_response":
 			calleeName = "wolf_http_write_response"
+		case "wolf_set_current_context":
+			calleeName = "wolf_set_current_context"
 
 		// --- Sanitization ---
 		case "sanitize_string":
@@ -2170,6 +2282,11 @@ func (e *LLVMEmitter) emitCallExpr(call *ir.CallExpr) string {
 		}
 	}
 
+	// Re-lookup signature after mapping
+	if fnSig == nil && calleeName != "" {
+		fnSig = e.funcSigs[calleeName]
+	}
+
 	args := make([]string, len(call.Args))
 	for i, arg := range call.Args {
 		expectedType := "ptr"
@@ -2189,9 +2306,9 @@ func (e *LLVMEmitter) emitCallExpr(call *ir.CallExpr) string {
 			case "wolf_argv":
 				expectedType = "i64"
 			case "wolf_http_serve", "wolf_http_req_method", "wolf_http_req_path", "wolf_http_req_query", "wolf_http_req_header", "wolf_http_req_body", "wolf_http_res_header", "wolf_http_res_status", "wolf_http_res_write",
-				"wolf_http_req_file", "wolf_http_req_file_count":
+				"wolf_http_req_file", "wolf_http_req_file_count", "wolf_ws_send":
 				if i == 0 {
-					expectedType = "i64" // the request/response ID or port is always i64
+					expectedType = "i64" // the request/response/ws ID or port is always i64
 				} else if calleeName == "wolf_http_res_status" && i == 1 {
 					expectedType = "i64" // status code
 				} else {
@@ -2209,7 +2326,7 @@ func (e *LLVMEmitter) emitCallExpr(call *ir.CallExpr) string {
 				} else {
 					expectedType = "ptr"
 				}
-			case "wolf_math_abs", "wolf_math_ceil", "wolf_math_floor", "wolf_math_round",
+			case "wolf_math_abs", "wolf_math_ceil", "wolf_math_floor",
 				"wolf_math_sin", "wolf_math_cos", "wolf_math_tan",
 				"wolf_math_asin", "wolf_math_acos", "wolf_math_atan",
 				"wolf_math_sqrt", "wolf_math_log", "wolf_math_log10", "wolf_math_exp":
@@ -2236,7 +2353,7 @@ func (e *LLVMEmitter) emitCallExpr(call *ir.CallExpr) string {
 				expectedType = "double"
 			case "wolf_clamp":
 				expectedType = "double"
-			case "wolf_number_format":
+			case "wolf_math_round", "wolf_number_format":
 				if i == 0 {
 					expectedType = "double"
 				} else if i == 1 {
@@ -2245,6 +2362,8 @@ func (e *LLVMEmitter) emitCallExpr(call *ir.CallExpr) string {
 					expectedType = "ptr"
 				}
 			case "wolf_http_response_code":
+				expectedType = "i64"
+			case "wolf_strval":
 				expectedType = "i64"
 			case "wolf_set_current_context":
 				expectedType = "ptr"
@@ -2273,6 +2392,18 @@ func (e *LLVMEmitter) emitCallExpr(call *ir.CallExpr) string {
 			case "wolf_mktime":
 				expectedType = "i64"
 			case "wolf_date_diff":
+				expectedType = "i64"
+			case "wolf_date_create", "wolf_date_is_past", "wolf_date_is_future", "wolf_date_to_iso":
+				expectedType = "i64" // timestamp or ID
+				if calleeName == "wolf_date_create" || calleeName == "wolf_date_to_iso" {
+					// wait, date_create(str) -> str is ptr, to_iso(ts) -> ts is i64
+					if calleeName == "wolf_date_create" {
+						expectedType = "ptr"
+					} else {
+						expectedType = "i64"
+					}
+				}
+			case "wolf_date_add_days", "wolf_date_add_months", "wolf_date_diff_days":
 				expectedType = "i64"
 			case "wolf_intdiv":
 				expectedType = "i64"
@@ -2393,10 +2524,13 @@ func (e *LLVMEmitter) emitCallExpr(call *ir.CallExpr) string {
 		case "wolf_time_now", "wolf_time_strtotime", "wolf_redis_del",
 			"wolf_count", "wolf_array_search", "wolf_intval", "wolf_intdiv", "wolf_strpos", "wolf_strrpos", "wolf_str_word_count", "wolf_strcmp",
 			"wolf_time_ms", "wolf_time_ns", "wolf_mktime", "wolf_date_diff", "wolf_day_of_week", "wolf_days_in_month",
+			"wolf_date_create", "wolf_date_add_days", "wolf_date_add_months", "wolf_date_diff_days",
 			"wolf_strtotime", "wolf_file_size", "wolf_db_execute", "wolf_db_row_count", "wolf_db_last_insert_id", "wolf_math_random",
 			"wolf_string_length", "wolf_array_length", "wolf_argc",
 			"wolf_preg_match_all":
 			retType = "i64"
+		case "wolf_date_to_iso":
+			retType = "ptr"
 		case "wolf_array_rand_one":
 			retType = "i64"
 		case "wolf_array_product", "wolf_array_mean", "wolf_array_median",
@@ -2410,6 +2544,7 @@ func (e *LLVMEmitter) emitCallExpr(call *ir.CallExpr) string {
 			"wolf_in_array",
 			"wolf_is_email", "wolf_is_url", "wolf_is_phone", "wolf_is_uuid", "wolf_is_json",
 			"wolf_is_ip", "wolf_is_alpha", "wolf_is_alpha_num", "wolf_is_leap_year",
+			"wolf_date_is_past", "wolf_date_is_future",
 			"wolf_file_exists", "wolf_file_write", "wolf_file_append", "wolf_file_delete", "wolf_dir_exists",
 			"wolf_preg_match":
 			retType = "i1"
@@ -2699,11 +2834,28 @@ func (e *LLVMEmitter) emitStaticCall(sc *ir.StaticCall) string {
 
 	switch strings.ToLower(sc.Class) {
 	case "math", "wolf_math":
-		calleeName = strings.ToLower(fmt.Sprintf("wolf_math_%s", sc.Method))
+		if strings.ToLower(sc.Method) == "randomint" {
+			calleeName = "wolf_math_randomint"
+		} else {
+			calleeName = strings.ToLower(fmt.Sprintf("wolf_math_%s", sc.Method))
+		}
+	case "strings", "wolf_strings":
+		if strings.ToLower(sc.Method) == "isempty" {
+			calleeName = "wolf_strings_isempty"
+		} else {
+			calleeName = strings.ToLower(fmt.Sprintf("wolf_strings_%s", sc.Method))
+		}
 	case "json", "wolf_json":
 		calleeName = strings.ToLower(fmt.Sprintf("wolf_json_%s", sc.Method))
-	case "strings", "wolf_strings":
-		calleeName = strings.ToLower(fmt.Sprintf("wolf_strings_%s", sc.Method))
+	case "redis", "wolf_redis":
+		calleeName = strings.ToLower(fmt.Sprintf("wolf_redis_%s", sc.Method))
+		if strings.ToLower(sc.Method) == "connect" && len(sc.Args) == 0 {
+			sc.Args = []ir.Expr{
+				&ir.StringLit{Value: "127.0.0.1"},
+				&ir.IntLit{Value: "6379"},
+				&ir.StringLit{Value: ""},
+			}
+		}
 	}
 
 	args := make([]string, len(sc.Args))
@@ -2714,6 +2866,11 @@ func (e *LLVMEmitter) emitStaticCall(sc *ir.StaticCall) string {
 	}
 
 	retType := e.inferExprType(sc)
+	if retType == "void" {
+		e.writelnIndent(fmt.Sprintf("call void @%s(%s)", calleeName, strings.Join(args, ", ")))
+		return "null"
+	}
+
 	reg := e.nextLocal()
 	e.writelnIndent(fmt.Sprintf("%s = call %s @%s(%s)", reg, retType, calleeName, strings.Join(args, ", ")))
 	return reg

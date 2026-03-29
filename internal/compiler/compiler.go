@@ -195,9 +195,7 @@ func (c *Compiler) Build(source, filename string) (*CompileResult, error) {
 	}
 
 	// Clean up .ll file unless keep_ll is set
-	if c.Config == nil || !c.Config.Build.KeepLL {
-		defer func() { _ = os.Remove(llFile) }()
-	}
+	// LLVM IR file is kept deliberately for debug
 
 	// Find wolf runtime
 	wolfRoot, err := findWolfRoot()
@@ -378,10 +376,17 @@ func (c *Compiler) Build(source, filename string) (*CompileResult, error) {
 		rtArgs = append(rtArgs, strings.Fields(cryptoCflags)...)
 	}
 
+	// Enable real Redis implementation
+	rtArgs = append(rtArgs, "-DWOLF_REDIS_ENABLED")
+
 	// Bake wolf.config values into the runtime as -D constants.
 	// This is how pool size, timeouts, credentials, and server limits
 	// reach wolf_runtime.c without needing a config file at runtime.
 	rtArgs = append(rtArgs, c.configCFlags()...)
+
+	if os.Getenv("WOLF_DEBUG") != "" {
+		rtArgs = append(rtArgs, "-DWOLF_DEBUG")
+	}
 
 	rtArgs = append(rtArgs, "-o", runtimeObj, runtimeC)
 	rtCmd := exec.Command(cc, rtArgs...)
@@ -415,7 +420,7 @@ func (c *Compiler) Build(source, filename string) (*CompileResult, error) {
 	}
 
 	if runtime.GOOS == "linux" || runtime.GOOS == "darwin" {
-		linkArgs = append(linkArgs, "-lm")
+		linkArgs = append(linkArgs, "-lm", "-lcurl")
 	}
 
 	linkCmd := exec.Command(cc, linkArgs...)

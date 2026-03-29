@@ -1,0 +1,2 @@
+$res = wolf_http_get("http://localhost:9292/test")
+print($res)

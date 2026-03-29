@@ -2,24 +2,21 @@
 
 > Updated every session via `/wrap-up`. Read via `/resume`.
 
-## Current Sprint: Sprint 5 — File Uploads & Metal-Ready Audit ✅
+## Current Sprint: Sprint 7 — Database Parity & Benchmarking 🔄
 
 ### Active Tasks
 | Task | Status | Blocking |
 |------|--------|---------|
-| Memory arena allocator | ✅ Done | — |
-| Real Redis / hiredis | ✅ Done (session 2) | — |
-| wolf.config system | ✅ Done | — |
-| MySQL connection pool | ✅ Done | — |
-| wolf_db_pool_destroy() | ✅ Done (session 3) | — |
-| Graceful shutdown (SIGTERM/SIGINT) | ✅ Done (session 3) | — |
-| Request timeout (SO_RCVTIMEO, 408) | ✅ Done (session 3) | — |
-| File upload handling (multipart/form-data) | ✅ Done (session 5) | — |
-| Metal-Ready audit (#ifdef WOLF_FREESTANDING) | ✅ Done (session 5) | — |
-| Wolf_File::Save stdlib helper | ✅ Done (session 5) | — |
-| MSSQL real implementation | 🔄 Next | freetds-dev or unixodbc-dev |
-| WebSocket support | ⬜ Queued | — |
-| Production load test | ⬜ Queued | — |
+| Real MSSQL implementation | 🔄 Active | freetds-dev |
+| Production Load Test (Wolf vs Go) | 🔄 Active | — |
+| Date Object Stdlib (STDLIB-04) | ⬜ Queued | — |
+| ORM-ready Query Builder (DB-01) | ⬜ Queued | — |
+
+## Completed Sprints
+- [x] **Sprint 6: Native Foundations** (WebSocket, HTTP Client, Math/Stats) — 2026-03-26
+- [x] **Sprint 5: File Uploads & Metal-Ready** — 2026-03-25
+- [x] **Sprint 4: Technical Debt** — 2026-03-25
+- [x] **Sprint 1-3: Hardware & Performance Baseline** — 2026-03-20
 
 ### Dependency Graph (Mermaid)
 

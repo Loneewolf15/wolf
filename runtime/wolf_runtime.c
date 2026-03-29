@@ -36,7 +36,29 @@
 #include <arpa/inet.h>
 #include <unistd.h>
 #include <pthread.h>
+#include <curl/curl.h>
 #endif /* WOLF_FREESTANDING */
+
+/* ========== Database Configuration & Headers ========== */
+#if defined(WOLF_DB_POSTGRES)
+#include <libpq-fe.h>
+typedef PGconn  WolfDBConn;
+typedef PGresult WolfDBRes;
+#define WOLF_DB_PING(conn) (PQstatus(conn) == CONNECTION_OK ? 0 : 1)
+#define WOLF_DB_CLOSE(conn) PQfinish(conn)
+#elif defined(WOLF_DB_MSSQL)
+typedef void WolfDBConn;
+typedef void WolfDBRes;
+#define WOLF_DB_PING(conn) 0
+#define WOLF_DB_CLOSE(conn) do {} while(0)
+#else
+#include <mysql/mysql.h>
+typedef MYSQL     WolfDBConn;
+typedef MYSQL_RES WolfDBRes;
+#define WOLF_DB_PING(conn) mysql_ping(conn)
+#define WOLF_DB_CLOSE(conn) mysql_close(conn)
+#endif
+
 #include <time.h>
 #include <math.h>
 #include <sys/stat.h>
@@ -123,8 +145,360 @@ static void wolf_signal_handler(int sig) {
 }
 
 /* Forward declarations */
+static __thread int64_t wolf_current_req_id = -1;
 static __thread int64_t wolf_current_res_id = -1;  /* -1 = no active HTTP context → use stdout */
 void wolf_http_res_write(int64_t res_id, const char* body);
+static char* wolf_base64_encode_bin(const char* data, size_t len);
+
+static void free_http_context(int id);
+
+/* --- HTTP / WebSocket Context Types --- */
+#define WOLF_MAX_UPLOADS 8
+typedef struct {
+    const char* field_name;
+    const char* filename;
+    const char* content_type;
+    const char* data;
+    size_t      size;
+} wolf_upload_t;
+
+typedef struct {
+    int    active;
+    int    client_fd;
+    char*  method;
+    char*  path;
+    char*  query;
+    char*  body;
+    char*  header_keys[32];
+    char*  header_vals[32];
+    int    header_count;
+    int    status_code;
+    char*  res_header_keys[32];
+    char*  res_header_vals[32];
+    int    res_header_count;
+    char*  res_body;
+    wolf_upload_t uploads[WOLF_MAX_UPLOADS];
+    int           upload_count;
+    int           is_websocket;
+    char*         ws_key;
+
+    /* WebSocket state for non-blocking poller */
+    int           ws_state;       /* 0: header, 1: payload */
+    unsigned char ws_header[10];
+    int           ws_header_pos;
+    int           ws_header_len;
+    uint64_t      ws_payload_len;
+    char*         ws_payload_buf;
+    uint64_t      ws_payload_pos;
+    unsigned char ws_mask[4];
+    int           ws_masked;
+    int           ws_opcode;
+} wolf_http_context_t;
+
+typedef void (*wolf_http_handler_t)(int64_t req_id, int64_t res_id);
+typedef void (*wolf_ws_handler_t)(int64_t req_id, const char* message);
+
+static wolf_http_context_t http_contexts[MAX_CONCURRENT_REQUESTS];
+static pthread_mutex_t http_mutex = PTHREAD_MUTEX_INITIALIZER;
+static wolf_http_handler_t global_wolf_handler = NULL;
+static wolf_ws_handler_t   global_ws_handler   = NULL;
+
+/* ================================================================ *
+ * Unified Worker Pool & Task Queue                                 *
+ * ================================================================ */
+
+typedef enum {
+    WOLF_TASK_EMPTY,
+    WOLF_TASK_HTTP,
+    WOLF_TASK_WS_EVENT
+} wolf_task_type_t;
+
+typedef struct {
+    wolf_task_type_t type;
+    int64_t          id;      /* req_id or context_id */
+    char*            payload; /* for WS_EVENT */
+} wolf_task_t;
+
+#ifndef WOLF_WORKER_THREADS
+#define WOLF_WORKER_THREADS 16
+#endif
+
+#define WOLF_TASK_QUEUE_SIZE 4096
+
+static wolf_task_t     wolf_task_queue[WOLF_TASK_QUEUE_SIZE];
+static int             wolf_task_head = 0;
+static int             wolf_task_tail = 0;
+static int             wolf_task_count = 0;
+static pthread_mutex_t wolf_task_mutex = PTHREAD_MUTEX_INITIALIZER;
+static pthread_cond_t  wolf_task_cond  = PTHREAD_COND_INITIALIZER;
+static pthread_t       wolf_worker_pool[WOLF_WORKER_THREADS];
+
+static void wolf_task_push(wolf_task_t task) {
+    pthread_mutex_lock(&wolf_task_mutex);
+    if (wolf_task_count < WOLF_TASK_QUEUE_SIZE) {
+        wolf_task_queue[wolf_task_tail] = task;
+        wolf_task_tail = (wolf_task_tail + 1) % WOLF_TASK_QUEUE_SIZE;
+        wolf_task_count++;
+        pthread_cond_signal(&wolf_task_cond);
+    }
+    pthread_mutex_unlock(&wolf_task_mutex);
+}
+
+static wolf_task_t wolf_task_pop(void) {
+    pthread_mutex_lock(&wolf_task_mutex);
+    while (wolf_task_count == 0 && !wolf_shutdown_requested) {
+        pthread_cond_wait(&wolf_task_cond, &wolf_task_mutex);
+    }
+    wolf_task_t task = {WOLF_TASK_EMPTY, 0, NULL};
+    if (wolf_task_count > 0) {
+        task = wolf_task_queue[wolf_task_head];
+        wolf_task_head = (wolf_task_head + 1) % WOLF_TASK_QUEUE_SIZE;
+        wolf_task_count--;
+    }
+    pthread_mutex_unlock(&wolf_task_mutex);
+    return task;
+}
+
+static void* http_worker(void* arg); /* Forward ref */
+
+static void* wolf_worker_thread_func(void* arg) {
+    (void)arg;
+#if !defined(WOLF_DB_POSTGRES) && !defined(WOLF_DB_MSSQL)
+    mysql_thread_init();
+#endif
+    while (!wolf_shutdown_requested) {
+        wolf_task_t task = wolf_task_pop();
+        if (task.type == WOLF_TASK_HTTP) {
+            http_worker((void*)(intptr_t)task.id);
+        } else if (task.type == WOLF_TASK_WS_EVENT) {
+            if (global_ws_handler) {
+                wolf_req_arena_init();
+                wolf_set_current_context((void*)(intptr_t)task.id, (void*)(intptr_t)task.id);
+                global_ws_handler(task.id, task.payload);
+                wolf_req_arena_flush();
+            }
+            if (task.payload) free(task.payload);
+        }
+    }
+#if !defined(WOLF_DB_POSTGRES) && !defined(WOLF_DB_MSSQL)
+    mysql_thread_end();
+#endif
+    return NULL;
+}
+
+static void wolf_worker_pool_init(void) {
+    for (int i = 0; i < WOLF_WORKER_THREADS; i++) {
+        pthread_create(&wolf_worker_pool[i], NULL, wolf_worker_thread_func, NULL);
+        pthread_detach(wolf_worker_pool[i]);
+    }
+}
+
+/* --- Multi-platform Poller (epoll / kqueue / poll) --- */
+#ifndef WOLF_FREESTANDING
+#if defined(__linux__)
+#include <sys/epoll.h>
+#define WOLF_USE_EPOLL
+#elif defined(__APPLE__)
+#include <sys/event.h>
+#define WOLF_USE_KQUEUE
+#else
+#include <poll.h>
+#define WOLF_USE_POLL
+#endif
+#include <fcntl.h>
+
+static int wolf_ws_poller_fd = -1;
+static pthread_t wolf_ws_poller_thread_id;
+
+static void wolf_ws_poller_init(void) {
+#ifdef WOLF_USE_EPOLL
+    wolf_ws_poller_fd = epoll_create1(0);
+#elif defined(WOLF_USE_KQUEUE)
+    wolf_ws_poller_fd = kqueue();
+#endif
+#ifdef WOLF_DEBUG
+    fprintf(stderr, "[WOLF-WS] Poller initialized\n");
+#endif
+}
+
+static void wolf_ws_poller_add(int fd, int id) {
+    if (wolf_ws_poller_fd < 0) return;
+    /* Set non-blocking */
+    int flags = fcntl(fd, F_GETFL, 0);
+    fcntl(fd, F_SETFL, flags | O_NONBLOCK);
+
+#ifdef WOLF_USE_EPOLL
+    struct epoll_event ev;
+    ev.events = EPOLLIN;
+    ev.data.u64 = (uint64_t)id;
+    epoll_ctl(wolf_ws_poller_fd, EPOLL_CTL_ADD, fd, &ev);
+#elif defined(WOLF_USE_KQUEUE)
+    struct kevent ev;
+    EV_SET(&ev, fd, EVFILT_READ, EV_ADD | EV_ENABLE, 0, 0, (void*)(intptr_t)id);
+    kevent(wolf_ws_poller_fd, &ev, 1, NULL, 0, NULL);
+#elif defined(WOLF_USE_POLL)
+    /* poll() doesn't use a persistent fd, we'll manage it in the thread loop */
+    (void)id;
+#endif
+#ifdef WOLF_DEBUG
+    fprintf(stderr, "[WOLF-WS] Added fd=%d to poller\n", fd);
+#endif
+}
+
+static void wolf_ws_handle_read_event(int id); /* Forward ref */
+
+static void* wolf_ws_poller_thread_func(void* arg) {
+    (void)arg;
+    #ifdef WOLF_USE_EPOLL
+    struct epoll_event events[64];
+    while (!wolf_shutdown_requested) {
+        int n = epoll_wait(wolf_ws_poller_fd, events, 64, 1000);
+        for (int i = 0; i < n; i++) {
+            wolf_ws_handle_read_event((int)events[i].data.u64);
+        }
+    }
+    #elif defined(WOLF_USE_KQUEUE)
+    struct kevent events[64];
+    struct timespec timeout = {1, 0};
+    while (!wolf_shutdown_requested) {
+        int n = kevent(wolf_ws_poller_fd, NULL, 0, events, 64, &timeout);
+        for (int i = 0; i < n; i++) {
+            wolf_ws_handle_read_event((int)(intptr_t)events[i].udata);
+        }
+    }
+    #elif defined(WOLF_USE_POLL)
+    struct pollfd fds[MAX_CONCURRENT_REQUESTS];
+    int ids[MAX_CONCURRENT_REQUESTS];
+    while (!wolf_shutdown_requested) {
+        int count = 0;
+        pthread_mutex_lock(&http_mutex);
+        for (int i = 0; i < MAX_CONCURRENT_REQUESTS; i++) {
+            if (http_contexts[i].active && http_contexts[i].is_websocket && http_contexts[i].client_fd > 0) {
+                fds[count].fd = http_contexts[i].client_fd;
+                fds[count].events = POLLIN;
+                ids[count] = i;
+                count++;
+            }
+        }
+        pthread_mutex_unlock(&http_mutex);
+        
+        if (count == 0) { usleep(100000); continue; }
+
+        int n = poll(fds, count, 1000);
+        if (n > 0) {
+            for (int i = 0; i < count; i++) {
+                if (fds[i].revents & POLLIN) {
+                    wolf_ws_handle_read_event(ids[i]);
+                }
+            }
+        }
+    }
+    #endif
+    return NULL;
+}
+
+static void wolf_ws_handle_read_event(int id) {
+    if (id < 0 || id >= MAX_CONCURRENT_REQUESTS) return;
+    wolf_http_context_t* ctx = &http_contexts[id];
+    int fd = ctx->client_fd;
+
+    if (ctx->ws_state == 0) { /* Reading Header */
+        if (ctx->ws_header_len == 0) ctx->ws_header_len = 2; /* Min header */
+        while (ctx->ws_header_pos < ctx->ws_header_len) {
+            ssize_t r = read(fd, ctx->ws_header + ctx->ws_header_pos, ctx->ws_header_len - ctx->ws_header_pos);
+            if (r <= 0) {
+                if (r < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) return;
+                goto close_ws; /* Error or EOF */
+            }
+            ctx->ws_header_pos += r;
+        }
+
+        /* Parse first 2 bytes */
+        if (ctx->ws_header_pos >= 2 && ctx->ws_header_len == 2) {
+            ctx->ws_opcode = ctx->ws_header[0] & 0x0F;
+            ctx->ws_masked = (ctx->ws_header[1] & 0x80) != 0;
+            ctx->ws_payload_len = ctx->ws_header[1] & 0x7F;
+
+            if (ctx->ws_payload_len == 126) ctx->ws_header_len = 4;
+            else if (ctx->ws_payload_len == 127) ctx->ws_header_len = 10;
+            
+            if (ctx->ws_masked) ctx->ws_header_len += 4;
+            
+            /* If header is now longer, keep reading */
+            if (ctx->ws_header_pos < ctx->ws_header_len) return;
+        }
+
+        /* Header fully read */
+        if (ctx->ws_header_pos == ctx->ws_header_len) {
+            int pos = 2;
+            if (ctx->ws_payload_len == 126) {
+                ctx->ws_payload_len = (ctx->ws_header[2] << 8) | ctx->ws_header[3];
+                pos = 4;
+            } else if (ctx->ws_payload_len == 127) {
+                ctx->ws_payload_len = 0;
+                for (int i = 0; i < 8; i++) ctx->ws_payload_len = (ctx->ws_payload_len << 8) | ctx->ws_header[2+i];
+                pos = 10;
+            }
+            if (ctx->ws_masked) {
+                memcpy(ctx->ws_mask, ctx->ws_header + pos, 4);
+            }
+            
+            if (ctx->ws_payload_len > 10 * 1024 * 1024) goto close_ws; /* 10MB safety */
+            
+            ctx->ws_payload_buf = malloc(ctx->ws_payload_len + 1);
+            if (!ctx->ws_payload_buf) goto close_ws;
+            ctx->ws_payload_pos = 0;
+            ctx->ws_state = 1; /* Switch to payload */
+        }
+    }
+
+    if (ctx->ws_state == 1) { /* Reading Payload */
+        while (ctx->ws_payload_pos < ctx->ws_payload_len) {
+            ssize_t r = read(fd, ctx->ws_payload_buf + ctx->ws_payload_pos, ctx->ws_payload_len - ctx->ws_payload_pos);
+            if (r <= 0) {
+                if (r < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) return;
+                goto close_ws;
+            }
+            ctx->ws_payload_pos += r;
+        }
+
+        /* Payload fully read */
+        if (ctx->ws_masked) {
+            for (size_t i = 0; i < ctx->ws_payload_len; i++) ctx->ws_payload_buf[i] ^= ctx->ws_mask[i % 4];
+        }
+        ctx->ws_payload_buf[ctx->ws_payload_len] = '\0';
+
+        if (ctx->ws_opcode == 0x08) goto close_ws; /* Close frame */
+
+        if (ctx->ws_opcode == 0x01) { /* Text frame */
+            wolf_task_t task = {WOLF_TASK_WS_EVENT, (int64_t)id, ctx->ws_payload_buf};
+            wolf_task_push(task);
+            ctx->ws_payload_buf = NULL; /* Ownership transferred to task */
+        } else {
+            free(ctx->ws_payload_buf);
+            ctx->ws_payload_buf = NULL;
+        }
+
+        /* Reset for next frame */
+        ctx->ws_state = 0;
+        ctx->ws_header_pos = 0;
+        ctx->ws_header_len = 2;
+    }
+    return;
+
+close_ws:
+    if (ctx->ws_payload_buf) free(ctx->ws_payload_buf);
+    ctx->ws_payload_buf = NULL;
+    close(fd);
+    free_http_context(id);
+}
+
+static void wolf_ws_poller_start(void) {
+    pthread_create(&wolf_ws_poller_thread_id, NULL, wolf_ws_poller_thread_func, NULL);
+    pthread_detach(wolf_ws_poller_thread_id);
+}
+#endif /* WOLF_FREESTANDING */
+
 
 /* ================================================================ *
  * Per-Request Memory Arena                                         *
@@ -176,6 +550,25 @@ void* wolf_req_alloc_register(void* ptr) {
     return ptr;
 }
 
+/* Helper for resizing safely within the request arena.
+ * Since we do not store metadata size block easily, we'll manually implement reallocation
+ * explicitly where needed. For things like simple string reallocs in json decoder,
+ * we can just pass the old_size.
+ */
+void* wolf_req_realloc(void* old_ptr, size_t old_size, size_t new_size) {
+    if (!old_ptr) return wolf_req_alloc(new_size);
+    if (new_size == 0) return NULL;
+    void* new_ptr = wolf_req_alloc(new_size);
+    if (new_ptr) {
+        memcpy(new_ptr, old_ptr, old_size < new_size ? old_size : new_size);
+    }
+    return new_ptr;
+}
+
+static inline char* json_decode_realloc(char* old, size_t old_sz, size_t new_sz) {
+    return (char*)wolf_req_realloc(old, old_sz, new_sz);
+}
+
 void* wolf_req_alloc(size_t sz) {
     void* p = malloc(sz);
     if (p) memset(p, 0, sz);
@@ -198,6 +591,40 @@ void wolf_req_arena_flush(void) {
     }
     wolf_req_arena.count = 0;
 }
+
+static int wolf_curl_inited = 0;
+static void wolf_ensure_curl(void) {
+    if (!wolf_curl_inited) {
+        curl_global_init(CURL_GLOBAL_DEFAULT);
+        wolf_curl_inited = 1;
+    }
+}
+
+
+/* ================================================================ *
+ * HTTP Client (libcurl)                                            *
+ * ================================================================ */
+
+typedef struct {
+    char*  data;
+    size_t size;
+} WolfHTTPClientResult;
+
+static size_t wolf_http_client_write_cb(void* contents, size_t size, size_t nmemb, void* userp) {
+    size_t realsize = size * nmemb;
+    WolfHTTPClientResult* res = (WolfHTTPClientResult*)userp;
+
+    char* ptr = realloc(res->data, res->size + realsize + 1);
+    if (!ptr) return 0;
+
+    res->data = ptr;
+    memcpy(&(res->data[res->size]), contents, realsize);
+    res->size += realsize;
+    res->data[res->size] = 0;
+
+    return realsize;
+}
+
 
 /* ========== Debug Logging ========== */
 #ifdef WOLF_DEBUG
@@ -294,7 +721,7 @@ const char* wolf_string_concat(const char* a, const char* b) {
     return result;
 }
 
-int64_t wolf_string_length(const char* s) {
+int64_t wolf_strings_length(const char* s) {
     if (!s) return 0;
     return (int64_t)strlen(s);
 }
@@ -356,7 +783,10 @@ double wolf_math_log(double v)                { return log(v); }
 double wolf_math_log10(double v)              { return log10(v); }
 double wolf_math_exp(double v)                { return exp(v); }
 
-double wolf_math_round(double v)              { return round(v); }
+double wolf_math_round(double v, int64_t precision) {
+    double p = pow(10.0, (double)precision);
+    return round(v * p) / p;
+}
 double wolf_math_fmod(double a, double b)     { return fmod(a, b); }
 double wolf_math_pi(void)                     { return 3.14159265358979323846; }
 
@@ -512,25 +942,6 @@ const char* wolf_define_get(const char* key) {
 }
 
 /* ========== Database — Connection Pool ========== */
-
-#if defined(WOLF_DB_POSTGRES)
-#include <libpq-fe.h>
-typedef PGconn  WolfDBConn;
-typedef PGresult WolfDBRes;
-#define WOLF_DB_PING(conn) (PQstatus(conn) == CONNECTION_OK ? 0 : 1)
-#define WOLF_DB_CLOSE(conn) PQfinish(conn)
-#elif defined(WOLF_DB_MSSQL)
-typedef void WolfDBConn;
-typedef void WolfDBRes;
-#define WOLF_DB_PING(conn) 0
-#define WOLF_DB_CLOSE(conn) do {} while(0)
-#else
-#include <mysql/mysql.h>
-typedef MYSQL     WolfDBConn;
-typedef MYSQL_RES WolfDBRes;
-#define WOLF_DB_PING(conn) mysql_ping(conn)
-#define WOLF_DB_CLOSE(conn) mysql_close(conn)
-#endif
 
 typedef struct {
     WolfDBConn *conn;
@@ -793,7 +1204,7 @@ int64_t wolf_db_execute(void* stmt_ptr) {
     WolfDBRes *res = PQexec(stmt->conn, stmt->sql);
     if (PQresultStatus(res) != PGRES_COMMAND_OK &&
         PQresultStatus(res) != PGRES_TUPLES_OK) {
-        printf("[WOLF-DB] PG Query failed: %s\n", PQerrorMessage(stmt->conn));
+        printf("[WOLF-DB] PG Query failed: %s | SQL: %s\n", PQerrorMessage(stmt->conn), stmt->sql);
         PQclear(res); return 0;
     }
     stmt->last_result = res; return 1;
@@ -803,7 +1214,7 @@ int64_t wolf_db_execute(void* stmt_ptr) {
 #else
     if (stmt->last_result) { mysql_free_result(stmt->last_result); stmt->last_result = NULL; }
     if (mysql_query(stmt->conn, stmt->sql)) {
-        printf("[WOLF-DB] MySQL Query failed: %s\n", mysql_error(stmt->conn));
+        printf("[WOLF-DB] MySQL Query failed: %s | SQL: %s\n", mysql_error(stmt->conn), stmt->sql);
         return 0;
     }
     stmt->last_result = mysql_store_result(stmt->conn);
@@ -1036,8 +1447,9 @@ void* wolf_redis_connect(const char* host, int64_t port, const char* pass) {
     return wolf_redis_ctx;
 }
 
-void wolf_redis_set(void* handle, const char* key, const char* value, int64_t ttl) {
-    redisContext* c = (redisContext*)handle;
+void wolf_redis_set(const char* key, const char* value, int64_t ttl) {
+    redisContext* c = wolf_redis_ctx;
+    fprintf(stderr, "[DEBUG REDIS SET] ctx=%p key=%s val=%s ttl=%ld\n", c, key ? key : "NULL", value ? value : "NULL", ttl);
     if (!c || !key) return;
     redisReply *reply;
     if (ttl > 0)
@@ -1047,8 +1459,8 @@ void wolf_redis_set(void* handle, const char* key, const char* value, int64_t tt
     if (reply) freeReplyObject(reply);
 }
 
-const char* wolf_redis_get(void* handle, const char* key) {
-    redisContext* c = (redisContext*)handle;
+const char* wolf_redis_get(const char* key) {
+    redisContext* c = wolf_redis_ctx;
     if (!c || !key) return "";
     redisReply *reply = redisCommand(c, "GET %s", key);
     if (reply && reply->type == REDIS_REPLY_STRING) {
@@ -1060,8 +1472,8 @@ const char* wolf_redis_get(void* handle, const char* key) {
     return "";
 }
 
-int64_t wolf_redis_del(void* handle, const char* key) {
-    redisContext* c = (redisContext*)handle;
+int64_t wolf_redis_del(const char* key) {
+    redisContext* c = wolf_redis_ctx;
     if (!c || !key) return 0;
     redisReply *reply = redisCommand(c, "DEL %s", key);
     int64_t result = 0;
@@ -1070,8 +1482,8 @@ int64_t wolf_redis_del(void* handle, const char* key) {
     return result;
 }
 
-int wolf_redis_exists(void* handle, const char* key) {
-    redisContext* c = (redisContext*)handle;
+int wolf_redis_exists(const char* key) {
+    redisContext* c = wolf_redis_ctx;
     if (!c || !key) return 0;
     redisReply *reply = redisCommand(c, "EXISTS %s", key);
     int result = 0;
@@ -1080,15 +1492,15 @@ int wolf_redis_exists(void* handle, const char* key) {
     return result;
 }
 
-void wolf_redis_hset(void* handle, const char* key, const char* field, const char* value) {
-    redisContext* c = (redisContext*)handle;
+void wolf_redis_hset(const char* key, const char* field, const char* value) {
+    redisContext* c = wolf_redis_ctx;
     if (!c || !key || !field) return;
     redisReply *reply = redisCommand(c, "HSET %s %s %s", key, field, value ? value : "");
     if (reply) freeReplyObject(reply);
 }
 
-const char* wolf_redis_hget(void* handle, const char* key, const char* field) {
-    redisContext* c = (redisContext*)handle;
+const char* wolf_redis_hget(const char* key, const char* field) {
+    redisContext* c = wolf_redis_ctx;
     if (!c || !key || !field) return "";
     redisReply *reply = redisCommand(c, "HGET %s %s", key, field);
     if (reply && reply->type == REDIS_REPLY_STRING) {
@@ -1100,8 +1512,8 @@ const char* wolf_redis_hget(void* handle, const char* key, const char* field) {
     return "";
 }
 
-void wolf_redis_close(void* handle) {
-    redisContext* c = (redisContext*)handle;
+void wolf_redis_close() {
+    redisContext* c = wolf_redis_ctx;
     if (c) {
         redisFree(c);
         if (c == wolf_redis_ctx) wolf_redis_ctx = NULL;
@@ -1112,20 +1524,20 @@ void wolf_redis_close(void* handle) {
 
 void*       wolf_redis_connect(const char* h, int64_t p, const char* pw)
                 { (void)h; (void)p; (void)pw; return NULL; }
-void        wolf_redis_set(void* h, const char* k, const char* v, int64_t t)
-                { (void)h; (void)k; (void)v; (void)t; }
-const char* wolf_redis_get(void* h, const char* k)
-                { (void)h; (void)k; return ""; }
-int64_t     wolf_redis_del(void* h, const char* k)
-                { (void)h; (void)k; return 0; }
-int         wolf_redis_exists(void* h, const char* k)
-                { (void)h; (void)k; return 0; }
-void        wolf_redis_hset(void* h, const char* k, const char* f, const char* v)
-                { (void)h; (void)k; (void)f; (void)v; }
-const char* wolf_redis_hget(void* h, const char* k, const char* f)
-                { (void)h; (void)k; (void)f; return ""; }
-void        wolf_redis_close(void* h)
-                { (void)h; }
+void        wolf_redis_set(const char* k, const char* v, int64_t t)
+                { (void)k; (void)v; (void)t; }
+const char* wolf_redis_get(const char* k)
+                { (void)k; return ""; }
+int64_t     wolf_redis_del(const char* k)
+                { (void)k; return 0; }
+int         wolf_redis_exists(const char* k)
+                { (void)k; return 0; }
+void        wolf_redis_hset(const char* k, const char* f, const char* v)
+                { (void)k; (void)f; (void)v; }
+const char* wolf_redis_hget(const char* k, const char* f)
+                { (void)k; (void)f; return ""; }
+void        wolf_redis_close()
+                { }
 
 #endif /* WOLF_REDIS_ENABLED */
 
@@ -1168,8 +1580,15 @@ typedef struct {
     int64_t capacity;
 } wolf_map_t;
 
+int wolf_is_tagged_value(void* ptr) {
+    if (!ptr) return 0;
+    wolf_value_t* v = (wolf_value_t*)ptr;
+    return (v->magic == WOLF_VALUE_MAGIC);
+}
+
 static wolf_value_t* wolf_val_make(int type) {
     wolf_value_t* v = (wolf_value_t*)wolf_req_alloc(sizeof(wolf_value_t));
+    v->magic = WOLF_VALUE_MAGIC;
     v->type = type;
     return v;
 }
@@ -1178,9 +1597,8 @@ static char* wolf_json_encode_value(void* val); /* forward */
 
 static const char* wolf_value_unwrap_string(void* val) {
     if (!val) return "";
+    if (!wolf_is_tagged_value(val)) return (const char*)val;
     wolf_value_t* tagged = (wolf_value_t*)val;
-    if (tagged->type < WOLF_TYPE_STRING || tagged->type > WOLF_TYPE_ARRAY)
-        return (const char*)val;
     switch (tagged->type) {
         case WOLF_TYPE_INT: {
             char* buf = (char*)wolf_req_alloc(32);
@@ -1198,6 +1616,19 @@ static const char* wolf_value_unwrap_string(void* val) {
         case WOLF_TYPE_MAP:
         case WOLF_TYPE_ARRAY: return wolf_json_encode_value(val);
         default: return (const char*)val;
+    }
+}
+
+static double wolf_value_unwrap_double(void* val) {
+    if (!val) return 0.0;
+    if (!wolf_is_tagged_value(val)) return atof((const char*)val);
+    wolf_value_t* tagged = (wolf_value_t*)val;
+    switch (tagged->type) {
+        case WOLF_TYPE_INT:    return (double)tagged->val.i;
+        case WOLF_TYPE_FLOAT:  return tagged->val.f;
+        case WOLF_TYPE_BOOL:   return tagged->val.b ? 1.0 : 0.0;
+        case WOLF_TYPE_STRING: return tagged->val.s ? atof(tagged->val.s) : 0.0;
+        default:               return 0.0;
     }
 }
 
@@ -1520,7 +1951,7 @@ double wolf_array_sum(void* a) {
     wolf_array_t* arr = (wolf_array_t*)a;
     double sum = 0.0;
     for (int64_t i = 0; i < arr->length; i++)
-        if (arr->items[i]) sum += atof((const char*)arr->items[i]);
+        sum += wolf_value_unwrap_double(arr->items[i]);
     return sum;
 }
 
@@ -1760,7 +2191,7 @@ double wolf_array_median(void* a) {
     /* Copy values into a double array and sort */
     double* vals = (double*)wolf_req_alloc(arr->length * sizeof(double));
     for (int64_t i = 0; i < arr->length; i++)
-        vals[i] = arr->items[i] ? atof((const char*)arr->items[i]) : 0.0;
+        vals[i] = wolf_value_unwrap_double(arr->items[i]);
     /* Bubble sort — acceptable for small arrays */
     for (int64_t i = 0; i < arr->length - 1; i++)
         for (int64_t j = 0; j < arr->length - i - 1; j++)
@@ -1795,7 +2226,7 @@ double wolf_array_variance(void* a) {
     double mean = wolf_array_mean(a);
     double sum = 0.0;
     for (int64_t i = 0; i < arr->length; i++) {
-        double v = arr->items[i] ? atof((const char*)arr->items[i]) : 0.0;
+        double v = wolf_value_unwrap_double(arr->items[i]);
         double diff = v - mean;
         sum += diff * diff;
     }
@@ -1843,7 +2274,13 @@ void wolf_map_set_int(void* map_ptr, const char* key, int64_t value) {
     wolf_value_t* v = wolf_val_make(WOLF_TYPE_INT); v->val.i = value;
     wolf_map_t* m = (wolf_map_t*)map_ptr;
     for (int64_t i = 0; i < m->size; i++) if (strcmp(m->keys[i], key)==0) { m->values[i]=v; return; }
-    if (m->size >= m->capacity) { m->capacity*=2; m->keys=(char**)realloc(m->keys,sizeof(char*)*m->capacity); m->values=(void**)realloc(m->values,sizeof(void*)*m->capacity); }
+    if (m->size >= m->capacity) {
+        size_t old_k = sizeof(char*) * m->capacity;
+        size_t old_v = sizeof(void*) * m->capacity;
+        m->capacity*=2;
+        m->keys=(char**)wolf_req_realloc(m->keys, old_k, sizeof(char*)*m->capacity);
+        m->values=(void**)wolf_req_realloc(m->values, old_v, sizeof(void*)*m->capacity);
+    }
     m->keys[m->size] = wolf_req_strdup(key); m->values[m->size]=v; m->size++;
 }
 
@@ -1852,7 +2289,13 @@ void wolf_map_set_float(void* map_ptr, const char* key, double value) {
     wolf_value_t* v = wolf_val_make(WOLF_TYPE_FLOAT); v->val.f = value;
     wolf_map_t* m = (wolf_map_t*)map_ptr;
     for (int64_t i = 0; i < m->size; i++) if (strcmp(m->keys[i], key)==0) { m->values[i]=v; return; }
-    if (m->size >= m->capacity) { m->capacity*=2; m->keys=(char**)realloc(m->keys,sizeof(char*)*m->capacity); m->values=(void**)realloc(m->values,sizeof(void*)*m->capacity); }
+    if (m->size >= m->capacity) {
+        size_t old_k = sizeof(char*) * m->capacity;
+        size_t old_v = sizeof(void*) * m->capacity;
+        m->capacity*=2;
+        m->keys=(char**)wolf_req_realloc(m->keys, old_k, sizeof(char*)*m->capacity);
+        m->values=(void**)wolf_req_realloc(m->values, old_v, sizeof(void*)*m->capacity);
+    }
     m->keys[m->size] = wolf_req_strdup(key); m->values[m->size]=v; m->size++;
 }
 
@@ -1861,7 +2304,13 @@ void wolf_map_set_bool(void* map_ptr, const char* key, int value) {
     wolf_value_t* v = wolf_val_make(WOLF_TYPE_BOOL); v->val.b = value;
     wolf_map_t* m = (wolf_map_t*)map_ptr;
     for (int64_t i = 0; i < m->size; i++) if (strcmp(m->keys[i], key)==0) { m->values[i]=v; return; }
-    if (m->size >= m->capacity) { m->capacity*=2; m->keys=(char**)realloc(m->keys,sizeof(char*)*m->capacity); m->values=(void**)realloc(m->values,sizeof(void*)*m->capacity); }
+    if (m->size >= m->capacity) {
+        size_t old_k = sizeof(char*) * m->capacity;
+        size_t old_v = sizeof(void*) * m->capacity;
+        m->capacity*=2;
+        m->keys=(char**)wolf_req_realloc(m->keys, old_k, sizeof(char*)*m->capacity);
+        m->values=(void**)wolf_req_realloc(m->values, old_v, sizeof(void*)*m->capacity);
+    }
     m->keys[m->size] = wolf_req_strdup(key); m->values[m->size]=v; m->size++;
 }
 
@@ -1869,7 +2318,13 @@ void wolf_map_set(void* map_ptr, const char* key, void* value) {
     if (!map_ptr || !key) return;
     wolf_map_t* m = (wolf_map_t*)map_ptr;
     for (int64_t i = 0; i < m->size; i++) if (strcmp(m->keys[i], key)==0) { m->values[i]=value; return; }
-    if (m->size >= m->capacity) { m->capacity*=2; m->keys=(char**)realloc(m->keys,sizeof(char*)*m->capacity); m->values=(void**)realloc(m->values,sizeof(void*)*m->capacity); }
+    if (m->size >= m->capacity) {
+        size_t old_k = sizeof(char*) * m->capacity;
+        size_t old_v = sizeof(void*) * m->capacity;
+        m->capacity*=2;
+        m->keys=(char**)wolf_req_realloc(m->keys, old_k, sizeof(char*)*m->capacity);
+        m->values=(void**)wolf_req_realloc(m->values, old_v, sizeof(void*)*m->capacity);
+    }
     m->keys[m->size] = wolf_req_strdup(key); m->values[m->size]=value; m->size++;
 }
 
@@ -1879,21 +2334,42 @@ void* wolf_map_get(void* map_ptr, const char* key) {
     for (int64_t i = 0; i < m->size; i++) {
         if (strcmp(m->keys[i], key) == 0) {
             void* val = m->values[i];
-            if (!val) return NULL;
+            if (!val || !wolf_is_tagged_value(val)) return val;
             wolf_value_t* tagged = (wolf_value_t*)val;
             switch (tagged->type) {
                 case WOLF_TYPE_INT: { char* buf=(char*)wolf_req_alloc(32); snprintf(buf,32,"%lld",(long long)tagged->val.i); return buf; }
                 case WOLF_TYPE_FLOAT: { char* buf=(char*)wolf_req_alloc(64); snprintf(buf,64,"%g",tagged->val.f); return buf; }
                 case WOLF_TYPE_BOOL:   return wolf_req_strdup(tagged->val.b ? "true" : "false");
                 case WOLF_TYPE_NULL:   return NULL;
-                case WOLF_TYPE_STRING: return wolf_req_strdup(tagged->val.s);
-                case WOLF_TYPE_MAP:
-                case WOLF_TYPE_ARRAY:  return tagged->val.ptr;
+                case WOLF_TYPE_STRING: return tagged->val.s ? (void*)tagged->val.s : (void*)"";
+                case WOLF_TYPE_MAP:    return val;
+                case WOLF_TYPE_ARRAY:  return val;
                 default: return val;
             }
         }
     }
     return NULL;
+}
+
+int64_t wolf_math_randomint(int64_t max) {
+    if (max <= 0) return 0;
+    return rand() % max;
+}
+
+bool wolf_strings_isempty(const char* s) {
+    return (!s || s[0] == '\0');
+}
+
+const char* wolf_strings_substring(const char* s, int64_t start, int64_t end) {
+    if (!s) return "";
+    int64_t len = end - start;
+    if (len <= 0) return "";
+    return wolf_substr(s, start, len);
+}
+
+const char* wolf_http_query(const char* key) {
+    if (wolf_current_req_id < 0) return "";
+    return wolf_http_req_query(wolf_current_req_id, key);
 }
 
 void* wolf_class_create(const char* name) { (void)name; return wolf_map_create(); }
@@ -1920,41 +2396,8 @@ void  wolf_free(void* ptr)     { free(ptr); }
 /* ========== HTTP Server (requires OS networking — disabled on bare-metal) ========== */
 #ifndef WOLF_FREESTANDING
 
-/* --- Per-request file upload slot --- */
-#define WOLF_MAX_UPLOADS 8
-typedef struct {
-    const char* field_name;   /* form field name (e.g. "avatar") */
-    const char* filename;     /* original filename from browser */
-    const char* content_type; /* MIME type of the part */
-    const char* data;         /* raw bytes, arena-allocated */
-    size_t      size;         /* byte length of data */
-} wolf_upload_t;
+/* wolf_current_req_id and wolf_current_res_id are declared at the top of this file (line ~148) */
 
-typedef struct {
-    int    active;
-    int    client_fd;
-    char*  method;
-    char*  path;
-    char*  query;
-    char*  body;
-    char*  header_keys[32];
-    char*  header_vals[32];
-    int    header_count;
-    int    status_code;
-    char*  res_header_keys[32];
-    char*  res_header_vals[32];
-    int    res_header_count;
-    char*  res_body;
-    wolf_upload_t uploads[WOLF_MAX_UPLOADS];
-    int           upload_count;
-} wolf_http_context_t;
-
-static wolf_http_context_t http_contexts[MAX_CONCURRENT_REQUESTS];
-static pthread_mutex_t http_mutex = PTHREAD_MUTEX_INITIALIZER;
-static wolf_http_handler_t global_wolf_handler = NULL;
-
-static __thread int64_t wolf_current_req_id = -1;
-/* wolf_current_res_id declared at top of file */
 
 void wolf_set_current_context(void* req_id, void* res_id) {
     wolf_current_req_id = (intptr_t)req_id;
@@ -1995,7 +2438,15 @@ void wolf_http_write_response(const char* body) {
     wolf_http_res_header(wolf_current_res_id, "Content-Type", "application/json");
     wolf_http_res_write(wolf_current_res_id, body);
 }
+void wolf_http_header(const char* key, const char* value) {
+    if (wolf_current_res_id < 0) return;
+    wolf_http_res_header(wolf_current_res_id, key, value);
+}
 
+void wolf_http_status(int64_t code) {
+    if (wolf_current_res_id < 0) return;
+    wolf_http_res_status(wolf_current_res_id, code);
+}
 static int alloc_http_context(int client_fd) {
     pthread_mutex_lock(&http_mutex);
     for (int i = 0; i < MAX_CONCURRENT_REQUESTS; i++) {
@@ -2227,6 +2678,8 @@ static void parse_http_request(int id, char* raw_req, size_t len) {
         else   { ctx->path = wolf_req_strdup(full_path); ctx->query = wolf_req_strdup(""); }
     }
     const char* content_type_val = NULL;
+    const char* upgrade_val = NULL;
+    const char* ws_key_val = NULL;
     while ((line = strtok_r(NULL, "\r\n", &saveptr))) {
         char* colon = strchr(line, ':');
         if (colon && ctx->header_count < 32) {
@@ -2234,9 +2687,16 @@ static void parse_http_request(int id, char* raw_req, size_t len) {
             ctx->header_keys[ctx->header_count] = wolf_req_strdup(line);
             ctx->header_vals[ctx->header_count] = wolf_req_strdup(val);
             if (strcasecmp(line, "Content-Type") == 0) content_type_val = ctx->header_vals[ctx->header_count];
+            if (strcasecmp(line, "Upgrade") == 0) upgrade_val = ctx->header_vals[ctx->header_count];
+            if (strcasecmp(line, "Sec-WebSocket-Key") == 0) ws_key_val = ctx->header_vals[ctx->header_count];
             ctx->header_count++;
         }
     }
+    if (upgrade_val && strcasecmp(upgrade_val, "websocket") == 0 && ws_key_val) {
+        ctx->is_websocket = 1;
+        ctx->ws_key = wolf_req_strdup(ws_key_val);
+    }
+
     /* If multipart body, parse uploads */
     if (body_start && body_len > 0 && content_type_val &&
         strstr(content_type_val, "multipart/form-data")) {
@@ -2248,6 +2708,42 @@ static void parse_http_request(int id, char* raw_req, size_t len) {
 #ifndef WOLF_REQUEST_TIMEOUT_SEC
 #define WOLF_REQUEST_TIMEOUT_SEC 30
 #endif
+
+void* wolf_ws_on_message(void* handler) {
+    global_ws_handler = (wolf_ws_handler_t)handler;
+    return NULL;
+}
+
+void* wolf_ws_send(int64_t req_id, const char* message) {
+    if (req_id < 0 || req_id >= MAX_CONCURRENT_REQUESTS) return NULL;
+    wolf_http_context_t* ctx = &http_contexts[req_id];
+    if (!ctx->active || ctx->client_fd <= 0) return NULL;
+
+    size_t len = message ? strlen(message) : 0;
+    unsigned char header[10];
+    int header_len = 0;
+
+    header[0] = 0x81; // FIN + Text
+    if (len <= 125) {
+        header[1] = (unsigned char)len;
+        header_len = 2;
+    } else if (len <= 65535) {
+        header[1] = 126;
+        header[2] = (len >> 8) & 0xFF;
+        header[3] = len & 0xFF;
+        header_len = 4;
+    } else {
+        header[1] = 127;
+        for (int i = 0; i < 8; i++) {
+            header[9-i] = (len >> (i*8)) & 0xFF;
+        }
+        header_len = 10;
+    }
+
+    write(ctx->client_fd, header, header_len);
+    if (len > 0) write(ctx->client_fd, message, len);
+}
+
 
 static void* http_worker(void* arg) {
 #if !defined(WOLF_DB_POSTGRES) && !defined(WOLF_DB_MSSQL)
@@ -2270,6 +2766,41 @@ static void* http_worker(void* arg) {
 
     if (bytes_read > 0) {
         parse_http_request(id, buffer, bytes_read);
+
+        if (ctx->is_websocket) {
+            /* Handshake */
+            char magic[] = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
+            char combined[256];
+            snprintf(combined, sizeof(combined), "%s%s", ctx->ws_key, magic);
+            unsigned char hash[20];
+            EVP_MD_CTX *mdctx = EVP_MD_CTX_new();
+            EVP_DigestInit_ex(mdctx, EVP_sha1(), NULL);
+            EVP_DigestUpdate(mdctx, combined, strlen(combined));
+            EVP_DigestFinal_ex(mdctx, hash, NULL);
+            EVP_MD_CTX_free(mdctx);
+            const char* accept_key = wolf_base64_encode_bin((const char*)hash, 20);
+            char res[512];
+            snprintf(res, sizeof(res),
+                     "HTTP/1.1 101 Switching Protocols\r\n"
+                     "Upgrade: websocket\r\n"
+                     "Connection: Upgrade\r\n"
+                     "Sec-WebSocket-Accept: %s\r\n\r\n",
+                     accept_key);
+            write(ctx->client_fd, res, strlen(res));
+            
+            /* Handover to non-blocking poller */
+            wolf_ws_poller_add(ctx->client_fd, id);
+
+            /* Decrement in-flight counter but DO NOT close fd or free context yet */
+            __atomic_fetch_sub(&wolf_active_requests, 1, __ATOMIC_SEQ_CST);
+            if (wolf_shutdown_requested && wolf_active_requests == 0) {
+                pthread_mutex_lock(&wolf_drain_mutex);
+                pthread_cond_signal(&wolf_drain_cond);
+                pthread_mutex_unlock(&wolf_drain_mutex);
+            }
+            return NULL;
+        }
+
 
         if (global_wolf_handler) {
             wolf_req_arena_init();
@@ -2396,6 +2927,11 @@ void wolf_http_serve(int64_t port, void* handler_ptr) {
     fflush(stdout);
     printf("   Send SIGTERM or Ctrl+C to shut down gracefully.\n");
 
+    /* Initialize Worker Pool and WebSocket Poller */
+    wolf_worker_pool_init();
+    wolf_ws_poller_init();
+    wolf_ws_poller_start();
+
     /* ---- Accept loop ---- */
     while (!wolf_shutdown_requested) {
         struct sockaddr_in client_addr;
@@ -2426,24 +2962,11 @@ void wolf_http_serve(int64_t port, void* handler_ptr) {
 
         int id = alloc_http_context(client_fd);
         if (id >= 0) {
-            /* Increment in-flight counter BEFORE spawning thread */
+            /* Increment in-flight counter BEFORE pushing task */
             __atomic_fetch_add(&wolf_active_requests, 1, __ATOMIC_SEQ_CST);
 
-            pthread_t thread;
-            if (pthread_create(&thread, NULL, http_worker,
-                               (void*)(intptr_t)id) != 0) {
-                /* Thread creation failed — undo counter, free context */
-                __atomic_fetch_sub(&wolf_active_requests, 1, __ATOMIC_SEQ_CST);
-                if (wolf_shutdown_requested && wolf_active_requests == 0) {
-                    pthread_mutex_lock(&wolf_drain_mutex);
-                    pthread_cond_signal(&wolf_drain_cond);
-                    pthread_mutex_unlock(&wolf_drain_mutex);
-                }
-                free_http_context(id);
-                close(client_fd);
-            } else {
-                pthread_detach(thread);
-            }
+            wolf_task_t task = {WOLF_TASK_HTTP, (int64_t)id, NULL};
+            wolf_task_push(task);
         } else {
             /* All slots full */
             const char* busy =
@@ -2617,6 +3140,156 @@ void wolf_http_res_write(int64_t res_id, const char* body) {
     } else {
         ctx->res_body = wolf_req_strdup(body);
     }
+}
+
+/* --- HTTP Client (libcurl integration) --- */
+
+static char* wolf_json_escape(const char* s) {
+    if (!s) return "";
+    size_t len = strlen(s);
+    char* res = wolf_req_alloc(len * 4 + 1);
+    char* p = res;
+    while (*s) {
+        if (*s == '"') { *p++ = '\\'; *p++ = '"'; }
+        else if (*s == '\\') { *p++ = '\\'; *p++ = '\\'; }
+        else if (*s == '\n') { *p++ = '\\'; *p++ = 'n'; }
+        else if (*s == '\r') { *p++ = '\\'; *p++ = 'r'; }
+        else if (*s == '\t') { *p++ = '\\'; *p++ = 't'; }
+        else { *p++ = *s; }
+        s++;
+    }
+    *p = '\0';
+    return res;
+}
+
+const char* wolf_http_get(const char* url) {
+    wolf_ensure_curl();
+    CURL *curl;
+    CURLcode res;
+    WolfHTTPClientResult chunk = { .data = malloc(1), .size = 0 };
+    chunk.data[0] = '\0';
+
+    curl = curl_easy_init();
+    if (!curl) return "";
+
+    curl_easy_setopt(curl, CURLOPT_URL, url);
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, wolf_http_client_write_cb);
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void *)&chunk);
+    curl_easy_setopt(curl, CURLOPT_USERAGENT, "wolf/1.0");
+    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L); // Default to skip for simple dev
+
+    res = curl_easy_perform(curl);
+
+    long status_code = 0;
+    if (res == CURLE_OK) {
+        curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &status_code);
+    }
+
+    /* Build JSON response in request arena */
+    const char* escaped_body = wolf_json_escape(chunk.data);
+    char* json = wolf_req_alloc(strlen(escaped_body) + 128);
+    sprintf(json, "{\"status\":%ld,\"body\":\"%s\",\"error\":%d}", 
+            status_code, escaped_body, (int)res);
+
+    free(chunk.data);
+    curl_easy_cleanup(curl);
+    return json;
+}
+
+const char* wolf_http_post(const char* url, const char* body) {
+    wolf_ensure_curl();
+    CURL *curl;
+    CURLcode res;
+    WolfHTTPClientResult chunk = { .data = malloc(1), .size = 0 };
+    chunk.data[0] = '\0';
+
+    curl = curl_easy_init();
+    if (!curl) return "";
+
+    curl_easy_setopt(curl, CURLOPT_URL, url);
+    curl_easy_setopt(curl, CURLOPT_POSTFIELDS, body);
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, wolf_http_client_write_cb);
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void *)&chunk);
+    curl_easy_setopt(curl, CURLOPT_USERAGENT, "wolf/1.0");
+    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
+
+    res = curl_easy_perform(curl);
+
+    long status_code = 0;
+    if (res == CURLE_OK) {
+        curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &status_code);
+    }
+
+    const char* escaped_body = wolf_json_escape(chunk.data);
+    char* json = wolf_req_alloc(strlen(escaped_body) + 128);
+    sprintf(json, "{\"status\":%ld,\"body\":\"%s\",\"error\":%d}", 
+            status_code, escaped_body, (int)res);
+
+    free(chunk.data);
+    curl_easy_cleanup(curl);
+    return json;
+}
+
+const char* wolf_http_put(const char* url, const char* body) {
+    wolf_ensure_curl(); CURL *curl; CURLcode res;
+    WolfHTTPClientResult chunk = { .data = malloc(1), .size = 0 };
+    chunk.data[0] = '\0';
+    curl = curl_easy_init(); if (!curl) return "";
+    curl_easy_setopt(curl, CURLOPT_URL, url);
+    curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, "PUT");
+    curl_easy_setopt(curl, CURLOPT_POSTFIELDS, body);
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, wolf_http_client_write_cb);
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void *)&chunk);
+    curl_easy_setopt(curl, CURLOPT_USERAGENT, "wolf/1.0");
+    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
+    res = curl_easy_perform(curl);
+    long code = 0; if (res == CURLE_OK) curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &code);
+    const char* escaped = wolf_json_escape(chunk.data);
+    char* json = wolf_req_alloc(strlen(escaped) + 128);
+    sprintf(json, "{\"status\":%ld,\"body\":\"%s\",\"error\":%d}", code, escaped, (int)res);
+    free(chunk.data); curl_easy_cleanup(curl);
+    return json;
+}
+
+const char* wolf_http_delete(const char* url) {
+    wolf_ensure_curl(); CURL *curl; CURLcode res;
+    WolfHTTPClientResult chunk = { .data = malloc(1), .size = 0 };
+    chunk.data[0] = '\0';
+    curl = curl_easy_init(); if (!curl) return "";
+    curl_easy_setopt(curl, CURLOPT_URL, url);
+    curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, "DELETE");
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, wolf_http_client_write_cb);
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void *)&chunk);
+    curl_easy_setopt(curl, CURLOPT_USERAGENT, "wolf/1.0");
+    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
+    res = curl_easy_perform(curl);
+    long code = 0; if (res == CURLE_OK) curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &code);
+    const char* escaped = wolf_json_escape(chunk.data);
+    char* json = wolf_req_alloc(strlen(escaped) + 128);
+    sprintf(json, "{\"status\":%ld,\"body\":\"%s\",\"error\":%d}", code, escaped, (int)res);
+    free(chunk.data); curl_easy_cleanup(curl);
+    return json;
+}
+
+const char* wolf_http_patch(const char* url, const char* body) {
+    wolf_ensure_curl(); CURL *curl; CURLcode res;
+    WolfHTTPClientResult chunk = { .data = malloc(1), .size = 0 };
+    chunk.data[0] = '\0';
+    curl = curl_easy_init(); if (!curl) return "";
+    curl_easy_setopt(curl, CURLOPT_URL, url);
+    curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, "PATCH");
+    curl_easy_setopt(curl, CURLOPT_POSTFIELDS, body);
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, wolf_http_client_write_cb);
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void *)&chunk);
+    curl_easy_setopt(curl, CURLOPT_USERAGENT, "wolf/1.0");
+    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
+    res = curl_easy_perform(curl);
+    long code = 0; if (res == CURLE_OK) curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &code);
+    const char* escaped = wolf_json_escape(chunk.data);
+    char* json = wolf_req_alloc(strlen(escaped) + 128);
+    sprintf(json, "{\"status\":%ld,\"body\":\"%s\",\"error\":%d}", code, escaped, (int)res);
+    free(chunk.data); curl_easy_cleanup(curl);
+    return json;
 }
 
 #endif /* WOLF_FREESTANDING — end of HTTP request/response API */
@@ -4040,7 +4713,7 @@ void* wolf_json_decode(const char* json) {
         size_t key_cap=256; char* key=(char*)wolf_req_alloc(key_cap); if(!key) break;
         int ki=0;
         while (*json&&*json!='"') {
-            if((size_t)ki>=key_cap-1){key_cap*=2;char* nk=(char*)realloc(key,key_cap);if(!nk){free(key);break;}key=nk;}
+            if((size_t)ki>=key_cap-1){size_t old_sz=key_cap;key_cap*=2;char* nk=(char*)json_decode_realloc(key,old_sz,key_cap);if(!nk){free(key);break;}key=nk;}
             key[ki++]=*json++;
         }
         key[ki]='\0';
@@ -4051,7 +4724,7 @@ void* wolf_json_decode(const char* json) {
             json++;
             size_t val_cap=256; char* val=(char*)wolf_req_alloc(val_cap); if(!val){break;} int vi=0;
             while (*json&&*json!='"') {
-                if((size_t)vi>=val_cap-8){val_cap*=2;char* nv=(char*)realloc(val,val_cap);if(!nv){free(val);val=NULL;break;}val=nv;}
+                if((size_t)vi>=val_cap-8){size_t old_sz=val_cap;val_cap*=2;char* nv=(char*)json_decode_realloc(val,old_sz,val_cap);if(!nv){free(val);val=NULL;break;}val=nv;}
                 if(*json=='\\'&&*(json+1)){
                     json++;
                     switch(*json){
@@ -4068,7 +4741,7 @@ void* wolf_json_decode(const char* json) {
                                 json--;
                                 if(low_cp>=0xDC00&&low_cp<=0xDFFF) cp=0x10000+((cp-0xD800)<<10)+(low_cp-0xDC00);
                             }
-                            if((size_t)vi>=val_cap-8){val_cap*=2;char* nv=(char*)realloc(val,val_cap);if(!nv){free(val);val=NULL;break;}val=nv;}
+                            if((size_t)vi>=val_cap-8){size_t old_sz=val_cap;val_cap*=2;char* nv=(char*)json_decode_realloc(val,old_sz,val_cap);if(!nv){free(val);val=NULL;break;}val=nv;}
                             if(cp<0x80){val[vi++]=(char)cp;}else if(cp<0x800){val[vi++]=(char)(0xC0|(cp>>6));val[vi++]=(char)(0x80|(cp&0x3F));}else if(cp<0x10000){val[vi++]=(char)(0xE0|(cp>>12));val[vi++]=(char)(0x80|((cp>>6)&0x3F));val[vi++]=(char)(0x80|(cp&0x3F));}else{val[vi++]=(char)(0xF0|(cp>>18));val[vi++]=(char)(0x80|((cp>>12)&0x3F));val[vi++]=(char)(0x80|((cp>>6)&0x3F));val[vi++]=(char)(0x80|(cp&0x3F));}
                             break;
                         }
@@ -4136,7 +4809,7 @@ int64_t wolf_days_in_month(int64_t month, int64_t year) {
     if(month==2&&(year%4==0&&(year%100!=0||year%400==0))) d=29;
     return (int64_t)d;
 }
-int wolf_is_leap_year(int64_t year) {
+int64_t wolf_is_leap_year(int64_t year) {
     return (year%4==0&&(year%100!=0||year%400==0));
 }
 int64_t wolf_strtotime(const char* str) {
@@ -4386,3 +5059,71 @@ const char* wolf_sanitize_float(const char* s) {
     return r;
 }
 
+
+/* --- STDLIB-04: Date Object Implementation --- */
+
+int64_t wolf_date_create(const char* str) {
+    if (!str || !*str) return 0;
+    
+    /* Try parsing as a pure timestamp first */
+    char* endptr;
+    int64_t ts = strtoll(str, &endptr, 10);
+    if (*endptr == '\0') return ts;
+
+    /* Try parsing ISO-8601: YYYY-MM-DD */
+    struct tm tm;
+    memset(&tm, 0, sizeof(struct tm));
+    if (strptime(str, "%Y-%m-%d", &tm)) {
+        return (int64_t)mktime(&tm);
+    }
+    
+    /* Try parsing ISO-8601 with time: YYYY-MM-DDTHH:MM:SS */
+    memset(&tm, 0, sizeof(struct tm));
+    if (strptime(str, "%Y-%m-%dT%H:%M:%S", &tm)) {
+        return (int64_t)mktime(&tm);
+    }
+
+    return 0;
+}
+
+int64_t wolf_date_add_days(int64_t ts, int64_t days) {
+    return ts + (days * 86400);
+}
+
+int64_t wolf_date_add_months(int64_t ts, int64_t months) {
+    time_t t = (time_t)ts;
+    struct tm* tm = localtime(&t);
+    if (!tm) return ts;
+
+    int total_months = tm->tm_mon + (int)months;
+    tm->tm_year += total_months / 12;
+    tm->tm_mon = total_months % 12;
+    if (tm->tm_mon < 0) {
+        tm->tm_mon += 12;
+        tm->tm_year -= 1;
+    }
+
+    return (int64_t)mktime(tm);
+}
+
+int64_t wolf_date_diff_days(int64_t ts1, int64_t ts2) {
+    return (ts2 - ts1) / 86400;
+}
+
+int wolf_date_is_past(int64_t ts) {
+    return ts < (int64_t)time(NULL);
+}
+
+int wolf_date_is_future(int64_t ts) {
+    return ts > (int64_t)time(NULL);
+}
+
+const char* wolf_date_to_iso(int64_t ts) {
+    time_t t = (time_t)ts;
+    struct tm* tm = gmtime(&t); /* UTC for ISO strings */
+    if (!tm) return "";
+
+    char buf[64];
+    strftime(buf, sizeof(buf), "%Y-%m-%dT%H:%M:%SZ", tm);
+    return wolf_req_strdup(buf);
+}

@@ -1,0 +1,11 @@
+// e2e/testdata/31_websocket.wolf
+// A simple WebSocket echo server
+func handle_ws($id: int, $msg: string) {
+    print("[Wolf] Received: {$msg}")
+    $reply = "Echo: " + $msg
+    wolf_ws_send($id, $reply)
+}
+
+wolf_ws_on_message(handle_ws)
+$port = wolf_intval(wolf_env_get("WOLF_PORT", "8080"))
+wolf_http_serve($port)

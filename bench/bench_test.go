@@ -1,0 +1,216 @@
+package bench
+
+import (
+	"fmt"
+	"io"
+	"net/http"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"runtime"
+	"sort"
+	"strings"
+	"sync"
+	"testing"
+	"time"
+)
+
+const (
+	wolfPort = "8090"
+	goPort   = "8091"
+	nodePort = "8092"
+
+	warmupReqs  = 50
+	totalReqs   = 2000
+	concurrency = 100
+)
+
+// ---------- helpers ----------
+
+func projectRoot() string {
+	_, file, _, _ := runtime.Caller(0)
+	return filepath.Join(filepath.Dir(file), "..")
+}
+
+func waitReady(url string, timeout time.Duration) bool {
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		resp, err := http.Get(url)
+		if err == nil {
+			resp.Body.Close()
+			return true
+		}
+		time.Sleep(80 * time.Millisecond)
+	}
+	return false
+}
+
+// hammer sends `total` requests at `concurrency` (goroutines) and returns sorted latencies.
+func hammer(url string, total, concurrency int) []time.Duration {
+	latencies := make([]time.Duration, 0, total)
+	var mu sync.Mutex
+	var wg sync.WaitGroup
+	sem := make(chan struct{}, concurrency)
+
+	client := &http.Client{Timeout: 5 * time.Second}
+
+	for i := 0; i < total; i++ {
+		wg.Add(1)
+		sem <- struct{}{}
+		go func() {
+			defer func() { <-sem; wg.Done() }()
+			start := time.Now()
+			resp, err := client.Get(url)
+			d := time.Since(start)
+			if err == nil {
+				io.Copy(io.Discard, resp.Body)
+				resp.Body.Close()
+				mu.Lock()
+				latencies = append(latencies, d)
+				mu.Unlock()
+			}
+		}()
+	}
+	wg.Wait()
+	sort.Slice(latencies, func(i, j int) bool { return latencies[i] < latencies[j] })
+	return latencies
+}
+
+func pct(sorted []time.Duration, p float64) time.Duration {
+	if len(sorted) == 0 {
+		return 0
+	}
+	idx := int(float64(len(sorted)) * p / 100.0)
+	if idx >= len(sorted) {
+		idx = len(sorted) - 1
+	}
+	return sorted[idx]
+}
+
+func rps(total int, latencies []time.Duration) float64 {
+	if len(latencies) == 0 {
+		return 0
+	}
+	var sum time.Duration
+	for _, l := range latencies {
+		sum += l
+	}
+	avg := sum / time.Duration(len(latencies))
+	if avg == 0 {
+		return 0
+	}
+	return float64(concurrency) / avg.Seconds()
+}
+
+// ---------- test ----------
+
+func TestBenchmark(t *testing.T) {
+	root := projectRoot()
+
+	// --- 1. Build Wolf echo server ---
+	// wolf build outputs to wolf_out/<basename> in the project root
+	wolfBin := filepath.Join(root, "wolf_out", "echo")
+	wolfSrc := filepath.Join(root, "bench", "fixtures", "echo.wolf")
+	t.Log("Building Wolf echo server...")
+	buildCmd := exec.Command(filepath.Join(root, "wolf"), "build", wolfSrc)
+	buildCmd.Dir = root
+	if out, err := buildCmd.CombinedOutput(); err != nil {
+		t.Fatalf("wolf build failed:\n%s", out)
+	}
+
+	// --- 2. Start Wolf server ---
+	wolfProc := exec.Command(wolfBin)
+	wolfProc.Dir = root
+	if err := wolfProc.Start(); err != nil {
+		t.Fatalf("wolf start: %v", err)
+	}
+	defer wolfProc.Process.Kill()
+
+	// --- 3. Start Go server ---
+	goCmd := exec.Command("go", "run", filepath.Join(root, "bench", "fixtures", "echo_go.go"))
+	goCmd.Dir = root
+	if err := goCmd.Start(); err != nil {
+		t.Fatalf("go server start: %v", err)
+	}
+	defer goCmd.Process.Kill()
+
+	// --- 4. Start Node server ---
+	nodeCmd := exec.Command("node", filepath.Join(root, "bench", "fixtures", "echo_node.js"))
+	nodeCmd.Dir = root
+	if err := nodeCmd.Start(); err != nil {
+		t.Fatalf("node server start: %v", err)
+	}
+	defer nodeCmd.Process.Kill()
+
+	// --- 5. Wait for all servers ---
+	servers := map[string]string{
+		"Wolf": "http://127.0.0.1:" + wolfPort + "/",
+		"Go":   "http://127.0.0.1:" + goPort + "/",
+		"Node": "http://127.0.0.1:" + nodePort + "/",
+	}
+	for name, url := range servers {
+		if !waitReady(url, 20*time.Second) {
+			t.Fatalf("%s server did not start in time at %s", name, url)
+		}
+		t.Logf("%s server ready at %s", name, url)
+	}
+
+	// --- 6. Warmup ---
+	for _, url := range servers {
+		hammer(url, warmupReqs, 10)
+	}
+
+	// --- 7. Benchmark ---
+	type result struct {
+		name      string
+		latencies []time.Duration
+	}
+	order := []string{"Wolf", "Go", "Node"}
+	results := make(map[string][]time.Duration)
+	for _, name := range order {
+		t.Logf("Hammering %s (%d reqs, %d concurrent)...", name, totalReqs, concurrency)
+		results[name] = hammer(servers[name], totalReqs, concurrency)
+	}
+
+	// --- 8. Report ---
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf("# Wolf Load Test Results — %s\n\n", time.Now().Format("2006-01-02 15:04")))
+	sb.WriteString(fmt.Sprintf("**Config:** %d requests × %d concurrent\n\n", totalReqs, concurrency))
+	sb.WriteString("| Server | p50 | p95 | p99 | RPS (est.) | Successes |\n")
+	sb.WriteString("|--------|-----|-----|-----|-----------|----------|\n")
+
+	for _, name := range order {
+		l := results[name]
+		sb.WriteString(fmt.Sprintf("| **%s** | %s | %s | %s | %.0f | %d/%d |\n",
+			name,
+			pct(l, 50).Round(time.Microsecond),
+			pct(l, 95).Round(time.Microsecond),
+			pct(l, 99).Round(time.Microsecond),
+			rps(totalReqs, l),
+			len(l), totalReqs,
+		))
+	}
+
+	sb.WriteString("\n---\n_Generated by `go test ./bench/ -v -run TestBenchmark`_\n")
+	report := sb.String()
+
+	// Write to vault
+	vaultPath := filepath.Join(root, ".wolf-vault", "RnD", "load_test_results.md")
+	os.MkdirAll(filepath.Dir(vaultPath), 0755)
+	os.WriteFile(vaultPath, []byte(report), 0644)
+
+	// Print to test output
+	t.Log("\n" + report)
+
+	// --- 9. Assertions ---
+	wolfLatencies := results["Wolf"]
+	if len(wolfLatencies) < totalReqs/2 {
+		t.Errorf("Wolf: too many failed requests (%d/%d succeeded)", len(wolfLatencies), totalReqs)
+	}
+	wolfP50 := pct(wolfLatencies, 50)
+	if wolfP50 > 200*time.Millisecond {
+		t.Errorf("Wolf p50 = %s, want < 200ms", wolfP50)
+	} else {
+		t.Logf("✅ Wolf p50 = %s (< 200ms target)", wolfP50)
+	}
+}

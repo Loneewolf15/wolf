@@ -1,4 +1,0 @@
-# github.com/wolflang/wolf/internal/emitter
-internal/emitter/go_emitter.go:385:6: g.imports undefined (type *GoEmitter has no field or method imports)
-internal/emitter/go_emitter.go:409:7: g.imports undefined (type *GoEmitter has no field or method imports)
-EXIT=1

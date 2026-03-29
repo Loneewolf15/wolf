@@ -2,10 +2,11 @@
 package emitter
 
 import (
+	"strings"
+
 	"github.com/wolflang/wolf/internal/ir"
 	"github.com/wolflang/wolf/internal/parser"
 	"github.com/wolflang/wolf/internal/resolver"
-	"strings"
 )
 
 // IREmitter transforms a Wolf AST into WIR.
@@ -204,13 +205,19 @@ func (e *IREmitter) emitServeCall(call *parser.CallExpr) ir.Stmt {
 	e.imports["log"] = true
 
 	var port ir.Expr
+	var handler ir.Expr
+
 	if len(call.Args) >= 1 {
 		port = e.emitExpr(call.Args[0])
 	} else {
 		port = &ir.IntLit{Value: "8080"}
 	}
 
-	return &ir.ServeStmt{Port: port}
+	if len(call.Args) >= 2 {
+		handler = e.emitExpr(call.Args[1])
+	}
+
+	return &ir.ServeStmt{Port: port, Handler: handler}
 }
 
 // emitRespondCall: respond(200, {"key": "value"})

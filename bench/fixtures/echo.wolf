@@ -1,0 +1,7 @@
+func handler($req_id: int, $res_id: int) {
+    $ts = time_now()
+    wolf_http_res_status($res_id, 200)
+    wolf_http_res_write($res_id, "{\"status\":\"ok\",\"server\":\"wolf\",\"ts\":{$ts}}")
+}
+
+serve(8090, handler)

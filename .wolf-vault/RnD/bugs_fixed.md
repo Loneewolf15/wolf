@@ -1,5 +1,41 @@
 # Wolf Bugs Fixed — Cumulative Log
 
+## Session 2026-03-26 (Session 6 — HTTP Client & WebSocket Foundation)
+
+### BUG-034: LLVM emitter passes req_id as ptr instead of i64 for wolf_ws_send
+- **Class:** P1 🟠 Runtime Stability
+- **Fix:** Added `"wolf_ws_send"` to the emitter's `i64` coercion list for arg0.
+- **File:** `internal/emitter/llvm_emitter.go`
+
+### BUG-035: Statistical functions inferred as ptr instead of double
+- **Class:** P2 🟡 Functional Correctness
+- **Fix:** Added `array_mean`, `array_std_dev` to `inferExprType` in `llvm_emitter.go`.
+- **File:** `internal/emitter/llvm_emitter.go`
+
+### BUG-036: wolf_math_round precision loss (missing persistence arg)
+- **Class:** P2 🟡 Functional Correctness
+- **Fix:** Upgraded `wolf_math_round` to accept a `precision` argument and updated LLVM declarations.
+- **File:** `runtime/wolf_runtime.c`, `runtime/wolf_runtime.h`
+
+### BUG-037: wolf_array_sum pointer corruption on wolf_value_t items
+- **Class:** P1 🟠 Runtime Stability
+- **Fix:** Implemented `wolf_value_unwrap_double` to safely extract numeric data from tagged value pointers.
+- **File:** `runtime/wolf_runtime.c`
+
+### BUG-038: Call expression name mangling (@_date_to_iso)
+- **Class:** P2 🟡 Functional Correctness
+- **Root cause:** Test code used the `.` operator (Module Access) instead of `..` (String Concat) between a string literal and a function call. This caused the parser to interpret the call as a MethodCall on a string literal object, bypassing the global function mapping and triggering a fallback mangling path.
+- **Fix:** Corrected operator usage in test suite; improved `llvm_emitter.go` to safely handle fallback name mapping for unknown method calls to prevent invalid IR.
+- **File:** `e2e/testdata/33_stdlib_date.wolf`
+
+### BUG-039: conflicting types for 'wolf_is_leap_year'
+- **Class:** P1 🟠 Runtime Stability
+- **Root cause:** Header declared `int64_t` but implementation used `int`. Caused compilation failure in the linking phase of `wolf build`.
+- **Fix:** Standardized implementation to use `int64_t` consistent with the rest of the temporal API.
+- **File:** `runtime/wolf_runtime.c`, `runtime/wolf_runtime.h`
+
+---
+
 ## Session 2026-03-25 (Session 5 — File Uploads & Metal-Ready Audit)
 
 ### BUG-031: LLVM emitter passes req_id as ptr instead of i64 for wolf_http_req_file
@@ -43,7 +79,7 @@
 ### BUG-020: SIGPIPE not ignored — broken client socket killed process
 ### BUG-021: Double-free in HTTP context during cleanup
 ### BUG-022: JSON string encoding regression — strings rendered as []
-### BUG-023: E2E test suite hangs and timeouts
+### BUG-023: E2E test suite hangs and timeoutsI thought
 ### BUG-024: @main redefinition conflict with Wolf func main()
 ### BUG-025: Fragile regex JSON parsing in URL Shortener
 ### BUG-026: Sequential SQL parameter binding corruption
@@ -64,7 +100,29 @@
 
 ## Status Ledger
 
-- Total bugs fixed: **33** (BUG-001 through BUG-033)
-- E2E tests: **24/24 passing** (22 standard + graceful shutdown + file upload)
+- Total bugs fixed: **39** (BUG-001 through BUG-039)
+- E2E tests: **26/26 passing** (including new 33_stdlib_date.wolf)
 - Open: None
-- Next Bloodhound Sweep: Monitor for P2 issues with `Content-Type` header case-sensitivity in `wolf_parse_multipart` (strncasecmp used — OK), and base64 padding edge cases in `wolf_file_save`.
+- Next Bloodhound Sweep: Monitor for `libcurl` multi-handle leakage if we move from synchronous `easy` interface to asynchronous.
+---
+
+## BUG-001 — Duplicate `wolf_current_req_id` Thread-Local Declaration
+- **Priority:** P0 🔴 (LLVM IR compile error / C build blocker)
+- **Status:** Fixed ✅
+- **Date:** 2026-03-27
+
+**Root Cause:**  
+During a session repair, `static __thread int64_t wolf_current_req_id = -1;` was inserted at line 2351 of `wolf_runtime.c`. The canonical declaration already existed at line 148 (under Forward declarations). The C compiler emitted `error: redefinition of 'wolf_current_req_id'`, causing **all 26 E2E tests to fail**.
+
+**Fix:** Removed the duplicate declaration at line 2351.
+
+**MRS:** `e2e/testdata/_bug_001.wolf`
+
+**Commit convention:**
+```
+fix(runtime): remove duplicate wolf_current_req_id thread-local declaration
+
+BUG-001 classified P0: duplicate static __thread variable caused clang to
+reject every wolf_runtime.c compilation, failing all 26 E2E tests.
+MRS: e2e/testdata/_bug_001.wolf
+```

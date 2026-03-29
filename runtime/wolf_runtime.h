@@ -26,7 +26,10 @@
 #define WOLF_TYPE_MAP     5
 #define WOLF_TYPE_ARRAY   6
 
+#define WOLF_VALUE_MAGIC 0x574F4C46 /* "WOLF" */
+
 typedef struct {
+    uint32_t magic;
     int type;
     union {
         char*   s;
@@ -36,6 +39,8 @@ typedef struct {
         void*   ptr;
     } val;
 } wolf_value_t;
+
+int wolf_is_tagged_value(void* ptr);
 
 /* --- Per-Request Memory Arena --- */
 void  wolf_req_arena_init(void);
@@ -134,13 +139,13 @@ void    wolf_db_rollback(void* conn);
  * Without -DWOLF_REDIS_ENABLED, wolf_runtime.c provides no-op stubs
  * so linking always succeeds even when hiredis is not installed.       */
 void*       wolf_redis_connect(const char* host, int64_t port, const char* pass);
-void        wolf_redis_set(void* handle, const char* key, const char* value, int64_t ttl);
-const char* wolf_redis_get(void* handle, const char* key);
-int64_t     wolf_redis_del(void* handle, const char* key);
-int         wolf_redis_exists(void* handle, const char* key);
-void        wolf_redis_hset(void* handle, const char* key, const char* field, const char* value);
-const char* wolf_redis_hget(void* handle, const char* key, const char* field);
-void        wolf_redis_close(void* handle);
+void        wolf_redis_set(const char* key, const char* value, int64_t ttl);
+const char* wolf_redis_get(const char* key);
+int64_t     wolf_redis_del(const char* key);
+int         wolf_redis_exists(const char* key);
+void        wolf_redis_hset(const char* key, const char* field, const char* value);
+const char* wolf_redis_hget(const char* key, const char* field);
+void        wolf_redis_close(void);
 
 /* --- Math --- */
 double wolf_math_abs(double v);
@@ -167,7 +172,7 @@ double wolf_math_log10(double v);
 double wolf_math_exp(double v);
 
 /* --- Rounding --- */
-double wolf_math_round(double v);
+double wolf_math_round(double v, int64_t precision);
 double wolf_math_fmod(double a, double b);
 
 /* --- Constants --- */
@@ -393,8 +398,17 @@ int64_t     wolf_date_diff(int64_t ts1, int64_t ts2);
 const char* wolf_date_format(int64_t timestamp, const char* format);
 int64_t     wolf_day_of_week(int64_t timestamp);
 int64_t     wolf_days_in_month(int64_t month, int64_t year);
-int         wolf_is_leap_year(int64_t year);
+int64_t     wolf_is_leap_year(int64_t year);
 int64_t     wolf_strtotime(const char* str);
+
+/* --- STDLIB-04: Date Object --- */
+int64_t     wolf_date_create(const char* str);
+int64_t     wolf_date_add_days(int64_t ts, int64_t days);
+int64_t     wolf_date_add_months(int64_t ts, int64_t months);
+int64_t     wolf_date_diff_days(int64_t ts1, int64_t ts2);
+int         wolf_date_is_past(int64_t ts);
+int         wolf_date_is_future(int64_t ts);
+const char* wolf_date_to_iso(int64_t ts);
 
 /* --- Phase 3: Validation --- */
 int wolf_is_email(const char* s);
@@ -443,5 +457,9 @@ const char* wolf_sanitize_float(const char* s);
 /* --- JWT --- */
 const char* wolf_jwt_encode(const char* payload, const char* secret);
 const char* wolf_jwt_decode(const char* token, const char* secret);
+
+/* --- WebSocket --- */
+void*       wolf_ws_on_message(void* handler);
+void*       wolf_ws_send(int64_t req_id, const char* message);
 
 #endif /* WOLF_RUNTIME_H */

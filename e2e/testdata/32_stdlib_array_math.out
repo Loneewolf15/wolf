@@ -1,0 +1,10 @@
+Fill:
+["X","X","X","X","X"]
+Chunk:
+[["A","B"],["C","D"],["E"]]
+Column:
+["Alice","Bob","Charlie"]
+Mean:
+30
+StdDev:
+14.14

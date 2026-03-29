@@ -1,0 +1,21 @@
+$ts = date_create("2026-03-26")
+print("Date: " .. date_to_iso($ts))
+
+$next = date_add_days($ts, 5)
+print("In 5 days: " .. date_to_iso($next))
+
+$future = date_add_months($ts, 2)
+print("In 2 months: " .. date_to_iso($future))
+
+$past = date_add_days($ts, -10)
+print("10 days ago: " .. date_to_iso($past))
+
+$diff = date_diff_days($past, $ts)
+print("Diff: {$diff} days")
+
+if (date_is_past($past)) {
+    print("Past is past")
+}
+if (date_is_future($future)) {
+    print("Future is future")
+}

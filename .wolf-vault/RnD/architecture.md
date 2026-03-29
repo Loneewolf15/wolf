@@ -41,11 +41,12 @@ wolf_runtime.c       (linked into every binary)
 | File uploads | multipart/form-data → wolf_http_req_file() | ✅ Done (session 5) |
 | wolf_file_save | Base64 decode + binary fwrite | ✅ Done (session 5) |
 | Metal-Ready | #ifdef WOLF_FREESTANDING guards | ✅ Done (session 5) |
-| JWT | wolf_jwt_* | ✅ Done (stub — needs real HMAC) |
+| JWT | wolf_jwt_* | ✅ Done (HMAC-SHA256) |
 | Memory arena | wolf_req_alloc / wolf_req_arena_flush | ✅ Done |
 | Crypto | OpenSSL + libsodium | ✅ Done |
 | MSSQL | wolf_db_* (MSSQL path) | 🔴 Mock only |
-| WebSocket | wolf_ws_* | ⬜ Not started |
+| WebSocket | wolf_ws_* | ✅ Done |
+| Date / Time | wolf_date_* | ✅ Done (Session 7) |
 
 ## Key Design Decisions
 
@@ -97,6 +98,20 @@ wolf_runtime.c       (linked into every binary)
 - **Verification:** `clang -DWOLF_FREESTANDING -fsyntax-only runtime/wolf_runtime.c` → zero errors
 - **Date:** 2026-03-25
 
+### ADR-010: libcurl for native HTTP Client
+- **Decision:** Use `libcurl` easy interface for synchronous GET/POST from Wolf scripts.
+- **Reasoning:** Industry standard, handles TLS/SSL, redirects, and complex proxies out-of-the-box.
+- **Date:** 2026-03-26
+
+### ADR-011: Hand-rolled RFC 6455 WebSocket framing
+- **Reasoning:** Maintains "Metal-Ready" (Zero-OS-Dependency) core. Avoids the 500KB+ overhead of `libwebsockets`.
+- **Date:** 2026-03-26
+
+### ADR-012: ISO-8601 Temporal API focus
+- **Decision:** Optimize all the stdlib date primitives (`date_to_iso`, `date_create`) for strict ISO-8601 compatibility.
+- **Reasoning:** Industry standard for JSON interchange; eliminates timezone ambiguity in distributed worker models.
+- **Date:** 2026-03-26
+
 ## Performance Targets
 
 | Metric | Target | Current |
@@ -114,10 +129,10 @@ wolf_runtime.c       (linked into every binary)
 | # | Issue | Priority | Status |
 |---|-------|----------|--------|
 | 1 | MSSQL mock — no real FreeTDS implementation | 🟡 Medium | Next sprint |
-| 2 | JWT stub — uses fake HMAC (sha256 djb2 hash) | 🟡 Medium | Future |
-| 3 | wolf_http_req_file limited to 8 uploads/req | 🟢 Low | Increase WOLF_MAX_UPLOADS if needed |
-| 4 | wolf_file_save doesn't create parent dirs | 🟢 Low | Use wolf_dir_exists first |
-| 5 | Surrogate pair unicode (\\uD83D\\uDE00) not decoded | 🟢 Low | Future |
+| 2 | wolf_http_req_file limited to 8 uploads/req | 🟢 Low | Increase WOLF_MAX_UPLOADS if needed |
+| 3 | wolf_file_save doesn't create parent dirs | 🟢 Low | Use wolf_dir_exists first |
+| 4 | Surrogate pair unicode (\\uD83D\\uDE00) not decoded | 🟢 Low | Future |
+
 
 ## Shutdown Sequence (reference)
 

@@ -1,0 +1,27 @@
+$arr1 = array_fill(0, 5, "X")
+print("Fill:")
+print(json_encode($arr1))
+
+$arr2 = ["A", "B", "C", "D", "E"]
+$chunks = array_chunk($arr2, 2)
+print("Chunk:")
+print(json_encode($chunks))
+
+$users = [
+    {"id": 1, "name": "Alice"},
+    {"id": 2, "name": "Bob"},
+    {"id": 3, "name": "Charlie"}
+]
+$names = array_column($users, "name")
+print("Column:")
+print(json_encode($names))
+
+$scores = [10, 20, 30, 40, 50]
+$m = array_mean($scores)
+print("Mean:")
+print("{$m}")
+
+print("StdDev:")
+$dev = array_std_dev($scores)
+$dev_r = round($dev, 2)
+print("{$dev_r}")

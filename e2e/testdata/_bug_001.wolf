@@ -1,0 +1,14 @@
+// BUG-001: Duplicate wolf_current_req_id thread-local declaration
+// Trigger: Run ANY wolf script via `./wolf run` or `go test ./e2e/...`
+// Expected: Program compiles and runs correctly
+// Actual: C compiler emits "redefinition of 'wolf_current_req_id'" — ALL scripts fail
+//
+// Root cause: static __thread int64_t wolf_current_req_id was declared at both:
+//   - Line 148  (canonical, under Forward declarations)
+//   - Line 2351 (duplicate, erroneously inserted during session repair)
+//
+// Fix: Remove the duplicate at line 2351.
+
+func main() {
+    print("hello");
+}

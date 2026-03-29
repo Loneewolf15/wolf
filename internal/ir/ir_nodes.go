@@ -370,7 +370,8 @@ func (*RouteStmt) irStmt() {}
 
 // ServeStmt starts the HTTP server.
 type ServeStmt struct {
-	Port Expr // port number expression
+	Port    Expr // port number expression
+	Handler Expr // handler function expression
 }
 
 func (*ServeStmt) irStmt() {}

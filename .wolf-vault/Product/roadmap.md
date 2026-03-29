@@ -34,8 +34,8 @@ Wolf is a compiled, natively fast language with PHP-like syntax.
 - [x] Native CLI support (argc() / argv() functions)
 - [x] Sequential SQL parameter binding (fixed wolf_db_bind limit)
 - [x] Compiler Function Prefixing (prevent @main collisions)
-- [ ] File upload handling (multipart/form-data)
-- [ ] WebSocket support (wolf_ws_*)
+- [x] File upload handling (multipart/form-data)
+- [🔄] WebSocket support (wolf_ws_*) — Framing complete, Scaling pending
 - [ ] MSSQL real implementation (freetds-dev, replace mock)
 
 ### Phase 2 — Stdlib Completion (In Progress 🔄)
@@ -56,10 +56,10 @@ Wolf is a compiled, natively fast language with PHP-like syntax.
 - [ ] clamp, rand_float, rand_secure, array_rand
 - [ ] array_mean, array_median, array_mode, array_variance, array_std_dev, array_percentile
 
-#### STDLIB-04 — Date & Time Functions
-- [ ] time_ms, time_ns (done in runtime, need emitter wiring)
-- [ ] date_create, date_format, date_diff (object-style)
-- [ ] Date object methods: addDays, addMonths, isPast, isFuture, toISO, timezone()
+#### [x] STDLIB-04 — Date & Time Functions
+- [x] time_ms, time_ns (done in runtime, wired in emitter)
+- [x] date_create, date_format, date_diff (object-style)
+- [x] Date object methods: addDays, addMonths, isPast, isFuture, toISO, timezone()
 - [ ] Timezone constants: TZ_UTC, TZ_LAGOS, TZ_BERLIN, TZ_LONDON, TZ_NEW_YORK, TZ_DUBAI
 
 #### [x] STDLIB-05 — Security & Crypto
@@ -74,8 +74,9 @@ Wolf is a compiled, natively fast language with PHP-like syntax.
 - [x] sign/verify (RSA via OpenSSL)
 - [x] base64_url_encode/decode, hex_encode/decode
 
-#### STDLIB-06 — HTTP Client
-- [ ] http_get, http_post, http_put, http_delete, http_patch, http_request
+#### [🔄] STDLIB-06 — HTTP Client (Native libcurl)
+- [x] http_get, http_post
+- [ ] http_put, http_delete, http_patch, http_request
 - [ ] Response object: status, body(), json(), header(), ok(), failed()
 - [ ] parse_url, parse_query, build_query, build_url, urljoin
 - [ ] get_client_ip, is_valid_ip, is_valid_ipv4, is_valid_ipv6
