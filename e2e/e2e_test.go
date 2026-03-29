@@ -25,6 +25,10 @@ func TestEndToEnd(t *testing.T) {
 
 		name := file.Name()
 		t.Run(name, func(t *testing.T) {
+			if os.Getenv("CI") != "" && strings.HasPrefix(name, "30_") {
+				t.Skip("skipping HTTP client e2e in CI (network dependency)")
+			}
+
 			wolfFile := filepath.Join(testdata, name)
 			outFile := filepath.Join(testdata, strings.TrimSuffix(name, ".wolf")+".out")
 

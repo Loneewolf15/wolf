@@ -1,0 +1,68 @@
+# grand_test.wolf
+# The ultimate integration test validating that ABI boundaries for
+# JSON, JWT, MySQL, Redis, Strings, Math, and DateTime compile and run correctly.
+
+func handle_request($req, $res) {
+    wolf_set_current_context($req, $res)
+    $path = wolf_get_request_path()
+
+    if $path == "/test" {
+        # 1. Datetime Subsystem
+        $now = time_now()
+        $date_str = date_to_iso($now)
+
+        # 2. Redis Caching Subsystem
+        Wolf_Redis::Connect()
+        Wolf_Redis::Set("grand_test:time", $date_str, 5)
+        $redis_val = Wolf_Redis::Get("grand_test:time")
+
+        # 3. Cryptography & JWT Subsystem
+        $jwt_payload = json_encode({"user": "wolf_admin", "role": "superuser"})
+        $jwt_secret = "super_secret_key"
+        $token = jwt_encode($jwt_payload, $jwt_secret)
+        
+        $decoded_str = jwt_decode($token, $jwt_secret)
+        $decoded_json = json_decode($decoded_str)
+
+        # 4. MySQL Relational Subsystem
+        $db = db_connect("localhost", "root", "", "wolf_test")
+        $stmt = db_prepare($db, "INSERT INTO urls (short_id, original_url) VALUES (:short_id, :original_url)")
+        
+        $rand_val = Wolf_Math::RandomInt(99999)
+        # Using string interpolation for implicit coercion formatting safely
+        $rand_short = "GRAND_{$rand_val}"
+        
+        db_bind($stmt, ":short_id", $rand_short)
+        db_bind($stmt, ":original_url", "https://grand-test.wolf")
+        db_execute($stmt)
+
+        $stmt2 = db_prepare($db, "SELECT * FROM urls ORDER BY id DESC LIMIT 1")
+        db_execute($stmt2)
+        $rows = db_fetch_all($stmt2)
+        $latest_row = $rows[0]
+
+        # 5. Core Map / Data structure compilation
+        $response = {
+            "status": "success",
+            "datetime": $date_str,
+            "redis_cache": $redis_val,
+            "jwt_token": $token,
+            "jwt_decoded": $decoded_json,
+            "db_row": $latest_row
+        }
+
+        http_status(200)
+        print(json_encode($response))
+        
+    } else if $path == "/health" {
+        http_status(200)
+        print(json_encode({"status": "healthy"}))
+    } else {
+        http_status(404)
+        print("Not Found")
+    }
+}
+
+print("🐺 Wolf Grand Integration Tester starting on :8081")
+print("  GET  /test    - Run all subsystems")
+wolf_http_serve(8081, handle_request)

@@ -1222,6 +1222,8 @@ int64_t wolf_db_execute(void* stmt_ptr) {
 #endif
 }
 
+static wolf_value_t* wolf_val_make(int type); /* forward declaration */
+
 void* wolf_db_fetch_all(void* stmt_ptr) {
     void* arr = wolf_array_create();
     if (!stmt_ptr) return arr;
@@ -1237,8 +1239,11 @@ void* wolf_db_fetch_all(void* stmt_ptr) {
         for (int i = 0; i < num_fields; i++) {
             if (PQgetisnull(res, r, i))
                 wolf_map_set(row, PQfname(res, i), NULL);
-            else
-                wolf_map_set(row, PQfname(res, i), wolf_req_strdup(PQgetvalue(res, r, i)));
+            else {
+                wolf_value_t *sv = wolf_val_make(WOLF_TYPE_STRING);
+                sv->val.s = wolf_req_strdup(PQgetvalue(res, r, i));
+                wolf_map_set(row, PQfname(res, i), sv);
+            }
         }
         wolf_array_push(arr, row);
     }
@@ -1254,10 +1259,12 @@ void* wolf_db_fetch_all(void* stmt_ptr) {
         void *row = wolf_map_create();
         for (int i = 0; i < num_fields; i++) {
             if (row_data[i]) {
+                wolf_value_t *sv = wolf_val_make(WOLF_TYPE_STRING);
                 char *val = wolf_req_alloc(lengths[i] + 1);
                 memcpy(val, row_data[i], lengths[i]);
                 val[lengths[i]] = '\0';
-                wolf_map_set(row, fields[i].name, val);
+                sv->val.s = val;
+                wolf_map_set(row, fields[i].name, sv);
             } else {
                 wolf_map_set(row, fields[i].name, NULL);
             }
@@ -1281,8 +1288,11 @@ void* wolf_db_fetch_one(void* stmt_ptr) {
         for (int i = 0; i < num_fields; i++) {
             if (PQgetisnull(res, 0, i))
                 wolf_map_set(row, PQfname(res, i), NULL);
-            else
-                wolf_map_set(row, PQfname(res, i), wolf_req_strdup(PQgetvalue(res, 0, i)));
+            else {
+                wolf_value_t *sv = wolf_val_make(WOLF_TYPE_STRING);
+                sv->val.s = wolf_req_strdup(PQgetvalue(res, 0, i));
+                wolf_map_set(row, PQfname(res, i), sv);
+            }
         }
         return row;
     }
@@ -1298,10 +1308,12 @@ void* wolf_db_fetch_one(void* stmt_ptr) {
         void *row = wolf_map_create();
         for (int i = 0; i < num_fields; i++) {
             if (row_data[i]) {
+                wolf_value_t *sv = wolf_val_make(WOLF_TYPE_STRING);
                 char *val = wolf_req_alloc(lengths[i] + 1);
                 memcpy(val, row_data[i], lengths[i]);
                 val[lengths[i]] = '\0';
-                wolf_map_set(row, fields[i].name, val);
+                sv->val.s = val;
+                wolf_map_set(row, fields[i].name, sv);
             } else {
                 wolf_map_set(row, fields[i].name, NULL);
             }
@@ -1653,7 +1665,7 @@ static wolf_strbuf_t* wolf_strbuf_new(void) {
     if (!b) return NULL;
     b->cap = 256; b->len = 0;
     b->data = (char*)wolf_req_alloc(b->cap);
-    if (!b->data) { free(b); return NULL; }
+    if (!b->data) { return NULL; }
     b->data[0] = '\0';
     return b;
 }
@@ -1662,8 +1674,9 @@ static int wolf_strbuf_append(wolf_strbuf_t* b, const char* s) {
     if (!b || !s) return 0;
     size_t slen = strlen(s);
     while (b->len + slen + 1 > b->cap) {
+        size_t old_cap = b->cap;
         b->cap *= 2;
-        char* nd = (char*)realloc(b->data, b->cap);
+        char* nd = (char*)wolf_req_realloc(b->data, old_cap, b->cap);
         if (!nd) return 0;
         b->data = nd;
     }
@@ -4642,7 +4655,7 @@ void* wolf_json_decode(const char* json) {
                 json++;
                 size_t vcap=256; char* val=(char*)wolf_req_alloc(vcap); int vi=0;
                 while (*json&&*json!='"') {
-                    if ((size_t)vi>=vcap-8) { vcap*=2; char* nv=(char*)realloc(val,vcap); if(!nv){free(val);val=NULL;break;} val=nv; }
+                    if ((size_t)vi>=vcap-8) { size_t old_vcap=vcap; vcap*=2; char* nv=(char*)json_decode_realloc(val,old_vcap,vcap); if(!nv){break;} val=nv; }
                     if (*json=='\\'&&*(json+1)) {
                         json++;
                         switch(*json) {
@@ -4659,7 +4672,7 @@ void* wolf_json_decode(const char* json) {
                                     json--;
                                     if(low_cp>=0xDC00&&low_cp<=0xDFFF) cp=0x10000+((cp-0xD800)<<10)+(low_cp-0xDC00);
                                 }
-                                if((size_t)vi>=vcap-8){ vcap*=2; char* nv=(char*)realloc(val,vcap); if(!nv){free(val);val=NULL;break;} val=nv; }
+                                if((size_t)vi>=vcap-8){ size_t old_vcap=vcap; vcap*=2; char* nv=(char*)json_decode_realloc(val,old_vcap,vcap); if(!nv){break;} val=nv; }
                                 if(cp<0x80){val[vi++]=(char)cp;}else if(cp<0x800){val[vi++]=(char)(0xC0|(cp>>6));val[vi++]=(char)(0x80|(cp&0x3F));}else if(cp<0x10000){val[vi++]=(char)(0xE0|(cp>>12));val[vi++]=(char)(0x80|((cp>>6)&0x3F));val[vi++]=(char)(0x80|(cp&0x3F));}else{val[vi++]=(char)(0xF0|(cp>>18));val[vi++]=(char)(0x80|((cp>>12)&0x3F));val[vi++]=(char)(0x80|((cp>>6)&0x3F));val[vi++]=(char)(0x80|(cp&0x3F));}
                                 break;
                             }
