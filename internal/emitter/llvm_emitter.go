@@ -562,6 +562,7 @@ func (e *LLVMEmitter) Emit(program *ir.Program) string {
 	e.writeln("declare ptr @wolf_val_int(i64)")
 	e.writeln("declare ptr @wolf_val_float(double)")
 	e.writeln("declare ptr @wolf_val_bool(i1)")
+	e.writeln("declare ptr @wolf_val_array(ptr)")
 	e.writeln("")
 
 	e.writeln("; --- Thread-Local Request Context ---")
@@ -1518,8 +1519,22 @@ func (e *LLVMEmitter) emitMapLit(ex *ir.MapLit) string {
 			boolVal := e.emitExpr(ex.Values[i], "i1")
 			e.writelnIndent(fmt.Sprintf("call void @wolf_map_set_bool(ptr %s, ptr %s, i1 %s)", mapReg, keyVal, boolVal))
 		default:
-			valVal := e.emitArgAsString(ex.Values[i])
-			e.writelnIndent(fmt.Sprintf("call void @wolf_map_set(ptr %s, ptr %s, ptr %s)", mapReg, keyVal, valVal))
+			rawType := e.inferExprType(ex.Values[i])
+			if rawType == "ptr" {
+				// Check if it's a slice/array literal — needs wrapping in wolf_value_t
+				if _, isSlice := ex.Values[i].(*ir.SliceLit); isSlice {
+					arrVal := e.emitExpr(ex.Values[i], "ptr")
+					wrappedReg := e.nextLocal()
+					e.writelnIndent(fmt.Sprintf("%s = call ptr @wolf_val_array(ptr %s)", wrappedReg, arrVal))
+					e.writelnIndent(fmt.Sprintf("call void @wolf_map_set(ptr %s, ptr %s, ptr %s)", mapReg, keyVal, wrappedReg))
+				} else {
+					valVal := e.emitArgAsString(ex.Values[i])
+					e.writelnIndent(fmt.Sprintf("call void @wolf_map_set(ptr %s, ptr %s, ptr %s)", mapReg, keyVal, valVal))
+				}
+			} else {
+				valVal := e.emitArgAsString(ex.Values[i])
+				e.writelnIndent(fmt.Sprintf("call void @wolf_map_set(ptr %s, ptr %s, ptr %s)", mapReg, keyVal, valVal))
+			}
 		}
 	}
 	return mapReg

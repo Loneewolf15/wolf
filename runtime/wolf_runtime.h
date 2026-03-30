@@ -86,6 +86,7 @@ void*   wolf_map_get(void* map, const char* key);
 wolf_value_t* wolf_val_int(int64_t i);
 wolf_value_t* wolf_val_float(double f);
 wolf_value_t* wolf_val_bool(int b);
+wolf_value_t* wolf_val_array(void* arr);
 
 void* wolf_class_create(const char* name);
 

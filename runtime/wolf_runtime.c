@@ -1656,6 +1656,10 @@ wolf_value_t* wolf_val_bool(int b) {
     wolf_value_t* v = wolf_val_make(WOLF_TYPE_BOOL);
     v->val.b = b; return v;
 }
+wolf_value_t* wolf_val_array(void* arr) {
+    wolf_value_t* v = wolf_val_make(WOLF_TYPE_ARRAY);
+    v->val.ptr = arr; return v;
+}
 
 /* Dynamic string buffer for safe JSON building */
 typedef struct { char* data; size_t len; size_t cap; } wolf_strbuf_t;
@@ -2034,8 +2038,11 @@ void* wolf_array_fill(int64_t start, int64_t num, const char* value) {
     void* result = wolf_array_create();
     if (num <= 0) return result;
     if (!value) value = "";
-    for (int64_t i = 0; i < num; i++)
-        wolf_array_push(result, wolf_req_strdup(value));
+    for (int64_t i = 0; i < num; i++) {
+        wolf_value_t* sv = wolf_val_make(WOLF_TYPE_STRING);
+        sv->val.s = wolf_req_strdup(value);
+        wolf_array_push(result, sv);
+    }
     return result;
 }
  
@@ -2077,8 +2084,18 @@ void* wolf_array_column(void* a, const char* col) {
     for (int64_t i = 0; i < arr->length; i++) {
         void* row = arr->items[i];
         if (!row) { wolf_array_push(result, NULL); continue; }
+        /* Unwrap tagged map value if necessary */
+        if (wolf_is_tagged_value(row)) {
+            wolf_value_t* tagged = (wolf_value_t*)row;
+            if (tagged->type == WOLF_TYPE_MAP) row = tagged->val.ptr;
+            else { wolf_array_push(result, NULL); continue; }
+        }
         void* val = wolf_map_get(row, col);
-        wolf_array_push(result, val ? wolf_req_strdup((const char*)val) : NULL);
+        if (!val) { wolf_array_push(result, NULL); continue; }
+        /* wolf_map_get already unwraps tagged values to char* for string types */
+        wolf_value_t* sv = wolf_val_make(WOLF_TYPE_STRING);
+        sv->val.s = wolf_req_strdup((const char*)val);
+        wolf_array_push(result, sv);
     }
     return result;
 }
