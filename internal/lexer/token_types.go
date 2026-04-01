@@ -27,7 +27,7 @@ const (
 	TOKEN_STRING_LITERAL_PART // literal text segment inside interpolated string
 
 	// Keywords
-	TOKEN_FUNC     // func
+	TOKEN_FUNC     // func / howl / function (all three are valid — see keywords map)
 	TOKEN_CLASS    // class
 	TOKEN_NEW      // new
 	TOKEN_IF       // if
@@ -134,7 +134,7 @@ var tokenTypeNames = map[TokenType]string{
 	TOKEN_STRING_INTERP_START: "STRING_INTERP_START",
 	TOKEN_STRING_INTERP_END:   "STRING_INTERP_END",
 	TOKEN_STRING_LITERAL_PART: "STRING_LITERAL_PART",
-	TOKEN_FUNC:                "FUNC",
+	TOKEN_FUNC:                "FUNC", // matched by: func, howl, function
 	TOKEN_CLASS:               "CLASS",
 	TOKEN_NEW:                 "NEW",
 	TOKEN_IF:                  "IF",
@@ -216,7 +216,13 @@ func (t TokenType) String() string {
 
 // keywords maps reserved words to their token types.
 var keywords = map[string]TokenType{
+	// Function declaration — three equivalent keywords:
+	// func     = Go-style (legacy, backward compat)
+	// howl     = Wolf-branded (unique identity)
+	// function = PHP/JS-familiar (zero relearning for PHP devs)
 	"func":     TOKEN_FUNC,
+	"howl":     TOKEN_FUNC,
+	"function": TOKEN_FUNC,
 	"class":    TOKEN_CLASS,
 	"new":      TOKEN_NEW,
 	"if":       TOKEN_IF,

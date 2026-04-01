@@ -1,0 +1,20 @@
+// BUG-006: Missing expected output file for 30_http_client.wolf
+// Trigger: Run `go test ./e2e/...` — test runner fatals with
+//          "Expected output file 30_http_client.out is missing"
+//          before the binary is ever compiled or executed.
+// Expected: A `30_http_client.out` file exists alongside the .wolf script.
+// Actual:   File is absent → `os.ReadFile(outFile)` returns an error
+//           → `t.Fatalf(...)` → test marked FAIL without running any Wolf code.
+// Classification: P2 — Functional Correctness (test infrastructure gap)
+//
+// Fix: create `e2e/testdata/30_http_client.out` containing the expected JSON
+//      output that wolf_http_get returns when the local server is unreachable
+//      (curl error 7 = CURLE_COULDNT_CONNECT).
+//      Also: gate the test behind a `WOLF_HTTP_TEST` env var so it is
+//      skipped on machines without a running local server (same pattern as the
+//      existing `CI` skip guard already in the test runner for `30_*` files).
+
+func main() {
+    $res = wolf_http_get("http://localhost:9292/test")
+    print($res)
+}

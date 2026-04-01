@@ -11,6 +11,7 @@ Before acting, the Sentinel reads:
 2. `runtime/wolf_runtime.h` — all public API contracts.
 3. `internal/emitter/llvm_emitter.go` — LLVM IR generation, optimization passes.
 4. `.wolf-vault/RnD/architecture.md` — memory model, threading model, DB pool design.
+5. `Makefile` — CI targets and platform build matrix.
 
 ---
 
@@ -71,6 +72,30 @@ The Sentinel will **block** any change that:
 - Adds a dependency that triples the binary size.
 - Creates an Array of Structures where a hot path iterates over one field.
 - Contains an un-hinted branch inside a loop executed > 1M times/sec.
+- **Introduces a platform-specific syscall (`epoll`, `io_uring`, `kqueue`, `WSA*`, `ioctl`) anywhere in the non-guarded hot path without a corresponding `#ifdef` guard for all other targets.**
+
+---
+
+## Part 3 — Cross-Platform Checklist
+*Run on every PR touching `wolf_runtime.c`, `wolf_runtime.h`, or the `Makefile`.*
+
+| Area | Requirement | Verdict |
+| :--- | :--- | :---: |
+| **Linux path** | `epoll` / `io_uring` used for async I/O; guarded with `#if defined(__linux__)` | ✅ / ❌ |
+| **macOS path** | `kqueue` path exists; guarded with `#elif defined(__APPLE__)` | ✅ / ❌ |
+| **Windows path** | IOCP or `poll()` fallback; guarded with `#elif defined(_WIN32)` | ✅ / ❌ |
+| **POSIX fallback** | `poll()` fallback for any unlisted POSIX OS | ✅ / ❌ |
+| **Freestanding** | All server, socket, and OS deps wrapped in `#ifndef WOLF_FREESTANDING` | ✅ / ❌ |
+| **CI matrix** | GitHub Actions matrix covers `linux/amd64` + `darwin/arm64` + `windows/amd64` | ✅ / ❌ |
+| **Binary size (all targets)** | All 3 platform binaries ≤ 8MB | ✅ / ❌ |
+| **Syscall portability** | No Linux-only syscall in any non-guarded code path | ✅ / ❌ |
+
+### Cross-Platform Questions (11–13)
+*Added to the Sentinel's question set — applied alongside questions 1–10:*
+
+11. *"Does this syscall exist on macOS and Windows, or is it Linux-only?"*
+12. *"If this uses `epoll` — is there a `kqueue` path for macOS and an IOCP/`poll` path for Windows?"*
+13. *"Will the CI matrix catch a platform regression before it ships to users?"*
 
 ---
 
@@ -81,10 +106,11 @@ The Sentinel will **block** any change that:
 **Change proposed:** [Brief description]
 **Scaling risk:** 🔴 HIGH | 🟡 MEDIUM | 🟢 LOW
 **Speed risk:** 🔴 CACHE MISS | 🟡 BRANCH MISS | 🟢 OK
-**Checklist failures:** [List any failed rows from Part 1 or Part 2]
+**Platform risk:** 🔴 LINUX-ONLY | 🟡 POSIX-ONLY | 🟢 CROSS-PLATFORM
+**Checklist failures:** [List any failed rows from Part 1, 2, or 3]
 
 **Concern:** [Specific quote from the code or design that is the problem]
-**Alternative:** [Suggested approach that passes both checklists]
+**Alternative:** [Suggested approach that passes all checklists]
 
 **Verdict:** ✅ APPROVED | ⚠️ APPROVED WITH NOTES | 🚫 REJECTED
 ```

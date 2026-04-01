@@ -1,0 +1,13 @@
+print("Testing WolfMailer compilation...")
+// We won't actually send an email (to avoid spamming), but we will test the compilation and linking.
+mailTemplateMap = {
+    "name": "Wolf Developer"
+}
+
+// This will just hit the mock or fail to connect if smtp service is not running
+// But it ensures the functions are linked into the final binary
+// Wolf_Mailer::Send("test@example.com", "Hello from Wolf", "This is a plain body")
+// Wolf_Mailer::SendHtml("test@example.com", "HTML Hello", "<h1>Hello</h1>")
+// Wolf_Mailer::SendTemplate("test@example.com", "Template Hello", "email.wolf.html", mailTemplateMap)
+
+print("Linked Successfully!")

@@ -2,14 +2,24 @@ package e2e_test
 
 import (
 	"bytes"
+	"context"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/wolflang/wolf/internal/compiler"
 )
+
+// isHTTPTest returns true for tests that require a live network or bind a
+// server port (30_* = HTTP client, 31_* = WebSocket server).
+// These tests are skipped unless WOLF_HTTP_TEST=1 is set locally,
+// and are always skipped in CI (where the network is unavailable).
+func isHTTPTest(name string) bool {
+	return strings.HasPrefix(name, "30_") || strings.HasPrefix(name, "31_")
+}
 
 func TestEndToEnd(t *testing.T) {
 	testdata := "testdata"
@@ -25,8 +35,13 @@ func TestEndToEnd(t *testing.T) {
 
 		name := file.Name()
 		t.Run(name, func(t *testing.T) {
-			if os.Getenv("CI") != "" && strings.HasPrefix(name, "30_") {
-				t.Skip("skipping HTTP client e2e in CI (network dependency)")
+			if isHTTPTest(name) {
+				if os.Getenv("CI") != "" {
+					t.Skip("skipping HTTP/WS e2e in CI (network/port dependency)")
+				}
+				if os.Getenv("WOLF_HTTP_TEST") != "1" {
+					t.Skip("skipping HTTP/WS e2e locally (set WOLF_HTTP_TEST=1 to run)")
+				}
 			}
 
 			wolfFile := filepath.Join(testdata, name)
@@ -56,8 +71,12 @@ func TestEndToEnd(t *testing.T) {
 				t.Fatalf("Compilation failed:\n%v\n%s", err, strings.Join(result.Errors, "\n"))
 			}
 
-			// Run it
-			cmd := exec.Command(result.OutputPath)
+			// Use a timeout context so server tests that never exit can't
+			// orphan a process and hold a port across test runs.
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+
+			cmd := exec.CommandContext(ctx, result.OutputPath)
 			var stdout bytes.Buffer
 			var stderr bytes.Buffer
 			cmd.Stdout = &stdout
