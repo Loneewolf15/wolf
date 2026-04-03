@@ -5114,13 +5114,13 @@ int64_t wolf_date_create(const char* str) {
     struct tm tm;
     memset(&tm, 0, sizeof(struct tm));
     if (strptime(str, "%Y-%m-%d", &tm)) {
-        return (int64_t)mktime(&tm);
+        return (int64_t)timegm(&tm);
     }
     
     /* Try parsing ISO-8601 with time: YYYY-MM-DDTHH:MM:SS */
     memset(&tm, 0, sizeof(struct tm));
     if (strptime(str, "%Y-%m-%dT%H:%M:%S", &tm)) {
-        return (int64_t)mktime(&tm);
+        return (int64_t)timegm(&tm);
     }
 
     return 0;
