@@ -1,0 +1,56 @@
+# Test: Validation Rules Engine
+# Tests the validate() function with passing and failing scenarios
+
+# --- Test 1: Valid data passes ---
+$data1 = {"email": "wolf@example.com", "age": "25", "name": "Wolf"}
+$rules1 = {
+    "email": "required|email",
+    "age":   "required|integer|min:18",
+    "name":  "required|min:2|max:100"
+}
+$v1 = validate($data1, $rules1)
+if passes($v1) {
+    print("valid")
+} else {
+    print("invalid")
+}
+
+# --- Test 2: Invalid email fails ---
+$data2 = {"email": "not-an-email", "age": "25"}
+$rules2 = {"email": "required|email", "age": "required|integer"}
+$v2 = validate($data2, $rules2)
+if passes($v2) {
+    print("valid")
+} else {
+    print("invalid")
+}
+
+# --- Test 3: Age too low ---
+$data3 = {"age": "16"}
+$rules3 = {"age": "required|integer|min:18"}
+$v3 = validate($data3, $rules3)
+if passes($v3) {
+    print("valid")
+} else {
+    print("invalid")
+}
+
+# --- Test 4: Missing required field ---
+$data4 = {"name": "Wolf"}
+$rules4 = {"email": "required", "name": "required"}
+$v4 = validate($data4, $rules4)
+if passes($v4) {
+    print("valid")
+} else {
+    print("invalid")
+}
+
+# --- Test 5: nullable field empty is OK ---
+$data5 = {"name": "Wolf", "bio": ""}
+$rules5 = {"name": "required", "bio": "nullable"}
+$v5 = validate($data5, $rules5)
+if passes($v5) {
+    print("valid")
+} else {
+    print("invalid")
+}

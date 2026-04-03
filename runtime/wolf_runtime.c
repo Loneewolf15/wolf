@@ -1737,42 +1737,44 @@ static char* wolf_json_encode_array(wolf_array_t* a) {
 static char* wolf_json_encode_value(void* val) {
     if (!val) return wolf_req_strdup("null");
 
-    wolf_value_t* tagged = (wolf_value_t*)val;
-    if (tagged->type == WOLF_TYPE_INT) {
-        char* buf = (char*)wolf_req_alloc(32);
-        snprintf(buf, 32, "%lld", (long long)tagged->val.i);
-        return buf;
-    }
-    if (tagged->type == WOLF_TYPE_FLOAT) {
-        char* buf = (char*)wolf_req_alloc(64);
-        snprintf(buf, 64, "%g", tagged->val.f);
-        return buf;
-    }
-    if (tagged->type == WOLF_TYPE_BOOL)
-        return wolf_req_strdup(tagged->val.b ? "true" : "false");
-    if (tagged->type == WOLF_TYPE_NULL)
-        return wolf_req_strdup("null");
-    if (tagged->type == WOLF_TYPE_STRING) {
-        const char* s = tagged->val.s;
-        size_t len = strlen(s);
-        char* out = (char*)wolf_req_alloc(len * 2 + 3);
-        char* w = out;
-        *w++ = '"';
-        for (size_t i = 0; i < len; i++) {
-            if      (s[i] == '"')  { *w++ = '\\'; *w++ = '"'; }
-            else if (s[i] == '\\') { *w++ = '\\'; *w++ = '\\'; }
-            else if (s[i] == '\n') { *w++ = '\\'; *w++ = 'n'; }
-            else if (s[i] == '\r') { *w++ = '\\'; *w++ = 'r'; }
-            else if (s[i] == '\t') { *w++ = '\\'; *w++ = 't'; }
-            else *w++ = s[i];
+    if (wolf_is_tagged_value(val)) {
+        wolf_value_t* tagged = (wolf_value_t*)val;
+        if (tagged->type == WOLF_TYPE_INT) {
+            char* buf = (char*)wolf_req_alloc(32);
+            snprintf(buf, 32, "%lld", (long long)tagged->val.i);
+            return buf;
         }
-        *w++ = '"'; *w = '\0';
-        return out;
+        if (tagged->type == WOLF_TYPE_FLOAT) {
+            char* buf = (char*)wolf_req_alloc(64);
+            snprintf(buf, 64, "%g", tagged->val.f);
+            return buf;
+        }
+        if (tagged->type == WOLF_TYPE_BOOL)
+            return wolf_req_strdup(tagged->val.b ? "true" : "false");
+        if (tagged->type == WOLF_TYPE_NULL)
+            return wolf_req_strdup("null");
+        if (tagged->type == WOLF_TYPE_STRING) {
+            const char* s = tagged->val.s;
+            size_t len = strlen(s);
+            char* out = (char*)wolf_req_alloc(len * 2 + 3);
+            char* w = out;
+            *w++ = '"';
+            for (size_t i = 0; i < len; i++) {
+                if      (s[i] == '"')  { *w++ = '\\'; *w++ = '"'; }
+                else if (s[i] == '\\') { *w++ = '\\'; *w++ = '\\'; }
+                else if (s[i] == '\n') { *w++ = '\\'; *w++ = 'n'; }
+                else if (s[i] == '\r') { *w++ = '\\'; *w++ = 'r'; }
+                else if (s[i] == '\t') { *w++ = '\\'; *w++ = 't'; }
+                else *w++ = s[i];
+            }
+            *w++ = '"'; *w = '\0';
+            return out;
+        }
+        if (tagged->type == WOLF_TYPE_MAP)
+            return wolf_json_encode_map((wolf_map_t*)tagged->val.ptr);
+        if (tagged->type == WOLF_TYPE_ARRAY)
+            return wolf_json_encode_array((wolf_array_t*)tagged->val.ptr);
     }
-    if (tagged->type == WOLF_TYPE_MAP)
-        return wolf_json_encode_map((wolf_map_t*)tagged->val.ptr);
-    if (tagged->type == WOLF_TYPE_ARRAY)
-        return wolf_json_encode_array((wolf_array_t*)tagged->val.ptr);
 
     /* Fallback: raw pointer — try array, then map, then plain string */
     wolf_array_t* a = (wolf_array_t*)val;
@@ -3206,6 +3208,8 @@ const char* wolf_http_get(const char* url) {
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, wolf_http_client_write_cb);
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void *)&chunk);
     curl_easy_setopt(curl, CURLOPT_USERAGENT, "wolf/1.0");
+    curl_easy_setopt(curl, CURLOPT_TIMEOUT, 10L);       // 10s timeout to prevent hanging
+    curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 5L); // 5s connect timeout
     curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L); // Default to skip for simple dev
 
     res = curl_easy_perform(curl);
@@ -3241,6 +3245,8 @@ const char* wolf_http_post(const char* url, const char* body) {
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, wolf_http_client_write_cb);
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void *)&chunk);
     curl_easy_setopt(curl, CURLOPT_USERAGENT, "wolf/1.0");
+    curl_easy_setopt(curl, CURLOPT_TIMEOUT, 10L); 
+    curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 5L);
     curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
 
     res = curl_easy_perform(curl);
@@ -3271,6 +3277,8 @@ const char* wolf_http_put(const char* url, const char* body) {
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, wolf_http_client_write_cb);
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void *)&chunk);
     curl_easy_setopt(curl, CURLOPT_USERAGENT, "wolf/1.0");
+    curl_easy_setopt(curl, CURLOPT_TIMEOUT, 10L); 
+    curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 5L);
     curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
     res = curl_easy_perform(curl);
     long code = 0; if (res == CURLE_OK) curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &code);
@@ -3291,6 +3299,8 @@ const char* wolf_http_delete(const char* url) {
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, wolf_http_client_write_cb);
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void *)&chunk);
     curl_easy_setopt(curl, CURLOPT_USERAGENT, "wolf/1.0");
+    curl_easy_setopt(curl, CURLOPT_TIMEOUT, 10L); 
+    curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 5L);
     curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
     res = curl_easy_perform(curl);
     long code = 0; if (res == CURLE_OK) curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &code);
@@ -5156,4 +5166,550 @@ const char* wolf_date_to_iso(int64_t ts) {
     char buf[64];
     strftime(buf, sizeof(buf), "%Y-%m-%dT%H:%M:%SZ", tm);
     return wolf_req_strdup(buf);
+}
+
+/* ========== Validation Rules Engine (STDLIB-08) ========== */
+
+typedef struct {
+    wolf_map_t* data;      /* input data map */
+    wolf_map_t* errors;    /* field → error message */
+    wolf_map_t* validated; /* only fields that passed */
+} wolf_validator_t;
+
+/* Forward declarations */
+static void wolf_validate_field(wolf_validator_t* v, const char* field,
+                                const char* value, const char* rules_str,
+                                wolf_map_t* data);
+
+static const char* wolf_map_get_str(wolf_map_t* m, const char* key) {
+    if (!m || !key) return NULL;
+    for (int64_t i = 0; i < m->size; i++) {
+        if (strcmp(m->keys[i], key) == 0) {
+            void* val = m->values[i];
+            if (!val) return NULL;
+            /* Handle tagged wolf_value_t */
+            if (wolf_is_tagged_value(val)) {
+                wolf_value_t* v = (wolf_value_t*)val;
+                if (v->type == WOLF_TYPE_STRING) return v->val.s;
+                if (v->type == WOLF_TYPE_INT) {
+                    char* buf = wolf_req_alloc(32);
+                    snprintf(buf, 32, "%lld", (long long)v->val.i);
+                    return buf;
+                }
+                if (v->type == WOLF_TYPE_NULL) return NULL;
+                return (const char*)val;
+            }
+            return (const char*)val;
+        }
+    }
+    return NULL;
+}
+
+void* wolf_validate(void* data_ptr, void* rules_ptr) {
+    wolf_validator_t* v = (wolf_validator_t*)wolf_req_alloc(sizeof(wolf_validator_t));
+    v->data      = (wolf_map_t*)wolf_req_alloc(0); /* just a typed handle */
+    v->errors    = (wolf_map_t*)wolf_map_create();
+    v->validated = (wolf_map_t*)wolf_map_create();
+
+    wolf_map_t* data  = (wolf_map_t*)data_ptr;
+    wolf_map_t* rules = (wolf_map_t*)rules_ptr;
+    if (!data || !rules) return v;
+
+    v->data = data;
+
+    for (int64_t i = 0; i < rules->size; i++) {
+        const char* field      = rules->keys[i];
+        const char* rules_str  = wolf_map_get_str(rules, field);
+        const char* value      = wolf_map_get_str(data, field);
+        wolf_validate_field(v, field, value ? value : "", rules_str ? rules_str : "", data);
+    }
+
+    return v;
+}
+
+int wolf_validator_passes(void* v_ptr) {
+    if (!v_ptr) return 0;
+    wolf_validator_t* v = (wolf_validator_t*)v_ptr;
+    return v->errors->size == 0;
+}
+
+const char* wolf_validator_errors(void* v_ptr) {
+    if (!v_ptr) return "{}";
+    wolf_validator_t* v = (wolf_validator_t*)v_ptr;
+    return wolf_json_encode(v->errors);
+}
+
+void* wolf_validator_validated(void* v_ptr) {
+    if (!v_ptr) return wolf_map_create();
+    wolf_validator_t* v = (wolf_validator_t*)v_ptr;
+    return v->validated;
+}
+
+/* Internal: validate a single field against its pipe-separated rules */
+static void wolf_validate_field(wolf_validator_t* v, const char* field,
+                                const char* value, const char* rules_str,
+                                wolf_map_t* data) {
+    /* Split rule string by | */
+    char* rules_copy = wolf_req_strdup(rules_str);
+    int is_nullable  = 0;
+    int is_required  = 0;
+
+    /* First pass: check nullable/required to decide blank handling */
+    char* tmp = wolf_req_strdup(rules_str);
+    char* tok = strtok(tmp, "|");
+    while (tok) {
+        if (strcmp(tok, "nullable") == 0) is_nullable = 1;
+        if (strcmp(tok, "required") == 0) is_required = 1;
+        tok = strtok(NULL, "|");
+    }
+
+    int empty = (!value || strlen(value) == 0);
+
+    if (empty && is_nullable && !is_required) {
+        /* nullable + not required + empty = pass with no validated entry */
+        return;
+    }
+
+    /* Second pass: run each rule */
+    char* tok2 = strtok(rules_copy, "|");
+    while (tok2) {
+        const char* rule = tok2;
+
+        if (strcmp(rule, "required") == 0) {
+            if (empty) {
+                wolf_map_set(v->errors, field,
+                    (void*)wolf_req_strdup("The field is required."));
+                return;
+            }
+
+        } else if (strcmp(rule, "nullable") == 0) {
+            /* already handled above */
+
+        } else if (strcmp(rule, "string") == 0) {
+            /* any non-null value is a string in Wolf's dynamic world */
+
+        } else if (strcmp(rule, "integer") == 0) {
+            if (!wolf_is_numeric(value) || strchr(value, '.') != NULL) {
+                wolf_map_set(v->errors, field,
+                    (void*)wolf_req_strdup("The field must be an integer."));
+                return;
+            }
+
+        } else if (strcmp(rule, "float") == 0 || strcmp(rule, "numeric") == 0) {
+            if (!wolf_is_numeric(value)) {
+                wolf_map_set(v->errors, field,
+                    (void*)wolf_req_strdup("The field must be a number."));
+                return;
+            }
+
+        } else if (strcmp(rule, "bool") == 0 || strcmp(rule, "boolean") == 0) {
+            if (strcmp(value, "0") != 0 && strcmp(value, "1") != 0 &&
+                strcasecmp(value, "true") != 0 && strcasecmp(value, "false") != 0) {
+                wolf_map_set(v->errors, field,
+                    (void*)wolf_req_strdup("The field must be a boolean."));
+                return;
+            }
+
+        } else if (strcmp(rule, "email") == 0) {
+            if (!wolf_is_email(value)) {
+                wolf_map_set(v->errors, field,
+                    (void*)wolf_req_strdup("The field must be a valid email address."));
+                return;
+            }
+
+        } else if (strcmp(rule, "url") == 0) {
+            if (!wolf_is_url(value)) {
+                wolf_map_set(v->errors, field,
+                    (void*)wolf_req_strdup("The field must be a valid URL."));
+                return;
+            }
+
+        } else if (strcmp(rule, "uuid") == 0) {
+            if (!wolf_is_uuid(value)) {
+                wolf_map_set(v->errors, field,
+                    (void*)wolf_req_strdup("The field must be a valid UUID."));
+                return;
+            }
+
+        } else if (strcmp(rule, "alpha") == 0) {
+            if (!wolf_is_alpha(value)) {
+                wolf_map_set(v->errors, field,
+                    (void*)wolf_req_strdup("The field must only contain letters."));
+                return;
+            }
+
+        } else if (strcmp(rule, "alpha_num") == 0) {
+            if (!wolf_is_alpha_num(value)) {
+                wolf_map_set(v->errors, field,
+                    (void*)wolf_req_strdup("The field must only contain letters and numbers."));
+                return;
+            }
+
+        } else if (strncmp(rule, "min:", 4) == 0) {
+            long n = atol(rule + 4);
+            if (wolf_is_numeric(value)) {
+                if (atof(value) < (double)n) {
+                    char* msg = wolf_req_alloc(80);
+                    snprintf(msg, 80, "The field must be at least %ld.", n);
+                    wolf_map_set(v->errors, field, (void*)msg);
+                    return;
+                }
+            } else {
+                if ((long)strlen(value) < n) {
+                    char* msg = wolf_req_alloc(80);
+                    snprintf(msg, 80, "The field must be at least %ld characters.", n);
+                    wolf_map_set(v->errors, field, (void*)msg);
+                    return;
+                }
+            }
+
+        } else if (strncmp(rule, "max:", 4) == 0) {
+            long n = atol(rule + 4);
+            if (wolf_is_numeric(value)) {
+                if (atof(value) > (double)n) {
+                    char* msg = wolf_req_alloc(80);
+                    snprintf(msg, 80, "The field must not exceed %ld.", n);
+                    wolf_map_set(v->errors, field, (void*)msg);
+                    return;
+                }
+            } else {
+                if ((long)strlen(value) > n) {
+                    char* msg = wolf_req_alloc(80);
+                    snprintf(msg, 80, "The field must not exceed %ld characters.", n);
+                    wolf_map_set(v->errors, field, (void*)msg);
+                    return;
+                }
+            }
+
+        } else if (strncmp(rule, "between:", 8) == 0) {
+            char* range = wolf_req_strdup(rule + 8);
+            char* comma = strchr(range, ',');
+            if (comma) {
+                *comma = '\0';
+                double lo = atof(range);
+                double hi = atof(comma + 1);
+                double fv = atof(value);
+                if (fv < lo || fv > hi) {
+                    char* msg = wolf_req_alloc(80);
+                    snprintf(msg, 80, "The field must be between %.0f and %.0f.", lo, hi);
+                    wolf_map_set(v->errors, field, (void*)msg);
+                    return;
+                }
+            }
+
+        } else if (strncmp(rule, "in:", 3) == 0) {
+            char* list = wolf_req_strdup(rule + 3);
+            int found = 0;
+            char* item = strtok(list, ",");
+            while (item) {
+                if (strcmp(item, value) == 0) { found = 1; break; }
+                item = strtok(NULL, ",");
+            }
+            if (!found) {
+                wolf_map_set(v->errors, field,
+                    (void*)wolf_req_strdup("The selected value is invalid."));
+                return;
+            }
+
+        } else if (strncmp(rule, "not_in:", 7) == 0) {
+            char* list = wolf_req_strdup(rule + 7);
+            int found = 0;
+            char* item = strtok(list, ",");
+            while (item) {
+                if (strcmp(item, value) == 0) { found = 1; break; }
+                item = strtok(NULL, ",");
+            }
+            if (found) {
+                wolf_map_set(v->errors, field,
+                    (void*)wolf_req_strdup("The selected value is not allowed."));
+                return;
+            }
+
+        } else if (strcmp(rule, "confirmed") == 0) {
+            char* conf_key = wolf_req_alloc(strlen(field) + 14);
+            sprintf(conf_key, "%s_confirmation", field);
+            const char* conf_val = wolf_map_get_str(data, conf_key);
+            if (!conf_val || strcmp(value, conf_val) != 0) {
+                wolf_map_set(v->errors, field,
+                    (void*)wolf_req_strdup("The field confirmation does not match."));
+                return;
+            }
+
+        } else if (strncmp(rule, "regex:", 6) == 0) {
+            const char* pattern = rule + 6;
+            if (!wolf_preg_match(pattern, value)) {
+                wolf_map_set(v->errors, field,
+                    (void*)wolf_req_strdup("The field format is invalid."));
+                return;
+            }
+        }
+        /* unknown rules are silently skipped for forward compatibility */
+
+        tok2 = strtok(NULL, "|");
+    }
+
+    /* All rules passed — add to validated map */
+    wolf_map_set(v->validated, field, (void*)wolf_req_strdup(value));
+}
+
+/* ========== Query Builder (DB-01) ========== */
+
+#define WOLF_QB_MAX_WHERE  32
+#define WOLF_QB_MAX_COL    64
+
+typedef struct {
+    void*   conn;
+    char*   table;
+    /* WHERE clauses */
+    int     where_count;
+    char*   where_col[WOLF_QB_MAX_WHERE];
+    char*   where_val[WOLF_QB_MAX_WHERE];
+    char*   where_op [WOLF_QB_MAX_WHERE];  /* "=", ">=", "<=", "!=", "LIKE" */
+    /* ORDER BY */
+    char*   order_col;
+    char*   order_dir;   /* "ASC" or "DESC" */
+    /* LIMIT / OFFSET */
+    int64_t limit_n;
+    int64_t offset_n;
+} wolf_qb_t;
+
+/* Build SQL FROM + WHERE + ORDER BY + LIMIT */
+static char* wolf_qb_build_select(wolf_qb_t* qb) {
+    wolf_strbuf_t* sb = wolf_strbuf_new();
+    wolf_strbuf_append(sb, "SELECT * FROM ");
+    wolf_strbuf_append(sb, qb->table);
+
+    if (qb->where_count > 0) {
+        wolf_strbuf_append(sb, " WHERE ");
+        for (int i = 0; i < qb->where_count; i++) {
+            if (i > 0) wolf_strbuf_append(sb, " AND ");
+            wolf_strbuf_append(sb, qb->where_col[i]);
+            wolf_strbuf_append(sb, " ");
+            wolf_strbuf_append(sb, qb->where_op[i]);
+            wolf_strbuf_append(sb, " '");
+            wolf_strbuf_append(sb, qb->where_val[i]);
+            wolf_strbuf_append(sb, "'");
+        }
+    }
+    if (qb->order_col) {
+        wolf_strbuf_append(sb, " ORDER BY ");
+        wolf_strbuf_append(sb, qb->order_col);
+        wolf_strbuf_append(sb, " ");
+        wolf_strbuf_append(sb, qb->order_dir ? qb->order_dir : "ASC");
+    }
+    if (qb->limit_n > 0) {
+        char buf[32];
+        snprintf(buf, sizeof(buf), " LIMIT %lld", (long long)qb->limit_n);
+        wolf_strbuf_append(sb, buf);
+    }
+    if (qb->offset_n > 0) {
+        char buf[32];
+        snprintf(buf, sizeof(buf), " OFFSET %lld", (long long)qb->offset_n);
+        wolf_strbuf_append(sb, buf);
+    }
+    return wolf_strbuf_take(sb);
+}
+
+void* wolf_qb_create(void* conn, const char* table) {
+    wolf_qb_t* qb = (wolf_qb_t*)wolf_req_alloc(sizeof(wolf_qb_t));
+    qb->conn        = conn;
+    qb->table       = wolf_req_strdup(table ? table : "");
+    qb->where_count = 0;
+    qb->order_col   = NULL;
+    qb->order_dir   = NULL;
+    qb->limit_n     = 0;
+    qb->offset_n    = 0;
+    return qb;
+}
+
+void* wolf_qb_where(void* qb_ptr, const char* col, const char* val, const char* op) {
+    wolf_qb_t* qb = (wolf_qb_t*)qb_ptr;
+    if (!qb || !col) return qb_ptr;
+    if (qb->where_count >= WOLF_QB_MAX_WHERE) return qb_ptr;
+    int i = qb->where_count++;
+    qb->where_col[i] = wolf_req_strdup(col);
+    qb->where_val[i] = wolf_req_strdup(val ? val : "");
+    qb->where_op [i] = wolf_req_strdup((op && strlen(op) > 0) ? op : "=");
+    return qb_ptr;
+}
+
+void* wolf_qb_order_by(void* qb_ptr, const char* col, const char* dir) {
+    wolf_qb_t* qb = (wolf_qb_t*)qb_ptr;
+    if (!qb || !col) return qb_ptr;
+    qb->order_col = wolf_req_strdup(col);
+    qb->order_dir = wolf_req_strdup((dir && strlen(dir) > 0) ? dir : "ASC");
+    return qb_ptr;
+}
+
+void* wolf_qb_limit(void* qb_ptr, int64_t n) {
+    wolf_qb_t* qb = (wolf_qb_t*)qb_ptr;
+    if (!qb) return qb_ptr;
+    qb->limit_n = n;
+    return qb_ptr;
+}
+
+void* wolf_qb_offset(void* qb_ptr, int64_t n) {
+    wolf_qb_t* qb = (wolf_qb_t*)qb_ptr;
+    if (!qb) return qb_ptr;
+    qb->offset_n = n;
+    return qb_ptr;
+}
+
+void* wolf_qb_get(void* qb_ptr) {
+    wolf_qb_t* qb = (wolf_qb_t*)qb_ptr;
+    if (!qb || !qb->conn) return wolf_array_create();
+
+    char* sql = wolf_qb_build_select(qb);
+    void* stmt = wolf_db_prepare(qb->conn, sql);
+    wolf_db_execute(stmt);
+    return wolf_db_fetch_all(stmt);
+}
+
+void* wolf_qb_first(void* qb_ptr) {
+    wolf_qb_t* qb = (wolf_qb_t*)qb_ptr;
+    if (!qb || !qb->conn) return NULL;
+    qb->limit_n = 1;
+
+    char* sql = wolf_qb_build_select(qb);
+    void* stmt = wolf_db_prepare(qb->conn, sql);
+    wolf_db_execute(stmt);
+    return wolf_db_fetch_one(stmt);
+}
+
+int64_t wolf_qb_insert(void* qb_ptr, void* data_ptr) {
+    wolf_qb_t* qb   = (wolf_qb_t*)qb_ptr;
+    wolf_map_t* data = (wolf_map_t*)data_ptr;
+    if (!qb || !qb->conn || !data || data->size == 0) return 0;
+
+    wolf_strbuf_t* sb = wolf_strbuf_new();
+    wolf_strbuf_append(sb, "INSERT INTO ");
+    wolf_strbuf_append(sb, qb->table);
+    wolf_strbuf_append(sb, " (");
+
+    for (int64_t i = 0; i < data->size; i++) {
+        if (i > 0) wolf_strbuf_append(sb, ", ");
+        wolf_strbuf_append(sb, data->keys[i]);
+    }
+    wolf_strbuf_append(sb, ") VALUES (");
+    for (int64_t i = 0; i < data->size; i++) {
+        if (i > 0) wolf_strbuf_append(sb, ", ");
+        wolf_strbuf_append(sb, "'");
+        const char* val = wolf_map_get_str(data, data->keys[i]);
+        wolf_strbuf_append(sb, val ? val : "");
+        wolf_strbuf_append(sb, "'");
+    }
+    wolf_strbuf_append(sb, ")");
+
+    char* sql = wolf_strbuf_take(sb);
+    void* stmt = wolf_db_prepare(qb->conn, sql);
+    wolf_db_execute(stmt);
+    return wolf_db_last_insert_id(qb->conn);
+}
+
+int64_t wolf_qb_update(void* qb_ptr, void* data_ptr) {
+    wolf_qb_t* qb   = (wolf_qb_t*)qb_ptr;
+    wolf_map_t* data = (wolf_map_t*)data_ptr;
+    if (!qb || !qb->conn || !data || data->size == 0) return 0;
+
+    wolf_strbuf_t* sb = wolf_strbuf_new();
+    wolf_strbuf_append(sb, "UPDATE ");
+    wolf_strbuf_append(sb, qb->table);
+    wolf_strbuf_append(sb, " SET ");
+    for (int64_t i = 0; i < data->size; i++) {
+        if (i > 0) wolf_strbuf_append(sb, ", ");
+        wolf_strbuf_append(sb, data->keys[i]);
+        wolf_strbuf_append(sb, " = '");
+        const char* val = wolf_map_get_str(data, data->keys[i]);
+        wolf_strbuf_append(sb, val ? val : "");
+        wolf_strbuf_append(sb, "'");
+    }
+    if (qb->where_count > 0) {
+        wolf_strbuf_append(sb, " WHERE ");
+        for (int i = 0; i < qb->where_count; i++) {
+            if (i > 0) wolf_strbuf_append(sb, " AND ");
+            wolf_strbuf_append(sb, qb->where_col[i]);
+            wolf_strbuf_append(sb, " = '");
+            wolf_strbuf_append(sb, qb->where_val[i]);
+            wolf_strbuf_append(sb, "'");
+        }
+    }
+
+    char* sql = wolf_strbuf_take(sb);
+    void* stmt = wolf_db_prepare(qb->conn, sql);
+    wolf_db_execute(stmt);
+    return wolf_db_row_count(stmt);
+}
+
+int64_t wolf_qb_delete(void* qb_ptr) {
+    wolf_qb_t* qb = (wolf_qb_t*)qb_ptr;
+    if (!qb || !qb->conn) return 0;
+
+    wolf_strbuf_t* sb = wolf_strbuf_new();
+    wolf_strbuf_append(sb, "DELETE FROM ");
+    wolf_strbuf_append(sb, qb->table);
+    if (qb->where_count > 0) {
+        wolf_strbuf_append(sb, " WHERE ");
+        for (int i = 0; i < qb->where_count; i++) {
+            if (i > 0) wolf_strbuf_append(sb, " AND ");
+            wolf_strbuf_append(sb, qb->where_col[i]);
+            wolf_strbuf_append(sb, " = '");
+            wolf_strbuf_append(sb, qb->where_val[i]);
+            wolf_strbuf_append(sb, "'");
+        }
+    }
+
+    char* sql = wolf_strbuf_take(sb);
+    void* stmt = wolf_db_prepare(qb->conn, sql);
+    wolf_db_execute(stmt);
+    return wolf_db_row_count(stmt);
+}
+
+void* wolf_qb_paginate(void* qb_ptr, int64_t page, int64_t per_page) {
+    wolf_qb_t* qb = (wolf_qb_t*)qb_ptr;
+    if (!qb || !qb->conn) return wolf_map_create();
+    if (page < 1) page = 1;
+    if (per_page < 1) per_page = 10;
+
+    /* COUNT query */
+    wolf_strbuf_t* csb = wolf_strbuf_new();
+    wolf_strbuf_append(csb, "SELECT COUNT(*) AS cnt FROM ");
+    wolf_strbuf_append(csb, qb->table);
+    if (qb->where_count > 0) {
+        wolf_strbuf_append(csb, " WHERE ");
+        for (int i = 0; i < qb->where_count; i++) {
+            if (i > 0) wolf_strbuf_append(csb, " AND ");
+            wolf_strbuf_append(csb, qb->where_col[i]);
+            wolf_strbuf_append(csb, " = '");
+            wolf_strbuf_append(csb, qb->where_val[i]);
+            wolf_strbuf_append(csb, "'");
+        }
+    }
+    char* count_sql = wolf_strbuf_take(csb);
+    void* cstmt = wolf_db_prepare(qb->conn, count_sql);
+    wolf_db_execute(cstmt);
+    void* count_row = wolf_db_fetch_one(cstmt);
+    int64_t total = 0;
+    if (count_row) {
+        const char* cnt_str = wolf_map_get_str((wolf_map_t*)count_row, "cnt");
+        if (!cnt_str) cnt_str = wolf_map_get_str((wolf_map_t*)count_row, "count(*)");
+        if (!cnt_str) cnt_str = wolf_map_get_str((wolf_map_t*)count_row, "COUNT(*)");
+        if (cnt_str) total = atoll(cnt_str);
+    }
+
+    int64_t last_page = (total + per_page - 1) / per_page;
+    if (last_page < 1) last_page = 1;
+
+    /* Data query */
+    qb->limit_n  = per_page;
+    qb->offset_n = (page - 1) * per_page;
+    void* data = wolf_qb_get(qb_ptr);
+
+    /* Build result map */
+    void* result = wolf_map_create();
+    wolf_map_set(result, "data", data);
+    wolf_map_set_int(result, "total",    total);
+    wolf_map_set_int(result, "page",     page);
+    wolf_map_set_int(result, "per_page", per_page);
+    wolf_map_set_int(result, "last_page", last_page);
+    return result;
 }

@@ -522,6 +522,27 @@ func (e *LLVMEmitter) Emit(program *ir.Program) string {
 	e.writeln("declare ptr @wolf_truncate(ptr, i64, ptr)")
 	e.writeln("")
 
+	e.writeln("; --- STDLIB-08: Validation Rules Engine ---")
+	e.writeln("declare ptr @wolf_validate(ptr, ptr)")
+	e.writeln("declare i1 @wolf_validator_passes(ptr)")
+	e.writeln("declare ptr @wolf_validator_errors(ptr)")
+	e.writeln("declare ptr @wolf_validator_validated(ptr)")
+	e.writeln("")
+
+	e.writeln("; --- DB-01: Query Builder ---")
+	e.writeln("declare ptr @wolf_qb_create(ptr, ptr)")
+	e.writeln("declare ptr @wolf_qb_where(ptr, ptr, ptr, ptr)")
+	e.writeln("declare ptr @wolf_qb_order_by(ptr, ptr, ptr)")
+	e.writeln("declare ptr @wolf_qb_limit(ptr, i64)")
+	e.writeln("declare ptr @wolf_qb_offset(ptr, i64)")
+	e.writeln("declare ptr @wolf_qb_get(ptr)")
+	e.writeln("declare ptr @wolf_qb_first(ptr)")
+	e.writeln("declare i64 @wolf_qb_insert(ptr, ptr)")
+	e.writeln("declare i64 @wolf_qb_update(ptr, ptr)")
+	e.writeln("declare i64 @wolf_qb_delete(ptr)")
+	e.writeln("declare ptr @wolf_qb_paginate(ptr, i64, i64)")
+	e.writeln("")
+
 	e.writeln("; --- Sessions ---")
 	e.writeln("declare void @wolf_session_begin()")
 	e.writeln("declare void @wolf_session_set(ptr, ptr)")
@@ -1651,8 +1672,8 @@ func (e *LLVMEmitter) emitBinaryExpr(ex *ir.BinaryExpr, expectedType string) str
 			e.writelnIndent(fmt.Sprintf("%s = call i64 @wolf_strcmp(ptr %s, ptr %s)", cmpReg, left, right))
 			e.writelnIndent(fmt.Sprintf("%s = icmp ne i64 %s, 0", reg, cmpReg))
 		default:
-			// For numeric comparisons on ptr, coerce both sides to i64 via wolf_intval
-			if ex.Op == ">" || ex.Op == "<" || ex.Op == ">=" || ex.Op == "<=" || ex.Op == "-" {
+			// For numeric comparisons and math on ptr, coerce both sides to i64 via wolf_intval
+			if ex.Op == ">" || ex.Op == "<" || ex.Op == ">=" || ex.Op == "<=" || ex.Op == "-" || ex.Op == "*" || ex.Op == "/" || ex.Op == "%" {
 				leftI := e.nextLocal()
 				rightI := e.nextLocal()
 				e.writelnIndent(fmt.Sprintf("%s = call i64 @wolf_intval(ptr %s)", leftI, left))
@@ -1668,6 +1689,12 @@ func (e *LLVMEmitter) emitBinaryExpr(ex *ir.BinaryExpr, expectedType string) str
 					e.writelnIndent(fmt.Sprintf("%s = icmp sle i64 %s, %s", reg, leftI, rightI))
 				case "-":
 					e.writelnIndent(fmt.Sprintf("%s = sub i64 %s, %s", reg, leftI, rightI))
+				case "*":
+					e.writelnIndent(fmt.Sprintf("%s = mul i64 %s, %s", reg, leftI, rightI))
+				case "/":
+					e.writelnIndent(fmt.Sprintf("%s = sdiv i64 %s, %s", reg, leftI, rightI))
+				case "%":
+					e.writelnIndent(fmt.Sprintf("%s = srem i64 %s, %s", reg, leftI, rightI))
 				}
 			} else {
 				e.writelnIndent(fmt.Sprintf("; unknown binary op for ptr: %s", ex.Op))
@@ -2186,6 +2213,40 @@ func (e *LLVMEmitter) emitCallExpr(call *ir.CallExpr) string {
 		case "truncate":
 			calleeName = "wolf_truncate"
 
+		// --- STDLIB-08: Validation Rules Engine ---
+		case "validate":
+			calleeName = "wolf_validate"
+		case "validator_passes", "passes":
+			calleeName = "wolf_validator_passes"
+		case "validator_errors", "errors":
+			calleeName = "wolf_validator_errors"
+		case "validator_validated", "validated":
+			calleeName = "wolf_validator_validated"
+
+		// --- DB-01: Query Builder ---
+		case "builder":
+			calleeName = "wolf_qb_create"
+		case "qb_where":
+			calleeName = "wolf_qb_where"
+		case "qb_order_by":
+			calleeName = "wolf_qb_order_by"
+		case "qb_limit":
+			calleeName = "wolf_qb_limit"
+		case "qb_offset":
+			calleeName = "wolf_qb_offset"
+		case "qb_get":
+			calleeName = "wolf_qb_get"
+		case "qb_first":
+			calleeName = "wolf_qb_first"
+		case "qb_insert":
+			calleeName = "wolf_qb_insert"
+		case "qb_update":
+			calleeName = "wolf_qb_update"
+		case "qb_delete":
+			calleeName = "wolf_qb_delete"
+		case "qb_paginate":
+			calleeName = "wolf_qb_paginate"
+
 		// --- Redis ---
 		case "redis_connect":
 			calleeName = "wolf_redis_connect"
@@ -2513,8 +2574,12 @@ func (e *LLVMEmitter) emitCallExpr(call *ir.CallExpr) string {
 	}
 
 	retType := "void"
-	if fnSig != nil && len(fnSig.ReturnTypes) > 0 {
-		retType = e.wolfTypeToLLVM(fnSig.ReturnTypes[0])
+	if fnSig != nil {
+		if len(fnSig.ReturnTypes) > 0 {
+			retType = e.wolfTypeToLLVM(fnSig.ReturnTypes[0])
+		} else if functionHasReturnValue(fnSig.Body) {
+			retType = "ptr"
+		}
 	} else if fnSig == nil {
 		switch calleeName {
 		case "wolf_say", "wolf_show", "wolf_inspect", "wolf_system_sleep", "wolf_system_exit", "wolf_system_die", "wolf_session_begin", "wolf_session_set", "wolf_session_end", "wolf_define",
@@ -2542,7 +2607,8 @@ func (e *LLVMEmitter) emitCallExpr(call *ir.CallExpr) string {
 			"wolf_date_create", "wolf_date_add_days", "wolf_date_add_months", "wolf_date_diff_days",
 			"wolf_strtotime", "wolf_file_size", "wolf_db_execute", "wolf_db_row_count", "wolf_db_last_insert_id", "wolf_math_random",
 			"wolf_string_length", "wolf_array_length", "wolf_argc",
-			"wolf_preg_match_all":
+			"wolf_preg_match_all",
+			"wolf_qb_insert", "wolf_qb_update", "wolf_qb_delete":
 			retType = "i64"
 		case "wolf_date_to_iso":
 			retType = "ptr"
@@ -2561,7 +2627,8 @@ func (e *LLVMEmitter) emitCallExpr(call *ir.CallExpr) string {
 			"wolf_is_ip", "wolf_is_alpha", "wolf_is_alpha_num", "wolf_is_leap_year",
 			"wolf_date_is_past", "wolf_date_is_future",
 			"wolf_file_exists", "wolf_file_write", "wolf_file_append", "wolf_file_delete", "wolf_dir_exists",
-			"wolf_preg_match":
+			"wolf_preg_match",
+			"wolf_validator_passes":
 			retType = "i1"
 		default:
 			retType = "ptr" // Call to unknown func (e.g. external) typically returns ptr

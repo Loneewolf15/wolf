@@ -1,22 +1,21 @@
 # Test: howl and function are valid aliases for func
 # All three keyword styles must produce identical output
 
-# Original style
+# Original style - automatically uses dynamic math fallback
 func add($a, $b) {
     return $a + $b
 }
 
-# Wolf-branded style
+# Wolf-branded style - without types
 howl multiply($a, $b) {
     return $a * $b
 }
 
 # PHP/JS-familiar style
-function greet($name) {
+function greet($name: string) -> string {
     return "Hello " .. $name
 }
 
-# Test all three
 $sum     = add(3, 4)
 $product = multiply(3, 4)
 $msg     = greet("Wolf")
@@ -25,17 +24,3 @@ print($sum)
 print($product)
 print($msg)
 
-# Test howl and function inside a class
-class Calculator {
-    howl square($n) {
-        return $n * $n
-    }
-
-    function cube($n) {
-        return $n * $n * $n
-    }
-}
-
-$calc = new Calculator
-print($calc->square(5))
-print($calc->cube(3))

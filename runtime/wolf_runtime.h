@@ -463,4 +463,23 @@ const char* wolf_jwt_decode(const char* token, const char* secret);
 void*       wolf_ws_on_message(void* handler);
 void*       wolf_ws_send(int64_t req_id, const char* message);
 
+/* --- Validation Rules Engine (STDLIB-08) --- */
+void*       wolf_validate(void* data, void* rules);
+int         wolf_validator_passes(void* v);
+const char* wolf_validator_errors(void* v);
+void*       wolf_validator_validated(void* v);
+
+/* --- Query Builder (DB-01) --- */
+void*   wolf_qb_create(void* conn, const char* table);
+void*   wolf_qb_where(void* qb, const char* col, const char* val, const char* op);
+void*   wolf_qb_order_by(void* qb, const char* col, const char* dir);
+void*   wolf_qb_limit(void* qb, int64_t n);
+void*   wolf_qb_offset(void* qb, int64_t n);
+void*   wolf_qb_get(void* qb);
+void*   wolf_qb_first(void* qb);
+int64_t wolf_qb_insert(void* qb, void* data);
+int64_t wolf_qb_update(void* qb, void* data);
+int64_t wolf_qb_delete(void* qb);
+void*   wolf_qb_paginate(void* qb, int64_t page, int64_t per_page);
+
 #endif /* WOLF_RUNTIME_H */

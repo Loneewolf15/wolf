@@ -6,6 +6,8 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/wolflang/wolf/internal/compiler"
+	"github.com/wolflang/wolf/internal/config"
+	"github.com/wolflang/wolf/internal/migrate"
 	"github.com/wolflang/wolf/internal/pythonenv"
 	"github.com/wolflang/wolf/internal/scaffold"
 )
@@ -269,7 +271,102 @@ database layer, and embeds CPython for native ML library access.`,
 		},
 	}
 
-	rootCmd.AddCommand(buildCmd, runCmd, fmtCmd, testCmd, pythonCmd, newCmd, generateCmd)
+	// ==================== wolf migrate ====================
+	migrateCmd := &cobra.Command{
+		Use:   "migrate",
+		Short: "Manage database migrations",
+	}
+
+	var migrateDir string
+	migrateCmd.PersistentFlags().StringVar(&migrateDir, "dir", "migrations", "Path to migrations directory")
+
+	// Shared helper: loads DB config from wolf.config
+	loadMigrateConfig := func() (*migrate.Migrator, error) {
+		cwd, _ := os.Getwd()
+		cfg, err := config.Load(cwd)
+		if err != nil {
+			// Config might not exist; use env vars only
+			cfg = config.Defaults()
+		}
+		return migrate.New(cfg.DB, migrateDir), nil
+	}
+
+	var upStep int
+	migrateUpCmd := &cobra.Command{
+		Use:   "up",
+		Short: "Run pending migrations",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			m, err := loadMigrateConfig()
+			if err != nil {
+				return err
+			}
+			fmt.Println("wolf migrate: running pending migrations...")
+			return m.Up(upStep)
+		},
+	}
+	migrateUpCmd.Flags().IntVar(&upStep, "step", 0, "Number of migrations to apply (0 = all)")
+
+	var downStep int
+	migrateDownCmd := &cobra.Command{
+		Use:   "down",
+		Short: "Roll back the last migration",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			m, err := loadMigrateConfig()
+			if err != nil {
+				return err
+			}
+			fmt.Println("wolf migrate: rolling back...")
+			return m.Down(downStep)
+		},
+	}
+	migrateDownCmd.Flags().IntVar(&downStep, "step", 1, "Number of migrations to roll back")
+
+	migrateFreshCmd := &cobra.Command{
+		Use:   "fresh",
+		Short: "Drop all tables and re-run all migrations",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			m, err := loadMigrateConfig()
+			if err != nil {
+				return err
+			}
+			fmt.Println("wolf migrate: running fresh migration (drop all + re-apply)...")
+			return m.Fresh()
+		},
+	}
+
+	migrateStatusCmd := &cobra.Command{
+		Use:   "status",
+		Short: "Show the status of all migrations",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			m, err := loadMigrateConfig()
+			if err != nil {
+				return err
+			}
+			return m.Status()
+		},
+	}
+
+	migrateMakeCmd := &cobra.Command{
+		Use:   "make [description]",
+		Short: "Create a new migration file",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			m, err := loadMigrateConfig()
+			if err != nil {
+				return err
+			}
+			path, err := m.Make(args[0])
+			if err != nil {
+				return err
+			}
+			fmt.Printf("wolf migrate: created %s ✓\n", path)
+			return nil
+		},
+	}
+
+	migrateCmd.AddCommand(migrateUpCmd, migrateDownCmd, migrateFreshCmd, migrateStatusCmd, migrateMakeCmd)
+
+	rootCmd.AddCommand(buildCmd, runCmd, fmtCmd, testCmd, pythonCmd, newCmd, generateCmd, migrateCmd)
 
 	if err := rootCmd.Execute(); err != nil {
 		os.Exit(1)
