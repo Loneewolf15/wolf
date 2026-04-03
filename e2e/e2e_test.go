@@ -81,6 +81,7 @@ func TestEndToEnd(t *testing.T) {
 			var stderr bytes.Buffer
 			cmd.Stdout = &stdout
 			cmd.Stderr = &stderr
+			cmd.Env = append(os.Environ(), "TZ=UTC")
 
 			err = cmd.Run()
 			if err != nil {
