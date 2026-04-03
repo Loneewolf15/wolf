@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/wolflang/wolf/internal/config"
 	_ "github.com/go-sql-driver/mysql"
 	_ "github.com/lib/pq"
+	"github.com/wolflang/wolf/internal/config"
 )
 
 // openDB opens a *sql.DB connection using the Wolf project config.

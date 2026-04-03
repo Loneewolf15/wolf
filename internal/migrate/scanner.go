@@ -1,14 +1,15 @@
 // Package migrate provides the Wolf database migration engine.
 // Migration files live in ./migrations/ and follow the naming convention:
-//   YYYYMMDD_HHMMSS_description.sql
+//
+//	YYYYMMDD_HHMMSS_description.sql
 //
 // Each file must contain an "-- Up" section and optionally a "-- Down" section:
 //
-//   -- Up
-//   CREATE TABLE ...;
+//	-- Up
+//	CREATE TABLE ...;
 //
-//   -- Down
-//   DROP TABLE IF EXISTS ...;
+//	-- Down
+//	DROP TABLE IF EXISTS ...;
 package migrate
 
 import (
