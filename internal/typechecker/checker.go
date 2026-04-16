@@ -468,8 +468,8 @@ var dbQueryMethods = map[string]bool{
 
 // dbRelationMethods are QB method names that register eager-loading relations.
 var dbRelationMethods = map[string]bool{
-	"with":     true,
-	"qb_with":  true,
+	"with":    true,
+	"qb_with": true,
 }
 
 // checkN1InLoop scans a loop body for un-eagerly-loaded DB query calls.
@@ -496,7 +496,7 @@ func (c *Checker) checkN1InLoop(block *parser.BlockStmt, loopPos lexer.Position)
 		}
 
 		recvName := exprName(mc.Object)
-		
+
 		if dbRelationMethods[mc.Method] {
 			hasRelation[recvName] = true
 			continue

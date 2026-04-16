@@ -682,8 +682,14 @@ func (e *LLVMEmitter) Emit(program *ir.Program) string {
 	e.writeln("declare void @wolf_http_write_response(ptr)")
 	e.writeln("")
 
-	e.writeln("; --- Concurrency & Observability ---")
-	e.writeln("declare void @wolf_spawn_supervised_thread(ptr, ptr, i64)")
+	e.writeln("; --- Phase 2: WolfScheduler ---")
+	e.writeln("declare void @wolf_spawn_task(ptr)")
+	e.writeln("declare void @wolf_task_wait_all()")
+	e.writeln("")
+
+	e.writeln("; --- Phase 1: Concurrency (Legacy) ---")
+	e.writeln("declare void @wolf_supervise_begin(i64, i64)")
+	e.writeln("declare void @wolf_supervise_end()")
 	e.writeln("declare void @wolf_trace_start(ptr)")
 	e.writeln("declare void @wolf_trace_end(ptr)")
 	e.writeln("declare void @wolf_metrics_increment(ptr)")
@@ -1047,6 +1053,10 @@ func (e *LLVMEmitter) emitStmt(stmt ir.Stmt) {
 		e.emitTryCatch(s)
 	case *ir.SuperviseStmt:
 		e.emitSupervise(s)
+	case *ir.SpawnStmt:
+		e.emitSpawn(s)
+	case *ir.WaitAllStmt:
+		e.emitWaitAll(s)
 	case *ir.TraceStmt:
 		e.emitTrace(s)
 	case *ir.RawStmt:
@@ -1057,14 +1067,38 @@ func (e *LLVMEmitter) emitStmt(stmt ir.Stmt) {
 }
 
 func (e *LLVMEmitter) emitSupervise(s *ir.SuperviseStmt) {
+	strategyCode := 0
+	switch s.Strategy {
+	case "escalate":
+		strategyCode = 1
+	case "one_for_one":
+		strategyCode = 2
+	case "one_for_all":
+		strategyCode = 3
+	} // restart = 0
+
+	e.writelnIndent(fmt.Sprintf("call void @wolf_supervise_begin(i64 %d, i64 %d)", strategyCode, s.Max))
+	for _, stmt := range s.Body {
+		e.emitStmt(stmt)
+	}
+	e.writelnIndent("call void @wolf_supervise_end()")
+}
+
+func (e *LLVMEmitter) emitSpawn(s *ir.SpawnStmt) {
+	// Wrap the call in a parameterless closure
 	closureName := e.emitFuncLit(&ir.FuncLit{
 		Params:      []*ir.Param{},
 		ReturnTypes: []string{},
-		Body:        s.Body,
+		Body:        []ir.Stmt{&ir.ExprStmt{Expr: s.Call}},
 	})
 
-	strategyLabel := e.addStringConst(s.Strategy)
-	e.writelnIndent(fmt.Sprintf("call void @wolf_spawn_supervised_thread(ptr %s, ptr %s, i64 %d)", closureName, strategyLabel, s.Max))
+	// Invoke WolfScheduler spawn API
+	// e.g. call void @wolf_spawn_task(ptr @closureName)
+	e.writelnIndent(fmt.Sprintf("call void @wolf_spawn_task(ptr %s)", closureName))
+}
+
+func (e *LLVMEmitter) emitWaitAll(s *ir.WaitAllStmt) {
+	e.writelnIndent("call void @wolf_task_wait_all()")
 }
 
 func (e *LLVMEmitter) emitTrace(s *ir.TraceStmt) {
@@ -1122,7 +1156,7 @@ func (e *LLVMEmitter) checkErrorPropagate() {
 	e.writeln("")
 	e.writeln(fmt.Sprintf("%s:", errTrue))
 	e.indent++
-	
+
 	if len(e.errHandlerStack) > 0 {
 		catchLbl := e.errHandlerStack[len(e.errHandlerStack)-1]
 		e.writelnIndent(fmt.Sprintf("br label %%%s", catchLbl))
@@ -1144,7 +1178,7 @@ func (e *LLVMEmitter) checkErrorPropagate() {
 	}
 	e.indent--
 	e.writeln("")
-	e.writeln(fmt.Sprintf("%s:", errFalse)) 
+	e.writeln(fmt.Sprintf("%s:", errFalse))
 }
 
 func (e *LLVMEmitter) emitServe(s *ir.ServeStmt) {
@@ -1730,20 +1764,26 @@ func (e *LLVMEmitter) emitExpr(expr ir.Expr, expectedType string) string {
 			wrapperName := "__wrapper_" + fullFuncName
 			if !e.funcWrappers[wrapperName] {
 				e.funcWrappers[wrapperName] = true
-				
+
 				var paramParts []string
 				paramParts = append(paramParts, "ptr %__env_ignored")
 				var argsStr []string
 				for i, p := range fnSig.Params {
 					llType := e.wolfTypeToLLVM(p.Type)
-					if llType == "" { llType = "ptr" }
+					if llType == "" {
+						llType = "ptr"
+					}
 					paramParts = append(paramParts, fmt.Sprintf("%s %%arg%d", llType, i))
 					argsStr = append(argsStr, fmt.Sprintf("%s %%arg%d", llType, i))
 				}
-				
+
 				retType := "ptr"
-				if len(fnSig.ReturnTypes) > 0 { retType = e.wolfTypeToLLVM(fnSig.ReturnTypes[0]) }
-				if retType == "" { retType = "ptr" }
+				if len(fnSig.ReturnTypes) > 0 {
+					retType = e.wolfTypeToLLVM(fnSig.ReturnTypes[0])
+				}
+				if retType == "" {
+					retType = "ptr"
+				}
 
 				e.closureDefs.WriteString(fmt.Sprintf("\ndefine ptr @%s(%s) {\nentry:\n", wrapperName, strings.Join(paramParts, ", ")))
 				if retType == "void" {
@@ -1755,9 +1795,9 @@ func (e *LLVMEmitter) emitExpr(expr ir.Expr, expectedType string) string {
 					if retType == "i64" {
 						e.closureDefs.WriteString("  %box = inttoptr i64 %res to ptr\n  ret ptr %box\n")
 					} else if retType == "double" {
-					    e.closureDefs.WriteString("  %bcast = bitcast double %res to i64\n  %box = inttoptr i64 %bcast to ptr\n  ret ptr %box\n")
+						e.closureDefs.WriteString("  %bcast = bitcast double %res to i64\n  %box = inttoptr i64 %bcast to ptr\n  ret ptr %box\n")
 					} else if retType == "i1" {
-					    e.closureDefs.WriteString("  %zxt = zext i1 %res to i64\n  %box = inttoptr i64 %zxt to ptr\n  ret ptr %box\n")
+						e.closureDefs.WriteString("  %zxt = zext i1 %res to i64\n  %box = inttoptr i64 %zxt to ptr\n  ret ptr %box\n")
 					} else {
 						e.closureDefs.WriteString("  ret ptr %res\n")
 					}
@@ -3554,7 +3594,7 @@ func (e *LLVMEmitter) emitFuncLit(fl *ir.FuncLit) string {
 		typ := captureTypes[i]
 		val := e.nextLocal()
 		e.writelnIndent(fmt.Sprintf("%s = load %s, ptr %%%s", val, typ, name))
-		
+
 		ptrVal := val
 		if typ == "i64" {
 			ptrVal = e.nextLocal()
@@ -3570,7 +3610,7 @@ func (e *LLVMEmitter) emitFuncLit(fl *ir.FuncLit) string {
 			ptrVal = e.nextLocal()
 			e.writelnIndent(fmt.Sprintf("%s = inttoptr i64 %s to ptr", ptrVal, i64Val))
 		}
-		
+
 		e.writelnIndent(fmt.Sprintf("call void @wolf_closure_set_env(ptr %s, i64 %d, ptr %s)", closureReg, i, ptrVal))
 	}
 
@@ -3620,7 +3660,7 @@ func (e *LLVMEmitter) emitFuncLit(fl *ir.FuncLit) string {
 		typ := captureTypes[i]
 		val := e.nextLocal()
 		e.writelnIndent(fmt.Sprintf("%s = call ptr @wolf_closure_get_env(ptr %%__env_closure_ptr, i64 %d)", val, i))
-		
+
 		unboxed := val
 		if typ == "i64" {
 			unboxed = e.nextLocal()

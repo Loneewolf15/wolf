@@ -168,12 +168,18 @@ type TryCatchStmt struct {
 
 func (*TryCatchStmt) irStmt() {}
 
-// GoStmt: go func() { ... }() for parallel blocks.
-type GoStmt struct {
-	Body []Stmt
+// SpawnStmt: spawn fn(args...) inside a supervise module
+type SpawnStmt struct {
+	Name string // for tracking
+	Call *CallExpr
 }
 
-func (*GoStmt) irStmt() {}
+func (*SpawnStmt) irStmt() {}
+
+// WaitAllStmt represents the synchronization barrier at the end of @supervise
+type WaitAllStmt struct{}
+
+func (*WaitAllStmt) irStmt() {}
 
 // DeferStmt: defer statement.
 type DeferStmt struct {

@@ -121,6 +121,9 @@ func (p *Parser) parseStatement() Statement {
 	case lexer.TOKEN_PARALLEL:
 		return p.parseParallelStmt()
 
+	case lexer.TOKEN_SPAWN:
+		return p.parseSpawnStmt()
+
 	case lexer.TOKEN_LBRACKET:
 		// Could be [$a, $b] = expr (destructuring) or array expression
 		return p.parseDestructureOrExprStmt()
@@ -898,6 +901,26 @@ func (p *Parser) parseSuperviseBlockStmt() *SuperviseBlockStmt {
 	return sup
 }
 
+// ---- spawn statement ----
+
+func (p *Parser) parseSpawnStmt() *SpawnStmt {
+	pos := p.currentPos()
+	p.advance() // consume 'spawn'
+
+	expr := p.parseExpression()
+	call, ok := expr.(*CallExpr)
+	if !ok {
+		p.addError("expected function/method call after 'spawn'")
+		// return a dummy statement to prevent nil panic
+		return &SpawnStmt{Pos_: pos}
+	}
+
+	return &SpawnStmt{
+		Call: call,
+		Pos_: pos,
+	}
+}
+
 // ---- @trace block ----
 
 func (p *Parser) parseTraceBlockStmt() *TraceBlockStmt {
@@ -1262,7 +1285,7 @@ func (p *Parser) parseCallAndAccess() Expression {
 			if ident, ok := expr.(*Identifier); ok {
 				className = ident.Name
 			}
-			
+
 			// If followed by (, it is a StaticCall
 			if p.check(lexer.TOKEN_LPAREN) {
 				args := p.parseArgList()

@@ -539,4 +539,13 @@ int64_t wolf_qb_update(void* qb, void* data);
 int64_t wolf_qb_delete(void* qb);
 void*   wolf_qb_paginate(void* qb, int64_t page, int64_t per_page);
 
+/* --- Error Handling (Phase 4) --- */
+void        wolf_throw(const char* msg);
+const char* wolf_get_error(void);
+int         wolf_has_error(void);
+void        wolf_clear_error(void);
+
+/* --- Mailer Validation --- */
+void        wolf_mailer_validate_config(void);
+
 #endif /* WOLF_RUNTIME_H */

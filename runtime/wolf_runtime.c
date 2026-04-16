@@ -3471,190 +3471,10 @@ static void* http_worker(void* arg) {
 }
 
 
-void wolf_http_serve(int64_t port, void* handler_ptr) {
-    global_wolf_handler = (wolf_http_handler_t)handler_ptr;
-
-#if !defined(WOLF_DB_POSTGRES) && !defined(WOLF_DB_MSSQL)
-    mysql_library_init(0, NULL, NULL);
-#endif
-    
-    wolf_crypto_init();
-
-    /* ---- Rule 6: Raise file descriptor limit to 65535 ---- */
-    {
-        struct rlimit rl;
-        getrlimit(RLIMIT_NOFILE, &rl);
-        rl.rlim_cur = 65535;
-        if (rl.rlim_max != RLIM_INFINITY && rl.rlim_max < 65535)
-            rl.rlim_max = 65535;
-        if (setrlimit(RLIMIT_NOFILE, &rl) != 0)
-            fprintf(stderr, "[Wolf] Warning: could not raise FD limit: %s\n", strerror(errno));
-        else
-            fprintf(stderr, "[Wolf] FD limit set to 65535.\n");
-    }
-
-    /* ---- Install signal handlers ---- */
-    struct sigaction sa;
-    memset(&sa, 0, sizeof(sa));
-    sa.sa_handler = wolf_signal_handler;
-    sigemptyset(&sa.sa_mask);
-    sa.sa_flags = 0;          /* No SA_RESTART — lets accept() return EINTR */
-    sigaction(SIGTERM, &sa, NULL);
-    sigaction(SIGINT,  &sa, NULL);
-
-    /* Ignore SIGPIPE so writing to a closed socket doesn't kill the process */
-    signal(SIGPIPE, SIG_IGN);
-
-    /* ---- Create server socket ---- */
-    int server_fd;
-    struct sockaddr_in address;
-    int opt = 1;
-
-    if ((server_fd = socket(AF_INET, SOCK_STREAM, 0)) == 0) {
-        perror("wolf_http: socket failed");
-        exit(EXIT_FAILURE);
-    }
-    /* --- Socket performance tuning --- */
-    if (setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)))
-        perror("wolf_http: SO_REUSEADDR");
-#ifdef SO_REUSEPORT
-    if (setsockopt(server_fd, SOL_SOCKET, SO_REUSEPORT, &opt, sizeof(opt)))
-        perror("wolf_http: SO_REUSEPORT");
-#endif
-    /* Increase send/recv buffers for throughput */
-    int sndbuf = 262144;
-    int rcvbuf = 262144;
-    setsockopt(server_fd, SOL_SOCKET, SO_SNDBUF, &sndbuf, sizeof(sndbuf));
-    setsockopt(server_fd, SOL_SOCKET, SO_RCVBUF, &rcvbuf, sizeof(rcvbuf));
-
-    address.sin_family      = AF_INET;
-    address.sin_addr.s_addr = INADDR_ANY;
-    address.sin_port        = htons(port);
-
-    if (bind(server_fd, (struct sockaddr*)&address, sizeof(address)) < 0) {
-        perror("wolf_http: bind failed");
-        exit(EXIT_FAILURE);
-    }
-    /* Raise backlog to OS maximum for high concurrency */
-    if (listen(server_fd, 65535) < 0) {
-        perror("wolf_http: listen failed");
-        exit(EXIT_FAILURE);
-    }
-
-    printf("🐺 Wolf HTTP Server running on port %d...\n", (int)port);
-    fflush(stdout);
-    printf("   Send SIGTERM or Ctrl+C to shut down gracefully.\n");
-
-    /* Initialize Worker Pool and WebSocket Poller */
-    wolf_worker_pool_init();
-    wolf_ws_poller_init();
-    wolf_ws_poller_start();
-
-    /* ---- Accept loop ---- */
-    while (!wolf_shutdown_requested) {
-        struct sockaddr_in client_addr;
-        socklen_t client_len = sizeof(client_addr);
-        int client_fd = accept(server_fd,
-                               (struct sockaddr*)&client_addr,
-                               &client_len);
-
-        if (client_fd < 0) {
-            if (errno == EINTR) {
-                /* Signal interrupted accept() — check shutdown flag */
-                break;
-            }
-            /* Transient error (ECONNABORTED, etc.) — keep going */
-            continue;
-        }
-
-        /* Reject new connections when shutting down */
-        if (wolf_shutdown_requested) {
-            const char* busy =
-                "HTTP/1.1 503 Service Unavailable\r\n"
-                "Content-Length: 0\r\n"
-                "Connection: close\r\n\r\n";
-            write(client_fd, busy, strlen(busy));
-            close(client_fd);
-            break;
-        }
-
-        /* Per-connection tuning */
-        {
-            int nodelay = 1;
-            setsockopt(client_fd, IPPROTO_TCP, TCP_NODELAY, &nodelay, sizeof(nodelay));
-        }
-        
-        char client_ip[46] = {0};
-        const char* ip_str = inet_ntop(AF_INET, &client_addr.sin_addr, client_ip, sizeof(client_ip));
-        
-        int id = alloc_http_context(client_fd, ip_str);
-        if (id >= 0) {
-            /* Increment in-flight counter BEFORE pushing task */
-            __atomic_fetch_add(&wolf_active_requests, 1, __ATOMIC_SEQ_CST);
-
-            wolf_task_t task = {WOLF_TASK_HTTP, (int64_t)id, NULL};
-            if (!wolf_task_push(task)) {
-                /* All rings full — roll back: free context, decrement counter, send 503 */
-                __atomic_fetch_sub(&wolf_active_requests, 1, __ATOMIC_SEQ_CST);
-                free_http_context(id);
-                const char* busy =
-                    "HTTP/1.1 503 Service Unavailable\r\n"
-                    "Content-Length: 17\r\n"
-                    "Connection: close\r\n\r\n"
-                    "Server overloaded";
-                write(client_fd, busy, strlen(busy));
-                close(client_fd);
-                WOLF_LOG("[WOLF-HTTP] all rings full — 503 on new connection\n");
-            }
-        } else {
-            /* All context slots full */
-            const char* busy =
-                "HTTP/1.1 503 Service Unavailable\r\n"
-                "Content-Length: 0\r\n\r\n";
-            write(client_fd, busy, strlen(busy));
-            close(client_fd);
-        }
-    }
-
-    /* ---- Shutdown sequence ---- */
-    fprintf(stderr, "[Wolf] Stopping accept loop. Draining %d in-flight request(s)...\n",
-            (int)wolf_active_requests);
-
-    close(server_fd);
-
-    /*
-     * Wait for in-flight requests to finish using condition variable.
-     * Each http_worker decrements wolf_active_requests on exit.
-     * Timeout: WOLF_REQUEST_TIMEOUT_SEC + 2s grace.
-     */
-    pthread_mutex_lock(&wolf_drain_mutex);
-    struct timespec ts;
-    clock_gettime(CLOCK_REALTIME, &ts);
-    ts.tv_sec += WOLF_REQUEST_TIMEOUT_SEC + 2;
-
-    while (wolf_active_requests > 0) {
-        int rc = pthread_cond_timedwait(&wolf_drain_cond, &wolf_drain_mutex, &ts);
-        if (rc == ETIMEDOUT) break;
-    }
-    pthread_mutex_unlock(&wolf_drain_mutex);
-
-    if (wolf_active_requests > 0) {
-        fprintf(stderr, "[Wolf] Drain timeout — %d request(s) still in flight. Forcing exit.\n",
-                (int)wolf_active_requests);
-    } else {
-        fprintf(stderr, "[Wolf] All requests drained.\n");
-    }
-
-    /* Destroy DB connection pool */
-    wolf_db_pool_destroy();
-
-#if !defined(WOLF_DB_POSTGRES) && !defined(WOLF_DB_MSSQL)
-    mysql_library_end();
-#endif
-
-    fprintf(stderr, "[Wolf] Shutdown complete.\n");
-    exit(0);
-}
+/* Phase 2: WolfScheduler and io_uring HTTP Engine */
+#include "wolf_uring.c"
+#include "wolf_http_engine.c"
+#include "wolf_scheduler.c"
 
 #endif /* WOLF_FREESTANDING — end of HTTP server block */
 
@@ -3905,18 +3725,29 @@ void* wolf_http_request(const char* method, const char* url, const char* body, v
 
     wolf_http_response_t* h_res = (wolf_http_response_t*)wolf_req_alloc(sizeof(wolf_http_response_t));
     h_res->status = status_code;
-    h_res->error = (int64_t)res;
-    h_res->headers = state.headers;
-    
-    if (state.body.data) {
-        h_res->body = wolf_req_alloc(state.body.size + 1);
-        strcpy(h_res->body, state.body.data);
-        free(state.body.data);
-    } else {
-        h_res->body = wolf_req_strdup("");
+    int64_t final_status = 0;
+    if (res == CURLE_OK) {
+        long response_code;
+        curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &response_code);
+        final_status = response_code;
     }
 
-    return h_res;
+    /* Map C struct into a standard Wolf Map */
+    void* map = wolf_map_create();
+    wolf_map_set_int(map, "status", final_status);
+    wolf_map_set_int(map, "error", (int64_t)res);
+    
+    if (state.body.data) {
+        char* body_str = wolf_req_alloc(state.body.size + 1);
+        strcpy(body_str, state.body.data);
+        free(state.body.data);
+        wolf_map_set(map, "body", body_str);
+    } else {
+        wolf_map_set(map, "body", wolf_req_strdup(""));
+    }
+
+    /* We don't currently expose headers via the map for simplicity, but could be added */
+    return map;
 }
 
 void* wolf_http_get(const char* url, void* headers_map) { return wolf_http_request("GET", url, NULL, headers_map); }

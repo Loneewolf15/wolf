@@ -62,7 +62,7 @@ type Resolver struct {
 	depth      int
 	errors     []*lexer.WolfError
 	file       string
-	resolved   map[string]string        // $name -> goName mapping (accumulated)
+	resolved   map[string]string // $name -> goName mapping (accumulated)
 	strictMode bool
 	interfaces map[string]*parser.InterfaceDecl // registered interface definitions
 }

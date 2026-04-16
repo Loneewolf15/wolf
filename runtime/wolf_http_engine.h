@@ -40,6 +40,7 @@ typedef struct WolfSentinel {
     WolfIOBackend backend;
     int           poll_fd;    /* epoll fd or kqueue fd */
     int           core_id;
+    void*         uring;      /* WolfURing* for io_uring (void* to avoid header leak) */
 } WolfSentinel;
 
 WolfSentinel* wolf_sentinel_create(int core_id);

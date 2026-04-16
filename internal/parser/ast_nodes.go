@@ -210,13 +210,13 @@ func (r *ReturnTypeSpec) Pos() lexer.Position { return r.Pos_ }
 
 // ClassDecl represents a class definition.
 type ClassDecl struct {
-	Name        string
-	Extends     string
-	TypeParams  []string       // generic type params, e.g., ["T", "U"]
-	Implements  []string       // interface names this class implements
-	Properties  []*PropertyDecl
-	Methods     []*FuncDecl
-	Pos_        lexer.Position
+	Name       string
+	Extends    string
+	TypeParams []string // generic type params, e.g., ["T", "U"]
+	Implements []string // interface names this class implements
+	Properties []*PropertyDecl
+	Methods    []*FuncDecl
+	Pos_       lexer.Position
 }
 
 func (s *ClassDecl) nodeType() string    { return "ClassDecl" }
@@ -255,7 +255,6 @@ type EnumDecl struct {
 func (s *EnumDecl) nodeType() string    { return "EnumDecl" }
 func (s *EnumDecl) Pos() lexer.Position { return s.Pos_ }
 func (s *EnumDecl) stmtNode()           {}
-
 
 // PropertyDecl represents a class property: $name: type = default
 type PropertyDecl struct {
@@ -317,6 +316,16 @@ type SuperviseBlockStmt struct {
 func (s *SuperviseBlockStmt) nodeType() string    { return "SuperviseBlockStmt" }
 func (s *SuperviseBlockStmt) Pos() lexer.Position { return s.Pos_ }
 func (s *SuperviseBlockStmt) stmtNode()           {}
+
+// SpawnStmt represents: spawn fn(args...)
+type SpawnStmt struct {
+	Call *CallExpr
+	Pos_ lexer.Position
+}
+
+func (s *SpawnStmt) nodeType() string    { return "SpawnStmt" }
+func (s *SpawnStmt) Pos() lexer.Position { return s.Pos_ }
+func (s *SpawnStmt) stmtNode()           {}
 
 // TraceBlockStmt represents: @trace("span.name") { ... }
 type TraceBlockStmt struct {
@@ -578,7 +587,7 @@ func (e *IndexExpr) exprNode()           {}
 // NewExpr represents: new ClassName(args) or new ClassName<T>(args)
 type NewExpr struct {
 	ClassName string
-	TypeArgs  []string       // generic type arguments, e.g., ["int"]
+	TypeArgs  []string // generic type arguments, e.g., ["int"]
 	Args      []Expression
 	Pos_      lexer.Position
 }

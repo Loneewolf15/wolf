@@ -13,7 +13,8 @@
 | Error Handling (try/catch) | ✅ Done | — |
 | Real MSSQL implementation | 🔄 Deferred | freetds-dev |
 | Interfaces / Traits (Phase 2) | ✅ Done | — |
-| Generics (Phase 2) | ⬜ Up Next | Interfaces |
+| Generics (Phase 2) | ✅ Done | — |
+| Structured Concurrency & Scheduler (Phase 2) | ✅ Done | — |
 | Package System (Phase 2) | ⬜ Up Next | — |
 
 ## Completed Sprints
@@ -51,6 +52,21 @@ graph TD
 5. **Binary size** — investigate tree-shaking libcurl static link (currently 9.1MB vs 8MB target)
 
 ## Session History
+
+### 2026-04-16 (Session 16 — Structured Concurrency, M:N Scheduler & Exceptions)
+**Done:**
+- Replaced 1:1 pthread HTTP handlers with a high-throughput POSIX M:N scheduler using `ucontext_t` and exactly 64KB stack arenas.
+- Implemented core thread `sysmon` loop issuing `SIGURG` preemptions for CPU-bound tasks in the C runtime via OS signal handling. `swapcontext` successfully handles forced yields transparently.
+- Implemented C runtime exception/supervision strategies: `restart`, `one_for_one`, `one_for_all`, `escalate` using native `wolf_has_error()` backoff loops.
+- Re-aligned LLVM strings behavior and `wolf_http_get()` to native map representations allowing API calls to not segfault on C struct pointers.
+- Verified successful backend tests with `go test ./e2e/...` for the `HTTP_Client` and concurrency logic.
+
+### 2026-04-16 (Session 15 — Generics Phase 2)
+**Done:**
+- Developed complete LLVM monomorphization engine for generic templates (`class Wrapper<T>`).
+- Implemented DeepClone WIR logic with `ReplaceTypeNames` for fully deterministic compile-time resolution.
+- Passed comprehensive Generics E2E validation.
+
 
 ### 2026-04-15 (Session 14 — Interfaces & Traits implementation)
 **Done:**

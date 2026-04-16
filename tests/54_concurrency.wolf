@@ -1,0 +1,16 @@
+# 54_concurrency.wolf
+# Tests Phase 2 structured concurrency syntax
+
+func compute_a() {
+    print("compute_a done")
+}
+
+func compute_b() {
+    print("compute_b done")
+}
+
+@supervise(strategy: "restart", max: 3) {
+    spawn compute_a()
+    spawn compute_b()
+}
+print("both done")

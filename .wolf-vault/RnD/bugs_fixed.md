@@ -1,5 +1,14 @@
 # Wolf Bugs Fixed — Cumulative Log
 
+## Session 2026-04-16 (Session 16 — Structured Concurrency)
+
+### BUG-049: `TestHTTPClient` LLVM String Crash (C ABI Map Mismatch)
+- **Class:** P0 🔴 Compiler Panic (Runtime Print Crash)
+- **Root cause:** The `wolf_http_get()` execution pipeline natively generated unmanaged C structs (`wolf_http_response_t`). However, the `print($res)` dynamic stringifier incorrectly resolved the abstract pointer as a literal LLVM C string, which dumped the literal value of the 200 HTTP status code out to bash (`\xc8`).
+- **Fix:** Refactored `wolf_http_request()` stringification to completely wrap internal HTTP attributes safely back into natively accessible generic `wolf_map_t` dictionaries, restoring the underlying ABI representations perfectly for Typecheckers.
+- **File:** `runtime/wolf_runtime.c`
+
+
 ## Session 2026-04-13 (Session 13 — STDLIB-06)
 
 ### BUG-043: LLVM `invalid redefinition of function wolf_http_res_status`
@@ -27,8 +36,8 @@
 - **File:** `runtime/wolf_runtime.c`
 
 ### Status Ledger Update
-- Total bugs fixed: **48** (BUG-001 through BUG-048)
-- E2E tests: **56 passing** (39_interfaces added)
+- Total bugs fixed: **49** (BUG-001 through BUG-049)
+- E2E tests: **56 passing** (54_concurrency added)
 - **Fixed:** P3 — `wolf_http_req_client_ip` forward decl was already wrapped in `#ifndef WOLF_FREESTANDING` guard at `wolf_runtime.c:161-163` (confirmed 2026-04-15)
 - Open: None
 

@@ -49,7 +49,8 @@ wolf_runtime.c       (linked into every binary)
 | Date / Time | wolf_date_* | ✅ Done (Session 7) |
 | Outbound HTTP Client | wolf_http_request, wolf_http_client_res_* | ✅ Done (Session 13) |
 | URL & Network Utilities | parse_url, build_query, dns_lookup, get_client_ip | ✅ Done (Session 13) |
-
+| M:N Task Scheduler | POSIX ucontext_t 64KB stack arenas, wait_all | ✅ Done (Session 16) |
+| Preemption & Supervision | SIGURG preemption, let it crash strategies | ✅ Done (Session 16) |
 ## Key Design Decisions
 
 ### ADR-001: LLVM IR as compilation target (not Go transpile)

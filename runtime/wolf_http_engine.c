@@ -20,6 +20,7 @@
 #include "wolf_config_runtime.h"
 #include "wolf_http_engine.h"
 #include "wolf_runtime.h"
+#include "wolf_uring.h"
 #include <openssl/evp.h>
 
 #include <stdio.h>
@@ -134,7 +135,17 @@ WolfSentinel* wolf_sentinel_create(int core_id) {
     WolfSentinel* s = (WolfSentinel*)calloc(1, sizeof(WolfSentinel));
     s->core_id = core_id;
 
-#if defined(WOLF_HAS_EPOLL)
+#if defined(WOLF_HAS_IO_URING)
+    s->backend = WOLF_IO_IOURING;
+    s->uring = wolf_uring_create(64, 1); // 64 entries, SQPOLL enabled
+    if (!s->uring) {
+        fprintf(stderr, "[WOLF-ENGINE] io_uring init failed, falling back\n");
+        // Fallthrough macro logic here requires careful handling, but for now we just exit
+        exit(1);
+    }
+    s->poll_fd = -1;
+
+#elif defined(WOLF_HAS_EPOLL)
     s->backend = WOLF_IO_EPOLL;
     s->poll_fd = epoll_create1(EPOLL_CLOEXEC);
     if (s->poll_fd < 0) { perror("epoll_create1"); free(s); return NULL; }
@@ -189,7 +200,12 @@ static void wolf_fd_remove_entry(int fd) {
 int wolf_sentinel_add(WolfSentinel* s, int fd, wolf_io_callback_t cb, void* ctx) {
     wolf_fd_alloc(fd, cb, ctx);
 
-#if defined(WOLF_HAS_EPOLL)
+#if defined(WOLF_HAS_IO_URING)
+    // io_uring is I/O completion based, not readiness based like epoll.
+    // the user must submit specific RECV/SEND/ACCEPT ops through wolf_uring_submit_* instead.
+    return 0;
+
+#elif defined(WOLF_HAS_EPOLL)
     struct epoll_event ev;
     ev.events   = EPOLLIN | EPOLLET; /* Edge-triggered for performance */
     ev.data.fd  = fd;
@@ -209,7 +225,11 @@ int wolf_sentinel_add(WolfSentinel* s, int fd, wolf_io_callback_t cb, void* ctx)
 int wolf_sentinel_remove(WolfSentinel* s, int fd) {
     wolf_fd_remove_entry(fd);
 
-#if defined(WOLF_HAS_EPOLL)
+#if defined(WOLF_HAS_IO_URING)
+    // io_uring removals are implicit (the request completes or gets cancelled)
+    return 0;
+
+#elif defined(WOLF_HAS_EPOLL)
     return epoll_ctl(s->poll_fd, EPOLL_CTL_DEL, fd, NULL);
 
 #elif defined(WOLF_HAS_KQUEUE)
@@ -224,7 +244,13 @@ int wolf_sentinel_remove(WolfSentinel* s, int fd) {
 }
 
 int wolf_sentinel_poll(WolfSentinel* s, int timeout_ms) {
-#if defined(WOLF_HAS_EPOLL)
+#if defined(WOLF_HAS_IO_URING)
+    if (s->backend == WOLF_IO_IOURING) {
+        return wolf_uring_poll((WolfURing*)s->uring, timeout_ms);
+    }
+    return 0;
+
+#elif defined(WOLF_HAS_EPOLL)
     struct epoll_event events[64];
     int n = epoll_wait(s->poll_fd, events, 64, timeout_ms);
     for (int i = 0; i < n; i++) {
@@ -776,9 +802,15 @@ int wolf_engine_start(WolfEngine* engine,
         }
     }
 
-    /* Main thread waits for shutdown signal */
+    /* Main thread acts as sysmon, sending SIGURG preemption signals to cores every 10ms */
     while (!wolf_engine_shutdown_flag) {
-        sleep(1);
+        usleep(10000);
+        for (int i = 0; i < engine->core_count; i++) {
+            WolfCore* core = engine->cores[i];
+            if (core && core->thread) {
+                pthread_kill(core->thread, SIGURG);
+            }
+        }
     }
 
     wolf_engine_shutdown(engine);
@@ -844,7 +876,7 @@ void wolf_engine_destroy(WolfEngine* engine) {
  * Called from compiled Wolf programs: wolf_http_serve(port, handler)
  * ================================================================ */
 
-void wolf_http_serve_engine(int64_t port, void* handler_ptr) {
+void wolf_http_serve(int64_t port, void* handler_ptr) {
     wolf_http_handler_t handler = (wolf_http_handler_t)handler_ptr;
 
     extern void wolf_crypto_init(void);

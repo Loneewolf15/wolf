@@ -64,6 +64,15 @@
 #  define WOLF_MAX_UPLOADS 8   /* max multipart file parts per request — set via wolf.config: server.max_uploads */
 #endif
 
+/* ---- Mail Configuration ---- */
+#ifndef WOLF_MAIL_FROM_EMAIL
+#  define WOLF_MAIL_FROM_EMAIL ""
+#endif
+
+#ifndef WOLF_MAIL_HOST
+#  define WOLF_MAIL_HOST ""
+#endif
+
 /* ---- App environment ---- */
 #ifndef WOLF_APP_ENV
 #  define WOLF_APP_ENV "development"

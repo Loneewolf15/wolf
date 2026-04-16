@@ -27,37 +27,38 @@ const (
 	TOKEN_STRING_LITERAL_PART // literal text segment inside interpolated string
 
 	// Keywords
-	TOKEN_FUNC     // func / howl / function (all three are valid — see keywords map)
-	TOKEN_CLASS    // class
-	TOKEN_NEW      // new
-	TOKEN_IF       // if
-	TOKEN_ELSE     // else
-	TOKEN_ELSE_IF  // else if (parsed as two tokens, combined by parser)
-	TOKEN_FOR      // for
-	TOKEN_FOREACH  // foreach
-	TOKEN_WHILE    // while
-	TOKEN_MATCH    // match
-	TOKEN_RETURN   // return
-	TOKEN_ASYNC    // async
-	TOKEN_AWAIT    // await
-	TOKEN_PARALLEL // parallel
-	TOKEN_CHANNEL  // channel
-	TOKEN_SEND     // send
-	TOKEN_RECEIVE  // receive
-	TOKEN_TRY      // try
-	TOKEN_CATCH    // catch
-	TOKEN_IMPORT   // import
-	TOKEN_PRINT    // print
-	TOKEN_VAR      // var
-	TOKEN_PRIVATE  // private
-	TOKEN_PUBLIC   // public
-	TOKEN_STATIC   // static
-	TOKEN_AS       // as
-	TOKEN_IN       // in
-	TOKEN_ERROR    // error
-	TOKEN_ENUM     // enum
-	TOKEN_INTERFACE   // interface
-	TOKEN_IMPLEMENTS  // implements
+	TOKEN_FUNC       // func / howl / function (all three are valid — see keywords map)
+	TOKEN_CLASS      // class
+	TOKEN_NEW        // new
+	TOKEN_IF         // if
+	TOKEN_ELSE       // else
+	TOKEN_ELSE_IF    // else if (parsed as two tokens, combined by parser)
+	TOKEN_FOR        // for
+	TOKEN_FOREACH    // foreach
+	TOKEN_WHILE      // while
+	TOKEN_MATCH      // match
+	TOKEN_RETURN     // return
+	TOKEN_ASYNC      // async
+	TOKEN_AWAIT      // await
+	TOKEN_SPAWN      // spawn
+	TOKEN_PARALLEL   // parallel
+	TOKEN_CHANNEL    // channel
+	TOKEN_SEND       // send
+	TOKEN_RECEIVE    // receive
+	TOKEN_TRY        // try
+	TOKEN_CATCH      // catch
+	TOKEN_IMPORT     // import
+	TOKEN_PRINT      // print
+	TOKEN_VAR        // var
+	TOKEN_PRIVATE    // private
+	TOKEN_PUBLIC     // public
+	TOKEN_STATIC     // static
+	TOKEN_AS         // as
+	TOKEN_IN         // in
+	TOKEN_ERROR      // error
+	TOKEN_ENUM       // enum
+	TOKEN_INTERFACE  // interface
+	TOKEN_IMPLEMENTS // implements
 
 	// ML block
 	TOKEN_AT_ML    // @ml
@@ -154,6 +155,7 @@ var tokenTypeNames = map[TokenType]string{
 	TOKEN_RETURN:              "RETURN",
 	TOKEN_ASYNC:               "ASYNC",
 	TOKEN_AWAIT:               "AWAIT",
+	TOKEN_SPAWN:               "SPAWN",
 	TOKEN_PARALLEL:            "PARALLEL",
 	TOKEN_CHANNEL:             "CHANNEL",
 	TOKEN_SEND:                "SEND",
@@ -232,41 +234,42 @@ var keywords = map[string]TokenType{
 	// func     = Go-style (legacy, backward compat)
 	// howl     = Wolf-branded (unique identity)
 	// function = PHP/JS-familiar (zero relearning for PHP devs)
-	"func":     TOKEN_FUNC,
-	"howl":     TOKEN_FUNC,
-	"function": TOKEN_FUNC,
-	"class":    TOKEN_CLASS,
-	"new":      TOKEN_NEW,
-	"if":       TOKEN_IF,
-	"else":     TOKEN_ELSE,
-	"for":      TOKEN_FOR,
-	"foreach":  TOKEN_FOREACH,
-	"while":    TOKEN_WHILE,
-	"match":    TOKEN_MATCH,
-	"return":   TOKEN_RETURN,
-	"async":    TOKEN_ASYNC,
-	"await":    TOKEN_AWAIT,
-	"parallel": TOKEN_PARALLEL,
-	"channel":  TOKEN_CHANNEL,
-	"send":     TOKEN_SEND,
-	"receive":  TOKEN_RECEIVE,
-	"try":      TOKEN_TRY,
-	"catch":    TOKEN_CATCH,
-	"import":   TOKEN_IMPORT,
-	"print":    TOKEN_PRINT,
-	"var":      TOKEN_VAR,
-	"private":  TOKEN_PRIVATE,
-	"public":   TOKEN_PUBLIC,
-	"static":   TOKEN_STATIC,
-	"true":     TOKEN_BOOL_TRUE,
-	"false":    TOKEN_BOOL_FALSE,
-	"nil":      TOKEN_NIL,
-	"as":       TOKEN_AS,
-	"in":       TOKEN_IN,
-	"error":     TOKEN_ERROR,
-	"enum":      TOKEN_ENUM,
-	"interface": TOKEN_INTERFACE,
-	"implements":TOKEN_IMPLEMENTS,
+	"func":       TOKEN_FUNC,
+	"howl":       TOKEN_FUNC,
+	"function":   TOKEN_FUNC,
+	"class":      TOKEN_CLASS,
+	"new":        TOKEN_NEW,
+	"if":         TOKEN_IF,
+	"else":       TOKEN_ELSE,
+	"for":        TOKEN_FOR,
+	"foreach":    TOKEN_FOREACH,
+	"while":      TOKEN_WHILE,
+	"match":      TOKEN_MATCH,
+	"return":     TOKEN_RETURN,
+	"async":      TOKEN_ASYNC,
+	"await":      TOKEN_AWAIT,
+	"spawn":      TOKEN_SPAWN,
+	"parallel":   TOKEN_PARALLEL,
+	"channel":    TOKEN_CHANNEL,
+	"send":       TOKEN_SEND,
+	"receive":    TOKEN_RECEIVE,
+	"try":        TOKEN_TRY,
+	"catch":      TOKEN_CATCH,
+	"import":     TOKEN_IMPORT,
+	"print":      TOKEN_PRINT,
+	"var":        TOKEN_VAR,
+	"private":    TOKEN_PRIVATE,
+	"public":     TOKEN_PUBLIC,
+	"static":     TOKEN_STATIC,
+	"true":       TOKEN_BOOL_TRUE,
+	"false":      TOKEN_BOOL_FALSE,
+	"nil":        TOKEN_NIL,
+	"as":         TOKEN_AS,
+	"in":         TOKEN_IN,
+	"error":      TOKEN_ERROR,
+	"enum":       TOKEN_ENUM,
+	"interface":  TOKEN_INTERFACE,
+	"implements": TOKEN_IMPLEMENTS,
 }
 
 // LookupIdent checks whether an identifier is a keyword.

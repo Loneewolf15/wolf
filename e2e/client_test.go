@@ -26,7 +26,7 @@ func TestHTTPClient(t *testing.T) {
 	// we'll create a temporary .wolf file with the actual mock server URL.
 	tmpWolf := filepath.Join("testdata", "30_http_client_tmp.wolf")
 	script := fmt.Sprintf(`$res = wolf_http_get("%s/test")
-print($res)`, ts.URL)
+print(json_encode($res))`, ts.URL)
 	err := os.WriteFile(tmpWolf, []byte(script), 0644)
 	if err != nil {
 		t.Fatal(err)

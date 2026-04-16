@@ -2,6 +2,7 @@
 package emitter
 
 import (
+	"fmt"
 	"reflect"
 	"strings"
 
@@ -119,7 +120,7 @@ func (e *IREmitter) instantiateTemplates(program *ir.Program) {
 									if cloned.Constructor != nil {
 										cloned.Constructor.Name = "New" + instName
 									}
-									
+
 									// Also rename method prefix
 									for _, m := range cloned.Methods {
 										m.Receiver = instName
@@ -211,6 +212,8 @@ func (e *IREmitter) emitStmt(stmt parser.Statement) ir.Stmt {
 		return e.emitTryCatch(s)
 	case *parser.ParallelStmt:
 		return e.emitParallel(s)
+	case *parser.SpawnStmt:
+		return e.emitSpawn(s)
 	case *parser.SuperviseBlockStmt:
 		return e.emitSupervise(s)
 	case *parser.TraceBlockStmt:
@@ -474,14 +477,20 @@ func (e *IREmitter) emitTryCatch(s *parser.TryCatchStmt) ir.Stmt {
 }
 
 func (e *IREmitter) emitParallel(s *parser.ParallelStmt) ir.Stmt {
-	// Each statement in parallel block becomes a goroutine
-	var goStmts []ir.Stmt
-	for _, stmt := range s.Body.Statements {
-		goStmts = append(goStmts, &ir.GoStmt{
-			Body: []ir.Stmt{e.emitStmt(stmt)},
-		})
+	// Legacy phase 1 construct. Replace with supervise/spawn.
+	var stmts []ir.Stmt
+	for i, stmt := range s.Body.Statements {
+		if exprStmt, ok := stmt.(*parser.ExpressionStmt); ok {
+			if call, ok := exprStmt.Expr.(*parser.CallExpr); ok {
+				stmts = append(stmts, &ir.SpawnStmt{
+					Name: fmt.Sprintf("parallel_task_%d", i),
+					Call: e.emitExpr(call).(*ir.CallExpr),
+				})
+			}
+		}
 	}
-	return &ir.BlockStmt{Stmts: goStmts}
+	stmts = append(stmts, &ir.WaitAllStmt{})
+	return &ir.BlockStmt{Stmts: stmts}
 }
 
 func (e *IREmitter) emitDestructure(s *parser.DestructureAssign) ir.Stmt {
@@ -504,11 +513,20 @@ func (e *IREmitter) emitBlock(s *parser.BlockStmt) ir.Stmt {
 }
 
 func (e *IREmitter) emitSupervise(s *parser.SuperviseBlockStmt) ir.Stmt {
+	stmts := e.emitStmts(s.Body.Statements)
+	stmts = append(stmts, &ir.WaitAllStmt{}) // Implicit join
 	return &ir.SuperviseStmt{
 		Strategy: s.Strategy,
 		Restart:  s.Restart,
 		Max:      s.Max,
-		Body:     e.emitStmts(s.Body.Statements),
+		Body:     stmts,
+	}
+}
+
+func (e *IREmitter) emitSpawn(s *parser.SpawnStmt) ir.Stmt {
+	return &ir.SpawnStmt{
+		Name: "spawn_task", // Could be enhanced to track specific task names
+		Call: e.emitExpr(s.Call).(*ir.CallExpr),
 	}
 }
 
