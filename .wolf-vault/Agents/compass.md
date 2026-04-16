@@ -8,9 +8,10 @@ The Compass is the Wolf Pack's strategic brake pedal. It reads the roadmap, meas
 ## Data Inputs (Always Read First)
 Before acting, the Compass reads:
 1. `.wolf-vault/Execution/plan.md` — active sprint, dependency graph, session history.
-2. `.wolf-vault/Product/roadmap.md` — long-horizon vision.
-3. `.wolf-vault/RnD/bugs_fixed.md` — what's been fixed, what's open.
-4. `git log --oneline -20` — what has actually shipped, not what was planned.
+2. `.wolf-vault/Product/manifesto.md` — Wolf's founding principles and non-negotiables.
+3. `.wolf-vault/Product/roadmap.md` — long-horizon vision.
+4. `.wolf-vault/RnD/bugs_fixed.md` — what's been fixed, what's open.
+5. `git log --oneline -20` — what has actually shipped, not what was planned.
 
 ## The Decision Matrix
 

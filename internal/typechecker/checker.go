@@ -141,6 +141,9 @@ func (c *Checker) checkStmt(stmt parser.Statement) {
 	case *parser.FuncDecl:
 		c.checkFuncDecl(s)
 
+	case *parser.EnumDecl:
+		c.checkEnumDecl(s)
+
 	case *parser.ClassDecl:
 		c.checkClassDecl(s)
 
@@ -165,14 +168,17 @@ func (c *Checker) checkStmt(stmt parser.Statement) {
 		c.checkExpr(s.Condition)
 		c.checkStmt(s.Update)
 		c.checkBlock(s.Body)
+		c.checkN1InLoop(s.Body, s.Pos())
 
 	case *parser.ForeachStmt:
 		c.checkExpr(s.Iterable)
 		c.checkBlock(s.Body)
+		c.checkN1InLoop(s.Body, s.Pos())
 
 	case *parser.WhileStmt:
 		c.checkExpr(s.Condition)
 		c.checkBlock(s.Body)
+		c.checkN1InLoop(s.Body, s.Pos())
 
 	case *parser.MatchStmt:
 		c.checkExpr(s.Subject)
@@ -191,6 +197,13 @@ func (c *Checker) checkStmt(stmt parser.Statement) {
 		c.checkMLBlock(s)
 
 	case *parser.ParallelStmt:
+		c.checkBlock(s.Body)
+
+	case *parser.SuperviseBlockStmt:
+		c.checkBlock(s.Body)
+
+	case *parser.TraceBlockStmt:
+		c.checkExpr(s.SpanName)
 		c.checkBlock(s.Body)
 
 	case *parser.DestructureAssign:
@@ -235,6 +248,10 @@ func (c *Checker) checkVarDecl(v *parser.VarDecl) {
 				v.Name, v.TypeName, inferredType)
 		}
 	}
+}
+
+func (c *Checker) checkEnumDecl(e *parser.EnumDecl) {
+	// Enums are valid as long as variants are valid identifiers
 }
 
 func (c *Checker) checkFuncDecl(f *parser.FuncDecl) {
@@ -383,7 +400,7 @@ func (c *Checker) checkExpr(expr parser.Expression) {
 	// Literals and leaf nodes — no checking needed
 	case *parser.DollarIdent, *parser.Identifier, *parser.StringLiteral,
 		*parser.IntLiteral, *parser.FloatLiteral, *parser.BoolLiteral,
-		*parser.NilLiteral, *parser.Wildcard, *parser.ChannelExpr:
+		*parser.NilLiteral, *parser.Wildcard, *parser.ChannelExpr, *parser.EnumAccess:
 		// Nothing to check
 	}
 }
@@ -397,7 +414,7 @@ func (c *Checker) inferType(expr parser.Expression) WolfType {
 		return TypeInt
 	case *parser.FloatLiteral:
 		return TypeFloat
-	case *parser.StringLiteral, *parser.InterpolatedString:
+	case *parser.StringLiteral, *parser.InterpolatedString, *parser.EnumAccess:
 		return TypeString
 	case *parser.BoolLiteral:
 		return TypeBool
@@ -426,4 +443,96 @@ func (c *Checker) addError(pos lexer.Position, format string, args ...interface{
 		Message: fmt.Sprintf(format, args...),
 		Phase:   "typechecker",
 	})
+}
+
+func (c *Checker) addWarning(pos lexer.Position, format string, args ...interface{}) {
+	c.errors = append(c.errors, &lexer.WolfError{
+		Pos:       pos,
+		Message:   fmt.Sprintf(format, args...),
+		Phase:     "typechecker",
+		IsWarning: true,
+	})
+}
+
+// ========== DB-03: N+1 Detection ==========
+
+// dbQueryMethods are QB method names that trigger a DB query.
+var dbQueryMethods = map[string]bool{
+	"get":      true,
+	"first":    true,
+	"find":     true,
+	"qb_get":   true,
+	"qb_first": true,
+	"all":      true,
+}
+
+// dbRelationMethods are QB method names that register eager-loading relations.
+var dbRelationMethods = map[string]bool{
+	"with":     true,
+	"qb_with":  true,
+}
+
+// checkN1InLoop scans a loop body for un-eagerly-loaded DB query calls.
+// If it finds a call to get/first/find without a sibling with() call on
+// the same receiver variable, it emits a warning.
+func (c *Checker) checkN1InLoop(block *parser.BlockStmt, loopPos lexer.Position) {
+	if block == nil {
+		return
+	}
+
+	// Track which variable names have had ->with() registered in this block.
+	hasRelation := map[string]bool{}
+
+	for _, stmt := range block.Statements {
+		// Unwrap expression statements
+		expr := stmtToExpr(stmt)
+		if expr == nil {
+			continue
+		}
+
+		mc, ok := expr.(*parser.MethodCall)
+		if !ok {
+			continue
+		}
+
+		recvName := exprName(mc.Object)
+		
+		if dbRelationMethods[mc.Method] {
+			hasRelation[recvName] = true
+			continue
+		}
+
+		if dbQueryMethods[mc.Method] {
+			if !hasRelation[recvName] {
+				c.addWarning(mc.Pos(),
+					"[N+1] DB query '%s()' inside a loop without eager loading — "+
+						"consider $%s->with(relation, fk, table, pk) before the loop",
+					mc.Method, recvName)
+			}
+		}
+	}
+}
+
+// stmtToExpr extracts the expression from an ExpressionStmt or AssignStmt.
+func stmtToExpr(stmt parser.Statement) parser.Expression {
+	switch s := stmt.(type) {
+	case *parser.ExpressionStmt:
+		return s.Expr
+	case *parser.AssignStmt:
+		return s.Value
+	case *parser.VarDecl:
+		return s.Value
+	}
+	return nil
+}
+
+// exprName returns the variable name for a $ident or Identifier expression node.
+func exprName(expr parser.Expression) string {
+	switch e := expr.(type) {
+	case *parser.DollarIdent:
+		return e.Name
+	case *parser.Identifier:
+		return e.Name
+	}
+	return "_"
 }

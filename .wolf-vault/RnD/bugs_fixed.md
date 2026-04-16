@@ -1,5 +1,70 @@
 # Wolf Bugs Fixed — Cumulative Log
 
+## Session 2026-04-13 (Session 13 — STDLIB-06)
+
+### BUG-043: LLVM `invalid redefinition of function wolf_http_res_status`
+- **Class:** P0 🔴 Compiler Panic
+- **Root cause:** HTTP Client response accessors (`wolf_http_res_*`) collided with the HTTP Server write API (`wolf_http_res_status`, `wolf_http_res_write`) which share the same function namespace.
+- **Fix:** Renamed all HTTP Client response getters to `wolf_http_client_res_*` in both C runtime and LLVM emitter dispatch tables.
+- **File:** `runtime/wolf_runtime.c`, `runtime/wolf_runtime.h`, `internal/emitter/llvm_emitter.go`
+
+### BUG-044: `inferExprType` returned `void` for Response MethodCallExpr (alloca void crash)
+- **Class:** P0 🔴 Compiler Panic (LLVM `alloca void` error)
+- **Root cause:** `inferExprType` for `*ir.MethodCallExpr` did not consult the `methodDispatch` table. All response method calls defaulted to `"ptr"` via `funcSigs` lookup — but `status`, `ok`, and `failed` return `i64`, causing the emitter to attempt `%s = alloca void` when storing the result.
+- **Fix:** Added `methodDispatch[ex.Method]` early-return shortcut inside `inferExprType`'s `*ir.MethodCallExpr` case.
+- **File:** `internal/emitter/llvm_emitter.go`
+
+### BUG-045: `wolf_map_get_str` implicit function declaration in HTTP Client section
+- **Class:** P1 🟠 Runtime Stability
+- **Root cause:** `wolf_map_get_str` is defined as a `static` function much later in `wolf_runtime.c`. The HTTP client header callback at L3853 called it before the definition, resulting in C99 implicit-declaration errors and an ABI mismatch returning `int` instead of `const char*`.
+- **Fix:** Added `static const char* wolf_map_get_str(wolf_map_t*, const char*);` forward declaration at L3788 (before the HTTP client block).
+- **File:** `runtime/wolf_runtime.c`
+
+### BUG-046: `wolf_url_encode` body clobbered by bad replacement boundary
+- **Class:** P0 🔴 Compiler Panic (runtime crash / infinite hang)
+- **Root cause:** A prior `replace_file_content` call targeted a partial match of `wolf_url_encode`, deleting its loop body and leaving a dangling `*w='\0'; return r;` with `r` and `w` undefined. The resulting binary compiled but segfaulted at runtime.
+- **Fix:** Restored the full percent-encoding loop using arena `wolf_req_alloc`.
+- **File:** `runtime/wolf_runtime.c`
+
+### Status Ledger Update
+- Total bugs fixed: **48** (BUG-001 through BUG-048)
+- E2E tests: **56 passing** (39_interfaces added)
+- **Fixed:** P3 — `wolf_http_req_client_ip` forward decl was already wrapped in `#ifndef WOLF_FREESTANDING` guard at `wolf_runtime.c:161-163` (confirmed 2026-04-15)
+- Open: None
+
+### BUG-047: Missing default constructor for classes without constructor body
+- **Class:** P0 🔴 Compiler Panic (LLVM undefined value)
+- **Root cause:** If a class had no explicit `constructor()` method, `cls.Constructor` was nil, and `emitConstructor` was skipped. But `new ClassName()` compiled to `@wolf_NewClassName()`, causing an LLVM undefined value error.
+- **Fix:** Added `emitDefaultConstructor` to auto-generate a trivial 0-arg constructor (which calls `wolf_class_create`) for classes with no explicit constructor.
+- **File:** `internal/emitter/llvm_emitter.go`
+
+### BUG-048: Polymorphic method dispatch picks wrong method due to map iteration
+- **Class:** P2 🟡 Functional Correctness
+- **Root cause:** `emitMethodCall` used a suffix search on `funcSigs` (e.g. `_greet`) to resolve method calls. Go map iteration is random, meaning `$spanish->greet()` might hit `English_greet` first and dispatch incorrectly, producing `Hello` instead of `Hola`.
+- **Fix:** Added a `varClass` tracking map to the emitter, populated during `new ClassName()` assignments. `emitMethodCall` now routes directly to `ClassName_method` if the object variable's class is known.
+- **File:** `internal/emitter/llvm_emitter.go`
+
+
+
+### BUG-042: Parser double-brace expectation on decorators
+- **Class:** P1 🟠 Runtime Stability
+- **Root cause:** `parseTraceBlockStmt` and `parseSuperviseBlockStmt` executed `p.expect(lexer.TOKEN_LBRACE)` directly before calling `p.parseBlock()`, which also aggressively expected `{`.
+- **Fix:** Dropped the duplicate brace expectation inside the outer decorator abstractions allowing standard block parsing.
+- **File:** `internal/parser/parser.go`
+
+### BUG-041: Missing local E2E expected output files
+- **Class:** P2 🟡 Functional Correctness
+- **Root cause:** 53_telemetry.wolf and 52_supervise.wolf E2E cases were constructed missing `.out` targets, triggering Go E2E panic loops.
+- **Fix:** Formulated precise target console stream dumps for `53_telemetry.out` and `52_supervise.out`.
+- **File:** `e2e/testdata/52_supervise.out`, `e2e/testdata/53_telemetry.out`
+
+## Session 2026-04-09
+
+### BUG-040: Missing WebSocket context fields in struct
+- **Class:** P0 🔴 Compiler Panic
+- **Fix:** Added missing fields to `wolf_http_context_t` in `wolf_runtime.c`.
+- **File:** `runtime/wolf_runtime.c`
+
 ## Session 2026-03-26 (Session 6 — HTTP Client & WebSocket Foundation)
 
 ### BUG-034: LLVM emitter passes req_id as ptr instead of i64 for wolf_ws_send
@@ -100,8 +165,8 @@
 
 ## Status Ledger
 
-- Total bugs fixed: **39** (BUG-001 through BUG-039)
-- E2E tests: **26/26 passing** (including new 33_stdlib_date.wolf)
+- Total bugs fixed: **42** (BUG-001 through BUG-042)
+- E2E tests: **53/53 passing** (incorporating Concurrency and Telemetry)
 - Open: None
 - Next Bloodhound Sweep: Monitor for `libcurl` multi-handle leakage if we move from synchronous `easy` interface to asynchronous.
 ---
@@ -175,3 +240,20 @@ port: `wolf_http: bind failed: Address already in use`.
 **Fix:** Covered by BUG-006 fix (skip guard). Additionally, all test executions now use
 `exec.CommandContext(ctx, ...)` with a 10-second deadline to ensure no Wolf binary can
 live beyond its test window regardless of what it does.
+
+---
+
+## BUG-041 — wolf_http_res_status forward declaration + wolf_req_strdup OOM gap
+**Class:** P1 — Runtime Stability
+**Status:** ✅ Fixed (2026-04-10)
+
+**Root cause:**
+1. `wolf_http_res_status()` had no forward declaration despite being called from the OOM guard in `wolf_req_alloc` (line ~877) which precedes its definition (line ~3737). Caused implicit-function-declaration warning; on stricter compilers would be an error.
+2. `wolf_req_strdup()` had no OOM guard: if `strdup()` returned NULL under memory pressure, it silently registered NULL with the arena. Subsequent string operations on that NULL would SIGSEGV or produce corrupt output.
+
+**Fix:**
+- Added `void wolf_http_res_status(int64_t res_id, int64_t status_code);` forward declaration alongside `wolf_http_res_write`.
+- Added OOM guard + HTTP 503 + `pthread_exit(NULL)` to `wolf_req_strdup` matching the `wolf_req_alloc` pattern.
+
+**MRS:** `e2e/testdata/_bug_041.wolf`
+**Commit:** `fix(runtime): add wolf_http_res_status forward decl + wolf_req_strdup OOM guard`

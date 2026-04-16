@@ -1,0 +1,9 @@
+print("Supervise test started")
+// NOTE: for pure unit testing without a web server, the supervised thread will be spawned 
+//, but since the main process might exit, we just want to ensure it parses and emits without crashing.
+
+@supervise(strategy: "exponential", restart: "always", max: 3) {
+    print("Supervised block running!")
+}
+
+print("Main process continuing...")

@@ -5,16 +5,18 @@ package ir
 
 // Program is the top-level WIR node — a complete compilation unit.
 type Program struct {
-	Package   string
-	Imports   []string
-	Functions []*Function
-	Classes   []*Class
-	InitStmts []Stmt // top-level statements placed in main() or init()
+	Package    string
+	Imports    []string
+	Interfaces []*Interface
+	Functions  []*Function
+	Classes    []*Class
+	InitStmts  []Stmt // top-level statements placed in main() or init()
 }
 
 // Function represents a Go function.
 type Function struct {
 	Name        string
+	TypeParams  []string // generic type params
 	Params      []*Param
 	ReturnTypes []string // Go type names
 	Body        []Stmt
@@ -32,9 +34,24 @@ type Param struct {
 type Class struct {
 	Name        string
 	Extends     string
+	TypeParams  []string // generic type params
+	Implements  []string // interface names
 	Fields      []*Field
 	Methods     []*Function
 	Constructor *Function // __construct
+}
+
+// Interface represents an interface definition in WIR.
+type Interface struct {
+	Name    string
+	Methods []*InterfaceMethodSig
+}
+
+// InterfaceMethodSig is a method signature within an interface.
+type InterfaceMethodSig struct {
+	Name        string
+	Params      []*Param
+	ReturnTypes []string
 }
 
 // Field is a struct field.
@@ -142,6 +159,15 @@ type BlockStmt struct {
 
 func (*BlockStmt) irStmt() {}
 
+// TryCatchStmt: try { } catch (err) { }
+type TryCatchStmt struct {
+	TryBody   []Stmt
+	CatchVar  string
+	CatchBody []Stmt
+}
+
+func (*TryCatchStmt) irStmt() {}
+
 // GoStmt: go func() { ... }() for parallel blocks.
 type GoStmt struct {
 	Body []Stmt
@@ -162,6 +188,24 @@ type RawStmt struct {
 }
 
 func (*RawStmt) irStmt() {}
+
+// SuperviseStmt implements the Let It Crash block in WIR.
+type SuperviseStmt struct {
+	Strategy string
+	Restart  string
+	Max      int
+	Body     []Stmt
+}
+
+func (*SuperviseStmt) irStmt() {}
+
+// TraceStmt implements the observability trace block in WIR.
+type TraceStmt struct {
+	SpanName Expr
+	Body     []Stmt
+}
+
+func (*TraceStmt) irStmt() {}
 
 // ========== Expressions ==========
 
@@ -229,8 +273,9 @@ func (*UnaryExpr) irExpr() {}
 
 // CallExpr: callee(args).
 type CallExpr struct {
-	Callee Expr
-	Args   []Expr
+	Callee   Expr
+	TypeArgs []string
+	Args     []Expr
 }
 
 func (*CallExpr) irExpr() {}
@@ -245,9 +290,10 @@ func (*FieldAccess) irExpr() {}
 
 // MethodCallExpr: obj.Method(args).
 type MethodCallExpr struct {
-	Object Expr
-	Method string
-	Args   []Expr
+	Object   Expr
+	Method   string
+	TypeArgs []string
+	Args     []Expr
 }
 
 func (*MethodCallExpr) irExpr() {}

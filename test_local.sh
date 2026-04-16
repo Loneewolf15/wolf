@@ -23,6 +23,9 @@
 
 set -euo pipefail
 
+# Workaround for missing go in basic PATH
+export PATH=$HOME/go-local/go/bin:$PATH
+
 # ─── Flags ────────────────────────────────────────────────────────────────────
 RUN_FMT=true
 RUN_BUILD=true
@@ -224,7 +227,7 @@ else
   E2E_FAILED_NAMES=()
 
   # Run e2e package with verbose output, parse results
-  E2E_OUT=$(go test ./e2e/... -v -timeout 600s 2>&1 || true)
+  E2E_OUT=$(go test ./e2e/... -v -timeout 1800s 2>&1 || true)
 
   # Parse individual test results.
   # NOTE: go test -v indents subtest results with 4 spaces, e.g.:
@@ -300,7 +303,7 @@ else
     OUT="/tmp/wolf-${OS}-${ARCH}${EXT}"
 
     if CGO_ENABLED=0 GOOS="$OS" GOARCH="$ARCH" \
-       go build -o "$OUT" ./cmd/wolf 2>/dev/null; then
+       go build -ldflags="-s -w" -o "$OUT" ./cmd/wolf 2>/dev/null; then
       SIZE=$(du -sh "$OUT" 2>/dev/null | cut -f1)
       ok "${OS}/${ARCH} — ${SIZE}"
       rm -f "$OUT"

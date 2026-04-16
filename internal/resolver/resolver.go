@@ -62,16 +62,18 @@ type Resolver struct {
 	depth      int
 	errors     []*lexer.WolfError
 	file       string
-	resolved   map[string]string // $name -> goName mapping (accumulated)
+	resolved   map[string]string        // $name -> goName mapping (accumulated)
 	strictMode bool
+	interfaces map[string]*parser.InterfaceDecl // registered interface definitions
 }
 
 // New creates a new Resolver.
 func New(file string) *Resolver {
 	return &Resolver{
-		scope:    NewScope(nil), // global scope
-		file:     file,
-		resolved: make(map[string]string),
+		scope:      NewScope(nil), // global scope
+		file:       file,
+		resolved:   make(map[string]string),
+		interfaces: make(map[string]*parser.InterfaceDecl),
 	}
 }
 
@@ -181,8 +183,19 @@ func (r *Resolver) resolveStmt(stmt parser.Statement) {
 	case *parser.FuncDecl:
 		r.resolveFuncDecl(s)
 
+	case *parser.EnumDecl:
+		r.resolveEnumDecl(s)
+
 	case *parser.ClassDecl:
 		r.resolveClassDecl(s)
+
+	case *parser.InterfaceDecl:
+		// Register the interface so that resolveClassDecl can check it
+		r.interfaces[s.Name] = s
+		// Also declare it as a known identifier
+		info := &VarInfo{Name: s.Name, GoName: s.Name, Depth: r.depth, Pos: s.Pos()}
+		r.scope.Define(s.Name, info)
+		r.resolved[s.Name] = s.Name
 
 	case *parser.TryCatchStmt:
 		r.resolveBlock(s.TryBody)
@@ -206,6 +219,13 @@ func (r *Resolver) resolveStmt(stmt parser.Statement) {
 		}
 
 	case *parser.ParallelStmt:
+		r.resolveBlock(s.Body)
+
+	case *parser.SuperviseBlockStmt:
+		r.resolveBlock(s.Body)
+
+	case *parser.TraceBlockStmt:
+		r.resolveExpr(s.SpanName)
 		r.resolveBlock(s.Body)
 
 	case *parser.DestructureAssign:
@@ -274,6 +294,17 @@ func (r *Resolver) resolveFuncDecl(f *parser.FuncDecl) {
 	r.popScope()
 }
 
+func (r *Resolver) resolveEnumDecl(e *parser.EnumDecl) {
+	info := &VarInfo{
+		Name:   e.Name,
+		GoName: e.Name,
+		Depth:  r.depth,
+		Pos:    e.Pos(),
+	}
+	r.scope.Define(e.Name, info)
+	r.resolved[e.Name] = e.Name
+}
+
 func (r *Resolver) resolveClassDecl(c *parser.ClassDecl) {
 	// Declare the class name
 	info := &VarInfo{
@@ -304,6 +335,27 @@ func (r *Resolver) resolveClassDecl(c *parser.ClassDecl) {
 	}
 
 	r.popScope()
+
+	// Interface compliance: verify every declared interface method is present
+	for _, ifaceName := range c.Implements {
+		iface, ok := r.interfaces[ifaceName]
+		if !ok {
+			r.addError(c.Pos(), "class '%s' implements unknown interface '%s'", c.Name, ifaceName)
+			continue
+		}
+		// Build a set of method names in this class
+		classMethods := make(map[string]bool)
+		for _, m := range c.Methods {
+			classMethods[m.Name] = true
+		}
+		for _, required := range iface.Methods {
+			if !classMethods[required.Name] {
+				r.addError(c.Pos(),
+					"class '%s' does not implement method '%s' required by interface '%s'",
+					c.Name, required.Name, ifaceName)
+			}
+		}
+	}
 }
 
 // ========== Expression Resolution ==========
@@ -387,7 +439,7 @@ func (r *Resolver) resolveExpr(expr parser.Expression) {
 	case *parser.AwaitExpr:
 		r.resolveExpr(e.Expr)
 
-	case *parser.ChannelExpr:
+	case *parser.ChannelExpr, *parser.EnumAccess:
 		// No inner expressions
 
 	case *parser.SendExpr:

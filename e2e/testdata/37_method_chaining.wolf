@@ -1,0 +1,10 @@
+# Test: Method Chaining
+# Validates the new explicit method dispatch table for Query Builder operations.
+
+# Create a mock DB connection and initialize QB
+$db = builder(nil, "users")
+
+# Test method chaining (fluent API)
+$res = $db->where("age", ">", 18)->orderBy("id", "ASC")->limit(10)->get()
+
+print("Method chain executed")

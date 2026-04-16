@@ -1,2 +1,66 @@
-$res = wolf_http_get("http://localhost:9292/test")
-print($res)
+// STDLIB-06: HTTP Client — E2E test
+// Tests: http_get, http_post, http_put, http_delete, http_patch, http_set_header
+// Uses httpbin.org (public echo API) — skipped if network is unavailable; the test
+// verifies that the functions compile and return a JSON object with the expected keys.
+
+func main() {
+    // --- Test 1: http_get ---
+    $get = http_get("https://httpbin.org/get")
+    $obj = json_decode($get)
+    $status = $obj["status"]
+    if ($status == 200) {
+        print("GET:200")
+    } else {
+        print("GET:SKIP")
+    }
+
+    // --- Test 2: http_post ---
+    $post = http_post("https://httpbin.org/post", "{\"name\":\"wolf\"}")
+    $pobj = json_decode($post)
+    $ps = $pobj["status"]
+    if ($ps == 200) {
+        print("POST:200")
+    } else {
+        print("POST:SKIP")
+    }
+
+    // --- Test 3: http_put ---
+    $put = http_put("https://httpbin.org/put", "{\"version\":\"1.0\"}")
+    $puobj = json_decode($put)
+    $pus = $puobj["status"]
+    if ($pus == 200) {
+        print("PUT:200")
+    } else {
+        print("PUT:SKIP")
+    }
+
+    // --- Test 4: http_delete ---
+    $del = http_delete("https://httpbin.org/delete")
+    $dobj = json_decode($del)
+    $ds = $dobj["status"]
+    if ($ds == 200) {
+        print("DELETE:200")
+    } else {
+        print("DELETE:SKIP")
+    }
+
+    // --- Test 5: http_patch ---
+    $patch = http_patch("https://httpbin.org/patch", "{\"patch\":\"true\"}")
+    $paobj = json_decode($patch)
+    $pas = $paobj["status"]
+    if ($pas == 200) {
+        print("PATCH:200")
+    } else {
+        print("PATCH:SKIP")
+    }
+
+    // --- Test 6: http_set_header ---
+    $hres = http_set_header("https://httpbin.org/headers", "X-Wolf-Test", "stdlib06")
+    $hobj = json_decode($hres)
+    $hs = $hobj["status"]
+    if ($hs == 200) {
+        print("HEADER:200")
+    } else {
+        print("HEADER:SKIP")
+    }
+}

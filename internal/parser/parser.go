@@ -45,6 +45,28 @@ func (p *Parser) Errors() []*lexer.WolfError {
 
 // ========== Statement Parsing ==========
 
+func (p *Parser) parseTypeParams() []string {
+	var params []string
+	if !p.check(lexer.TOKEN_LESS) {
+		return params
+	}
+	p.advance() // consume '<'
+
+	for !p.check(lexer.TOKEN_GREATER) && !p.isAtEnd() {
+		if p.check(lexer.TOKEN_IDENT) {
+			params = append(params, p.advance().Literal)
+		} else {
+			p.addError("expected type parameter identifier")
+			p.advance()
+		}
+		if p.check(lexer.TOKEN_COMMA) {
+			p.advance()
+		}
+	}
+	p.expect(lexer.TOKEN_GREATER, "expected '>' after type parameters")
+	return params
+}
+
 func (p *Parser) parseStatement() Statement {
 	switch p.peek().Type {
 
@@ -53,6 +75,12 @@ func (p *Parser) parseStatement() Statement {
 
 	case lexer.TOKEN_CLASS:
 		return p.parseClassDecl()
+
+	case lexer.TOKEN_INTERFACE:
+		return p.parseInterfaceDecl()
+
+	case lexer.TOKEN_ENUM:
+		return p.parseEnumDecl()
 
 	case lexer.TOKEN_VAR:
 		return p.parseVarDecl()
@@ -84,6 +112,12 @@ func (p *Parser) parseStatement() Statement {
 	case lexer.TOKEN_AT_ML:
 		return p.parseMLBlockStmt()
 
+	case lexer.TOKEN_AT_SUPERVISE:
+		return p.parseSuperviseBlockStmt()
+
+	case lexer.TOKEN_AT_TRACE:
+		return p.parseTraceBlockStmt()
+
 	case lexer.TOKEN_PARALLEL:
 		return p.parseParallelStmt()
 
@@ -108,6 +142,8 @@ func (p *Parser) parseFuncDecl() *FuncDecl {
 		name = p.advance().Literal
 	}
 
+	typeParams := p.parseTypeParams()
+
 	params := p.parseParamList()
 
 	var returnType *ReturnTypeSpec
@@ -121,6 +157,7 @@ func (p *Parser) parseFuncDecl() *FuncDecl {
 		expr := p.parseExpression()
 		return &FuncDecl{
 			Name:       name,
+			TypeParams: typeParams,
 			Params:     params,
 			ReturnType: returnType,
 			ArrowExpr:  expr,
@@ -132,6 +169,7 @@ func (p *Parser) parseFuncDecl() *FuncDecl {
 
 	return &FuncDecl{
 		Name:       name,
+		TypeParams: typeParams,
 		Params:     params,
 		ReturnType: returnType,
 		Body:       body,
@@ -228,6 +266,43 @@ func (p *Parser) parseReturnType() *ReturnTypeSpec {
 	return &ReturnTypeSpec{Types: types, Pos_: pos}
 }
 
+// ---- enum declaration ----
+
+func (p *Parser) parseEnumDecl() *EnumDecl {
+	pos := p.currentPos()
+	p.expect(lexer.TOKEN_ENUM, "expected 'enum'")
+
+	name := ""
+	if p.check(lexer.TOKEN_IDENT) {
+		name = p.advance().Literal
+	} else {
+		p.addError("expected enum name")
+	}
+
+	p.expect(lexer.TOKEN_LBRACE, "expected '{' after enum name")
+
+	var variants []string
+	for !p.check(lexer.TOKEN_RBRACE) && !p.isAtEnd() {
+		if p.check(lexer.TOKEN_IDENT) {
+			variants = append(variants, p.advance().Literal)
+		} else {
+			p.addError("expected enum variant identifier")
+			p.advance()
+		}
+		if p.check(lexer.TOKEN_COMMA) {
+			p.advance()
+		}
+	}
+
+	p.expect(lexer.TOKEN_RBRACE, "expected '}' to close enum body")
+
+	return &EnumDecl{
+		Name:     name,
+		Variants: variants,
+		Pos_:     pos,
+	}
+}
+
 // ---- class declaration ----
 
 func (p *Parser) parseClassDecl() *ClassDecl {
@@ -241,6 +316,8 @@ func (p *Parser) parseClassDecl() *ClassDecl {
 		p.addError("expected class name")
 	}
 
+	typeParams := p.parseTypeParams()
+
 	extends := ""
 	if p.check(lexer.TOKEN_IDENT) && p.peek().Literal == "extends" {
 		p.advance() // consume "extends"
@@ -248,6 +325,24 @@ func (p *Parser) parseClassDecl() *ClassDecl {
 			extends = p.advance().Literal
 		} else {
 			p.addError("expected base class name after 'extends'")
+		}
+	}
+
+	// implements Foo, Bar
+	var implements []string
+	if p.check(lexer.TOKEN_IMPLEMENTS) {
+		p.advance() // consume "implements"
+		for {
+			if p.check(lexer.TOKEN_IDENT) {
+				implements = append(implements, p.advance().Literal)
+			} else {
+				p.addError("expected interface name after 'implements'")
+			}
+			if p.check(lexer.TOKEN_COMMA) {
+				p.advance()
+			} else {
+				break
+			}
 		}
 	}
 
@@ -279,8 +374,72 @@ func (p *Parser) parseClassDecl() *ClassDecl {
 	return &ClassDecl{
 		Name:       name,
 		Extends:    extends,
+		TypeParams: typeParams,
+		Implements: implements,
 		Properties: properties,
 		Methods:    methods,
+		Pos_:       pos,
+	}
+}
+
+// ---- interface declaration ----
+
+func (p *Parser) parseInterfaceDecl() *InterfaceDecl {
+	pos := p.currentPos()
+	p.expect(lexer.TOKEN_INTERFACE, "expected 'interface'")
+
+	name := ""
+	if p.check(lexer.TOKEN_IDENT) {
+		name = p.advance().Literal
+	} else {
+		p.addError("expected interface name")
+	}
+
+	p.expect(lexer.TOKEN_LBRACE, "expected '{' after interface name")
+
+	var methods []*InterfaceMethod
+	for !p.check(lexer.TOKEN_RBRACE) && !p.isAtEnd() {
+		if p.check(lexer.TOKEN_FUNC) {
+			m := p.parseInterfaceMethod()
+			methods = append(methods, m)
+		} else {
+			p.addError("expected method signature in interface body")
+			p.advance()
+		}
+	}
+
+	p.expect(lexer.TOKEN_RBRACE, "expected '}' to close interface body")
+
+	return &InterfaceDecl{
+		Name:    name,
+		Methods: methods,
+		Pos_:    pos,
+	}
+}
+
+// parseInterfaceMethod parses a method signature (no body) inside an interface.
+func (p *Parser) parseInterfaceMethod() *InterfaceMethod {
+	pos := p.currentPos()
+	p.expect(lexer.TOKEN_FUNC, "expected 'func'")
+
+	name := ""
+	if p.check(lexer.TOKEN_IDENT) {
+		name = p.advance().Literal
+	} else {
+		p.addError("expected method name in interface")
+	}
+
+	params := p.parseParamList()
+
+	var returnType *ReturnTypeSpec
+	if p.check(lexer.TOKEN_ARROW) {
+		returnType = p.parseReturnType()
+	}
+
+	return &InterfaceMethod{
+		Name:       name,
+		Params:     params,
+		ReturnType: returnType,
 		Pos_:       pos,
 	}
 }
@@ -686,6 +845,77 @@ func (p *Parser) parseBracketedVarList() []string {
 	return vars
 }
 
+// ---- @supervise block ----
+
+func (p *Parser) parseSuperviseBlockStmt() *SuperviseBlockStmt {
+	pos := p.currentPos()
+	p.advance() // consume @supervise
+
+	sup := &SuperviseBlockStmt{Pos_: pos}
+
+	if p.check(lexer.TOKEN_LPAREN) {
+		p.advance()
+		for !p.check(lexer.TOKEN_RPAREN) && !p.isAtEnd() {
+			if p.check(lexer.TOKEN_IDENT) {
+				key := p.advance().Literal
+				p.expect(lexer.TOKEN_COLON, "expected ':' after supervise option key")
+
+				if key == "strategy" {
+					if p.check(lexer.TOKEN_STRING) {
+						sup.Strategy = p.advance().Literal
+					} else {
+						p.addError("expected string for strategy option")
+						p.advance()
+					}
+				} else if key == "restart" {
+					if p.check(lexer.TOKEN_STRING) {
+						sup.Restart = p.advance().Literal
+					} else {
+						p.addError("expected string for restart option")
+						p.advance()
+					}
+				} else if key == "max" {
+					if p.check(lexer.TOKEN_INT) {
+						fmt.Sscanf(p.advance().Literal, "%d", &sup.Max)
+					} else {
+						p.addError("expected integer for max option")
+						p.advance()
+					}
+				} else {
+					p.addError("unknown supervise option: " + key)
+				}
+			} else {
+				p.advance()
+			}
+			if p.check(lexer.TOKEN_COMMA) {
+				p.advance()
+			}
+		}
+		p.expect(lexer.TOKEN_RPAREN, "expected ')' after supervise options")
+	}
+
+	sup.Body = p.parseBlock()
+	return sup
+}
+
+// ---- @trace block ----
+
+func (p *Parser) parseTraceBlockStmt() *TraceBlockStmt {
+	pos := p.currentPos()
+	p.advance() // consume @trace
+
+	trace := &TraceBlockStmt{Pos_: pos}
+
+	if p.check(lexer.TOKEN_LPAREN) {
+		p.advance()
+		trace.SpanName = p.parseExpression()
+		p.expect(lexer.TOKEN_RPAREN, "expected ')' after trace span name")
+	}
+
+	trace.Body = p.parseBlock()
+	return trace
+}
+
 // ---- parallel ----
 
 func (p *Parser) parseParallelStmt() *ParallelStmt {
@@ -1020,24 +1250,35 @@ func (p *Parser) parseCallAndAccess() Expression {
 				}
 			}
 		} else if p.check(lexer.TOKEN_DOUBLE_COLON) {
-			// Static call: Class::method()
+			// Static call: Class::method() or Enum::Variant
 			pos := p.currentPos()
 			p.advance()
 			methodName := ""
 			if p.check(lexer.TOKEN_IDENT) {
 				methodName = p.advance().Literal
 			}
-			args := p.parseArgList()
 			// Unwrap the class name
 			className := ""
 			if ident, ok := expr.(*Identifier); ok {
 				className = ident.Name
 			}
-			expr = &StaticCall{
-				Class:  className,
-				Method: methodName,
-				Args:   args,
-				Pos_:   pos,
+			
+			// If followed by (, it is a StaticCall
+			if p.check(lexer.TOKEN_LPAREN) {
+				args := p.parseArgList()
+				expr = &StaticCall{
+					Class:  className,
+					Method: methodName,
+					Args:   args,
+					Pos_:   pos,
+				}
+			} else {
+				// Otherwise it is an enum access: Enum::Variant
+				expr = &EnumAccess{
+					Enum:    className,
+					Variant: methodName,
+					Pos_:    pos,
+				}
 			}
 		} else if p.check(lexer.TOKEN_LBRACKET) {
 			// Index: $arr[i]
@@ -1279,12 +1520,14 @@ func (p *Parser) parseNewExpr() Expression {
 		p.addError("expected class name after 'new'")
 	}
 
+	typeArgs := p.parseTypeParams()
+
 	var args []Expression
 	if p.check(lexer.TOKEN_LPAREN) {
 		args = p.parseArgList()
 	}
 
-	return &NewExpr{ClassName: className, Args: args, Pos_: pos}
+	return &NewExpr{ClassName: className, TypeArgs: typeArgs, Args: args, Pos_: pos}
 }
 
 // ---- closure expression ----

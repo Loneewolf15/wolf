@@ -90,6 +90,19 @@ wolf_value_t* wolf_val_array(void* arr);
 
 void* wolf_class_create(const char* name);
 
+/* --- Closures --- */
+typedef struct {
+    void*   fn;
+    void**  env;
+    int64_t env_count;
+} wolf_closure_t;
+
+wolf_closure_t* wolf_closure_create(void* fn, int64_t env_count);
+void  wolf_closure_set_env(wolf_closure_t* c, int64_t index, void* ptr);
+void* wolf_closure_get_env(wolf_closure_t* c, int64_t index);
+void* wolf_closure_get_fn(wolf_closure_t* c);
+
+
 /* --- Time & Date --- */
 int64_t     wolf_time_now(void);
 const char* wolf_time_date(const char* format, int64_t timestamp);
@@ -214,6 +227,33 @@ void        wolf_http_res_write(int64_t res_id, const char* body);
 /* --- File Uploads --- */
 const char* wolf_http_req_file(int64_t req_id, const char* field_name);
 int64_t     wolf_http_req_file_count(int64_t req_id);
+
+/* --- STDLIB-06: Outbound HTTP Client --- */
+typedef struct {
+    int64_t status;
+    char* body;
+    void* headers; /* wolf_map_t* */
+    int64_t error;
+} wolf_http_response_t;
+
+void* wolf_http_request(const char* method, const char* url, const char* body, void* headers_map);
+void* wolf_http_get(const char* url, void* headers_map);
+void* wolf_http_post(const char* url, const char* body, void* headers_map);
+void* wolf_http_put(const char* url, const char* body, void* headers_map);
+void* wolf_http_delete(const char* url, void* headers_map);
+void* wolf_http_patch(const char* url, const char* body, void* headers_map);
+
+const char* wolf_http_client_res_body(void* res);
+void*       wolf_http_client_res_json(void* res);
+int64_t     wolf_http_client_res_status(void* res);
+int64_t     wolf_http_client_res_ok(void* res);
+int64_t     wolf_http_client_res_failed(void* res);
+const char* wolf_http_client_res_header(void* res, const char* key);
+
+void*       wolf_url_parse(const char* url);
+const char* wolf_build_query(void* map_ptr);
+const char* wolf_dns_lookup(const char* hostname);
+const char* wolf_get_client_ip(void);
 
 /* --- Phase 1 Stdlib: Strings --- */
 const char* wolf_strtoupper(const char* s);
@@ -461,7 +501,24 @@ const char* wolf_jwt_decode(const char* token, const char* secret);
 
 /* --- WebSocket --- */
 void*       wolf_ws_on_message(void* handler);
+void*       wolf_ws_on_close(void* handler);
 void*       wolf_ws_send(int64_t req_id, const char* message);
+void        wolf_ws_broadcast(const char* message);
+void        wolf_ws_join(int64_t req_id, const char* room);
+void        wolf_ws_broadcast_to(const char* room, const char* message);
+void        wolf_presence_track(int64_t req_id, const char* user_id);
+const char* wolf_presence_list(const char* room);
+void        wolf_ws_close(int64_t req_id);
+
+/* --- Telemetry & Observability --- */
+void wolf_trace_start(const char* span_name);
+void wolf_trace_end(const char* span_name);
+void wolf_metrics_increment(const char* metric_name);
+void wolf_metrics_gauge(const char* metric_name, double value);
+void wolf_metrics_histogram(const char* metric_name, double value);
+
+/* --- Concurrency --- */
+void wolf_spawn_supervised_thread(void* handler, const char* strategy, int64_t max_retries);
 
 /* --- Validation Rules Engine (STDLIB-08) --- */
 void*       wolf_validate(void* data, void* rules);

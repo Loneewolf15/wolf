@@ -1,0 +1,15 @@
+string
+integer
+double
+boolean
+array
+is_string:ok
+is_int:ok
+is_float:ok
+is_bool:ok
+is_array:ok
+is_null:ok
+42
+10
+true
+false

@@ -1,0 +1,36 @@
+// 42_try_catch.wolf — Phase 4: Error Handling
+
+func might_fail($fail) {
+    if ($fail) {
+        error("Intentional failure!")
+    }
+    return "Success"
+}
+
+func nested_call($fail) {
+    print("Entering nested_call")
+    $res = might_fail($fail)
+    print("Exiting nested_call with: {$res}")
+    return $res
+}
+
+print("== Test 1: No failure ==")
+try {
+    $val = nested_call(false)
+    print("Try block finished: {$val}")
+} catch ($e) {
+    print("Caught error: {$e}")
+}
+
+print("== Test 2: Failure occurs ==")
+try {
+    $val = nested_call(true)
+    print("Try block finished: {$val}") // SHOULD BE SKIPPED
+} catch ($e) {
+    print("Caught error: {$e}")
+}
+
+print("== Test 3: Uncaught failure ==")
+// No try/catch here! Should propagate to the top and crash natively
+might_fail(true)
+print("Should not be printed")

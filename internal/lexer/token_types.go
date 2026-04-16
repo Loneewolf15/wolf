@@ -55,10 +55,17 @@ const (
 	TOKEN_AS       // as
 	TOKEN_IN       // in
 	TOKEN_ERROR    // error
+	TOKEN_ENUM     // enum
+	TOKEN_INTERFACE   // interface
+	TOKEN_IMPLEMENTS  // implements
 
 	// ML block
 	TOKEN_AT_ML    // @ml
 	TOKEN_AT_MODEL // @ml model (parsed as @ml + optional model(...))
+
+	// Concurrency & Observability blocks
+	TOKEN_AT_SUPERVISE // @supervise
+	TOKEN_AT_TRACE     // @trace
 
 	// Operators — Arithmetic
 	TOKEN_PLUS      // +
@@ -162,8 +169,13 @@ var tokenTypeNames = map[TokenType]string{
 	TOKEN_AS:                  "AS",
 	TOKEN_IN:                  "IN",
 	TOKEN_ERROR:               "ERROR",
+	TOKEN_ENUM:                "ENUM",
+	TOKEN_INTERFACE:           "INTERFACE",
+	TOKEN_IMPLEMENTS:          "IMPLEMENTS",
 	TOKEN_AT_ML:               "AT_ML",
 	TOKEN_AT_MODEL:            "AT_MODEL",
+	TOKEN_AT_SUPERVISE:        "AT_SUPERVISE",
+	TOKEN_AT_TRACE:            "AT_TRACE",
 	TOKEN_PLUS:                "PLUS",
 	TOKEN_MINUS:               "MINUS",
 	TOKEN_STAR:                "STAR",
@@ -251,7 +263,10 @@ var keywords = map[string]TokenType{
 	"nil":      TOKEN_NIL,
 	"as":       TOKEN_AS,
 	"in":       TOKEN_IN,
-	"error":    TOKEN_ERROR,
+	"error":     TOKEN_ERROR,
+	"enum":      TOKEN_ENUM,
+	"interface": TOKEN_INTERFACE,
+	"implements":TOKEN_IMPLEMENTS,
 }
 
 // LookupIdent checks whether an identifier is a keyword.

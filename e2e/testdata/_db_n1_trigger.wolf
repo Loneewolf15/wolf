@@ -1,0 +1,9 @@
+// _db_n1_trigger.wolf
+// Intentionally triggers DB-03 N+1 warning:
+// calls $db->get() inside a foreach without a ->with() call.
+
+$ids = [1, 2, 3]
+foreach $ids as $i {
+    $result = $db->get()
+    print($i)
+}

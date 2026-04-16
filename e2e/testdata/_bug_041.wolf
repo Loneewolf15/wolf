@@ -1,0 +1,18 @@
+// BUG-041: wolf_http_res_status missing forward declaration + wolf_req_strdup OOM gap
+// Class: P1 — Runtime Stability (silent NULL propagation into arena)
+// Trigger: OOM condition during wolf_req_strdup (or calling wolf_http_res_status before
+//          its definition after adding the OOM guard to wolf_req_alloc)
+// Expected: HTTP 503 returned cleanly; no corrupt output; no implicit-function-declaration warning
+// Actual (before fix):
+//   1. clang -Wimplicit-function-declaration warning on wolf_http_res_status at line ~877
+//   2. wolf_req_strdup NULL strdup result silently registered with arena → 
+//      subsequent code dereferences NULL → SIGSEGV or corrupt response
+// Fixed: Added wolf_http_res_status forward declaration at line 159.
+//        Added NULL/OOM guard to wolf_req_strdup matching wolf_req_alloc pattern.
+
+func main() {
+    // Minimum script that exercises wolf_req_strdup at HTTP request time.
+    // To trigger the OOM path manually: inject ulimit -v or fault malloc in test harness.
+    $s = "hello"
+    print($s)
+}

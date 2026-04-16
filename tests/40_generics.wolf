@@ -1,0 +1,55 @@
+# 40_generics.wolf
+# Tests template instantiation via LLVM monomorphization.
+
+class Wrapper<T> {
+    private $val: T
+
+    func __construct($initial: T) {
+        $this.val = $initial
+    }
+
+    func get() -> T {
+        return $this.val
+    }
+
+    func set($v: T) {
+        $this.val = $v
+    }
+}
+
+class Pair<K, V> {
+    $key: K
+    $value: V
+
+    func __construct($k: K, $v: V) {
+        $this.key = $k
+        $this.value = $v
+    }
+
+    func getKey() -> K {
+        return $this.key
+    }
+    
+    func getValue() -> V {
+        return $this.value
+    }
+}
+
+var $w1 = new Wrapper<int>(42)
+print($w1->get())
+$w1->set(100)
+print($w1->get())
+
+var $w2 = new Wrapper<string>("Generics Rule")
+print($w2->get())
+
+var $p = new Pair<int, string>(7, "Lucky")
+print($p->getKey())
+print($p->getValue())
+
+# Output:
+# 42
+# 100
+# Generics Rule
+# 7
+# Lucky

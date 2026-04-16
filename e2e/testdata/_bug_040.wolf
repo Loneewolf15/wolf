@@ -1,0 +1,8 @@
+// BUG-040: Missing WebSocket context fields in struct
+// Trigger: Start wolf_http_serve with a websocket route
+// Expected: It compiles and binds.
+// Actual: C runtime linker fails because ws_room_count, ws_rooms, and ws_presence_id are missing from wolf_http_context_t
+
+func main() {
+    print("repro")
+}

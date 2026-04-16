@@ -1,0 +1,5 @@
+Running load test: 100000 reqs across 150 workers targeting http://127.0.0.1:8084/
+Completed 100000 requests in 38.67865747s
+Success: 99498, Failed: 402
+Req/s: 2585.41
+Avg Latency: 28.749738ms, Max Latency: 5.071518539s

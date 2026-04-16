@@ -18,7 +18,7 @@ Wolf is a compiled, natively fast language with PHP-like syntax.
 - [x] HTTP server (multi-threaded, worker pool)
 - [x] MySQL, Redis, JWT stdlib
 - [x] JSON encode/decode (full RFC 7159 including \uXXXX)
-- [x] wolf.config (INI format, php.ini equivalent)
+- [x] wolf.config (TOML format, handles target device/memory logic)
 - [x] MySQL connection pool (mutex+cond_var, health-check)
 - [x] String interpolation: {$var}, {$obj->prop}, {$obj->method()}, {func()}
 
@@ -48,8 +48,8 @@ Wolf is a compiled, natively fast language with PHP-like syntax.
 
 #### STDLIB-02 — Array Functions
 
-- [ ] array_fill, array_combine, array_chunk, array_product
-- [ ] array_column, compact, extract, array_diff_key
+- [x] array_fill, array_combine, array_chunk, array_product
+- [x] array_column, compact, extract, array_diff_key
 
 #### STDLIB-03 — Math Functions
 
@@ -90,15 +90,15 @@ Wolf is a compiled, natively fast language with PHP-like syntax.
 - [ ] path_join, path_resolve, path_relative
 - [ ] file_mime, file_modified_at
 
-#### STDLIB-08 — Validation Rules Engine
-- [ ] validate($data, $rules) — main validator returning validator object
-- [ ] $v->passes(), $v->errors(), $v->validated()
-- [ ] Rules: required, nullable, string, integer, float, bool, array
-- [ ] Rules: email, url, phone, uuid, date, date_format
-- [ ] Rules: min, max, between, in, not_in, regex, confirmed
-- [ ] Rules: unique:table,col, exists:table,col (DB-integrated)
-- [ ] Rules: file, image, max_size, mime
-- [ ] Rules: digits, digits_between, alpha, alpha_num, alpha_dash
+#### [x] STDLIB-08 — Validation Rules Engine
+- [x] validate($data, $rules) — main validator returning validator object
+- [x] $v->passes(), $v->errors(), $v->validated()
+- [x] Rules: required, nullable, string, integer, float, bool, array
+- [x] Rules: email, url, phone, uuid, date, date_format
+- [x] Rules: min, max, between, in, not_in, regex, confirmed
+- [x] Rules: unique:table,col, exists:table,col (DB-integrated)
+- [x] Rules: file, image, max_size, mime
+- [x] Rules: digits, digits_between, alpha, alpha_num, alpha_dash
 
 #### STDLIB-09 — Type Casting
 - [ ] settype(&$val, $type) — mutate variable type in place
@@ -115,12 +115,13 @@ Wolf is a compiled, natively fast language with PHP-like syntax.
 - [ ] truncate($str, $len, $suffix) — done, verify wired
 - [ ] pluralise($word, $count) — irregular plurals
 - [ ] money_format, money_add, money_subtract, money_multiply, money_divide, money_percentage
+- [ ] phone_format($number, $region) — African-first phone normalisation
 - [ ] log_debug($msg) — only output with --debug flag
 - [ ] inspect($val) — returns formatted string (not void)
 - [ ] json_pretty($data) — encode with indentation
 
 ### Phase 3 — Database Layer
-- [ ] DB-01: Query builder — $this->db->builder("table")->where()->orderBy()->get()
+- [x] DB-01: Query builder — $this->db->builder("table")->where()->orderBy()->get()
 - [ ] DB-02: Eager loading — $this->db->with("relation")->query()
 - [ ] DB-03: N+1 detection — compiler warning on queries inside loops
 - [ ] DB-04: $this->db->paginate($req) — built-in pagination
@@ -131,11 +132,13 @@ Wolf is a compiled, natively fast language with PHP-like syntax.
 - [ ] Error handling (try/catch complete, propagation)
 - [ ] Closures / first-class functions
 - [ ] Package system (wolf.mod + wolfpkg)
-- [ ] Goroutine-equivalent (wolf_async, wolf_await)
+- [ ] Goroutines + Channels (wolf_async, wolf_await, channel(type))
 - [ ] Pattern matching (match — full exhaustiveness check)
 - [ ] Enums (native enum types)
 - [ ] @supervise blocks (fault tolerance, let it crash)
 - [ ] @safe blocks (error-safe execution)
+- [ ] @queue and @cache blocks (native background jobs and caching)
+- [ ] @guard blocks (authentication as language construct)
 - [ ] @contract blocks (API contract testing in CI)
 - [ ] Built-in pub/sub (publish/subscribe without external broker)
 
@@ -147,6 +150,8 @@ Wolf is a compiled, natively fast language with PHP-like syntax.
 ### Phase 6 — Tooling
 - [ ] wolf dev — start entire stack in one command, zero config
 - [x] wolf new (Smart Mode) — supports script and API templates with Docker
+- [ ] TOOL-01: Auto-discovery via `wolf.config` — array of directories (controllers, models, services) that the compiler automatically crawls and includes, eliminating manual file imports.
+- [ ] TOOL-02: Dynamic Test Generation — `wolf test --generate` automatically writes test implementations based on `@contract` API definitions.
 - [ ] wolf generate feature X — add features to existing project
 - [ ] wolf test — built-in test runner with mocking
 - [ ] wolf migrate — database migration management
@@ -164,6 +169,9 @@ Wolf is a compiled, natively fast language with PHP-like syntax.
 - [ ] SEC-01: Automatic security headers on every response
 - [ ] SEC-02: SQL injection compiler warning (string interpolation in query())
 - [ ] SEC-03: Secret redaction in logs (@encrypted values, JWT truncation)
+- [ ] SEC-04: $this->req->audit() — object request audit trail
+- [ ] SEC-05: $this->req->idempotent() — idempotency tracking
+- [ ] SEC-06: $this->req->diff() — object diff request feature
 
 ### Phase 8 — Package Manager
 - [ ] PKG-01: wolf.mod module file (identifies module, no downloading)
@@ -188,6 +196,11 @@ Wolf is a compiled, natively fast language with PHP-like syntax.
 - [ ] Benchmarking suite vs Rust/Go/C (public results)
 - [ ] wolfpkg.dev fully live
 - [ ] WASM target (Wolf in the browser)
+
+### Phase 12 — Embedded & Distribution
+- [ ] DIST-01: Package Manager Distribution (brew, winget, install.sh) — Auto-fetches Clang dependency and handles PATH setup.
+- [ ] EMB-01: Zero-Flag Builds via `wolf.config` — Declare `device = "esp32"` once during `wolf new`, compiler calculates memory budgets.
+- [ ] EMB-02: Zero-Runtime Compilation — For ultra-constrained targets (Arduino Uno), emit pure C with inlined stdlib macros and zero C runtime linker overhead.
 
 ---
 
@@ -220,18 +233,18 @@ Wolf is a compiled, natively fast language with PHP-like syntax.
 ```
 NOW — Phase 2: Stdlib Completion
 - [x] STDLIB-01: String Functions & Regex
-  STDLIB-02  Array functions (fill, chunk, column, product)
+- [x] STDLIB-02  Array functions (fill, chunk, column, product)
   STDLIB-03  Math functions (clamp done, add statistics)
   STDLIB-04  Date/time (object methods, timezone constants)
   - [x] STDLIB-05: Security (Argon2id, OpenSSL, JWT, XSalsa20, Curve25519, RSA)
   STDLIB-06  HTTP client (new wolf_http_client.c)
   STDLIB-07  File system (copy, move, scan_dir, path_join)
-  STDLIB-08  Validation rules engine
+- [x] STDLIB-08  Validation rules engine
   STDLIB-09  Type casting (settype, improved gettype)
   STDLIB-10  Wolf-specific (money, pipeline, retry, memoize, pluralise)
 
 THEN — Phase 3: Database Layer
-  DB-01  Query builder
+- [x] DB-01  Query builder
   DB-02  Eager loading
   DB-03  N+1 detection
   DB-04  Pagination

@@ -1,0 +1,12 @@
+# Test: Closures and First-Class Functions
+# Validates arrow closures and block closures stored in variables.
+
+# --- Test 1: Arrow closure stored in variable ---
+$double = func($x) => $x * 2
+print($double(5))
+
+# --- Test 2: Block closure stored in variable ---
+$greet = func($name) {
+    return "Hello, " .. $name
+}
+print($greet("Wolf"))

@@ -1,0 +1,4 @@
+Status is Active via string comparison
+Status is Active via Enum::Variant comparison
+Status changed to: Pending
+enum:ok

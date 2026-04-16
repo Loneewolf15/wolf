@@ -1,11 +1,25 @@
 // e2e/testdata/31_websocket.wolf
-// A simple WebSocket echo server
+// A simple WebSocket echo server that also handles broadcast tests
 func handle_ws($id: int, $msg: string) {
     print("[Wolf] Received: {$msg}")
-    $reply = "Echo: " + $msg
-    wolf_ws_send($id, $reply)
+    
+    // Check if it's a broadcast command
+    if (wolf_strpos($msg, "broadcast:") == 0) {
+        $payload = wolf_substr($msg, 10, 9999)
+        print("[Wolf] Broadcasting: {$payload}")
+        wolf_ws_broadcast($payload)
+    } else {
+        $reply = "Echo: " + $msg
+        wolf_ws_send($id, $reply)
+    }
+}
+
+func handle_close($id: int) {
+    print("[Wolf] Connection {$id} closed")
 }
 
 wolf_ws_on_message(handle_ws)
+wolf_ws_on_close(handle_close)
+
 $port = wolf_intval(wolf_env_get("WOLF_PORT", "8080"))
 wolf_http_serve($port)

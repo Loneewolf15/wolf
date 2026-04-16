@@ -671,6 +671,18 @@ func (l *Lexer) scanAtKeyword() {
 			Literal: "@ml",
 			Pos:     Position{File: l.file, Line: l.startLine, Col: l.startCol, Offset: l.start},
 		})
+	} else if word == "supervise" {
+		l.tokens = append(l.tokens, Token{
+			Type:    TOKEN_AT_SUPERVISE,
+			Literal: "@supervise",
+			Pos:     Position{File: l.file, Line: l.startLine, Col: l.startCol, Offset: l.start},
+		})
+	} else if word == "trace" {
+		l.tokens = append(l.tokens, Token{
+			Type:    TOKEN_AT_TRACE,
+			Literal: "@trace",
+			Pos:     Position{File: l.file, Line: l.startLine, Col: l.startCol, Offset: l.start},
+		})
 	} else {
 		// Unknown @ keyword — emit as AT + IDENT
 		l.tokens = append(l.tokens, Token{

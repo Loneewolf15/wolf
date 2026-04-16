@@ -59,6 +59,7 @@ type CompileResult struct {
 // Compile runs the full pipeline: source → tokens → AST → resolve → typecheck → WIR → LLVM IR.
 func (c *Compiler) Compile(source, filename string) (*CompileResult, error) {
 	result := &CompileResult{}
+	fmt.Printf(">> Phase 1: Lexing %s\n", filename)
 
 	// Phase 1: Lex
 	l := lexer.New(source, filename)
@@ -70,10 +71,7 @@ func (c *Compiler) Compile(source, filename string) (*CompileResult, error) {
 		return result, fmt.Errorf("lexer errors: %d errors found", len(lexErrors))
 	}
 
-	if c.Verbose {
-		fmt.Printf("wolf: lexed %d tokens\n", len(tokens))
-	}
-
+	fmt.Printf(">> Phase 2: Parsing\n")
 	// Phase 2: Parse
 	p := parser.New(tokens, filename)
 	var program *parser.Program
@@ -86,10 +84,7 @@ func (c *Compiler) Compile(source, filename string) (*CompileResult, error) {
 		return result, fmt.Errorf("parser errors: %d errors found", len(parseErrors))
 	}
 
-	if c.Verbose {
-		fmt.Printf("wolf: parsed %d top-level statements from main file\n", len(program.Statements))
-	}
-
+	fmt.Printf(">> Phase 2.5: AutoDiscover\n")
 	// Phase 2.5: Auto-Discover Libraries and Controllers
 	projectRoot := filepath.Dir(filename)
 	discoveredASTs, err := c.AutoDiscover(projectRoot)
@@ -106,6 +101,7 @@ func (c *Compiler) Compile(source, filename string) (*CompileResult, error) {
 	// so defines run before serve()
 	program.Statements = append(allDiscovered, program.Statements...)
 
+	fmt.Printf(">> Phase 2.8: Dispatchers\n")
 	// Generate the __compiler_dispatch_controller method based on all discovered classes
 	dispatchFunc := generateDispatcherAST(program)
 	if dispatchFunc != nil {
@@ -118,6 +114,7 @@ func (c *Compiler) Compile(source, filename string) (*CompileResult, error) {
 		program.Statements = append(program.Statements, factoryFunc)
 	}
 
+	fmt.Printf(">> Phase 3: Resolve\n")
 	// Phase 3: Resolve
 	res := resolver.New(filename)
 	res.SetStrictMode(c.StrictMode)
@@ -129,41 +126,49 @@ func (c *Compiler) Compile(source, filename string) (*CompileResult, error) {
 		return result, fmt.Errorf("resolver errors: %d errors found", len(resolveErrors))
 	}
 
+	fmt.Printf(">> Phase 4: Typecheck\n")
 	// Phase 4: Type Check
 	tc := typechecker.New(res, filename)
 	tc.SetStrictMode(c.StrictMode)
 	typeErrors := tc.Check(program)
-	if len(typeErrors) > 0 {
-		for _, e := range typeErrors {
+	var hardTypeErrors []*lexer.WolfError
+	for _, e := range typeErrors {
+		if e.IsWarning {
+			fmt.Fprintf(os.Stderr, "%s\n", e.Error())
+		} else {
 			result.Errors = append(result.Errors, e.Error())
+			hardTypeErrors = append(hardTypeErrors, e)
 		}
-		return result, fmt.Errorf("type errors: %d errors found", len(typeErrors))
+	}
+	if len(hardTypeErrors) > 0 {
+		return result, fmt.Errorf("type errors: %d errors found", len(hardTypeErrors))
 	}
 
+	fmt.Printf(">> Phase 5: Emit WIR\n")
 	// Phase 5: Emit WIR (AST → Wolf IR)
 	irEmit := emitter.New(res)
 	irProgram := irEmit.Emit(program)
 
+	fmt.Printf(">> Phase 6: Emit LLVM\n")
 	// Phase 6: Emit LLVM IR (WIR → .ll)
 	llvmEmit := emitter.NewLLVMEmitter()
 	llvmEmit.TargetTriple = detectTargetTriple()
 	llvmSource := llvmEmit.Emit(irProgram)
 	result.LLVMSource = llvmSource
 
-	if c.Verbose {
-		fmt.Println("wolf: LLVM IR generated successfully")
-	}
-
+	fmt.Printf(">> Done returning\n")
 	return result, nil
 }
 
 // Build compiles a Wolf source file to a native binary via LLVM.
 func (c *Compiler) Build(source, filename string) (*CompileResult, error) {
+	fmt.Printf(">> Build started: %s\n", filename)
 	result, err := c.Compile(source, filename)
 	if err != nil {
 		return result, err
 	}
 
+	fmt.Printf(">> Compile finished\n")
 	outDir, err := filepath.Abs(c.OutDir)
 	if err != nil {
 		return result, fmt.Errorf("failed to resolve output directory: %w", err)
@@ -211,7 +216,9 @@ func (c *Compiler) Build(source, filename string) (*CompileResult, error) {
 	// Strategy 1: Use LLC if available
 	var compileErrors []string
 
+	fmt.Printf(">> Testing hasLLC\n")
 	if hasLLC() {
+		fmt.Printf(">> Running llc\n")
 		llcCmd := exec.Command("llc", "-filetype=obj", "-relocation-model=pic", "-o", objFile, llFile)
 		if out, err := llcCmd.CombinedOutput(); err != nil {
 			compileErrors = append(compileErrors, fmt.Sprintf("llc error: %s\n%s", err, string(out)))
@@ -224,10 +231,13 @@ func (c *Compiler) Build(source, filename string) (*CompileResult, error) {
 				fmt.Printf("wolf: compiled .ll → .o via llc\n")
 			}
 		}
+		fmt.Printf(">> llc finished\n")
 	}
 
+	fmt.Printf(">> Checking compiled\n")
 	// Strategy 2: Use clang to compile .ll directly
 	if !compiled && hasClang() {
+		fmt.Printf(">> Running clang (ll -> o)\n")
 		clangCmd := exec.Command("clang", "-c", "-O2", "-o", objFile, llFile)
 		if out, err := clangCmd.CombinedOutput(); err != nil {
 			compileErrors = append(compileErrors, fmt.Sprintf("clang error: %s\n%s", err, string(out)))
@@ -244,6 +254,7 @@ func (c *Compiler) Build(source, filename string) (*CompileResult, error) {
 
 	// Strategy 3: Use llvm-as + llc pipeline
 	if !compiled {
+		fmt.Printf(">> Running llvm-as\n")
 		bcFile := filepath.Join(outDir, baseName+".bc")
 		llvmAsCmd := exec.Command("llvm-as", "-o", bcFile, llFile)
 		if asOut, err := llvmAsCmd.CombinedOutput(); err == nil {
@@ -262,6 +273,7 @@ func (c *Compiler) Build(source, filename string) (*CompileResult, error) {
 		return result, fmt.Errorf("LLVM compilation failed:\n%s\nIf tools are missing, install them: sudo apt-get install clang llvm", strings.Join(compileErrors, "\n"))
 	}
 
+	fmt.Printf(">> Setting up wolf runtime args\n")
 	// Compile wolf runtime
 	runtimeObj := filepath.Join(outDir, "wolf_runtime.o")
 

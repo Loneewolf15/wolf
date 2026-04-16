@@ -12,6 +12,7 @@ cat /home/askme/Pictures/wolf-lang/.wolf-vault/Agents/compass.md
 2. Capture current project state:
 ```
 cat /home/askme/Pictures/wolf-lang/.wolf-vault/Execution/plan.md
+cat /home/askme/Pictures/wolf-lang/.wolf-vault/Product/manifesto.md 2>/dev/null || echo "(no manifesto.md)"
 cat /home/askme/Pictures/wolf-lang/.wolf-vault/Product/roadmap.md 2>/dev/null || echo "(no roadmap.md)"
 cd /home/askme/Pictures/wolf-lang && git log --oneline -10
 ```

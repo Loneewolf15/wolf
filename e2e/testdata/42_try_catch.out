@@ -1,0 +1,8 @@
+== Test 1: No failure ==
+Entering nested_call
+Exiting nested_call with: Success
+Try block finished: Success
+== Test 2: Failure occurs ==
+Entering nested_call
+Caught error: Intentional failure!
+== Test 3: Uncaught failure ==

@@ -1,0 +1,31 @@
+# Test: HTTP Client (STDLIB-06)
+# Tests outbound HTTP requests, header mapping, and Response object methods
+
+# 1. Simple GET request with headers
+$headers = {"X-Wolf-Version": "1.0", "Accept": "application/json"}
+$res = http_get("http://httpbin.org/get?msg=hello", $headers)
+
+# 2. Check OK status and Response object methods
+if ($res->ok()) {
+    print("GET OK")
+} else {
+    $s = $res->status()
+    print("GET Failed: {$s}")
+}
+
+# 3. Read JSON response body
+$json = $res->json()
+if ($json["args"]["msg"] == "hello" && $json["headers"]["X-Wolf-Version"] == "1.0") {
+    print("JSON Body Match")
+}
+
+# 4. POST Request with Headers
+$postHeaders = {"Content-Type": "application/x-www-form-urlencoded"}
+$resPost = http_post("http://httpbin.org/post", "foo=bar&baz=qux", $postHeaders)
+
+if ($resPost->ok()) {
+    $j2 = $resPost->json()
+    if ($j2["form"]["foo"] == "bar") {
+        print("POST Form Match")
+    }
+}

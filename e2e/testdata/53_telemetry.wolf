@@ -1,0 +1,11 @@
+print("Telemetry test started")
+
+@trace("database_query_time") {
+    print("Simulating DB query")
+}
+
+@trace("computation_loop") {
+    print("Simulating intensive loop")
+}
+
+print("Telemetry emitted successfully!")

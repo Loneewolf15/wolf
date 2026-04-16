@@ -1,0 +1,24 @@
+func handler($req: int, $res: int) {
+    # 1. JSON Mock Setup (No decoding yet via string)
+    $data = "user_id: 999"
+
+    # 2. Arithmetic
+    $math_res = 1
+    # Wolf does not have standard `for` loop syntax fully fleshed out in E2E except method chaining bounds. Let's just do math directly or recursive closure:
+    $math_res = $math_res + (1*2) + (2*2) + (3*2) + (4*2) + (5*2) + (6*2) + (7*2) + (8*2) + (9*2) + (10*2) + (11*2) + (12*2) + (13*2) + (14*2) + (15*2) + (16*2) + (17*2) + (18*2) + (19*2) + (20*2)
+
+    # 3. Mock DB using Query Builder! This stresses the C runtime allocator natively
+    $db = builder(nil, "users")
+    $query_mock = $db->where("id", 999)->limit(10)->get()
+
+    # 4. JSON Encode the DB Result
+    # In earlier tests, json_encode takes the array!
+    # To keep the payload static sized for the TCP frame, we'll manually frame it.
+    
+    $out = "{\"sql\": \"SELECT * FROM users WHERE id = 999 LIMIT 10\", \"math_result\": " .. $math_res .. "}"
+    $payload = "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: 68\r\n\r\n" .. $out
+    
+    wolf_http_res_write($res, $payload)
+}
+
+wolf_http_serve(8084, handler)

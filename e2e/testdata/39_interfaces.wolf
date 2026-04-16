@@ -1,0 +1,20 @@
+interface Greetable {
+    func greet() -> string
+}
+
+class English implements Greetable {
+    func greet() -> string {
+        return "Hello"
+    }
+}
+
+class Spanish implements Greetable {
+    func greet() -> string {
+        return "Hola"
+    }
+}
+
+$e = new English()
+$s = new Spanish()
+print($e->greet())
+print($s->greet())

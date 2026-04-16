@@ -1,0 +1,19 @@
+$url = "https://api.wolf.lang:8080/v1/users?active=1#profile"
+$parsed = parse_url($url)
+
+print("Scheme: " .. $parsed["scheme"])
+print("Host: " .. $parsed["host"])
+print("Port: " .. $parsed["port"])
+print("Path: " .. $parsed["path"])
+print("Query: " .. $parsed["query"])
+print("Fragment: " .. $parsed["fragment"])
+
+$map = {"api_key": "123", "q": "wolf language"}
+$q = build_query($map)
+print("Built: " .. $q)
+
+$ip = dns_lookup("localhost")
+print("DNS OK")
+
+$cip = get_client_ip()
+print("Client IP Empty OK")

@@ -59,7 +59,9 @@ func TestEndToEnd(t *testing.T) {
 				t.Fatalf("Failed to read test file %s: %v", wolfFile, err)
 			}
 
+			t.Logf("Compiling %s...", name)
 			// Compile
+			startBuild := time.Now()
 			c := compiler.New()
 			// Set OutDir exactly 3 levels deep from repo root: e2e/testdata/wolf_out_X
 			c.OutDir = filepath.Join(testdata, "wolf_out_"+name)
@@ -70,6 +72,7 @@ func TestEndToEnd(t *testing.T) {
 				// Print errors
 				t.Fatalf("Compilation failed:\n%v\n%s", err, strings.Join(result.Errors, "\n"))
 			}
+			t.Logf("Compiled %s to %s (Took: %v)", name, result.OutputPath, time.Since(startBuild))
 
 			// Use a timeout context so server tests that never exit can't
 			// orphan a process and hold a port across test runs.
@@ -83,7 +86,10 @@ func TestEndToEnd(t *testing.T) {
 			cmd.Stderr = &stderr
 			cmd.Env = append(os.Environ(), "TZ=UTC")
 
+			t.Logf("Running %s...", name)
+			startRun := time.Now()
 			err = cmd.Run()
+			t.Logf("Finished %s (Took: %v)", name, time.Since(startRun))
 			if err != nil {
 				t.Fatalf("Program execution failed: %v\nStderr: %s", err, stderr.String())
 			}

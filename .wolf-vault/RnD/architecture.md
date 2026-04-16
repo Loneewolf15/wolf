@@ -47,6 +47,8 @@ wolf_runtime.c       (linked into every binary)
 | MSSQL | wolf_db_* (MSSQL path) | 🔴 Mock only |
 | WebSocket | wolf_ws_* | ✅ Done |
 | Date / Time | wolf_date_* | ✅ Done (Session 7) |
+| Outbound HTTP Client | wolf_http_request, wolf_http_client_res_* | ✅ Done (Session 13) |
+| URL & Network Utilities | parse_url, build_query, dns_lookup, get_client_ip | ✅ Done (Session 13) |
 
 ## Key Design Decisions
 
@@ -112,15 +114,20 @@ wolf_runtime.c       (linked into every binary)
 - **Reasoning:** Industry standard for JSON interchange; eliminates timezone ambiguity in distributed worker models.
 - **Date:** 2026-03-26
 
+### ADR-013: Zero-Heap WebSocket Scaling
+- **Decision:** Remove `malloc` from WebSocket payload extraction. Utilize a deterministic 8KB static ring buffer (`ws_payload_buf`) per connection.
+- **Reasoning:** Comply with Sentinel rules; prevent global heap fragmentation under massive connection concurrency (100k+).
+- **Date:** 2026-04-08
+
 ## Performance Targets
 
 | Metric | Target | Current |
 |--------|--------|---------|
-| Request latency (p50) | < 200ms | Unknown (load test pending) |
-| Request latency (p99) | < 500ms | Unknown |
+| Request latency (p50) | < 200ms | 49.8ms ✅ |
+| Request latency (p99) | < 500ms | 269.3ms ✅ |
 | DB query (simple SELECT) | < 10ms | ~10-50ms (pool fixes this) |
 | Binary startup time | < 5ms | Unknown |
-| Binary size | ≤ 8MB | 4.5MB ✅ |
+| Binary size | ≤ 8MB | 9.1MB ⚠️ (libcurl) |
 | Compile time (hello.wolf) | < 1s | ~2-3s (LLVM overhead) |
 | Graceful shutdown drain | < 32s | ✅ |
 
@@ -132,7 +139,15 @@ wolf_runtime.c       (linked into every binary)
 | 2 | wolf_http_req_file limited to 8 uploads/req | 🟢 Low | Increase WOLF_MAX_UPLOADS if needed |
 | 3 | wolf_file_save doesn't create parent dirs | 🟢 Low | Use wolf_dir_exists first |
 | 4 | Surrogate pair unicode (\\uD83D\\uDE00) not decoded | 🟢 Low | Future |
+| 5 | `wolf_dns_lookup` blocks worker thread (no timeout) | 🟡 Medium | Next sprint — use `getaddrinfo_a` or 2s deadline |
+| 6 | Binary 9.1MB — libcurl static link overhead | 🟡 Medium | Investigate tree-shaking |
 
+## Recent ADRs (Architecture Decision Records)
+- **ADR-018: Polymorphic Interface Method Dispatch via Object Classification (2026-04-15):** The LLVM emitter traces variable-to-class assignments (`varClass` tracking map) at assignment time rather than embedding fully mature runtime RTTI structures. This allows static dispatch resolution (`ClassName_methodName`) mapped per `emitMethodCall`, retaining tight C-level performance targets and eliminating map iteration un-determinism cross-class (BUG-048), whilst automatically providing dummy zero-argument constructors for strictly interface-constrained classes (BUG-047).
+- **ADR-017: Client IP inline storage in wolf_http_context_t (2026-04-13):** Store the accepted TCP peer IP as a fixed `char client_ip[46]` field in the context struct. Extracted via `inet_ntop` immediately after `accept()`. Zero heap allocation; thread-safe via per-context isolation. Exposed to Wolf scripts via `get_client_ip()`.
+- **ADR-016: wolf_http_client_res_* namespace for HTTP Client Responses (2026-04-13):** HTTP Client response accessors use `wolf_http_client_res_*` prefix to avoid namespace collision with HTTP Server write API (`wolf_http_res_status`, `wolf_http_res_write`). Similarly, all outbound client functions use `wolf_http_get/post/put/delete/patch/request` which are distinct from the server-side handlers.
+- **ADR-015: Lock-Free Scalable Telemetry Data Structures (2026-04-10):** Telemetry mapping must operate at scale without locking worker threads. Evolved the telemetry `.bss` layer to utilize purely lock-free linear probing driven by `_Atomic(const char*) key_ptr` mapping per-metric.
+- **ADR-014: Concurrency Let-It-Crash & Telemetry (2026-04-08):** Use detached `pthread_create` without linking to the arena to prevent HTTP request disconnection from tearing down supervised thread context. Static `.bss` memory is heavily favored for runtime metric gauges `WOLF_MAX_METRICS` to maintain zero-alloc tracking in the Sentinel scalable path.
 
 ## Shutdown Sequence (reference)
 

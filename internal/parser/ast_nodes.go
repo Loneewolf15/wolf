@@ -178,6 +178,7 @@ type FuncDecl struct {
 	Name       string
 	Params     []*Param
 	ReturnType *ReturnTypeSpec // may be nil
+	TypeParams []string        // generic type params, e.g., ["T", "U"]
 	Body       *BlockStmt      // nil for arrow functions
 	ArrowExpr  Expression      // non-nil for => shorthand
 	Pos_       lexer.Position
@@ -209,16 +210,52 @@ func (r *ReturnTypeSpec) Pos() lexer.Position { return r.Pos_ }
 
 // ClassDecl represents a class definition.
 type ClassDecl struct {
-	Name       string
-	Extends    string
-	Properties []*PropertyDecl
-	Methods    []*FuncDecl
-	Pos_       lexer.Position
+	Name        string
+	Extends     string
+	TypeParams  []string       // generic type params, e.g., ["T", "U"]
+	Implements  []string       // interface names this class implements
+	Properties  []*PropertyDecl
+	Methods     []*FuncDecl
+	Pos_        lexer.Position
 }
 
 func (s *ClassDecl) nodeType() string    { return "ClassDecl" }
 func (s *ClassDecl) Pos() lexer.Position { return s.Pos_ }
 func (s *ClassDecl) stmtNode()           {}
+
+// InterfaceDecl represents: interface Foo { func bar() -> string }
+type InterfaceDecl struct {
+	Name    string
+	Methods []*InterfaceMethod // signatures only — no body
+	Pos_    lexer.Position
+}
+
+func (s *InterfaceDecl) nodeType() string    { return "InterfaceDecl" }
+func (s *InterfaceDecl) Pos() lexer.Position { return s.Pos_ }
+func (s *InterfaceDecl) stmtNode()           {}
+
+// InterfaceMethod represents a single method signature inside an interface.
+type InterfaceMethod struct {
+	Name       string
+	Params     []*Param
+	ReturnType *ReturnTypeSpec
+	Pos_       lexer.Position
+}
+
+func (m *InterfaceMethod) nodeType() string    { return "InterfaceMethod" }
+func (m *InterfaceMethod) Pos() lexer.Position { return m.Pos_ }
+
+// EnumDecl represents an enum definition: enum Name { Var1, Var2 }
+type EnumDecl struct {
+	Name     string
+	Variants []string
+	Pos_     lexer.Position
+}
+
+func (s *EnumDecl) nodeType() string    { return "EnumDecl" }
+func (s *EnumDecl) Pos() lexer.Position { return s.Pos_ }
+func (s *EnumDecl) stmtNode()           {}
+
 
 // PropertyDecl represents a class property: $name: type = default
 type PropertyDecl struct {
@@ -267,6 +304,30 @@ type MLBlockStmt struct {
 func (s *MLBlockStmt) nodeType() string    { return "MLBlockStmt" }
 func (s *MLBlockStmt) Pos() lexer.Position { return s.Pos_ }
 func (s *MLBlockStmt) stmtNode()           {}
+
+// SuperviseBlockStmt represents: @supervise(strategy: "...", restart: "...", max: X) { ... }
+type SuperviseBlockStmt struct {
+	Strategy string // "one_for_one", "one_for_all", etc.
+	Restart  string // "exponential", "always", "never"
+	Max      int    // max retries (e.g. 5)
+	Body     *BlockStmt
+	Pos_     lexer.Position
+}
+
+func (s *SuperviseBlockStmt) nodeType() string    { return "SuperviseBlockStmt" }
+func (s *SuperviseBlockStmt) Pos() lexer.Position { return s.Pos_ }
+func (s *SuperviseBlockStmt) stmtNode()           {}
+
+// TraceBlockStmt represents: @trace("span.name") { ... }
+type TraceBlockStmt struct {
+	SpanName Expression // usually a StringLiteral
+	Body     *BlockStmt
+	Pos_     lexer.Position
+}
+
+func (s *TraceBlockStmt) nodeType() string    { return "TraceBlockStmt" }
+func (s *TraceBlockStmt) Pos() lexer.Position { return s.Pos_ }
+func (s *TraceBlockStmt) stmtNode()           {}
 
 // ParallelStmt represents: parallel { ... }
 type ParallelStmt struct {
@@ -438,6 +499,7 @@ func (e *PostfixExpr) exprNode()           {}
 type CallExpr struct {
 	Callee    Expression
 	Args      []Expression
+	TypeArgs  []string    // generic type arguments, e.g., ["int"]
 	NamedArgs []*NamedArg // for named parameters
 	Pos_      lexer.Position
 }
@@ -491,6 +553,17 @@ func (e *StaticCall) nodeType() string    { return "StaticCall" }
 func (e *StaticCall) Pos() lexer.Position { return e.Pos_ }
 func (e *StaticCall) exprNode()           {}
 
+// EnumAccess represents EnumName::Variant
+type EnumAccess struct {
+	Enum    string
+	Variant string
+	Pos_    lexer.Position
+}
+
+func (e *EnumAccess) nodeType() string    { return "EnumAccess" }
+func (e *EnumAccess) Pos() lexer.Position { return e.Pos_ }
+func (e *EnumAccess) exprNode()           {}
+
 // IndexExpr represents $arr[index] or $map["key"]
 type IndexExpr struct {
 	Object Expression
@@ -502,9 +575,10 @@ func (e *IndexExpr) nodeType() string    { return "IndexExpr" }
 func (e *IndexExpr) Pos() lexer.Position { return e.Pos_ }
 func (e *IndexExpr) exprNode()           {}
 
-// NewExpr represents: new ClassName(args)
+// NewExpr represents: new ClassName(args) or new ClassName<T>(args)
 type NewExpr struct {
 	ClassName string
+	TypeArgs  []string       // generic type arguments, e.g., ["int"]
 	Args      []Expression
 	Pos_      lexer.Position
 }

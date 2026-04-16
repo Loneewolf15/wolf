@@ -1,0 +1,35 @@
+// STDLIB-10: Wolf-Specific Utilities E2E test
+
+func main() {
+    // --- money ---
+    $price = 1234     // 12.34 in cents
+    $fmt   = money_format($price, "$")
+    print($fmt)
+
+    $total = money_add($price, 5000)     // 12.34 + 50.00 = 62.34
+    print(money_format($total, "$"))
+
+    $diff = money_subtract($total, 100)  // 62.34 - 1.00 = 61.34
+    print(money_format($diff, "$"))
+
+    $tax = money_percentage($price, 7.5) // 7.5% of $12.34 = $0.93
+    print(money_format($tax, "$"))
+
+    // --- pluralise ---
+    print(pluralise("wolf", 1))
+    print(pluralise("wolf", 3))
+    print(pluralise("child", 5))
+    print(pluralise("category", 2))
+    print(pluralise("box", 4))
+
+    // --- phone_format ---
+    $ph1 = phone_format("08012345678", "NG")
+    print($ph1)
+
+    $ph2 = phone_format("+1 (555) 123-4567", "US")
+    print($ph2)
+
+    // --- log_debug (no output without WOLF_DEBUG env) ---
+    log_debug("this is a debug message")
+    print("log_debug:ok")
+}

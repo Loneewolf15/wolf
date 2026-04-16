@@ -1,0 +1,25 @@
+// 41_enums.wolf — Phase 4: Enums
+
+enum Status {
+    Active,
+    Inactive,
+    Pending,
+    Failed
+}
+
+$current = Status::Active
+
+if ($current == "Active") {
+    print("Status is Active via string comparison")
+}
+
+if ($current == Status::Active) {
+    print("Status is Active via Enum::Variant comparison")
+}
+
+$next = Status::Pending
+if ($next != $current) {
+    print("Status changed to: {$next}")
+}
+
+print("enum:ok")

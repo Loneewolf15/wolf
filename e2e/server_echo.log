@@ -1,0 +1,28 @@
+>> Build started: testdata/31_websocket.wolf
+>> Phase 1: Lexing testdata/31_websocket.wolf
+>> Phase 2: Parsing
+>> Phase 2.5: AutoDiscover
+>> Phase 2.8: Dispatchers
+>> Phase 3: Resolve
+>> Phase 4: Typecheck
+>> Phase 5: Emit WIR
+>> Phase 6: Emit LLVM
+>> Done returning
+>> Compile finished
+>> Testing hasLLC
+>> Running llc
+>> llc finished
+>> Checking compiled
+>> Setting up wolf runtime args
+[Wolf] FD limit set to 65535.
+🐺 Wolf HTTP Server running on port 8083...
+[WOLF-POOL] Spawning 64 worker threads (lock-free per-core queues + work-stealing)...
+[WOLF-POOL] Shared/container/macOS/Windows mode — skipping affinity + RT.
+[WOLF-POOL] Pool ready (64 threads).
+[WOLF-WS] poller_add called fd=7 id=0
+[WOLF-WS] epoll_ctl ADD fd=7 id=0 rc=0
+[WOLF-POLLER] epoll fired n=1
+[WOLF-POLLER] handling event ID=0
+[WOLF-POLLER] epoll fired n=1
+[WOLF-POLLER] handling event ID=0
+[WOLF-WS] Text frame id=0 payload='Hello Wolf!'

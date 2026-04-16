@@ -1,0 +1,37 @@
+// STDLIB-09: Type Inspection & settype E2E test
+
+func main() {
+    // --- typeof ---
+    $s = "hello"
+    $n = "42"
+    $f = "3.14"
+    $b = "true"
+    $a = "[1,2,3]"
+
+    print(typeof($s))
+    print(typeof($n))
+    print(typeof($f))
+    print(typeof($b))
+    print(typeof($a))
+
+    // --- is_* type checks ---
+    if (is_string($s)) { print("is_string:ok") }
+    if (is_int($n)) { print("is_int:ok") }
+    if (is_float($f)) { print("is_float:ok") }
+    if (is_bool($b)) { print("is_bool:ok") }
+    if (is_array($a)) { print("is_array:ok") }
+    if (is_null("null")) { print("is_null:ok") }
+
+    // --- settype ---
+    $as_int = settype("42.7", "int")
+    print($as_int)
+
+    $as_float = settype("10", "float")
+    print($as_float)
+
+    $as_bool_t = settype("hello", "bool")
+    print($as_bool_t)
+
+    $as_bool_f = settype("0", "bool")
+    print($as_bool_f)
+}

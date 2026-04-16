@@ -20,11 +20,16 @@ type LLVMEmitter struct {
 	labelCounter    int
 	indent          int
 	varTypes        map[string]string
+	varClass        map[string]string // varName → ClassName for object instances
 	funcSigs        map[string]*ir.Function
 	currentRetType  string
 	declaredExterns map[string]bool
 	emittedTypes    map[string]string // register → actual LLVM type emitted
+	funcWrappers    map[string]bool   // track wrapper generation
 	TargetTriple    string            // auto-detected or set by compiler
+	closureCounter  int               // unique ID for each closure function
+	closureDefs     strings.Builder   // top-level closure definitions to emit before main
+	errHandlerStack []string          // stack of %catch_block labels for error unwinding
 }
 
 // NewLLVMEmitter creates a new LLVM IR emitter.
@@ -32,9 +37,11 @@ func NewLLVMEmitter() *LLVMEmitter {
 	e := &LLVMEmitter{
 		stringConsts:    make(map[string]string),
 		varTypes:        make(map[string]string),
+		varClass:        make(map[string]string),
 		funcSigs:        make(map[string]*ir.Function),
 		declaredExterns: make(map[string]bool),
 		emittedTypes:    make(map[string]string),
+		funcWrappers:    make(map[string]bool),
 	}
 	e.registerStdlib()
 	return e
@@ -73,6 +80,32 @@ func (e *LLVMEmitter) registerStdlib() {
 	e.funcSigs["wolf_db_begin_transaction"] = &ir.Function{Name: "wolf_db_begin_transaction", ReturnTypes: []string{"void"}, Params: []*ir.Param{{Type: "ptr"}}}
 	e.funcSigs["wolf_db_commit"] = &ir.Function{Name: "wolf_db_commit", ReturnTypes: []string{"void"}, Params: []*ir.Param{{Type: "ptr"}}}
 	e.funcSigs["wolf_db_rollback"] = &ir.Function{Name: "wolf_db_rollback", ReturnTypes: []string{"void"}, Params: []*ir.Param{{Type: "ptr"}}}
+
+	// Query Builder (DB-01)
+	e.funcSigs["wolf_qb_create"] = &ir.Function{Name: "wolf_qb_create", ReturnTypes: []string{"ptr"}, Params: []*ir.Param{{Type: "ptr"}, {Type: "ptr"}}}
+	e.funcSigs["wolf_qb_with"] = &ir.Function{Name: "wolf_qb_with", ReturnTypes: []string{"ptr"}, Params: []*ir.Param{{Type: "ptr"}, {Type: "ptr"}, {Type: "ptr"}, {Type: "ptr"}, {Type: "ptr"}}}
+	e.funcSigs["wolf_qb_where"] = &ir.Function{Name: "wolf_qb_where", ReturnTypes: []string{"ptr"}, Params: []*ir.Param{{Type: "ptr"}, {Type: "ptr"}, {Type: "ptr"}, {Type: "ptr"}}}
+	e.funcSigs["wolf_qb_order_by"] = &ir.Function{Name: "wolf_qb_order_by", ReturnTypes: []string{"ptr"}, Params: []*ir.Param{{Type: "ptr"}, {Type: "ptr"}, {Type: "ptr"}}}
+	e.funcSigs["wolf_qb_limit"] = &ir.Function{Name: "wolf_qb_limit", ReturnTypes: []string{"ptr"}, Params: []*ir.Param{{Type: "ptr"}, {Type: "i64"}}}
+	e.funcSigs["wolf_qb_offset"] = &ir.Function{Name: "wolf_qb_offset", ReturnTypes: []string{"ptr"}, Params: []*ir.Param{{Type: "ptr"}, {Type: "i64"}}}
+	e.funcSigs["wolf_qb_get"] = &ir.Function{Name: "wolf_qb_get", ReturnTypes: []string{"ptr"}, Params: []*ir.Param{{Type: "ptr"}}}
+	e.funcSigs["wolf_qb_first"] = &ir.Function{Name: "wolf_qb_first", ReturnTypes: []string{"ptr"}, Params: []*ir.Param{{Type: "ptr"}}}
+	e.funcSigs["wolf_qb_insert"] = &ir.Function{Name: "wolf_qb_insert", ReturnTypes: []string{"i64"}, Params: []*ir.Param{{Type: "ptr"}, {Type: "ptr"}}}
+	e.funcSigs["wolf_qb_update"] = &ir.Function{Name: "wolf_qb_update", ReturnTypes: []string{"i64"}, Params: []*ir.Param{{Type: "ptr"}, {Type: "ptr"}}}
+	e.funcSigs["wolf_qb_delete"] = &ir.Function{Name: "wolf_qb_delete", ReturnTypes: []string{"i64"}, Params: []*ir.Param{{Type: "ptr"}}}
+	e.funcSigs["wolf_qb_paginate"] = &ir.Function{Name: "wolf_qb_paginate", ReturnTypes: []string{"ptr"}, Params: []*ir.Param{{Type: "ptr"}, {Type: "i64"}, {Type: "i64"}}}
+
+	// Validation Rules Engine (STDLIB-08)
+	e.funcSigs["wolf_validate"] = &ir.Function{Name: "wolf_validate", ReturnTypes: []string{"ptr"}, Params: []*ir.Param{{Type: "ptr"}, {Type: "ptr"}}}
+	e.funcSigs["wolf_validator_passes"] = &ir.Function{Name: "wolf_validator_passes", ReturnTypes: []string{"i1"}, Params: []*ir.Param{{Type: "ptr"}}}
+	e.funcSigs["wolf_validator_errors"] = &ir.Function{Name: "wolf_validator_errors", ReturnTypes: []string{"ptr"}, Params: []*ir.Param{{Type: "ptr"}}}
+	e.funcSigs["wolf_validator_validated"] = &ir.Function{Name: "wolf_validator_validated", ReturnTypes: []string{"ptr"}, Params: []*ir.Param{{Type: "ptr"}}}
+
+	// Error Handling (Phase 4)
+	e.funcSigs["wolf_throw"] = &ir.Function{Name: "wolf_throw", ReturnTypes: []string{"void"}, Params: []*ir.Param{{Type: "ptr"}}}
+	e.funcSigs["wolf_has_error"] = &ir.Function{Name: "wolf_has_error", ReturnTypes: []string{"i1"}}
+	e.funcSigs["wolf_get_error"] = &ir.Function{Name: "wolf_get_error", ReturnTypes: []string{"ptr"}}
+	e.funcSigs["wolf_clear_error"] = &ir.Function{Name: "wolf_clear_error", ReturnTypes: []string{"void"}}
 }
 
 // nextLocal returns a fresh LLVM local register name.
@@ -169,6 +202,12 @@ func (e *LLVMEmitter) Emit(program *ir.Program) string {
 		if cls.Constructor != nil {
 			e.emitConstructor(cls.Constructor, cls.Name)
 			e.writeln("")
+		} else {
+			// Auto-generate a trivial default constructor so `new ClassName()`
+			// always resolves to a defined LLVM function, even when no explicit
+			// constructor body was written (e.g. classes that only implement interfaces).
+			e.emitDefaultConstructor(cls.Name)
+			e.writeln("")
 		}
 		for _, method := range cls.Methods {
 			e.emitFunction(method)
@@ -178,6 +217,7 @@ func (e *LLVMEmitter) Emit(program *ir.Program) string {
 
 	// Emit main function from InitStmts
 	if len(program.InitStmts) > 0 {
+		e.currentRetType = "i32"
 		e.writeln("define i32 @main(i32 %argc, ptr %argv) {")
 		e.writeln("entry:")
 		e.indent++
@@ -234,6 +274,10 @@ func (e *LLVMEmitter) Emit(program *ir.Program) string {
 	// External function declarations
 	e.writeln("; --- External Runtime Functions ---")
 	e.writeln("declare void @wolf_print_str(ptr)")
+	e.writeln("declare void @wolf_throw(ptr)")
+	e.writeln("declare i1 @wolf_has_error()")
+	e.writeln("declare ptr @wolf_get_error()")
+	e.writeln("declare void @wolf_clear_error()")
 	e.writeln("declare void @wolf_print_int(i64)")
 	e.writeln("declare void @wolf_print_float(double)")
 	e.writeln("declare void @wolf_print_bool(i1)")
@@ -307,6 +351,13 @@ func (e *LLVMEmitter) Emit(program *ir.Program) string {
 	e.writeln("declare void @wolf_inspect(ptr)")
 	e.writeln("")
 
+	e.writeln("; --- Closures ---")
+	e.writeln("declare ptr @wolf_closure_create(ptr, i64)")
+	e.writeln("declare void @wolf_closure_set_env(ptr, i64, ptr)")
+	e.writeln("declare ptr @wolf_closure_get_env(ptr, i64)")
+	e.writeln("declare ptr @wolf_closure_get_fn(ptr)")
+	e.writeln("")
+
 	e.writeln("; --- Phase 1 Stdlib: Strings ---")
 	e.writeln("declare ptr @wolf_strtoupper(ptr)")
 	e.writeln("declare ptr @wolf_strtolower(ptr)")
@@ -349,7 +400,14 @@ func (e *LLVMEmitter) Emit(program *ir.Program) string {
 	e.writeln("declare ptr @wolf_wordwrap(ptr, i64, ptr, i1)")
 	e.writeln("declare ptr @wolf_quoted_printable_encode(ptr)")
 	e.writeln("declare ptr @wolf_ws_on_message(ptr)")
+	e.writeln("declare ptr @wolf_ws_on_close(ptr)")
 	e.writeln("declare ptr @wolf_ws_send(i64, ptr)")
+	e.writeln("declare void @wolf_ws_broadcast(ptr)")
+	e.writeln("declare void @wolf_ws_join(i64, ptr)")
+	e.writeln("declare void @wolf_ws_broadcast_to(ptr, ptr)")
+	e.writeln("declare void @wolf_presence_track(i64, ptr)")
+	e.writeln("declare ptr @wolf_presence_list(ptr)")
+	e.writeln("declare void @wolf_ws_close(i64)")
 	e.writeln("")
 	e.writeln("; --- Phase 1 Stdlib: Regex ---")
 	e.writeln("declare i1 @wolf_preg_match(ptr, ptr)")
@@ -373,6 +431,26 @@ func (e *LLVMEmitter) Emit(program *ir.Program) string {
 	e.writeln("declare i64 @wolf_intdiv(i64, i64)")
 	e.writeln("declare ptr @wolf_gettype(ptr)")
 	e.writeln("declare i1 @wolf_is_numeric(ptr)")
+	// STDLIB-09: Type Inspection
+	e.writeln("declare ptr @wolf_typeof(ptr)")
+	e.writeln("declare i1 @wolf_is_string(ptr)")
+	e.writeln("declare i1 @wolf_is_int(ptr)")
+	e.writeln("declare i1 @wolf_is_float(ptr)")
+	e.writeln("declare i1 @wolf_is_bool(ptr)")
+	e.writeln("declare i1 @wolf_is_null(ptr)")
+	e.writeln("declare i1 @wolf_is_array(ptr)")
+	e.writeln("declare ptr @wolf_settype(ptr, ptr)")
+	// STDLIB-10: Wolf-Specific Utilities
+	e.writeln("declare ptr @wolf_money_format(i64, ptr)")
+	e.writeln("declare i64 @wolf_money_add(i64, i64)")
+	e.writeln("declare i64 @wolf_money_subtract(i64, i64)")
+	e.writeln("declare i64 @wolf_money_multiply(i64, double)")
+	e.writeln("declare i64 @wolf_money_divide(i64, double)")
+	e.writeln("declare i64 @wolf_money_percentage(i64, double)")
+	e.writeln("declare ptr @wolf_pluralise(ptr, i64)")
+	e.writeln("declare ptr @wolf_phone_format(ptr, ptr)")
+	e.writeln("declare void @wolf_log_debug(ptr)")
+	e.writeln("declare void @wolf_retry_sleep(i64, i64)")
 	e.writeln("")
 
 	e.writeln("; --- Encoding ---")
@@ -515,6 +593,12 @@ func (e *LLVMEmitter) Emit(program *ir.Program) string {
 	e.writeln("declare ptr @wolf_file_basename(ptr)")
 	e.writeln("declare ptr @wolf_file_dirname(ptr)")
 	e.writeln("declare i1 @wolf_dir_exists(ptr)")
+	// STDLIB-07: File System Extensions
+	e.writeln("declare i1 @wolf_file_copy(ptr, ptr)")
+	e.writeln("declare i1 @wolf_file_move(ptr, ptr)")
+	e.writeln("declare i1 @wolf_dir_create(ptr)")
+	e.writeln("declare ptr @wolf_path_join(ptr, ptr)")
+	e.writeln("declare ptr @wolf_scan_dir(ptr)")
 	e.writeln("")
 
 	e.writeln("; --- Phase 3: Utilities ---")
@@ -531,6 +615,7 @@ func (e *LLVMEmitter) Emit(program *ir.Program) string {
 
 	e.writeln("; --- DB-01: Query Builder ---")
 	e.writeln("declare ptr @wolf_qb_create(ptr, ptr)")
+	e.writeln("declare ptr @wolf_qb_with(ptr, ptr, ptr, ptr, ptr)")
 	e.writeln("declare ptr @wolf_qb_where(ptr, ptr, ptr, ptr)")
 	e.writeln("declare ptr @wolf_qb_order_by(ptr, ptr, ptr)")
 	e.writeln("declare ptr @wolf_qb_limit(ptr, i64)")
@@ -596,6 +681,15 @@ func (e *LLVMEmitter) Emit(program *ir.Program) string {
 	e.writeln("declare void @wolf_http_response_code(i64)")
 	e.writeln("declare void @wolf_http_write_response(ptr)")
 	e.writeln("")
+
+	e.writeln("; --- Concurrency & Observability ---")
+	e.writeln("declare void @wolf_spawn_supervised_thread(ptr, ptr, i64)")
+	e.writeln("declare void @wolf_trace_start(ptr)")
+	e.writeln("declare void @wolf_trace_end(ptr)")
+	e.writeln("declare void @wolf_metrics_increment(ptr)")
+	e.writeln("declare void @wolf_metrics_gauge(ptr, double)")
+	e.writeln("declare void @wolf_metrics_histogram(ptr, double)")
+	e.writeln("")
 	e.writeln("; --- CLI Arguments ---")
 	e.writeln("declare void @wolf_init_args(i32, ptr)")
 	e.writeln("declare i64 @wolf_argc()")
@@ -622,14 +716,31 @@ func (e *LLVMEmitter) Emit(program *ir.Program) string {
 	e.writeln("declare void @wolf_http_res_write(i64, ptr)")
 	e.writeln("")
 	e.writeln("; --- HTTP Client (libcurl) ---")
-	e.writeln("declare ptr @wolf_http_get(ptr)")
-	e.writeln("declare ptr @wolf_http_post(ptr, ptr)")
-	e.writeln("declare ptr @wolf_http_put(ptr, ptr)")
-	e.writeln("declare ptr @wolf_http_delete(ptr)")
-	e.writeln("declare ptr @wolf_http_patch(ptr, ptr)")
+	e.writeln("declare ptr @wolf_http_request(ptr, ptr, ptr, ptr)")
+	e.writeln("declare ptr @wolf_http_get(ptr, ptr)")
+	e.writeln("declare ptr @wolf_http_post(ptr, ptr, ptr)")
+	e.writeln("declare ptr @wolf_http_put(ptr, ptr, ptr)")
+	e.writeln("declare ptr @wolf_http_delete(ptr, ptr)")
+	e.writeln("declare ptr @wolf_http_patch(ptr, ptr, ptr)")
+	e.writeln("declare ptr @wolf_http_client_res_body(ptr)")
+	e.writeln("declare ptr @wolf_http_client_res_json(ptr)")
+	e.writeln("declare i64 @wolf_http_client_res_status(ptr)")
+	e.writeln("declare i64 @wolf_http_client_res_ok(ptr)")
+	e.writeln("declare i64 @wolf_http_client_res_failed(ptr)")
+	e.writeln("declare ptr @wolf_http_client_res_header(ptr, ptr)")
 	e.writeln("declare ptr @wolf_url_encode(ptr)")
 	e.writeln("declare ptr @wolf_url_decode(ptr)")
+	e.writeln("declare ptr @wolf_url_parse(ptr)")
+	e.writeln("declare ptr @wolf_build_query(ptr)")
+	e.writeln("declare ptr @wolf_dns_lookup(ptr)")
+	e.writeln("declare ptr @wolf_get_client_ip()")
 	e.writeln("")
+
+	// Closure function definitions (lifted anonymous functions)
+	if e.closureDefs.Len() > 0 {
+		e.buf.WriteString(e.closureDefs.String())
+		e.closureDefs.Reset()
+	}
 
 	// Body
 	e.buf.WriteString(bodyStr)
@@ -689,6 +800,10 @@ func (e *LLVMEmitter) collectLocalVars(stmts []ir.Stmt) {
 			if s.Default != nil {
 				e.collectLocalVars(s.Default)
 			}
+		case *ir.TryCatchStmt:
+			e.varTypes[s.CatchVar] = "ptr"
+			e.collectLocalVars(s.TryBody)
+			e.collectLocalVars(s.CatchBody)
 		case *ir.BlockStmt:
 			e.collectLocalVars(s.Stmts)
 		}
@@ -860,7 +975,39 @@ func (e *LLVMEmitter) emitConstructor(fn *ir.Function, className string) {
 	e.writeln("}")
 }
 
+// emitDefaultConstructor emits a zero-arg constructor for classes that have no
+// explicit `constructor()` body (e.g. classes that only implement interfaces).
+// Generates: define ptr @wolf_NewFoo() { ... call wolf_class_create ... ret ptr }
+func (e *LLVMEmitter) emitDefaultConstructor(className string) {
+	emitName := "wolf_New" + className
+
+	// Register in funcSigs so call sites resolve correctly
+	e.funcSigs["New"+className] = &ir.Function{
+		Name:        "New" + className,
+		ReturnTypes: []string{"ptr"},
+		Params:      []*ir.Param{},
+	}
+
+	clsLabel := e.addStringConst(className)
+	clsLen := len(className) + 1
+
+	e.writeln(fmt.Sprintf("define ptr @%s() {", emitName))
+	e.writeln("entry:")
+	e.indent++
+	e.writelnIndent("%this = alloca ptr")
+	e.writelnIndent(fmt.Sprintf("%%%s.name_var = getelementptr [%d x i8], ptr %s, i64 0, i64 0", className, clsLen, clsLabel))
+	thisReg := e.nextLocal()
+	e.writelnIndent(fmt.Sprintf("%s = call ptr @wolf_class_create(ptr %%%s.name_var)", thisReg, className))
+	e.writelnIndent(fmt.Sprintf("store ptr %s, ptr %%this", thisReg))
+	retReg := e.nextLocal()
+	e.writelnIndent(fmt.Sprintf("%s = load ptr, ptr %%this", retReg))
+	e.writelnIndent(fmt.Sprintf("ret ptr %s", retReg))
+	e.indent--
+	e.writeln("}")
+}
+
 func (e *LLVMEmitter) lastStmtIsReturn(stmts []ir.Stmt) bool {
+
 	if len(stmts) == 0 {
 		return false
 	}
@@ -896,11 +1043,108 @@ func (e *LLVMEmitter) emitStmt(stmt ir.Stmt) {
 		for _, inner := range s.Stmts {
 			e.emitStmt(inner)
 		}
+	case *ir.TryCatchStmt:
+		e.emitTryCatch(s)
+	case *ir.SuperviseStmt:
+		e.emitSupervise(s)
+	case *ir.TraceStmt:
+		e.emitTrace(s)
 	case *ir.RawStmt:
 		e.writelnIndent(fmt.Sprintf("; raw: %s", s.Code))
 	default:
 		e.writelnIndent(fmt.Sprintf("; TODO: unhandled statement type %T", stmt))
 	}
+}
+
+func (e *LLVMEmitter) emitSupervise(s *ir.SuperviseStmt) {
+	closureName := e.emitFuncLit(&ir.FuncLit{
+		Params:      []*ir.Param{},
+		ReturnTypes: []string{},
+		Body:        s.Body,
+	})
+
+	strategyLabel := e.addStringConst(s.Strategy)
+	e.writelnIndent(fmt.Sprintf("call void @wolf_spawn_supervised_thread(ptr %s, ptr %s, i64 %d)", closureName, strategyLabel, s.Max))
+}
+
+func (e *LLVMEmitter) emitTrace(s *ir.TraceStmt) {
+	spanVal := e.emitExpr(s.SpanName, "ptr")
+	e.writelnIndent(fmt.Sprintf("call void @wolf_trace_start(ptr %s)", spanVal))
+	for _, stmt := range s.Body {
+		e.emitStmt(stmt)
+	}
+	e.writelnIndent(fmt.Sprintf("call void @wolf_trace_end(ptr %s)", spanVal))
+}
+
+func (e *LLVMEmitter) emitTryCatch(s *ir.TryCatchStmt) {
+	// Clear any previous dangling error before entering try block
+	e.writelnIndent("call void @wolf_clear_error()")
+
+	catchLabel := e.nextLabel("catch")
+	doneLabel := e.nextLabel("try.done")
+
+	e.errHandlerStack = append(e.errHandlerStack, catchLabel)
+
+	for _, stmt := range s.TryBody {
+		e.emitStmt(stmt)
+	}
+
+	// Pop handler stack on success
+	e.errHandlerStack = e.errHandlerStack[:len(e.errHandlerStack)-1]
+	e.writelnIndent(fmt.Sprintf("br label %%%s", doneLabel))
+	e.writeln("")
+
+	// Catch block
+	e.writeln(fmt.Sprintf("%s:", catchLabel))
+	e.indent++
+	errReg := e.nextLocal()
+	e.writelnIndent(fmt.Sprintf("%s = call ptr @wolf_get_error()", errReg))
+	e.writelnIndent(fmt.Sprintf("store ptr %s, ptr %%%s", errReg, s.CatchVar))
+
+	for _, stmt := range s.CatchBody {
+		e.emitStmt(stmt)
+	}
+	e.writelnIndent(fmt.Sprintf("br label %%%s", doneLabel))
+	e.indent--
+	e.writeln("")
+
+	e.writeln(fmt.Sprintf("%s:", doneLabel))
+}
+
+func (e *LLVMEmitter) checkErrorPropagate() {
+	hasErr := e.nextLocal()
+	e.writelnIndent(fmt.Sprintf("%s = call i1 @wolf_has_error()", hasErr))
+
+	errTrue := e.nextLabel("err.true")
+	errFalse := e.nextLabel("err.false")
+
+	e.writelnIndent(fmt.Sprintf("br i1 %s, label %%%s, label %%%s", hasErr, errTrue, errFalse))
+	e.writeln("")
+	e.writeln(fmt.Sprintf("%s:", errTrue))
+	e.indent++
+	
+	if len(e.errHandlerStack) > 0 {
+		catchLbl := e.errHandlerStack[len(e.errHandlerStack)-1]
+		e.writelnIndent(fmt.Sprintf("br label %%%s", catchLbl))
+	} else {
+		// Propagate up to caller
+		if e.currentRetType == "void" {
+			e.writelnIndent("ret void")
+		} else if e.currentRetType == "i64" {
+			e.writelnIndent("ret i64 0")
+		} else if e.currentRetType == "i32" {
+			e.writelnIndent("ret i32 1")
+		} else if e.currentRetType == "i1" {
+			e.writelnIndent("ret i1 0")
+		} else if e.currentRetType == "double" {
+			e.writelnIndent("ret double 0.0")
+		} else {
+			e.writelnIndent(fmt.Sprintf("ret %s null", e.currentRetType))
+		}
+	}
+	e.indent--
+	e.writeln("")
+	e.writeln(fmt.Sprintf("%s:", errFalse)) 
 }
 
 func (e *LLVMEmitter) emitServe(s *ir.ServeStmt) {
@@ -931,6 +1175,14 @@ func (e *LLVMEmitter) emitVarDecl(s *ir.VarDeclStmt) {
 	}
 
 	if s.Value != nil {
+		// Track class instance: $e = new English() → varClass["e"] = "English"
+		if call, ok := s.Value.(*ir.CallExpr); ok {
+			if ident, ok2 := call.Callee.(*ir.Ident); ok2 {
+				if strings.HasPrefix(ident.Name, "New") {
+					e.varClass[s.Name] = strings.TrimPrefix(ident.Name, "New")
+				}
+			}
+		}
 		val := e.emitExpr(s.Value, llType)
 		e.writelnIndent(fmt.Sprintf("store %s %s, ptr %%%s", llType, val, s.Name))
 	}
@@ -949,6 +1201,15 @@ func (e *LLVMEmitter) emitAssign(s *ir.AssignStmt) {
 		storedType, ok := e.varTypes[target.Name]
 		if !ok {
 			storedType = llType
+		}
+
+		// Track class instance: $e = new English() → varClass["e"] = "English"
+		if call, ok2 := s.Value.(*ir.CallExpr); ok2 {
+			if ident, ok3 := call.Callee.(*ir.Ident); ok3 {
+				if strings.HasPrefix(ident.Name, "New") {
+					e.varClass[target.Name] = strings.TrimPrefix(ident.Name, "New")
+				}
+			}
 		}
 
 		val := e.emitExpr(s.Value, storedType)
@@ -1027,8 +1288,9 @@ func (e *LLVMEmitter) inferExprType(expr ir.Expr) string {
 				"preg_match_all", "wolf_preg_match_all",
 				"redis_del", "wolf_redis_del", "randomint", "wolf_math_randomint":
 				return "i64"
-			case "wolf_http_get", "wolf_http_post", "wolf_http_put", "wolf_http_delete", "wolf_http_patch",
-				"wolf_url_encode", "wolf_url_decode", "http_query", "wolf_http_query", "redis_connect", "wolf_redis_connect", "redis_get", "wolf_redis_get":
+			case "wolf_http_request", "wolf_http_get", "wolf_http_post", "wolf_http_put", "wolf_http_delete", "wolf_http_patch",
+				"wolf_http_client_res_body", "wolf_http_client_res_json", "wolf_http_client_res_header",
+				"wolf_url_encode", "wolf_url_decode", "wolf_url_parse", "wolf_build_query", "wolf_dns_lookup", "wolf_get_client_ip", "http_query", "wolf_http_query", "redis_connect", "wolf_redis_connect", "redis_get", "wolf_redis_get":
 				return "ptr"
 			case "date", "env", "session_get", "date_to_iso", "wolf_date_to_iso":
 				return "ptr"
@@ -1037,6 +1299,8 @@ func (e *LLVMEmitter) inferExprType(expr ir.Expr) string {
 				"wolf_date_is_past", "wolf_date_is_future",
 				"preg_match", "wolf_preg_match":
 				return "i1"
+			case "wolf_http_client_res_status", "wolf_http_client_res_ok", "wolf_http_client_res_failed":
+				return "i64"
 			case "http_header", "wolf_http_header", "http_status", "http_response_code", "wolf_http_status", "redis_set", "wolf_redis_set":
 				return "void"
 			case "similar_text", "wolf_similar_text", "array_mean", "wolf_array_mean", "array_std_dev", "wolf_array_std_dev", "round", "wolf_math_round":
@@ -1048,8 +1312,28 @@ func (e *LLVMEmitter) inferExprType(expr ir.Expr) string {
 		}
 		return "ptr" // default for function calls
 	case *ir.MethodCallExpr:
+		if entry, ok := methodDispatch[ex.Method]; ok {
+			return entry.retType
+		}
+
 		var calleeName string
 		expectedArgs := len(ex.Args) + 1 // +1 for explicit 'this'
+
+		// 1. Try exact class dispatch if known
+		if ident, ok := ex.Object.(*ir.Ident); ok {
+			if className, hasClass := e.varClass[ident.Name]; hasClass {
+				directName := fmt.Sprintf("%s_%s", className, ex.Method)
+				if fnSig, found := e.funcSigs[directName]; found {
+					calleeName = directName
+					if len(fnSig.ReturnTypes) > 0 {
+						return e.wolfTypeToLLVM(fnSig.ReturnTypes[0])
+					}
+					return "ptr"
+				}
+			}
+		}
+
+		// 2. Fallback to suffix search
 		for name, sig := range e.funcSigs {
 			if strings.HasSuffix(name, "_"+ex.Method) {
 				if len(sig.Params) == expectedArgs {
@@ -1139,6 +1423,21 @@ func (e *LLVMEmitter) emitReturn(s *ir.ReturnStmt) {
 				val = casted
 				llType = "ptr"
 			}
+		} else if e.currentRetType == "i64" && llType == "ptr" {
+			casted := e.nextLocal()
+			e.writelnIndent(fmt.Sprintf("%s = call i64 @wolf_intval(ptr %s)", casted, val))
+			val = casted
+			llType = "i64"
+		} else if e.currentRetType == "double" && llType == "ptr" {
+			casted := e.nextLocal()
+			e.writelnIndent(fmt.Sprintf("%s = call double @wolf_floatval(ptr %s)", casted, val))
+			val = casted
+			llType = "double"
+		} else if e.currentRetType == "i1" && llType == "ptr" {
+			casted := e.nextLocal()
+			e.writelnIndent(fmt.Sprintf("%s = call i1 @wolf_boolval(ptr %s)", casted, val))
+			val = casted
+			llType = "i1"
 		}
 
 		e.writelnIndent(fmt.Sprintf("ret %s %s", llType, val))
@@ -1423,12 +1722,51 @@ func (e *LLVMEmitter) emitExpr(expr ir.Expr, expectedType string) string {
 		return reg
 	case *ir.Ident:
 		// Check if it's a known function (function pointer)
-		if _, isFunc := e.funcSigs[ex.Name]; isFunc {
+		if fnSig, isFunc := e.funcSigs[ex.Name]; isFunc {
 			fullFuncName := ex.Name
 			if !strings.HasPrefix(fullFuncName, "wolf_") {
 				fullFuncName = "wolf_" + fullFuncName
 			}
-			return "@" + fullFuncName
+			wrapperName := "__wrapper_" + fullFuncName
+			if !e.funcWrappers[wrapperName] {
+				e.funcWrappers[wrapperName] = true
+				
+				var paramParts []string
+				paramParts = append(paramParts, "ptr %__env_ignored")
+				var argsStr []string
+				for i, p := range fnSig.Params {
+					llType := e.wolfTypeToLLVM(p.Type)
+					if llType == "" { llType = "ptr" }
+					paramParts = append(paramParts, fmt.Sprintf("%s %%arg%d", llType, i))
+					argsStr = append(argsStr, fmt.Sprintf("%s %%arg%d", llType, i))
+				}
+				
+				retType := "ptr"
+				if len(fnSig.ReturnTypes) > 0 { retType = e.wolfTypeToLLVM(fnSig.ReturnTypes[0]) }
+				if retType == "" { retType = "ptr" }
+
+				e.closureDefs.WriteString(fmt.Sprintf("\ndefine ptr @%s(%s) {\nentry:\n", wrapperName, strings.Join(paramParts, ", ")))
+				if retType == "void" {
+					e.closureDefs.WriteString(fmt.Sprintf("  call void @%s(%s)\n", fullFuncName, strings.Join(argsStr, ", ")))
+					e.closureDefs.WriteString("  ret ptr null\n")
+				} else {
+					e.closureDefs.WriteString(fmt.Sprintf("  %%res = call %s @%s(%s)\n", retType, fullFuncName, strings.Join(argsStr, ", ")))
+					// If returning primitive, LLVM requires us to box it so the wrapper returns ptr!
+					if retType == "i64" {
+						e.closureDefs.WriteString("  %box = inttoptr i64 %res to ptr\n  ret ptr %box\n")
+					} else if retType == "double" {
+					    e.closureDefs.WriteString("  %bcast = bitcast double %res to i64\n  %box = inttoptr i64 %bcast to ptr\n  ret ptr %box\n")
+					} else if retType == "i1" {
+					    e.closureDefs.WriteString("  %zxt = zext i1 %res to i64\n  %box = inttoptr i64 %zxt to ptr\n  ret ptr %box\n")
+					} else {
+						e.closureDefs.WriteString("  ret ptr %res\n")
+					}
+				}
+				e.closureDefs.WriteString("}\n")
+			}
+			reg := e.nextLocal()
+			e.writelnIndent(fmt.Sprintf("%s = call ptr @wolf_closure_create(ptr @%s, i64 0)", reg, wrapperName))
+			return reg
 		}
 
 		loadType := "ptr"
@@ -1461,6 +1799,11 @@ func (e *LLVMEmitter) emitExpr(expr ir.Expr, expectedType string) string {
 		return e.emitFmtSprintf(ex)
 	case *ir.StringConcat:
 		return e.emitStringConcat(ex)
+	case *ir.ErrorNew:
+		msgVal := e.emitExpr(ex.Message, "ptr")
+		e.writelnIndent(fmt.Sprintf("call void @wolf_throw(ptr %s)", msgVal))
+		e.checkErrorPropagate()
+		return "null" // return a valid string that isn't used due to branch
 	case *ir.PostfixExpr:
 		return e.emitPostfix(ex)
 	case *ir.IndexExpr:
@@ -1469,6 +1812,8 @@ func (e *LLVMEmitter) emitExpr(expr ir.Expr, expectedType string) string {
 		return e.emitSliceLit(ex)
 	case *ir.MapLit:
 		return e.emitMapLit(ex)
+	case *ir.FuncLit:
+		return e.emitFuncLit(ex)
 	default:
 		e.writelnIndent(fmt.Sprintf("; TODO: unhandled expr type %T", expr))
 		return "null"
@@ -1779,6 +2124,40 @@ func (e *LLVMEmitter) emitCallExpr(call *ir.CallExpr) string {
 		}
 	}
 
+	// Check if this is an indirect call (variable holding a function pointer) or a complex expression callee
+	isIndirect := false
+	var indirectPtrReg string
+
+	if ident, ok := call.Callee.(*ir.Ident); ok {
+		// A local variable has priority and is an indirect call.
+		if _, isVar := e.varTypes[ident.Name]; isVar {
+			isIndirect = true
+			indirectPtrReg = e.emitExpr(ident, "ptr")
+		}
+	} else {
+		// Complex expression callee (e.g. $arr[0]())
+		isIndirect = true
+		indirectPtrReg = e.emitExpr(call.Callee, "ptr")
+	}
+
+	// Indirect calls: the callee is a wolf_closure_t*. Extract the real fn ptr,
+	// then call it with (closure_ptr, args...) matching our wrapper signature.
+	if isIndirect {
+		fnReg := e.nextLocal()
+		e.writelnIndent(fmt.Sprintf("%s = call ptr @wolf_closure_get_fn(ptr %s)", fnReg, indirectPtrReg))
+		var args []string
+		// First arg: the closure env struct itself
+		args = append(args, fmt.Sprintf("ptr %s", indirectPtrReg))
+		for _, arg := range call.Args {
+			val := e.emitArgAsString(arg)
+			args = append(args, fmt.Sprintf("ptr %s", val))
+		}
+		reg := e.nextLocal()
+		e.writelnIndent(fmt.Sprintf("%s = call ptr %s(%s)", reg, fnReg, strings.Join(args, ", ")))
+		e.emittedTypes[reg] = "ptr"
+		return reg
+	}
+
 	var fnSig *ir.Function
 	if ident, ok := call.Callee.(*ir.Ident); ok {
 		fnSig = e.funcSigs[ident.Name]
@@ -2018,6 +2397,44 @@ func (e *LLVMEmitter) emitCallExpr(call *ir.CallExpr) string {
 			calleeName = "wolf_gettype"
 		case "is_numeric":
 			calleeName = "wolf_is_numeric"
+		// STDLIB-09: Type inspection additions
+		case "typeof":
+			calleeName = "wolf_typeof"
+		case "is_string":
+			calleeName = "wolf_is_string"
+		case "is_int":
+			calleeName = "wolf_is_int"
+		case "is_float":
+			calleeName = "wolf_is_float"
+		case "is_bool":
+			calleeName = "wolf_is_bool"
+		case "is_null":
+			calleeName = "wolf_is_null"
+		case "is_array":
+			calleeName = "wolf_is_array"
+		case "settype":
+			calleeName = "wolf_settype"
+		// STDLIB-10: Wolf-Specific Utilities
+		case "money_format":
+			calleeName = "wolf_money_format"
+		case "money_add":
+			calleeName = "wolf_money_add"
+		case "money_subtract":
+			calleeName = "wolf_money_subtract"
+		case "money_multiply":
+			calleeName = "wolf_money_multiply"
+		case "money_divide":
+			calleeName = "wolf_money_divide"
+		case "money_percentage":
+			calleeName = "wolf_money_percentage"
+		case "pluralise", "pluralize":
+			calleeName = "wolf_pluralise"
+		case "phone_format":
+			calleeName = "wolf_phone_format"
+		case "log_debug":
+			calleeName = "wolf_log_debug"
+		case "retry_sleep":
+			calleeName = "wolf_retry_sleep"
 
 		// --- Encoding ---
 		case "base64_encode":
@@ -2206,6 +2623,17 @@ func (e *LLVMEmitter) emitCallExpr(call *ir.CallExpr) string {
 			calleeName = "wolf_file_dirname"
 		case "dir_exists":
 			calleeName = "wolf_dir_exists"
+		// STDLIB-07 additions
+		case "file_copy":
+			calleeName = "wolf_file_copy"
+		case "file_move":
+			calleeName = "wolf_file_move"
+		case "dir_create":
+			calleeName = "wolf_dir_create"
+		case "path_join":
+			calleeName = "wolf_path_join"
+		case "scan_dir":
+			calleeName = "wolf_scan_dir"
 
 		// --- Phase 3: Utilities ---
 		case "slug":
@@ -2226,6 +2654,8 @@ func (e *LLVMEmitter) emitCallExpr(call *ir.CallExpr) string {
 		// --- DB-01: Query Builder ---
 		case "builder":
 			calleeName = "wolf_qb_create"
+		case "qb_with":
+			calleeName = "wolf_qb_with"
 		case "qb_where":
 			calleeName = "wolf_qb_where"
 		case "qb_order_by":
@@ -2265,6 +2695,20 @@ func (e *LLVMEmitter) emitCallExpr(call *ir.CallExpr) string {
 		case "redis_close":
 			calleeName = "wolf_redis_close"
 
+		// --- STDLIB-06: HTTP Client (outbound requests via libcurl) ---
+		case "http_request":
+			calleeName = "wolf_http_request"
+		case "http_get":
+			calleeName = "wolf_http_get"
+		case "http_post":
+			calleeName = "wolf_http_post"
+		case "http_put":
+			calleeName = "wolf_http_put"
+		case "http_delete":
+			calleeName = "wolf_http_delete"
+		case "http_patch":
+			calleeName = "wolf_http_patch"
+
 		// --- Thread-Local Request Context ---
 		case "wolf_get_request_body":
 			calleeName = "wolf_get_request_body"
@@ -2300,6 +2744,16 @@ func (e *LLVMEmitter) emitCallExpr(call *ir.CallExpr) string {
 			calleeName = "wolf_sanitize_int"
 		case "sanitize_float":
 			calleeName = "wolf_sanitize_float"
+
+		// --- Network Helpers & URL Parsing ---
+		case "url_parse", "parse_url":
+			calleeName = "wolf_url_parse"
+		case "build_query":
+			calleeName = "wolf_build_query"
+		case "dns_lookup":
+			calleeName = "wolf_dns_lookup"
+		case "get_client_ip", "client_ip":
+			calleeName = "wolf_get_client_ip"
 
 		// --- JWT ---
 		case "sha512":
@@ -2350,6 +2804,18 @@ func (e *LLVMEmitter) emitCallExpr(call *ir.CallExpr) string {
 			calleeName = "wolf_sign"
 		case "verify":
 			calleeName = "wolf_verify"
+
+		// --- Phoenix Channels (WebSockets) ---
+		case "broadcast":
+			calleeName = "wolf_ws_broadcast_to"
+		case "broadcast_to_all":
+			calleeName = "wolf_ws_broadcast"
+		case "socket_join":
+			calleeName = "wolf_ws_join"
+		case "presence_track":
+			calleeName = "wolf_presence_track"
+		case "presence_list":
+			calleeName = "wolf_presence_list"
 		default:
 			// Prefix all other Wolf-defined global functions
 			if calleeName != "" && !strings.HasPrefix(calleeName, "wolf_") {
@@ -2361,6 +2827,21 @@ func (e *LLVMEmitter) emitCallExpr(call *ir.CallExpr) string {
 	// Re-lookup signature after mapping
 	if fnSig == nil && calleeName != "" {
 		fnSig = e.funcSigs[calleeName]
+	}
+
+	// Pad optional arguments for HTTP Client
+	if calleeName == "wolf_http_get" || calleeName == "wolf_http_delete" {
+		for len(call.Args) < 2 {
+			call.Args = append(call.Args, &ir.NilLit{})
+		}
+	} else if calleeName == "wolf_http_post" || calleeName == "wolf_http_put" || calleeName == "wolf_http_patch" {
+		for len(call.Args) < 3 {
+			call.Args = append(call.Args, &ir.NilLit{})
+		}
+	} else if calleeName == "wolf_http_request" {
+		for len(call.Args) < 4 {
+			call.Args = append(call.Args, &ir.NilLit{})
+		}
 	}
 
 	args := make([]string, len(call.Args))
@@ -2380,6 +2861,22 @@ func (e *LLVMEmitter) emitCallExpr(call *ir.CallExpr) string {
 					expectedType = "i64"
 				}
 			case "wolf_argv":
+				expectedType = "i64"
+			// wolf_ws_broadcast_to(room: ptr, message: ptr), wolf_presence_list(room: ptr)
+			case "wolf_ws_broadcast", "wolf_ws_broadcast_to", "wolf_presence_list":
+				expectedType = "ptr"
+			// wolf_ws_join(req_id: i64, room: ptr), wolf_presence_track(req_id: i64, user_id: ptr)
+			case "wolf_ws_join", "wolf_presence_track":
+				if i == 0 {
+					expectedType = "i64"
+				} else {
+					expectedType = "ptr"
+				}
+			// wolf_ws_on_message(handler: ptr), wolf_ws_on_close(handler: ptr) — single ptr function pointer
+			case "wolf_ws_on_message", "wolf_ws_on_close":
+				expectedType = "ptr"
+			// wolf_ws_close(req_id: i64) — single i64 connection ID
+			case "wolf_ws_close":
 				expectedType = "i64"
 			case "wolf_http_serve", "wolf_http_req_method", "wolf_http_req_path", "wolf_http_req_query", "wolf_http_req_header", "wolf_http_req_body", "wolf_http_res_header", "wolf_http_res_status", "wolf_http_res_write",
 				"wolf_http_req_file", "wolf_http_req_file_count", "wolf_ws_send":
@@ -2585,7 +3082,9 @@ func (e *LLVMEmitter) emitCallExpr(call *ir.CallExpr) string {
 		case "wolf_say", "wolf_show", "wolf_inspect", "wolf_system_sleep", "wolf_system_exit", "wolf_system_die", "wolf_session_begin", "wolf_session_set", "wolf_session_end", "wolf_define",
 			"wolf_dump", "wolf_dd", "wolf_log_info", "wolf_log_warning", "wolf_log_error",
 			"wolf_redis_set", "wolf_redis_hset", "wolf_redis_close",
-			"wolf_array_unshift", "wolf_sort", "wolf_rsort", "wolf_array_push":
+			"wolf_array_unshift", "wolf_sort", "wolf_rsort", "wolf_array_push",
+			"wolf_ws_broadcast", "wolf_ws_broadcast_to", "wolf_ws_close", "wolf_ws_join", "wolf_presence_track",
+			"wolf_log_debug", "wolf_retry_sleep":
 			retType = "void"
 		case "wolf_math_abs", "wolf_math_ceil", "wolf_math_floor", "wolf_math_max", "wolf_math_min",
 			"wolf_math_sin", "wolf_math_cos", "wolf_math_tan",
@@ -2612,6 +3111,12 @@ func (e *LLVMEmitter) emitCallExpr(call *ir.CallExpr) string {
 			retType = "i64"
 		case "wolf_date_to_iso":
 			retType = "ptr"
+		case "wolf_http_get", "wolf_http_post", "wolf_http_put", "wolf_http_delete", "wolf_http_patch", "wolf_http_set_header":
+			retType = "ptr"
+		case "wolf_path_join", "wolf_scan_dir":
+			retType = "ptr"
+		case "wolf_typeof", "wolf_settype", "wolf_money_format", "wolf_pluralise", "wolf_phone_format":
+			retType = "ptr"
 		case "wolf_array_rand_one":
 			retType = "i64"
 		case "wolf_array_product", "wolf_array_mean", "wolf_array_median",
@@ -2627,6 +3132,8 @@ func (e *LLVMEmitter) emitCallExpr(call *ir.CallExpr) string {
 			"wolf_is_ip", "wolf_is_alpha", "wolf_is_alpha_num", "wolf_is_leap_year",
 			"wolf_date_is_past", "wolf_date_is_future",
 			"wolf_file_exists", "wolf_file_write", "wolf_file_append", "wolf_file_delete", "wolf_dir_exists",
+			"wolf_file_copy", "wolf_file_move", "wolf_dir_create",
+			"wolf_is_string", "wolf_is_int", "wolf_is_float", "wolf_is_bool", "wolf_is_null", "wolf_is_array",
 			"wolf_preg_match",
 			"wolf_validator_passes":
 			retType = "i1"
@@ -2647,6 +3154,7 @@ func (e *LLVMEmitter) emitCallExpr(call *ir.CallExpr) string {
 		} else {
 			e.writelnIndent(fmt.Sprintf("call void @%s(%s)", calleeName, strings.Join(args, ", ")))
 		}
+		e.checkErrorPropagate()
 		return "null" // return null as dummy
 	}
 
@@ -2655,6 +3163,7 @@ func (e *LLVMEmitter) emitCallExpr(call *ir.CallExpr) string {
 	} else {
 		e.writelnIndent(fmt.Sprintf("%s = call %s @%s(%s)", reg, retType, calleeName, strings.Join(args, ", ")))
 	}
+	e.checkErrorPropagate()
 	e.emittedTypes[reg] = retType
 	return reg
 }
@@ -2775,6 +3284,10 @@ func (e *LLVMEmitter) emitArgAsString(arg ir.Expr) string {
 		llType := e.inferExprType(arg)
 		val := e.emitExpr(arg, llType)
 
+		if actual, ok := e.emittedTypes[val]; ok {
+			llType = actual
+		}
+
 		switch llType {
 		case "i64":
 			reg := e.nextLocal()
@@ -2835,11 +3348,124 @@ func (e *LLVMEmitter) emitPostfix(ex *ir.PostfixExpr) string {
 	return reg
 }
 
+// methodDispatch maps Wolf method names to their C runtime function names and return types.
+// This powers object-oriented method chaining: $obj->where("x", "1")->get()
+var methodDispatch = map[string]struct {
+	callee  string
+	retType string
+}{
+	// Query Builder methods
+	"with":     {"wolf_qb_with", "ptr"},
+	"where":    {"wolf_qb_where", "ptr"},
+	"orderBy":  {"wolf_qb_order_by", "ptr"},
+	"limit":    {"wolf_qb_limit", "ptr"},
+	"offset":   {"wolf_qb_offset", "ptr"},
+	"get":      {"wolf_qb_get", "ptr"},
+	"first":    {"wolf_qb_first", "ptr"},
+	"insert":   {"wolf_qb_insert", "i64"},
+	"update":   {"wolf_qb_update", "i64"},
+	"delete":   {"wolf_qb_delete", "i64"},
+	"paginate": {"wolf_qb_paginate", "ptr"},
+	// Validator methods
+	"passes":    {"wolf_validator_passes", "i1"},
+	"errors":    {"wolf_validator_errors", "ptr"},
+	"validated": {"wolf_validator_validated", "ptr"},
+	// HTTP Response
+	"body":   {"wolf_http_client_res_body", "ptr"},
+	"json":   {"wolf_http_client_res_json", "ptr"},
+	"status": {"wolf_http_client_res_status", "i64"},
+	"ok":     {"wolf_http_client_res_ok", "i64"},
+	"failed": {"wolf_http_client_res_failed", "i64"},
+	"header": {"wolf_http_client_res_header", "ptr"},
+}
+
 func (e *LLVMEmitter) emitMethodCall(mc *ir.MethodCallExpr) string {
 	objVal := e.emitExpr(mc.Object, "ptr")
 
+	// 0. If object is a named variable with a known class, dispatch directly
+	//    to ClassName_method to avoid non-deterministic suffix search.
+	if ident, ok := mc.Object.(*ir.Ident); ok {
+		e.writelnIndent(fmt.Sprintf("; DEBUG ident.Name=%s, varClass=%s", ident.Name, e.varClass[ident.Name]))
+		if className, hasClass := e.varClass[ident.Name]; hasClass {
+			directName := fmt.Sprintf("%s_%s", className, mc.Method)
+			e.writelnIndent(fmt.Sprintf("; DEBUG directName=%s, foundInSigs=%v", directName, e.funcSigs[directName] != nil))
+			if fnSig, found := e.funcSigs[directName]; found {
+				args := []string{fmt.Sprintf("ptr %s", objVal)}
+				for i, arg := range mc.Args {
+					expectedType := "ptr"
+					if fnSig != nil && i+1 < len(fnSig.Params) {
+						expectedType = e.wolfTypeToLLVM(fnSig.Params[i+1].Type)
+					}
+					val := e.emitArgAsString(arg)
+					if expectedType == "i64" {
+						casted := e.nextLocal()
+						e.writelnIndent(fmt.Sprintf("%s = call i64 @wolf_intval(ptr %s)", casted, val))
+						args = append(args, fmt.Sprintf("i64 %s", casted))
+					} else {
+						args = append(args, fmt.Sprintf("ptr %s", val))
+					}
+				}
+				retType := "ptr"
+				if fnSig != nil && len(fnSig.ReturnTypes) > 0 {
+					retType = e.wolfTypeToLLVM(fnSig.ReturnTypes[0])
+				}
+				emitName := directName
+				if !strings.HasPrefix(emitName, "wolf_") {
+					emitName = "wolf_" + emitName
+				}
+				reg := e.nextLocal()
+				if retType == "void" {
+					e.writelnIndent(fmt.Sprintf("call void @%s(%s)", emitName, strings.Join(args, ", ")))
+					e.checkErrorPropagate()
+					return "null"
+				}
+				e.writelnIndent(fmt.Sprintf("%s = call %s @%s(%s)", reg, retType, emitName, strings.Join(args, ", ")))
+				e.checkErrorPropagate()
+				e.emittedTypes[reg] = retType
+				return reg
+			}
+		}
+	}
+
+	// 1. Check explicit dispatch table first (QB / validator methods)
+	if entry, ok := methodDispatch[mc.Method]; ok {
+		fnSig := e.funcSigs[entry.callee]
+		args := []string{fmt.Sprintf("ptr %s", objVal)}
+		for i, arg := range mc.Args {
+			expectedType := "ptr"
+			if fnSig != nil && i+1 < len(fnSig.Params) {
+				expectedType = fnSig.Params[i+1].Type
+			}
+			if expectedType == "i64" {
+				llType := e.inferExprType(arg)
+				val := e.emitExpr(arg, "i64")
+				if llType == "ptr" {
+					casted := e.nextLocal()
+					e.writelnIndent(fmt.Sprintf("%s = call i64 @wolf_intval(ptr %s)", casted, val))
+					val = casted
+				}
+				args = append(args, fmt.Sprintf("i64 %s", val))
+			} else {
+				val := e.emitArgAsString(arg)
+				args = append(args, fmt.Sprintf("ptr %s", val))
+			}
+		}
+		retType := entry.retType
+		reg := e.nextLocal()
+		if retType == "void" {
+			e.writelnIndent(fmt.Sprintf("call void @%s(%s)", entry.callee, strings.Join(args, ", ")))
+			e.checkErrorPropagate()
+			return "null"
+		}
+		e.writelnIndent(fmt.Sprintf("%s = call %s @%s(%s)", reg, retType, entry.callee, strings.Join(args, ", ")))
+		e.checkErrorPropagate()
+		e.emittedTypes[reg] = retType
+		return reg
+	}
+
+	// 2. Fall back: search funcSigs for a function with matching suffix and arity
 	var calleeName string
-	expectedArgs := len(mc.Args) + 1 // +1 for explicit 'this'
+	expectedArgs := len(mc.Args) + 1
 	for name, sig := range e.funcSigs {
 		if strings.HasSuffix(name, "_"+mc.Method) {
 			if len(sig.Params) == expectedArgs {
@@ -2866,8 +3492,6 @@ func (e *LLVMEmitter) emitMethodCall(mc *ir.MethodCallExpr) string {
 		} else {
 			llType := e.inferExprType(arg)
 			val = e.emitExpr(arg, expectedType)
-
-			// Coerce ptr arguments to expected primitive type if necessary
 			if llType == "ptr" {
 				if expectedType == "i64" {
 					casted := e.nextLocal()
@@ -2890,24 +3514,149 @@ func (e *LLVMEmitter) emitMethodCall(mc *ir.MethodCallExpr) string {
 	retType := "ptr"
 	if fnSig != nil && len(fnSig.ReturnTypes) > 0 {
 		retType = e.wolfTypeToLLVM(fnSig.ReturnTypes[0])
-	} else if fnSig == nil {
-		retType = "ptr"
 	}
 
 	emitName := calleeName
-	if fnSig != nil && !strings.HasPrefix(emitName, "wolf_") {
+	if !strings.HasPrefix(emitName, "wolf_") {
 		emitName = "wolf_" + emitName
 	}
 
 	reg := e.nextLocal()
 	if retType == "void" {
 		e.writelnIndent(fmt.Sprintf("call void @%s(%s)", emitName, strings.Join(args, ", ")))
+		e.checkErrorPropagate()
 		return "null"
 	}
-
 	e.writelnIndent(fmt.Sprintf("%s = call %s @%s(%s)", reg, retType, emitName, strings.Join(args, ", ")))
+	e.checkErrorPropagate()
 	e.emittedTypes[reg] = retType
 	return reg
+}
+
+// emitFuncLit lifts a closure / anonymous function to a top-level named LLVM
+// function and returns a typed function pointer (ptr) to it.
+// The closure is appended to e.closureDefs and flushed at the end of Emit.
+func (e *LLVMEmitter) emitFuncLit(fl *ir.FuncLit) string {
+	closureName := fmt.Sprintf("__wolf_closure_%d", e.closureCounter)
+	e.closureCounter++
+
+	var captures []string
+	var captureTypes []string
+	for name, typ := range e.varTypes {
+		captures = append(captures, name)
+		captureTypes = append(captureTypes, typ)
+	}
+
+	closureReg := e.nextLocal()
+	e.writelnIndent(fmt.Sprintf("%s = call ptr @wolf_closure_create(ptr @%s, i64 %d)", closureReg, closureName, len(captures)))
+
+	for i, name := range captures {
+		typ := captureTypes[i]
+		val := e.nextLocal()
+		e.writelnIndent(fmt.Sprintf("%s = load %s, ptr %%%s", val, typ, name))
+		
+		ptrVal := val
+		if typ == "i64" {
+			ptrVal = e.nextLocal()
+			e.writelnIndent(fmt.Sprintf("%s = inttoptr i64 %s to ptr", ptrVal, val))
+		} else if typ == "double" {
+			i64Val := e.nextLocal()
+			e.writelnIndent(fmt.Sprintf("%s = bitcast double %s to i64", i64Val, val))
+			ptrVal = e.nextLocal()
+			e.writelnIndent(fmt.Sprintf("%s = inttoptr i64 %s to ptr", ptrVal, i64Val))
+		} else if typ == "i1" {
+			i64Val := e.nextLocal()
+			e.writelnIndent(fmt.Sprintf("%s = zext i1 %s to i64", i64Val, val))
+			ptrVal = e.nextLocal()
+			e.writelnIndent(fmt.Sprintf("%s = inttoptr i64 %s to ptr", ptrVal, i64Val))
+		}
+		
+		e.writelnIndent(fmt.Sprintf("call void @wolf_closure_set_env(ptr %s, i64 %d, ptr %s)", closureReg, i, ptrVal))
+	}
+
+	var paramParts []string
+	var paramNames []string
+	paramParts = append(paramParts, "ptr %__env_closure_ptr")
+	for _, p := range fl.Params {
+		llType := e.wolfTypeToLLVM(p.Type)
+		if llType == "" {
+			llType = "ptr"
+		}
+		paramParts = append(paramParts, fmt.Sprintf("%s %%%s.arg", llType, p.Name))
+		paramNames = append(paramNames, p.Name)
+	}
+	paramSig := strings.Join(paramParts, ", ")
+
+	savedBuf := e.buf
+	savedLocal := e.localCounter
+	savedIndent := e.indent
+	savedVarTypes := e.varTypes
+	savedRetType := e.currentRetType
+
+	e.buf = strings.Builder{}
+	e.localCounter = 0
+	e.indent = 1
+	e.varTypes = make(map[string]string)
+	e.currentRetType = "ptr"
+
+	for _, p := range fl.Params {
+		e.varTypes[p.Name] = "ptr"
+	}
+	for i, name := range captures {
+		e.varTypes[name] = captureTypes[i]
+	}
+
+	e.collectLocalVars(fl.Body)
+
+	for name, llType := range e.varTypes {
+		e.writelnIndent(fmt.Sprintf("%%%s = alloca %s", name, llType))
+	}
+
+	for _, p := range fl.Params {
+		e.writelnIndent(fmt.Sprintf("store ptr %%%s.arg, ptr %%%s", p.Name, p.Name))
+	}
+
+	for i, name := range captures {
+		typ := captureTypes[i]
+		val := e.nextLocal()
+		e.writelnIndent(fmt.Sprintf("%s = call ptr @wolf_closure_get_env(ptr %%__env_closure_ptr, i64 %d)", val, i))
+		
+		unboxed := val
+		if typ == "i64" {
+			unboxed = e.nextLocal()
+			e.writelnIndent(fmt.Sprintf("%s = ptrtoint ptr %s to i64", unboxed, val))
+		} else if typ == "double" {
+			i64Val := e.nextLocal()
+			e.writelnIndent(fmt.Sprintf("%s = ptrtoint ptr %s to i64", i64Val, val))
+			unboxed = e.nextLocal()
+			e.writelnIndent(fmt.Sprintf("%s = bitcast i64 %s to double", unboxed, i64Val))
+		} else if typ == "i1" {
+			i64Val := e.nextLocal()
+			e.writelnIndent(fmt.Sprintf("%s = ptrtoint ptr %s to i64", i64Val, val))
+			unboxed = e.nextLocal()
+			e.writelnIndent(fmt.Sprintf("%s = trunc i64 %s to i1", unboxed, i64Val))
+		}
+		e.writelnIndent(fmt.Sprintf("store %s %s, ptr %%%s", typ, unboxed, name))
+	}
+
+	for _, stmt := range fl.Body {
+		e.emitStmt(stmt)
+	}
+
+	e.writelnIndent("ret ptr null")
+	closureBody := e.buf.String()
+
+	e.buf = savedBuf
+	e.localCounter = savedLocal
+	e.indent = savedIndent
+	e.varTypes = savedVarTypes
+	e.currentRetType = savedRetType
+
+	e.closureDefs.WriteString(fmt.Sprintf("\ndefine ptr @%s(%s) {\nentry:\n", closureName, paramSig))
+	e.closureDefs.WriteString(closureBody)
+	e.closureDefs.WriteString("}\n")
+
+	return closureReg
 }
 
 func (e *LLVMEmitter) emitStaticCall(sc *ir.StaticCall) string {

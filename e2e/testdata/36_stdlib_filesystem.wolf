@@ -1,0 +1,53 @@
+// STDLIB-07: File System Extensions E2E test
+// Tests: file_copy, file_move, dir_create, path_join, scan_dir
+
+func main() {
+    // --- path_join ---
+    $joined = path_join("/tmp/wolf_test", "file.txt")
+    print($joined)
+
+    // --- dir_create ---
+    $ok = dir_create("/tmp/wolf_test_dir07/sub")
+    if ($ok) {
+        print("dir_create:ok")
+    } else {
+        print("dir_create:fail")
+    }
+
+    // --- file_copy ---
+    file_write("/tmp/wolf_src07.txt", "hello wolf")
+    $cp = file_copy("/tmp/wolf_src07.txt", "/tmp/wolf_dst07.txt")
+    if ($cp) {
+        $content = file_read("/tmp/wolf_dst07.txt")
+        print($content)
+    } else {
+        print("copy:fail")
+    }
+
+    // --- file_move ---
+    $mv = file_move("/tmp/wolf_dst07.txt", "/tmp/wolf_moved07.txt")
+    if ($mv) {
+        $moved = file_read("/tmp/wolf_moved07.txt")
+        print($moved)
+    } else {
+        print("move:fail")
+    }
+
+    // --- scan_dir ---
+    file_write("/tmp/wolf_scandir07/a.txt", "a")
+    file_write("/tmp/wolf_scandir07/b.txt", "b")
+    $result = scan_dir("/tmp/wolf_scandir07")
+    $files = json_decode($result)
+    $cnt = count($files)
+    if ($cnt == 2) {
+        print("scan:2")
+    } else {
+        print("scan:{$cnt}")
+    }
+
+    // --- cleanup ---
+    file_delete("/tmp/wolf_src07.txt")
+    file_delete("/tmp/wolf_moved07.txt")
+    file_delete("/tmp/wolf_scandir07/a.txt")
+    file_delete("/tmp/wolf_scandir07/b.txt")
+}

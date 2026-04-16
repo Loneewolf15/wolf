@@ -1,0 +1,6 @@
+func handler($req: int, $res: int) {
+    wolf_http_res_status($res, 200)
+    wolf_http_res_write($res, "Hello World from Wolf")
+}
+
+wolf_http_serve(8084, handler)

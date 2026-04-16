@@ -2,6 +2,7 @@
 package emitter
 
 import (
+	"reflect"
 	"strings"
 
 	"github.com/wolflang/wolf/internal/ir"
@@ -52,6 +53,9 @@ func (e *IREmitter) Emit(program *parser.Program) *ir.Program {
 		case *parser.ClassDecl:
 			cls := e.emitClass(s)
 			irProg.Classes = append(irProg.Classes, cls)
+		case *parser.InterfaceDecl:
+			iface := e.emitInterface(s)
+			irProg.Interfaces = append(irProg.Interfaces, iface)
 		default:
 			irStmt := e.emitStmt(stmt)
 			if irStmt != nil {
@@ -65,7 +69,99 @@ func (e *IREmitter) Emit(program *parser.Program) *ir.Program {
 		irProg.Imports = append(irProg.Imports, imp)
 	}
 
+	e.instantiateTemplates(irProg)
+
 	return irProg
+}
+
+// instantiateTemplates scans the WIR program for explicit type instantiations
+// (CallExpr with TypeArgs that correspond to constructor calls for template classes),
+// duplicates the template, replaces TypeParams with TypeArgs, appends the concrete
+// class to the WIR, and rewrites the CallExpr's Callee.
+func (e *IREmitter) instantiateTemplates(program *ir.Program) {
+	classTemplates := make(map[string]*ir.Class)
+	var concreteClasses []*ir.Class
+	for _, cls := range program.Classes {
+		if len(cls.TypeParams) > 0 {
+			classTemplates[cls.Name] = cls
+		} else {
+			concreteClasses = append(concreteClasses, cls)
+		}
+	}
+	program.Classes = concreteClasses
+	instantiated := make(map[string]bool)
+
+	// findInstantiations recursively scans WIR
+	var findInstantiations func(v reflect.Value)
+	findInstantiations = func(v reflect.Value) {
+		if !v.IsValid() {
+			return
+		}
+		switch v.Kind() {
+		case reflect.Ptr, reflect.Interface:
+			if !v.IsNil() {
+				if v.Type().String() == "*ir.CallExpr" && v.Kind() == reflect.Ptr {
+					call := v.Interface().(*ir.CallExpr)
+					if len(call.TypeArgs) > 0 {
+						if ident, ok := call.Callee.(*ir.Ident); ok && strings.HasPrefix(ident.Name, "New") {
+							tmplName := ident.Name[3:]
+							if tmpl, ok := classTemplates[tmplName]; ok {
+								instName := tmplName + "_" + strings.Join(call.TypeArgs, "_")
+								ident.Name = "New" + instName
+
+								if !instantiated[instName] {
+									instantiated[instName] = true
+
+									cloned := ir.DeepClone(tmpl)
+									cloned.Name = instName
+									cloned.TypeParams = nil
+
+									if cloned.Constructor != nil {
+										cloned.Constructor.Name = "New" + instName
+									}
+									
+									// Also rename method prefix
+									for _, m := range cloned.Methods {
+										m.Receiver = instName
+									}
+
+									typeEnv := make(map[string]string)
+									for i, p := range tmpl.TypeParams {
+										if i < len(call.TypeArgs) {
+											typeEnv[p] = call.TypeArgs[i]
+										}
+									}
+									ir.ReplaceTypeNames(cloned, typeEnv)
+									program.Classes = append(program.Classes, cloned)
+
+									// Scan the instantiated body recursively
+									findInstantiations(reflect.ValueOf(cloned))
+								}
+							}
+						}
+					}
+				}
+				findInstantiations(v.Elem())
+			}
+		case reflect.Struct:
+			for i := 0; i < v.NumField(); i++ {
+				field := v.Field(i)
+				if field.CanInterface() {
+					findInstantiations(field)
+				}
+			}
+		case reflect.Slice:
+			for i := 0; i < v.Len(); i++ {
+				findInstantiations(v.Index(i))
+			}
+		case reflect.Map:
+			for _, key := range v.MapKeys() {
+				findInstantiations(v.MapIndex(key))
+			}
+		}
+	}
+
+	findInstantiations(reflect.ValueOf(program))
 }
 
 // scanForHTTPHandlers finds route() calls and marks the handler function names.
@@ -115,6 +211,10 @@ func (e *IREmitter) emitStmt(stmt parser.Statement) ir.Stmt {
 		return e.emitTryCatch(s)
 	case *parser.ParallelStmt:
 		return e.emitParallel(s)
+	case *parser.SuperviseBlockStmt:
+		return e.emitSupervise(s)
+	case *parser.TraceBlockStmt:
+		return e.emitTrace(s)
 	case *parser.DestructureAssign:
 		return e.emitDestructure(s)
 	case *parser.BlockStmt:
@@ -361,22 +461,16 @@ func (e *IREmitter) emitMatchStmt(s *parser.MatchStmt) ir.Stmt {
 }
 
 func (e *IREmitter) emitTryCatch(s *parser.TryCatchStmt) ir.Stmt {
-	// Go doesn't have try/catch — emit as defer/recover pattern
-	// Full implementation deferred to Week 7 (needs error interface wiring)
-	e.imports["fmt"] = true
-
 	catchVarName := "err"
 	if s.CatchVar != "" {
 		catchVarName = e.resolveGoName(s.CatchVar)
 	}
 
-	// Emit try body as-is, catch as a comment placeholder
-	stmts := e.emitStmts(s.TryBody.Statements)
-	stmts = append(stmts, &ir.RawStmt{
-		Code: "// catch(" + catchVarName + "): Wolf try/catch → Go recover pattern",
-	})
-
-	return &ir.BlockStmt{Stmts: stmts}
+	return &ir.TryCatchStmt{
+		TryBody:   e.emitStmts(s.TryBody.Statements),
+		CatchVar:  catchVarName,
+		CatchBody: e.emitStmts(s.CatchBody.Statements),
+	}
 }
 
 func (e *IREmitter) emitParallel(s *parser.ParallelStmt) ir.Stmt {
@@ -409,11 +503,28 @@ func (e *IREmitter) emitBlock(s *parser.BlockStmt) ir.Stmt {
 	return &ir.BlockStmt{Stmts: e.emitStmts(s.Statements)}
 }
 
+func (e *IREmitter) emitSupervise(s *parser.SuperviseBlockStmt) ir.Stmt {
+	return &ir.SuperviseStmt{
+		Strategy: s.Strategy,
+		Restart:  s.Restart,
+		Max:      s.Max,
+		Body:     e.emitStmts(s.Body.Statements),
+	}
+}
+
+func (e *IREmitter) emitTrace(s *parser.TraceBlockStmt) ir.Stmt {
+	return &ir.TraceStmt{
+		SpanName: e.emitExpr(s.SpanName),
+		Body:     e.emitStmts(s.Body.Statements),
+	}
+}
+
 // ========== Function & Class Emission ==========
 
 func (e *IREmitter) emitFunction(f *parser.FuncDecl) *ir.Function {
 	fn := &ir.Function{
-		Name: f.Name,
+		Name:       f.Name,
+		TypeParams: f.TypeParams,
 	}
 
 	// If the function has a return type, use it as default for untyped params
@@ -456,8 +567,10 @@ func (e *IREmitter) emitFunction(f *parser.FuncDecl) *ir.Function {
 
 func (e *IREmitter) emitClass(c *parser.ClassDecl) *ir.Class {
 	cls := &ir.Class{
-		Name:    c.Name,
-		Extends: c.Extends,
+		Name:       c.Name,
+		Extends:    c.Extends,
+		TypeParams: c.TypeParams,
+		Implements: c.Implements,
 	}
 
 	for _, prop := range c.Properties {
@@ -491,6 +604,27 @@ func (e *IREmitter) emitClass(c *parser.ClassDecl) *ir.Class {
 	}
 
 	return cls
+}
+
+// emitInterface converts an InterfaceDecl AST node into a WIR Interface.
+func (e *IREmitter) emitInterface(n *parser.InterfaceDecl) *ir.Interface {
+	iface := &ir.Interface{Name: n.Name}
+	for _, m := range n.Methods {
+		sig := &ir.InterfaceMethodSig{Name: m.Name}
+		for _, p := range m.Params {
+			sig.Params = append(sig.Params, &ir.Param{
+				Name: e.resolveGoName(p.Name),
+				Type: e.wolfTypeToGo(p.TypeName),
+			})
+		}
+		if m.ReturnType != nil {
+			for _, rt := range m.ReturnType.Types {
+				sig.ReturnTypes = append(sig.ReturnTypes, e.wolfTypeToGo(rt))
+			}
+		}
+		iface.Methods = append(iface.Methods, sig)
+	}
+	return iface
 }
 
 // ========== Expression Emission ==========
@@ -547,7 +681,7 @@ func (e *IREmitter) emitExpr(expr parser.Expression) ir.Expr {
 		for _, na := range ex.NamedArgs {
 			args = append(args, e.emitExpr(na.Value))
 		}
-		return &ir.CallExpr{Callee: e.emitExpr(ex.Callee), Args: args}
+		return &ir.CallExpr{Callee: e.emitExpr(ex.Callee), TypeArgs: ex.TypeArgs, Args: args}
 
 	case *parser.PropertyAccess:
 		return &ir.FieldAccess{
@@ -585,6 +719,9 @@ func (e *IREmitter) emitExpr(expr parser.Expression) ir.Expr {
 			Args:   args,
 		}
 
+	case *parser.EnumAccess:
+		return &ir.StringLit{Value: ex.Variant}
+
 	case *parser.IndexExpr:
 		return &ir.IndexExpr{
 			Object: e.emitExpr(ex.Object),
@@ -615,8 +752,9 @@ func (e *IREmitter) emitExpr(expr parser.Expression) ir.Expr {
 			args = append(args, e.emitExpr(a))
 		}
 		return &ir.CallExpr{
-			Callee: &ir.Ident{Name: "New" + ex.ClassName},
-			Args:   args,
+			Callee:   &ir.Ident{Name: "New" + ex.ClassName},
+			TypeArgs: ex.TypeArgs,
+			Args:     args,
 		}
 
 	case *parser.ClosureExpr:

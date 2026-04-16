@@ -89,7 +89,10 @@ func generateModelFactoryAST(program *parser.Program) parser.Statement {
 			// If it's not a Controller, assume it's a Model for now
 			if len(classDecl.Name) < 10 || classDecl.Name[len(classDecl.Name)-10:] != "Controller" {
 				if classDecl.Name != "Controller" && classDecl.Name != "Database" && classDecl.Name != "Request" && classDecl.Name != "Response" {
-					models = append(models, classDecl.Name)
+					// Generic template classes cannot be instantiated without type arguments
+					if len(classDecl.TypeParams) == 0 {
+						models = append(models, classDecl.Name)
+					}
 				}
 			}
 		}
