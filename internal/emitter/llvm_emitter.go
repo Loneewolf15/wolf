@@ -242,6 +242,17 @@ func (e *LLVMEmitter) Emit(program *ir.Program) string {
 		e.writelnIndent("ret i32 0")
 		e.indent--
 		e.writeln("}")
+	} else if _, hasFuncMain := e.funcSigs["main"]; hasFuncMain {
+		// Wolf file declares `func main() { ... }` — emit a C entry stub
+		// that calls @wolf_main() so the linker finds 'main'.
+		e.writeln("define i32 @main(i32 %argc, ptr %argv) {")
+		e.writeln("entry:")
+		e.indent++
+		e.writelnIndent("call void @wolf_init_args(i32 %argc, ptr %argv)")
+		e.writelnIndent("call void @wolf_main()")
+		e.writelnIndent("ret i32 0")
+		e.indent--
+		e.writeln("}")
 	}
 
 	// Now assemble: header + string constants + body
@@ -878,10 +889,15 @@ func (e *LLVMEmitter) emitFunction(fn *ir.Function) {
 	e.writeln("entry:")
 	e.indent++
 
-	// Reset local var types (but keep param types!)
+	// Reset local var types and instance tracking per function
 	oldVarTypes := e.varTypes
 	e.varTypes = make(map[string]string)
 	e.emittedTypes = make(map[string]string)
+	oldVarClass := e.varClass
+	e.varClass = make(map[string]string)
+	if fn.IsMethod && fn.Receiver != "" {
+		e.varClass["this"] = fn.Receiver
+	}
 
 	// Register parameters first
 	for _, p := range fn.Params {
@@ -913,6 +929,7 @@ func (e *LLVMEmitter) emitFunction(fn *ir.Function) {
 	}
 
 	e.varTypes = oldVarTypes
+	e.varClass = oldVarClass
 	e.indent--
 	e.writeln("}")
 }
@@ -937,6 +954,9 @@ func (e *LLVMEmitter) emitConstructor(fn *ir.Function, className string) {
 	oldVarTypes := e.varTypes
 	e.varTypes = make(map[string]string)
 	e.emittedTypes = make(map[string]string)
+	oldVarClass := e.varClass
+	e.varClass = make(map[string]string)
+	e.varClass["this"] = className
 
 	// Register parameters first
 	for _, p := range fn.Params {
@@ -977,6 +997,7 @@ func (e *LLVMEmitter) emitConstructor(fn *ir.Function, className string) {
 	e.writelnIndent(fmt.Sprintf("ret ptr %s", retReg))
 
 	e.varTypes = oldVarTypes
+	e.varClass = oldVarClass
 	e.indent--
 	e.writeln("}")
 }
@@ -1320,7 +1341,13 @@ func (e *LLVMEmitter) inferExprType(expr ir.Expr) string {
 				"wolf_intval", "wolf_intdiv", "wolf_count", "wolf_strcmp", "wolf_strlen", "wolf_strpos", "wolf_strrpos", "wolf_argc",
 				"wolf_math_random", "wolf_rand_hex", "wolf_strings_length", "wolf_array_length",
 				"preg_match_all", "wolf_preg_match_all",
-				"redis_del", "wolf_redis_del", "randomint", "wolf_math_randomint":
+				"redis_del", "wolf_redis_del", "randomint", "wolf_math_randomint",
+				// Money arithmetic — all return i64 (cents)
+				"money_add", "wolf_money_add",
+				"money_subtract", "wolf_money_subtract",
+				"money_multiply", "wolf_money_multiply",
+				"money_divide", "wolf_money_divide",
+				"money_percentage", "wolf_money_percentage":
 				return "i64"
 			case "wolf_http_request", "wolf_http_get", "wolf_http_post", "wolf_http_put", "wolf_http_delete", "wolf_http_patch",
 				"wolf_http_client_res_body", "wolf_http_client_res_json", "wolf_http_client_res_header",
@@ -1331,7 +1358,16 @@ func (e *LLVMEmitter) inferExprType(expr ir.Expr) string {
 			case "redis_exists", "wolf_redis_exists", "wolf_boolval", "wolf_is_numeric", "wolf_defined", "wolf_is_email",
 				"date_is_past", "date_is_future", "isempty", "wolf_strings_isempty",
 				"wolf_date_is_past", "wolf_date_is_future",
-				"preg_match", "wolf_preg_match":
+				"preg_match", "wolf_preg_match",
+				// Filesystem ops — all return i1 (bool)
+				"file_exists", "wolf_file_exists",
+				"file_write", "wolf_file_write",
+				"file_append", "wolf_file_append",
+				"file_delete", "wolf_file_delete",
+				"file_copy", "wolf_file_copy",
+				"file_move", "wolf_file_move",
+				"dir_exists", "wolf_dir_exists",
+				"dir_create", "wolf_dir_create":
 				return "i1"
 			case "wolf_http_client_res_status", "wolf_http_client_res_ok", "wolf_http_client_res_failed":
 				return "i64"
@@ -3081,6 +3117,21 @@ func (e *LLVMEmitter) emitCallExpr(call *ir.CallExpr) string {
 				}
 			case "wolf_sprintf":
 				expectedType = "ptr"
+			// Money functions: arg0 = i64 cents, arg1 = ptr (currency symbol or i64)
+			case "wolf_money_format":
+				if i == 0 {
+					expectedType = "i64"
+				} else {
+					expectedType = "ptr"
+				}
+			case "wolf_money_add", "wolf_money_subtract":
+				expectedType = "i64"
+			case "wolf_money_multiply", "wolf_money_divide", "wolf_money_percentage":
+				if i == 0 {
+					expectedType = "i64"
+				} else {
+					expectedType = "double"
+				}
 			}
 		}
 		var val string
@@ -3147,7 +3198,10 @@ func (e *LLVMEmitter) emitCallExpr(call *ir.CallExpr) string {
 			"wolf_strtotime", "wolf_file_size", "wolf_db_execute", "wolf_db_row_count", "wolf_db_last_insert_id", "wolf_math_random",
 			"wolf_string_length", "wolf_array_length", "wolf_argc",
 			"wolf_preg_match_all",
-			"wolf_qb_insert", "wolf_qb_update", "wolf_qb_delete":
+			"wolf_qb_insert", "wolf_qb_update", "wolf_qb_delete",
+			// Money arithmetic — return i64 (cents)
+			"wolf_money_add", "wolf_money_subtract",
+			"wolf_money_multiply", "wolf_money_divide", "wolf_money_percentage":
 			retType = "i64"
 		case "wolf_date_to_iso":
 			retType = "ptr"

@@ -1,0 +1,22 @@
+// BUG-050: Filesystem bool-return functions produce LLVM type mismatch
+// Trigger: Assign return value of dir_create / file_copy / file_move / file_exists
+//          (or any i1-returning FS function) to a local variable.
+// Expected: Compiles and links successfully; variable has type i1.
+// Actual:   LLC error: '%tN' defined with type 'i1' but expected 'ptr'
+//           because collectLocalVars called inferExprType which had no entry
+//           for filesystem functions → defaulted to ptr → wrong alloca type.
+
+func main() {
+    $ok = dir_create("/tmp/_bug_050_test")
+    if ($ok) {
+        print("created")
+    } else {
+        print("fail")
+    }
+    $cp = file_write("/tmp/_bug_050_a.txt", "hello")
+    if ($cp) {
+        print("wrote")
+    }
+    file_delete("/tmp/_bug_050_a.txt")
+    file_delete("/tmp/_bug_050_test")
+}

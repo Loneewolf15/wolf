@@ -266,3 +266,9 @@ live beyond its test window regardless of what it does.
 
 **MRS:** `e2e/testdata/_bug_041.wolf`
 **Commit:** `fix(runtime): add wolf_http_res_status forward decl + wolf_req_strdup OOM guard`
+
+### BUG-051: LLVM method dispatch panic due to varClass leaking and missing 'this' tracking
+- **Class:** P0 🔴 Compiler Panic
+- **Root cause:** `emitMethodCall` correctly checked `e.varClass` to resolve the direct method name, but `e.varClass` was completely untracked during method generation (no `$this` object was injected) and it was not reset per function body, causing global variable namespace collisions.
+- **Fix:** Refactored `emitFunction` in `llvm_emitter.go` to properly isolate `e.varClass` per function execution and inject `e.varClass["this"] = fn.Receiver` when generating methods, resolving the fallback correctly for inherited methods.
+- **File:** `internal/emitter/llvm_emitter.go`
