@@ -50,8 +50,9 @@ const (
 	TOKEN_IMPORT     // import
 	TOKEN_PRINT      // print
 	TOKEN_VAR        // var
-	TOKEN_PRIVATE    // private
-	TOKEN_PUBLIC     // public
+	TOKEN_PRIVATE    // private / pri
+	TOKEN_PUBLIC     // public / pub
+	TOKEN_PROTECTED  // protected / pro
 	TOKEN_STATIC     // static
 	TOKEN_AS         // as
 	TOKEN_IN         // in
@@ -167,6 +168,7 @@ var tokenTypeNames = map[TokenType]string{
 	TOKEN_VAR:                 "VAR",
 	TOKEN_PRIVATE:             "PRIVATE",
 	TOKEN_PUBLIC:              "PUBLIC",
+	TOKEN_PROTECTED:           "PROTECTED",
 	TOKEN_STATIC:              "STATIC",
 	TOKEN_AS:                  "AS",
 	TOKEN_IN:                  "IN",
@@ -259,7 +261,11 @@ var keywords = map[string]TokenType{
 	"print":      TOKEN_PRINT,
 	"var":        TOKEN_VAR,
 	"private":    TOKEN_PRIVATE,
+	"pri":        TOKEN_PRIVATE, // short alias — backward compat
 	"public":     TOKEN_PUBLIC,
+	"pub":        TOKEN_PUBLIC, // short alias — backward compat
+	"protected":  TOKEN_PROTECTED,
+	"pro":        TOKEN_PROTECTED, // short alias — backward compat
 	"static":     TOKEN_STATIC,
 	"true":       TOKEN_BOOL_TRUE,
 	"false":      TOKEN_BOOL_FALSE,

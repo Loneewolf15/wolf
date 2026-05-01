@@ -1,0 +1,44 @@
+# 43_visibility.wolf
+# Tests explicitly the 'public', 'protected', and 'private' visibility keywords.
+
+class Animal {
+    public $name: string
+    protected $sound: string
+    private $age: int
+
+    public func __construct($n: string, $s: string) {
+        $this.name = $n
+        $this.sound = $s
+        $this.age = 5
+    }
+
+    public func speak() {
+        print($this.name)
+    }
+
+    protected func makeSound() {
+        print($this.sound)
+    }
+
+    private func getAge() -> int {
+        return $this.age
+    }
+
+    public func printAge() {
+        print($this->getAge())
+    }
+}
+
+class Dog extends Animal {
+    public func bark() {
+        # Child can access parent protected method
+        $this->makeSound()
+    }
+}
+
+$a = new Animal("Generic", "Moo")
+$a->speak()
+$a->printAge()
+
+$d = new Dog("Buddy", "Woof")
+$d->bark()

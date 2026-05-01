@@ -356,7 +356,7 @@ func (p *Parser) parseClassDecl() *ClassDecl {
 
 	for !p.check(lexer.TOKEN_RBRACE) && !p.isAtEnd() {
 		visibility := ""
-		if p.check(lexer.TOKEN_PRIVATE) || p.check(lexer.TOKEN_PUBLIC) || p.check(lexer.TOKEN_STATIC) {
+		if p.check(lexer.TOKEN_PRIVATE) || p.check(lexer.TOKEN_PUBLIC) || p.check(lexer.TOKEN_PROTECTED) || p.check(lexer.TOKEN_STATIC) {
 			visibility = p.advance().Literal
 		}
 
