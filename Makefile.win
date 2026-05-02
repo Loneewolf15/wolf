@@ -1,0 +1,36 @@
+BINARY_NAME = wolf.exe
+BUILD_DIR = .
+GO = go
+GOFLAGS = -v
+
+# ─── Version info baked into the binary ──────────────────────────────────────
+# Getting git version in pure cmd.exe can be complex, defaulting to "dev"
+VERSION = dev
+LDFLAGS = -ldflags "-s -w -X main.Version=$(VERSION)"
+
+# ─── Primary build ────────────────────────────────────────────────────────────
+
+build:
+	$(GO) build $(GOFLAGS) $(LDFLAGS) -o $(BUILD_DIR)\$(BINARY_NAME) .\cmd\wolf
+
+# ─── Testing ──────────────────────────────────────────────────────────────────
+
+test:
+	$(GO) test .\... -v -timeout 30m
+
+# ─── Dev helpers ──────────────────────────────────────────────────────────────
+
+run: build
+	.\$(BINARY_NAME)
+
+fmt:
+	$(GO) fmt .\...
+
+clean:
+	@echo Removing binaries...
+	if exist $(BINARY_NAME) del /F /Q $(BINARY_NAME)
+	if exist *-windows-amd64.exe del /F /Q *-windows-amd64.exe
+	if exist *-windows-arm64.exe del /F /Q *-windows-arm64.exe
+	@echo Removing build output directories...
+	if exist wolf_out rmdir /S /Q wolf_out
+	@echo Clean complete.

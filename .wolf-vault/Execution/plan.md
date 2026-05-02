@@ -52,6 +52,16 @@ graph TD
 
 ## Session History
 
+### 2026-05-02 (Session 20 — DNS Timeout, gofmt CI Fix, Scout Agent)
+**Done:**
+- Implemented 2s timeout for `wolf_dns_lookup` (P0 roadmap) using detached pthread + `pthread_cond_timedwait`. Worker thread safely frees context on main thread timeout.
+- Fixed CI pipeline gofmt failure (`internal/emitter/llvm_emitter.go`, `internal/parser/parser.go`).
+- Cross-compiled `wolf-windows-amd64.exe` for Windows installation testing.
+- Created `Makefile.win` for Windows-native Make support.
+- Created **Scout** agent (`.wolf-vault/Agents/scout.md`) — the Wolf Pack's documentation writer.
+- All `./internal/...` unit tests pass ✅.
+- Commits: `16b0a86`, `5fb39d4`, `77c6c4b`
+
 ### 2026-05-02 (Session 18 — BUG-050 Fix: Package System Namespace Double-Mangling)
 **Done:**
 - Diagnosed and fixed BUG-050 (P0 SIGSEGV): methods inside a namespaced class were being double-prefixed with the namespace, generating `wolf_Dummy_Api_Dummy_get` instead of `wolf_Dummy_Api_get`.
