@@ -10,8 +10,9 @@ import (
 type Parser struct {
 	tokens  []lexer.Token
 	current int
-	errors  []*lexer.WolfError
-	file    string
+	errors    []*lexer.WolfError
+	file      string
+	namespace string
 }
 
 // New creates a new Parser for the given token slice.
@@ -106,8 +107,8 @@ func (p *Parser) parseStatement() Statement {
 	case lexer.TOKEN_TRY:
 		return p.parseTryCatchStmt()
 
-	case lexer.TOKEN_IMPORT:
-		return p.parseImportStmt()
+	case lexer.TOKEN_NAMESPACE:
+		return p.parseNamespaceDecl()
 
 	case lexer.TOKEN_AT_ML:
 		return p.parseMLBlockStmt()
@@ -143,6 +144,10 @@ func (p *Parser) parseFuncDecl() *FuncDecl {
 	name := ""
 	if p.check(lexer.TOKEN_IDENT) {
 		name = p.advance().Literal
+	}
+
+	if p.namespace != "" && name != "" {
+		name = p.namespace + "_" + name
 	}
 
 	typeParams := p.parseTypeParams()
@@ -282,6 +287,10 @@ func (p *Parser) parseEnumDecl() *EnumDecl {
 		p.addError("expected enum name")
 	}
 
+	if p.namespace != "" {
+		name = p.namespace + "_" + name
+	}
+
 	p.expect(lexer.TOKEN_LBRACE, "expected '{' after enum name")
 
 	var variants []string
@@ -319,6 +328,10 @@ func (p *Parser) parseClassDecl() *ClassDecl {
 		p.addError("expected class name")
 	}
 
+	if p.namespace != "" {
+		name = p.namespace + "_" + name
+	}
+
 	typeParams := p.parseTypeParams()
 
 	extends := ""
@@ -354,6 +367,13 @@ func (p *Parser) parseClassDecl() *ClassDecl {
 	var properties []*PropertyDecl
 	var methods []*FuncDecl
 
+	// Methods inside a class must NOT inherit the namespace prefix.
+	// The class name already carries the namespace (e.g. "Dummy_Api"), so
+	// applying it again to method names would produce double-mangled names
+	// like "Dummy_Api_Dummy_get" instead of the correct "Dummy_Api_get".
+	savedNamespace := p.namespace
+	p.namespace = ""
+
 	for !p.check(lexer.TOKEN_RBRACE) && !p.isAtEnd() {
 		visibility := ""
 		if p.check(lexer.TOKEN_PRIVATE) || p.check(lexer.TOKEN_PUBLIC) || p.check(lexer.TOKEN_PROTECTED) || p.check(lexer.TOKEN_STATIC) {
@@ -371,6 +391,9 @@ func (p *Parser) parseClassDecl() *ClassDecl {
 			p.advance()
 		}
 	}
+
+	// Restore namespace for any top-level declarations that follow this class.
+	p.namespace = savedNamespace
 
 	p.expect(lexer.TOKEN_RBRACE, "expected '}' to close class body")
 
@@ -396,6 +419,10 @@ func (p *Parser) parseInterfaceDecl() *InterfaceDecl {
 		name = p.advance().Literal
 	} else {
 		p.addError("expected interface name")
+	}
+
+	if p.namespace != "" {
+		name = p.namespace + "_" + name
 	}
 
 	p.expect(lexer.TOKEN_LBRACE, "expected '{' after interface name")
@@ -744,20 +771,25 @@ func (p *Parser) parseTryCatchStmt() *TryCatchStmt {
 	}
 }
 
-// ---- import ----
+// ---- namespace ----
 
-func (p *Parser) parseImportStmt() *ImportStmt {
+func (p *Parser) parseNamespaceDecl() *NamespaceDecl {
 	pos := p.currentPos()
-	p.advance() // consume 'import'
+	p.advance() // consume 'namespace'
 
-	path := ""
-	if p.check(lexer.TOKEN_STRING) {
-		path = p.advance().Literal
+	name := ""
+	if p.check(lexer.TOKEN_IDENT) {
+		name = p.advance().Literal
 	} else {
-		p.addError("expected string after 'import'")
+		p.addError("expected identifier after 'namespace'")
+	}
+	
+	if p.check(lexer.TOKEN_SEMICOLON) {
+		p.advance()
 	}
 
-	return &ImportStmt{Path: path, Pos_: pos}
+	p.namespace = name
+	return &NamespaceDecl{Name: name, Pos_: pos}
 }
 
 // ---- @ml block ----
@@ -1702,7 +1734,7 @@ func (p *Parser) isKeywordIdent() bool {
 	switch p.peek().Type {
 	case lexer.TOKEN_ERROR, lexer.TOKEN_CLASS, lexer.TOKEN_NEW,
 		lexer.TOKEN_MATCH, lexer.TOKEN_PRINT,
-		lexer.TOKEN_TRY, lexer.TOKEN_CATCH, lexer.TOKEN_IMPORT:
+		lexer.TOKEN_TRY, lexer.TOKEN_CATCH, lexer.TOKEN_NAMESPACE:
 		return true
 	}
 	return false
