@@ -18,6 +18,9 @@ import (
 )
 
 func TestFileUpload(t *testing.T) {
+	if os.Getenv("CI") != "" {
+		t.Skip("skipping server test in CI (port binding not available)")
+	}
 	wolfFile := "testdata/_server_upload.wolf"
 	source, err := os.ReadFile(wolfFile)
 	if err != nil {

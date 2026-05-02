@@ -76,6 +76,9 @@ func TestWebSocketHandshake(t *testing.T) {
 }
 
 func TestWebSocketEcho(t *testing.T) {
+	if os.Getenv("CI") != "" {
+		t.Skip("skipping WebSocket echo test in CI (port binding not available)")
+	}
 	wolfFile := filepath.Join("testdata", "31_websocket.wolf")
 	cmd := exec.Command("../wolf", "run", wolfFile)
 	cmd.Env = append(os.Environ(), "WOLF_PORT=8083")
@@ -135,6 +138,7 @@ func TestWebSocketEcho(t *testing.T) {
 	// Read Echo Response (Unmasked Text Frame)
 	echoBuf := make([]byte, 1024)
 	totalRead := 0
+	conn.SetDeadline(time.Now().Add(10 * time.Second))
 	for totalRead < len("Echo: Hello Wolf!")+2 {
 		n, err = conn.Read(echoBuf[totalRead:])
 		if err != nil {

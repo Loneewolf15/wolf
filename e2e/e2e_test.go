@@ -14,11 +14,13 @@ import (
 )
 
 // isHTTPTest returns true for tests that require a live network or bind a
-// server port (30_* = HTTP client, 31_* = WebSocket server).
+// server port (30_* = HTTP client, 31_* = WebSocket server, 37_http_client = outbound HTTP).
 // These tests are skipped unless WOLF_HTTP_TEST=1 is set locally,
 // and are always skipped in CI (where the network is unavailable).
 func isHTTPTest(name string) bool {
-	return strings.HasPrefix(name, "30_") || strings.HasPrefix(name, "31_")
+	return strings.HasPrefix(name, "30_") ||
+		strings.HasPrefix(name, "31_") ||
+		name == "37_http_client.wolf"
 }
 
 func TestEndToEnd(t *testing.T) {
