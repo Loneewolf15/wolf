@@ -14,12 +14,131 @@
 >> llc finished
 >> Checking compiled
 >> Setting up wolf runtime args
-[Wolf] FD limit set to 65535.
-🐺 Wolf HTTP Server running on port 8082...
-[WOLF-POOL] Spawning 64 worker threads (lock-free per-core queues + work-stealing)...
-[WOLF-POOL] Shared/container/macOS/Windows mode — skipping affinity + RT.
-[WOLF-POOL] Pool ready (64 threads).
-[WOLF-WS] poller_add called fd=7 id=0
-[WOLF-WS] epoll_ctl ADD fd=7 id=0 rc=0
-[WOLF-POLLER] epoll fired n=1
-[WOLF-POLLER] handling event ID=0
+🐺 Wolf HTTP Engine — 64 cores, port 8082
+   Architecture: Thread-Per-Core + epoll (Phase 1)
+   Arena pool: 128 × 64KB per core
+   Send SIGTERM or Ctrl+C to shut down gracefully.
+[WOLF-ENGINE] Core 0 started (tid=139980618499776)
+[WOLF-ENGINE] Core 1 started (tid=139980610107072)
+[WOLF-ENGINE] Core 2 started (tid=139980601714368)
+[WOLF-ENGINE] Core 3 started (tid=139980593321664)
+[WOLF-ENGINE] Warning: could not pin thread to core 4: Invalid argument
+[WOLF-ENGINE] Core 4 started (tid=139980584928960)
+[WOLF-ENGINE] Warning: could not pin thread to core 5: Invalid argument
+[WOLF-ENGINE] Core 5 started (tid=139980576536256)
+[WOLF-ENGINE] Warning: could not pin thread to core 6: Invalid argument
+[WOLF-ENGINE] Core 6 started (tid=139980568143552)
+[WOLF-ENGINE] Warning: could not pin thread to core 7: Invalid argument
+[WOLF-ENGINE] Core 7 started (tid=139980559750848)
+[WOLF-ENGINE] Warning: could not pin thread to core 8: Invalid argument
+[WOLF-ENGINE] Core 8 started (tid=139980551358144)
+[WOLF-ENGINE] Warning: could not pin thread to core 9: Invalid argument
+[WOLF-ENGINE] Core 9 started (tid=139980542965440)
+[WOLF-ENGINE] Warning: could not pin thread to core 10: Invalid argument
+[WOLF-ENGINE] Core 10 started (tid=139980534572736)
+[WOLF-ENGINE] Warning: could not pin thread to core 11: Invalid argument
+[WOLF-ENGINE] Core 11 started (tid=139980526180032)
+[WOLF-ENGINE] Warning: could not pin thread to core 12: Invalid argument
+[WOLF-ENGINE] Core 12 started (tid=139980517787328)
+[WOLF-ENGINE] Warning: could not pin thread to core 13: Invalid argument
+[WOLF-ENGINE] Core 13 started (tid=139980509394624)
+[WOLF-ENGINE] Warning: could not pin thread to core 14: Invalid argument
+[WOLF-ENGINE] Core 14 started (tid=139980501001920)
+[WOLF-ENGINE] Warning: could not pin thread to core 15: Invalid argument
+[WOLF-ENGINE] Core 15 started (tid=139980492609216)
+[WOLF-ENGINE] Warning: could not pin thread to core 16: Invalid argument
+[WOLF-ENGINE] Core 16 started (tid=139980484216512)
+[WOLF-ENGINE] Warning: could not pin thread to core 17: Invalid argument
+[WOLF-ENGINE] Core 17 started (tid=139980475823808)
+[WOLF-ENGINE] Warning: could not pin thread to core 18: Invalid argument
+[WOLF-ENGINE] Core 18 started (tid=139980467431104)
+[WOLF-ENGINE] Warning: could not pin thread to core 19: Invalid argument
+[WOLF-ENGINE] Core 19 started (tid=139980459038400)
+[WOLF-ENGINE] Warning: could not pin thread to core 20: Invalid argument
+[WOLF-ENGINE] Core 20 started (tid=139980450645696)
+[WOLF-ENGINE] Warning: could not pin thread to core 21: Invalid argument
+[WOLF-ENGINE] Core 21 started (tid=139980442252992)
+[WOLF-ENGINE] Warning: could not pin thread to core 23: Invalid argument
+[WOLF-ENGINE] Core 23 started (tid=139980425467584)
+[WOLF-ENGINE] Warning: could not pin thread to core 24: Invalid argument
+[WOLF-ENGINE] Core 24 started (tid=139980417074880)
+[WOLF-ENGINE] Warning: could not pin thread to core 25: Invalid argument
+[WOLF-ENGINE] Core 25 started (tid=139980408682176)
+[WOLF-ENGINE] Warning: could not pin thread to core 26: Invalid argument
+[WOLF-ENGINE] Core 26 started (tid=139980400289472)
+[WOLF-ENGINE] Warning: could not pin thread to core 27: Invalid argument
+[WOLF-ENGINE] Core 27 started (tid=139980391896768)
+[WOLF-ENGINE] Warning: could not pin thread to core 22: Invalid argument
+[WOLF-ENGINE] Core 22 started (tid=139980433860288)
+[WOLF-ENGINE] Warning: could not pin thread to core 29: Invalid argument
+[WOLF-ENGINE] Core 29 started (tid=139980375111360)
+[WOLF-ENGINE] Warning: could not pin thread to core 28: Invalid argument
+[WOLF-ENGINE] Core 28 started (tid=139980383504064)
+[WOLF-ENGINE] Warning: could not pin thread to core 30: Invalid argument
+[WOLF-ENGINE] Core 30 started (tid=139980366718656)
+[WOLF-ENGINE] Warning: could not pin thread to core 31: Invalid argument
+[WOLF-ENGINE] Core 31 started (tid=139980358325952)
+[WOLF-ENGINE] Warning: could not pin thread to core 32: Invalid argument
+[WOLF-ENGINE] Core 32 started (tid=139980349933248)
+[WOLF-ENGINE] Warning: could not pin thread to core 33: Invalid argument
+[WOLF-ENGINE] Core 33 started (tid=139980341540544)
+[WOLF-ENGINE] Warning: could not pin thread to core 35: Invalid argument
+[WOLF-ENGINE] Core 35 started (tid=139980324755136)
+[WOLF-ENGINE] Warning: could not pin thread to core 34: Invalid argument
+[WOLF-ENGINE] Core 34 started (tid=139980333147840)
+[WOLF-ENGINE] Warning: could not pin thread to core 36: Invalid argument
+[WOLF-ENGINE] Core 36 started (tid=139980316362432)
+[WOLF-ENGINE] Warning: could not pin thread to core 37: Invalid argument
+[WOLF-ENGINE] Core 37 started (tid=139980307969728)
+[WOLF-ENGINE] Warning: could not pin thread to core 38: Invalid argument
+[WOLF-ENGINE] Core 38 started (tid=139980299577024)
+[WOLF-ENGINE] Warning: could not pin thread to core 39: Invalid argument
+[WOLF-ENGINE] Core 39 started (tid=139980291184320)
+[WOLF-ENGINE] Warning: could not pin thread to core 40: Invalid argument
+[WOLF-ENGINE] Core 40 started (tid=139980282791616)
+[WOLF-ENGINE] Warning: could not pin thread to core 41: Invalid argument
+[WOLF-ENGINE] Core 41 started (tid=139980274398912)
+[WOLF-ENGINE] Warning: could not pin thread to core 43: Invalid argument
+[WOLF-ENGINE] Core 43 started (tid=139980257613504)
+[WOLF-ENGINE] Warning: could not pin thread to core 42: Invalid argument
+[WOLF-ENGINE] Core 42 started (tid=139980266006208)
+[WOLF-ENGINE] Warning: could not pin thread to core 45: Invalid argument
+[WOLF-ENGINE] Core 45 started (tid=139980240828096)
+[WOLF-ENGINE] Warning: could not pin thread to core 44: Invalid argument
+[WOLF-ENGINE] Core 44 started (tid=139980249220800)
+[WOLF-ENGINE] Warning: could not pin thread to core 46: Invalid argument
+[WOLF-ENGINE] Core 46 started (tid=139980164822720)
+[WOLF-ENGINE] Warning: could not pin thread to core 47: Invalid argument
+[WOLF-ENGINE] Core 47 started (tid=139980156430016)
+[WOLF-ENGINE] Warning: could not pin thread to core 48: Invalid argument
+[WOLF-ENGINE] Core 48 started (tid=139980148037312)
+[WOLF-ENGINE] Warning: could not pin thread to core 49: Invalid argument
+[WOLF-ENGINE] Core 49 started (tid=139980139644608)
+[WOLF-ENGINE] Warning: could not pin thread to core 50: Invalid argument
+[WOLF-ENGINE] Core 50 started (tid=139980131251904)
+[WOLF-ENGINE] Warning: could not pin thread to core 51: Invalid argument
+[WOLF-ENGINE] Core 51 started (tid=139980122859200)
+[WOLF-ENGINE] Warning: could not pin thread to core 52: Invalid argument
+[WOLF-ENGINE] Core 52 started (tid=139980114466496)
+[WOLF-ENGINE] Warning: could not pin thread to core 53: Invalid argument
+[WOLF-ENGINE] Core 53 started (tid=139980106073792)
+[WOLF-ENGINE] Warning: could not pin thread to core 54: Invalid argument
+[WOLF-ENGINE] Core 54 started (tid=139980097681088)
+[WOLF-ENGINE] Warning: could not pin thread to core 55: Invalid argument
+[WOLF-ENGINE] Core 55 started (tid=139980089288384)
+[WOLF-ENGINE] Warning: could not pin thread to core 56: Invalid argument
+[WOLF-ENGINE] Core 56 started (tid=139980080895680)
+[WOLF-ENGINE] Warning: could not pin thread to core 57: Invalid argument
+[WOLF-ENGINE] Core 57 started (tid=139980072502976)
+[WOLF-ENGINE] Warning: could not pin thread to core 59: Invalid argument
+[WOLF-ENGINE] Core 59 started (tid=139980055717568)
+[WOLF-ENGINE] Warning: could not pin thread to core 58: Invalid argument
+[WOLF-ENGINE] Core 58 started (tid=139980064110272)
+[WOLF-ENGINE] Warning: could not pin thread to core 60: Invalid argument
+[WOLF-ENGINE] Core 60 started (tid=139980047324864)
+[WOLF-ENGINE] Warning: could not pin thread to core 61: Invalid argument
+[WOLF-ENGINE] Core 61 started (tid=139980038932160)
+[WOLF-ENGINE] Warning: could not pin thread to core 62: Invalid argument
+[WOLF-ENGINE] Core 62 started (tid=139980030539456)
+[WOLF-ENGINE] Warning: could not pin thread to core 63: Invalid argument
+[WOLF-ENGINE] Core 63 started (tid=139980022146752)

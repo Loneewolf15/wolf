@@ -15,10 +15,25 @@ import (
 func (c *Compiler) AutoDiscover(projectRoot string) ([]*parser.Program, error) {
 	var asts []*parser.Program
 
-	dirsToScan := []string{"config", "libraries", "models", "controllers", "services", "helpers"}
+	dirsToScan := []string{"packages", "config", "libraries", "models", "controllers", "services", "helpers"}
+
+	// Determine WOLF_ROOT for standard library discovery
+	wolfRoot := os.Getenv("WOLF_ROOT")
+	var scanPaths []string
+
+	if wolfRoot != "" {
+		stdPath := filepath.Join(wolfRoot, "std")
+		if _, err := os.Stat(stdPath); err == nil {
+			scanPaths = append(scanPaths, stdPath)
+		}
+	}
 
 	for _, dir := range dirsToScan {
 		fullPath := filepath.Join(projectRoot, dir)
+		scanPaths = append(scanPaths, fullPath)
+	}
+
+	for _, fullPath := range scanPaths {
 		if _, err := os.Stat(fullPath); os.IsNotExist(err) {
 			continue // Skip if directory doesn't exist
 		}

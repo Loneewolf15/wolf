@@ -10,7 +10,7 @@
 #include <stdint.h>
 
 #define WOLF_TASK_STACK_SIZE (64 * 1024) // 64KB fixed stack per task
-#define WOLF_MAX_TASKS_PER_CORE 256
+#define WOLF_MAX_TASKS_PER_CORE 16
 
 typedef struct {
     ucontext_t ctx;         // POSIX ucontext for stack switching

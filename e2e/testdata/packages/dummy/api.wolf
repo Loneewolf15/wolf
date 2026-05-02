@@ -1,0 +1,7 @@
+namespace Dummy;
+
+class Api {
+    func get() {
+        return "Dummy Data"
+    }
+}

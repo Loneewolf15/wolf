@@ -206,8 +206,8 @@ func (r *Resolver) resolveStmt(stmt parser.Statement) {
 		r.resolveBlock(s.CatchBody)
 		r.popScope()
 
-	case *parser.ImportStmt:
-		// Imports don't need scope resolution currently
+	case *parser.NamespaceDecl:
+		// Namespace declarations don't affect single-pass resolver
 
 	case *parser.MLBlockStmt:
 		// @ml block: in/out vars should be declared

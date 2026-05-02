@@ -3,7 +3,9 @@
 package compiler
 
 import (
+	"crypto/sha256"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -378,7 +380,7 @@ func (c *Compiler) Build(source, filename string) (*CompileResult, error) {
 	if c.Config != nil && !c.Config.Build.Optimise {
 		optFlag = "-O0"
 	}
-	rtArgs := []string{"-c", optFlag}
+	rtArgs := []string{"-c", optFlag, "-pthread", "-g"}
 
 	// DB include flags
 	if dbCflags != "" {
@@ -400,10 +402,39 @@ func (c *Compiler) Build(source, filename string) (*CompileResult, error) {
 		rtArgs = append(rtArgs, "-DWOLF_DEBUG")
 	}
 
+	// Get cache key BEFORE adding dynamic paths
+	var rtCacheHit bool
+	cacheKey, err := runtimeCacheKey(runtimeC, rtArgs)
+
 	rtArgs = append(rtArgs, "-o", runtimeObj, runtimeC)
-	rtCmd := exec.Command(cc, rtArgs...)
-	if out, err := rtCmd.CombinedOutput(); err != nil {
-		return result, fmt.Errorf("failed to compile wolf runtime: %s\n%s", err, string(out))
+
+	// ---- Runtime object cache (hash-based) ----
+	// Cache key = SHA-256(runtime C source + all compile flags).
+	// On a hit we copy the cached .o rather than recompiling (~37s → ~1ms).
+	if err == nil {
+		cacheDir := filepath.Join(os.TempDir(), "wolf_rt_cache")
+		_ = os.MkdirAll(cacheDir, 0755)
+		cachedObj := filepath.Join(cacheDir, cacheKey+".o")
+		if _, err := os.Stat(cachedObj); err == nil {
+			// Cache hit — copy cached object to target location
+			if copyFile(cachedObj, runtimeObj) == nil {
+				rtCacheHit = true
+			}
+		}
+		if !rtCacheHit {
+			rtCmd := exec.Command(cc, rtArgs...)
+			if out, err := rtCmd.CombinedOutput(); err != nil {
+				return result, fmt.Errorf("failed to compile wolf runtime: %s\n%s", err, string(out))
+			}
+			// Store result in cache for future runs
+			_ = copyFile(runtimeObj, cachedObj)
+		}
+	} else {
+		// Fallback: compile without cache
+		rtCmd := exec.Command(cc, rtArgs...)
+		if out, err := rtCmd.CombinedOutput(); err != nil {
+			return result, fmt.Errorf("failed to compile wolf runtime: %s\n%s", err, string(out))
+		}
 	}
 
 	if c.Verbose {
@@ -412,7 +443,7 @@ func (c *Compiler) Build(source, filename string) (*CompileResult, error) {
 
 	// Link everything into final binary
 	binaryPath := filepath.Join(outDir, baseName)
-	linkArgs := []string{"-o", binaryPath, objFile, runtimeObj, "-lpthread"}
+	linkArgs := []string{"-o", binaryPath, objFile, runtimeObj, "-pthread", "-g"}
 
 	// Prioritize system libraries to avoid XAMPP version conflicts
 	if prioritizedPath != "" {
@@ -669,4 +700,43 @@ func getPkgConfigVariable(lib, variable string) (string, error) {
 		return "", err
 	}
 	return "", fmt.Errorf("pkg-config not found")
+}
+
+// runtimeCacheKey returns a hex SHA-256 hash of wolf_runtime.c content + compile flags.
+// Used as the filename for the cached .o in /tmp/wolf_rt_cache/.
+func runtimeCacheKey(runtimeC string, flags []string) (string, error) {
+	h := sha256.New()
+	f, err := os.Open(runtimeC)
+	if err != nil {
+		return "", err
+	}
+	defer f.Close()
+	if _, err := io.Copy(h, f); err != nil {
+		return "", err
+	}
+	// Mix in the flags (exclude the -o <path> and the runtimeC path at the end,
+	// which vary per test but don't affect the compiled object content).
+	for _, flag := range flags {
+		if flag == "-o" || flag == runtimeC {
+			continue
+		}
+		h.Write([]byte(flag))
+	}
+	return fmt.Sprintf("%x", h.Sum(nil))[:16], nil
+}
+
+// copyFile copies src to dst, creating dst if needed.
+func copyFile(src, dst string) error {
+	in, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer in.Close()
+	out, err := os.Create(dst)
+	if err != nil {
+		return err
+	}
+	defer out.Close()
+	_, err = io.Copy(out, in)
+	return err
 }

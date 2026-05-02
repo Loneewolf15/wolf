@@ -16,7 +16,7 @@
 | Generics (Phase 2) | ✅ Done | — |
 | Structured Concurrency & Scheduler (Phase 2) | ✅ Done | — |
 | Package System (Phase 2) | ✅ Done | — |
-| `protected` visibility — `43_visibility.wolf` full E2E | 🔄 Partial | BUG-049 Dog inheritance dispatch |
+| `protected` visibility — `43_visibility.wolf` full E2E | ✅ Done | — |
 
 ## Completed Sprints
 - [x] **Sprint 6: Native Foundations** (WebSocket, HTTP Client, Math/Stats) — 2026-03-26
@@ -47,8 +47,7 @@ graph TD
 ```
 
 ### Next Unblocked Tasks
-1. **BUG-049** — Fix `Dog->bark()` calling inherited `makeSound()` (protected method dispatch for child classes via inheritance chain)
-2. **wolf_dns_lookup timeout** — add `getaddrinfo_a` or a 2s deadline to prevent worker stall (P0 roadmap item)
+1. **wolf_dns_lookup timeout** — add `getaddrinfo_a` or a 2s deadline to prevent worker stall (P0 roadmap item)
 3. **Package System v2** — multi-package `new` dispatch in `wolf___compiler_create_model` (currently string-matched, needs dynamic discovery)
 4. **Binary size** — investigate tree-shaking libcurl static link (currently 9.2MB vs 8MB target)
 

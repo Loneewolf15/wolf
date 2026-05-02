@@ -219,7 +219,7 @@ func (c *Checker) checkStmt(stmt parser.Statement) {
 	case *parser.BlockStmt:
 		c.checkBlock(s)
 
-	case *parser.ImportStmt:
+	case *parser.NamespaceDecl:
 		// No type checking needed
 	}
 }

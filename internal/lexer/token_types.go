@@ -47,7 +47,7 @@ const (
 	TOKEN_RECEIVE    // receive
 	TOKEN_TRY        // try
 	TOKEN_CATCH      // catch
-	TOKEN_IMPORT     // import
+	TOKEN_NAMESPACE  // namespace
 	TOKEN_PRINT      // print
 	TOKEN_VAR        // var
 	TOKEN_PRIVATE    // private / pri
@@ -163,7 +163,7 @@ var tokenTypeNames = map[TokenType]string{
 	TOKEN_RECEIVE:             "RECEIVE",
 	TOKEN_TRY:                 "TRY",
 	TOKEN_CATCH:               "CATCH",
-	TOKEN_IMPORT:              "IMPORT",
+	TOKEN_NAMESPACE:           "NAMESPACE",
 	TOKEN_PRINT:               "PRINT",
 	TOKEN_VAR:                 "VAR",
 	TOKEN_PRIVATE:             "PRIVATE",
@@ -257,7 +257,7 @@ var keywords = map[string]TokenType{
 	"receive":    TOKEN_RECEIVE,
 	"try":        TOKEN_TRY,
 	"catch":      TOKEN_CATCH,
-	"import":     TOKEN_IMPORT,
+	"namespace":  TOKEN_NAMESPACE,
 	"print":      TOKEN_PRINT,
 	"var":        TOKEN_VAR,
 	"private":    TOKEN_PRIVATE,

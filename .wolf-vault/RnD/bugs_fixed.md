@@ -2,6 +2,17 @@
 
 ## Session 2026-05-02 (Session 18 — Package System Fix)
 
+### BUG-049: Inherited method dispatch failed to print (`$d->bark()` silent)
+- **Class:** P1 🟠 Runtime Stability / Functional Correctness
+- **Root cause:** 
+  1. `Dog` inherited `Animal` but didn't have an explicit constructor. The compiler auto-generated a 0-argument `NewDog` instead of inheriting `NewAnimal`'s arguments and body. Thus, `$d = new Dog("Buddy", "Woof")` allocated a `Dog` but ignored the arguments, leaving properties uninitialized.
+  2. The LLVM emitter's direct method dispatch (`emitMethodCall`) and fallback dispatch didn't properly check `functionHasReturnValue(fnSig.Body)` for untyped functions. This caused functions without explicit return types that return values to incorrectly compile to returning `void` instead of `ptr`.
+- **Fix:** 
+  1. Modified `llvm_emitter.go` `Emit()` to traverse `e.classExtends` and inherit the parent's constructor if a child class doesn't define one.
+  2. Fixed `emitMethodCall` to infer `ptr` return types for dynamically returning functions using `functionHasReturnValue()`.
+- **File:** `internal/emitter/llvm_emitter.go`
+- **MRS:** `e2e/testdata/43_visibility.wolf`
+
 ### BUG-050: SIGSEGV calling method on namespace-prefixed class via autodiscovery
 - **Class:** P0 🔴 Compiler Panic (runtime SIGSEGV)
 - **Root cause:** Methods inside a namespaced class (e.g. `namespace Dummy; class Api { func get() {} }`) were being double-prefixed with the namespace. `parseFuncDecl()` applied `p.namespace + "_"` to the method name (producing `Dummy_get`), then `llvm_emitter.go` applied `cls.Name + "_"` again (producing `Dummy_Api_Dummy_get`). The `funcSigs` key was therefore `Dummy_Api_Dummy_get`, but the dispatch lookup built `Dummy_Api_get` — a miss. The fallback hit `methodDispatch["get"]` = `wolf_qb_get` (query builder), which received a class object pointer and immediately SIGSEGV'd.
@@ -186,7 +197,7 @@
 
 - Total bugs fixed: **50** (BUG-001 through BUG-050)
 - E2E tests: **44_package_system ✅ added, all ./internal/... green**
-- Open: BUG-049 (Dog inheritance dispatch — `$d->bark()` silent, deferred to Session 19)
+- Open: None
 - Next Bloodhound Sweep: Monitor for `libcurl` multi-handle leakage if we move from synchronous `easy` interface to asynchronous.
 ---
 

@@ -21,6 +21,7 @@ type LLVMEmitter struct {
 	indent          int
 	varTypes        map[string]string
 	varClass        map[string]string // varName → ClassName for object instances
+	classExtends    map[string]string // ClassName → ParentClassName
 	funcSigs        map[string]*ir.Function
 	currentRetType  string
 	declaredExterns map[string]bool
@@ -38,6 +39,7 @@ func NewLLVMEmitter() *LLVMEmitter {
 		stringConsts:    make(map[string]string),
 		varTypes:        make(map[string]string),
 		varClass:        make(map[string]string),
+		classExtends:    make(map[string]string),
 		funcSigs:        make(map[string]*ir.Function),
 		declaredExterns: make(map[string]bool),
 		emittedTypes:    make(map[string]string),
@@ -179,6 +181,9 @@ func (e *LLVMEmitter) Emit(program *ir.Program) string {
 		e.funcSigs[fn.Name] = fn
 	}
 	for _, cls := range program.Classes {
+		if cls.Extends != "" {
+			e.classExtends[cls.Name] = cls.Extends
+		}
 		if cls.Constructor != nil {
 			cls.Constructor.Name = "New" + cls.Name
 			cls.Constructor.ReturnTypes = []string{"ptr"}
@@ -188,6 +193,27 @@ func (e *LLVMEmitter) Emit(program *ir.Program) string {
 			method.Params = append([]*ir.Param{{Name: "this", Type: "ptr"}}, method.Params...)
 			method.Name = fmt.Sprintf("%s_%s", cls.Name, method.Name)
 			e.funcSigs[method.Name] = method
+		}
+	}
+
+	// Inherit constructors for classes that don't have one
+	for _, cls := range program.Classes {
+		if cls.Constructor == nil && cls.Extends != "" {
+			curr := cls.Extends
+			var parentCtor *ir.Function
+			for curr != "" {
+				if sig, ok := e.funcSigs["New"+curr]; ok {
+					parentCtor = sig
+					break
+				}
+				curr = e.classExtends[curr]
+			}
+			if parentCtor != nil {
+				copiedCtor := *parentCtor
+				copiedCtor.Name = "New" + cls.Name
+				cls.Constructor = &copiedCtor
+				e.funcSigs[copiedCtor.Name] = cls.Constructor
+			}
 		}
 	}
 
@@ -3482,8 +3508,28 @@ func (e *LLVMEmitter) emitMethodCall(mc *ir.MethodCallExpr) string {
 		e.writelnIndent(fmt.Sprintf("; DEBUG ident.Name=%s, varClass=%s", ident.Name, e.varClass[ident.Name]))
 		if className, hasClass := e.varClass[ident.Name]; hasClass {
 			directName := fmt.Sprintf("%s_%s", className, mc.Method)
-			e.writelnIndent(fmt.Sprintf("; DEBUG directName=%s, foundInSigs=%v", directName, e.funcSigs[directName] != nil))
-			if fnSig, found := e.funcSigs[directName]; found {
+			
+			// Walk inheritance chain if method is not found directly
+			fnSig, found := e.funcSigs[directName]
+			currClass := className
+			for !found {
+				parent, hasParent := e.classExtends[currClass]
+				if !hasParent || parent == "" {
+					break
+				}
+				parentMethod := fmt.Sprintf("%s_%s", parent, mc.Method)
+				if parentSig, foundParent := e.funcSigs[parentMethod]; foundParent {
+					fnSig = parentSig
+					directName = parentMethod
+					found = true
+					break
+				}
+				currClass = parent
+			}
+
+			e.writelnIndent(fmt.Sprintf("; DEBUG directName=%s, foundInSigs=%v", directName, found))
+
+			if found {
 				args := []string{fmt.Sprintf("ptr %s", objVal)}
 				for i, arg := range mc.Args {
 					expectedType := "ptr"
@@ -3499,9 +3545,13 @@ func (e *LLVMEmitter) emitMethodCall(mc *ir.MethodCallExpr) string {
 						args = append(args, fmt.Sprintf("ptr %s", val))
 					}
 				}
-				retType := "ptr"
-				if fnSig != nil && len(fnSig.ReturnTypes) > 0 {
-					retType = e.wolfTypeToLLVM(fnSig.ReturnTypes[0])
+				retType := "void"
+				if fnSig != nil {
+					if len(fnSig.ReturnTypes) > 0 {
+						retType = e.wolfTypeToLLVM(fnSig.ReturnTypes[0])
+					} else if functionHasReturnValue(fnSig.Body) {
+						retType = "ptr"
+					}
 				}
 				emitName := directName
 				if !strings.HasPrefix(emitName, "wolf_") {
@@ -3605,9 +3655,13 @@ func (e *LLVMEmitter) emitMethodCall(mc *ir.MethodCallExpr) string {
 		args = append(args, fmt.Sprintf("%s %s", expectedType, val))
 	}
 
-	retType := "ptr"
-	if fnSig != nil && len(fnSig.ReturnTypes) > 0 {
-		retType = e.wolfTypeToLLVM(fnSig.ReturnTypes[0])
+	retType := "void"
+	if fnSig != nil {
+		if len(fnSig.ReturnTypes) > 0 {
+			retType = e.wolfTypeToLLVM(fnSig.ReturnTypes[0])
+		} else if functionHasReturnValue(fnSig.Body) {
+			retType = "ptr"
+		}
 	}
 
 	emitName := calleeName

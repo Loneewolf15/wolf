@@ -1,0 +1,2 @@
+$api = new Dummy_Api()
+print($api->get())

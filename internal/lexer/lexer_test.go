@@ -232,7 +232,7 @@ func TestAllKeywords(t *testing.T) {
 		{"receive", TOKEN_RECEIVE},
 		{"try", TOKEN_TRY},
 		{"catch", TOKEN_CATCH},
-		{"import", TOKEN_IMPORT},
+		{"namespace", TOKEN_NAMESPACE},
 		{"print", TOKEN_PRINT},
 		{"var", TOKEN_VAR},
 		{"private", TOKEN_PRIVATE},

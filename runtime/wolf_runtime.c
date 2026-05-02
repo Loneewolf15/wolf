@@ -3768,7 +3768,19 @@ void* wolf_http_client_res_json(void* res) {
 
 int64_t wolf_http_client_res_status(void* res) {
     if (!res) return 0;
-    return ((wolf_http_response_t*)res)->status;
+    wolf_map_t* m = NULL;
+    if (wolf_is_tagged_value(res)) m = (wolf_map_t*)(((wolf_value_t*)res)->val.ptr);
+    else m = (wolf_map_t*)res;
+    if (!m) return 0;
+    
+    void* val_ptr = wolf_map_get(m, "status");
+    if (!val_ptr) return 0;
+    
+    if (wolf_is_tagged_value(val_ptr)) {
+        wolf_value_t* v = (wolf_value_t*)val_ptr;
+        if (v->type == WOLF_TYPE_INT) return v->val.i;
+    }
+    return 0;
 }
 
 int64_t wolf_http_client_res_ok(void* res) {

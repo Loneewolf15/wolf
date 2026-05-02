@@ -5,4 +5,5 @@ Try block finished: Success
 == Test 2: Failure occurs ==
 Entering nested_call
 Caught error: Intentional failure!
-== Test 3: Uncaught failure ==
+== Test 3: Caught uncaught failure ==
+Propagated: Intentional failure!

@@ -280,15 +280,15 @@ func (s *TryCatchStmt) nodeType() string    { return "TryCatchStmt" }
 func (s *TryCatchStmt) Pos() lexer.Position { return s.Pos_ }
 func (s *TryCatchStmt) stmtNode()           {}
 
-// ImportStmt represents: import "module"
-type ImportStmt struct {
-	Path string
+// NamespaceDecl represents: namespace Name;
+type NamespaceDecl struct {
+	Name string
 	Pos_ lexer.Position
 }
 
-func (s *ImportStmt) nodeType() string    { return "ImportStmt" }
-func (s *ImportStmt) Pos() lexer.Position { return s.Pos_ }
-func (s *ImportStmt) stmtNode()           {}
+func (s *NamespaceDecl) nodeType() string    { return "NamespaceDecl" }
+func (s *NamespaceDecl) Pos() lexer.Position { return s.Pos_ }
+func (s *NamespaceDecl) stmtNode()           {}
 
 // MLBlockStmt represents the @ml { python code } block.
 type MLBlockStmt struct {

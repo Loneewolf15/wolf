@@ -763,16 +763,16 @@ func TestMLBlock(t *testing.T) {
 	}
 }
 
-// --- Import ---
+// --- Namespace ---
 
-func TestImportStmt(t *testing.T) {
-	prog := parseSource(t, `import "math"`)
-	imp, ok := prog.Statements[0].(*ImportStmt)
+func TestNamespaceDecl(t *testing.T) {
+	prog := parseSource(t, `namespace Stripe;`)
+	ns, ok := prog.Statements[0].(*NamespaceDecl)
 	if !ok {
-		t.Fatalf("Expected ImportStmt, got %T", prog.Statements[0])
+		t.Fatalf("Expected NamespaceDecl, got %T", prog.Statements[0])
 	}
-	if imp.Path != "math" {
-		t.Errorf("Expected 'math', got '%s'", imp.Path)
+	if ns.Name != "Stripe" {
+		t.Errorf("Expected 'Stripe', got '%s'", ns.Name)
 	}
 }
 
