@@ -47,9 +47,8 @@ graph TD
 ```
 
 ### Next Unblocked Tasks
-1. **wolf_dns_lookup timeout** — add `getaddrinfo_a` or a 2s deadline to prevent worker stall (P0 roadmap item)
-3. **Package System v2** — multi-package `new` dispatch in `wolf___compiler_create_model` (currently string-matched, needs dynamic discovery)
-4. **Binary size** — investigate tree-shaking libcurl static link (currently 9.2MB vs 8MB target)
+1. **Package System v2** — multi-package `new` dispatch in `wolf___compiler_create_model` (currently string-matched, needs dynamic discovery)
+2. **Binary size** — investigate tree-shaking libcurl static link (currently 9.2MB vs 8MB target)
 
 ## Session History
 

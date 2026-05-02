@@ -2,39 +2,29 @@
 
 ## Where We Left Off
 
-We fixed **BUG-049 (P1)** in the LLVM Emitter concerning inherited method dispatch and class instantiation.
+We implemented a **2s Timeout for `wolf_dns_lookup`** in the C runtime to prevent thread starvation/worker stalls on slow DNS queries (Roadmap P0).
 
 ### What was done
-There were two distinct issues causing `$d->bark()` to silently fail to print `"Woof"`:
-
-1. **Constructor Inheritance Failure:** When `Dog` extended `Animal`, but didn't declare its own explicit `__construct` method, the WIR WIR emitter created a generic 0-argument `NewDog` default constructor. This caused `new Dog("Buddy", "Woof")` to compile, but silently ignore the arguments because the parent's `NewAnimal` initialization logic was never executed, leaving `$this.sound` empty.
-2. **Untyped Method Return Type Inference:** In the fallback and direct method dispatch logic of `llvm_emitter.go`, when dealing with dynamic untyped functions that don't specify an explicit WIR `ReturnType` (like `func get() { return "Data" }`), the emitter incorrectly forced a `"void"` return type instead of inferring `"ptr"`. This resulted in `call void` assignments, causing subsequent method calls to break or return `ptr null`.
-
-**Fixes in `internal/emitter/llvm_emitter.go`:**
-- Implemented **Constructor Inheritance** inside `Emit()`. It now traverses the `classExtends` chain. If a class lacks a constructor, it clones the nearest parent constructor, renames it to `NewChildClassName`, and registers it. This perfectly clones the instantiation logic (including arguments) while safely initializing the correct object type using `wolf_class_create("ChildClass")`.
-- Updated the `emitMethodCall` direct and fallback resolution blocks to properly utilize `functionHasReturnValue(fnSig.Body)` for dynamic untyped functions, correctly defaulting to `"ptr"` instead of `"void"`.
+Because standard POSIX `getaddrinfo` is blocking and has no native timeout, we implemented a robust wrapper in `runtime/wolf_runtime.c`:
+1. **Detached Worker Thread:** Spawns a background `pthread` to execute the blocking `getaddrinfo`.
+2. **Synchronization Context:** Uses a `wolf_dns_ctx_t` struct with a `pthread_cond_t` and `pthread_mutex_t` to coordinate between the main HTTP worker thread and the DNS worker thread.
+3. **Strict 2s Timeout:** The main thread uses `pthread_cond_timedwait` with `CLOCK_REALTIME` to wait exactly 2 seconds.
+4. **Leak-free Abandonment:** If the main thread times out (receives `ETIMEDOUT`), it safely abandons the context and returns immediately. The detached worker thread will eventually finish the lookup, observe that the main thread left (`ctx->main_waiting == 0`), and free the allocated context.
 
 ### Commits This Session
 ```
-970d84c fix(emitter): implement constructor inheritance and fix untyped method return type inference
-b4570b3 chore(vault): wrap-up session 18 — BUG-050 fixed, plan/bugs/handoff updated
-51cfccf fix(parser): suppress namespace prefix for class methods to prevent double-mangling
-8c4fcce fix(emitter): isolate varClass per function for method dispatch
-c62e69e feat(lexer,parser): add 'protected' visibility keyword and roadmap update
+16b0a86 feat(runtime): implement 2s timeout for wolf_dns_lookup using detached pthread to prevent worker stall
 ```
 
 ### Test Status
-- `./wolf run e2e/testdata/43_visibility.wolf` → prints `Generic \n 5 \n Woof` ✅
-- `./wolf run e2e/testdata/44_package_system.wolf` → prints `Dummy Data` ✅
+- `./wolf run e2e/testdata/38_url_utilities.wolf` → prints `DNS OK` ✅
 - `go test ./internal/...` → all green ✅
 
 ## Next Immediate Task
 
-1. **wolf_dns_lookup timeout** — implement a 2s timeout for `wolf_dns_lookup` in the C runtime to prevent thread starvation/worker stall on slow DNS queries (Roadmap P0).
-2. **Multi-package v2 `new` dispatch** — currently `wolf___compiler_create_model` string-matches the instantiation name. Needs a dynamic registry or BSS mapping for faster cross-package class instantiation.
+1. **Package System v2 `new` dispatch** — currently `wolf___compiler_create_model` string-matches the instantiation name. Needs a dynamic registry or BSS mapping for faster cross-package class instantiation.
+2. **Binary size** — investigate tree-shaking libcurl static link (currently 9.2MB vs 8MB target).
 
 ## Relevant Files Modified This Session
-- `internal/emitter/llvm_emitter.go` — constructor inheritance, `functionHasReturnValue` method dispatch fixes
-- `e2e/testdata/43_visibility.out` — updated to expect `Woof`
-- `.wolf-vault/Execution/plan.md` — BUG-049 marked Done
-- `.wolf-vault/RnD/bugs_fixed.md` — BUG-049 entry added
+- `runtime/wolf_runtime.c` — `wolf_dns_lookup` refactored to use pthreads
+- `.wolf-vault/Execution/plan.md` — updated next unblocked tasks
