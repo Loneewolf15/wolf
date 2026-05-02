@@ -3508,7 +3508,7 @@ func (e *LLVMEmitter) emitMethodCall(mc *ir.MethodCallExpr) string {
 		e.writelnIndent(fmt.Sprintf("; DEBUG ident.Name=%s, varClass=%s", ident.Name, e.varClass[ident.Name]))
 		if className, hasClass := e.varClass[ident.Name]; hasClass {
 			directName := fmt.Sprintf("%s_%s", className, mc.Method)
-			
+
 			// Walk inheritance chain if method is not found directly
 			fnSig, found := e.funcSigs[directName]
 			currClass := className

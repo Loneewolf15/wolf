@@ -8,8 +8,8 @@ import (
 
 // Parser produces an AST from a token stream.
 type Parser struct {
-	tokens  []lexer.Token
-	current int
+	tokens    []lexer.Token
+	current   int
 	errors    []*lexer.WolfError
 	file      string
 	namespace string
@@ -783,7 +783,7 @@ func (p *Parser) parseNamespaceDecl() *NamespaceDecl {
 	} else {
 		p.addError("expected identifier after 'namespace'")
 	}
-	
+
 	if p.check(lexer.TOKEN_SEMICOLON) {
 		p.advance()
 	}
