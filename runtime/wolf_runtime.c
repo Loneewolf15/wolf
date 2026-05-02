@@ -3802,16 +3802,95 @@ const char* wolf_http_client_res_header(void* res, const char* key) {
 }
 
 #include <netdb.h>
-const char* wolf_dns_lookup(const char* hostname) {
-    if (!hostname) return "";
+#include <errno.h>
+
+typedef struct {
+    char hostname[256];
+    char ip[INET_ADDRSTRLEN];
+    int success;
+    int main_waiting;
+    pthread_mutex_t mutex;
+    pthread_cond_t cond;
+} wolf_dns_ctx_t;
+
+static void* wolf_dns_worker(void* arg) {
+    wolf_dns_ctx_t* ctx = (wolf_dns_ctx_t*)arg;
     struct addrinfo hints, *res;
     memset(&hints, 0, sizeof(hints));
     hints.ai_family = AF_INET;
-    if (getaddrinfo(hostname, NULL, &hints, &res) != 0) return "";
+    
+    int ret = getaddrinfo(ctx->hostname, NULL, &hints, &res);
+    
+    pthread_mutex_lock(&ctx->mutex);
+    if (ctx->main_waiting) {
+        if (ret == 0) {
+            inet_ntop(res->ai_family, &((struct sockaddr_in *)res->ai_addr)->sin_addr, ctx->ip, sizeof(ctx->ip));
+            ctx->success = 1;
+        }
+        ctx->main_waiting = 0;
+        pthread_cond_signal(&ctx->cond);
+        pthread_mutex_unlock(&ctx->mutex);
+        if (ret == 0) freeaddrinfo(res);
+    } else {
+        /* Main thread timed out and left, we must free. */
+        pthread_mutex_unlock(&ctx->mutex);
+        pthread_mutex_destroy(&ctx->mutex);
+        pthread_cond_destroy(&ctx->cond);
+        free(ctx);
+        if (ret == 0) freeaddrinfo(res);
+    }
+    return NULL;
+}
+
+const char* wolf_dns_lookup(const char* hostname) {
+    if (!hostname || strlen(hostname) >= 256) return "";
+    
+    wolf_dns_ctx_t* ctx = (wolf_dns_ctx_t*)malloc(sizeof(wolf_dns_ctx_t));
+    if (!ctx) return "";
+    memset(ctx, 0, sizeof(wolf_dns_ctx_t));
+    strncpy(ctx->hostname, hostname, 255);
+    ctx->main_waiting = 1;
+    pthread_mutex_init(&ctx->mutex, NULL);
+    pthread_cond_init(&ctx->cond, NULL);
+    
+    pthread_t thread;
+    pthread_attr_t attr;
+    pthread_attr_init(&attr);
+    pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
+    
+    if (pthread_create(&thread, &attr, wolf_dns_worker, ctx) != 0) {
+        pthread_attr_destroy(&attr);
+        pthread_mutex_destroy(&ctx->mutex);
+        pthread_cond_destroy(&ctx->cond);
+        free(ctx);
+        return "";
+    }
+    pthread_attr_destroy(&attr);
+    
+    struct timespec ts;
+    clock_gettime(CLOCK_REALTIME, &ts);
+    ts.tv_sec += 2; /* 2 second timeout */
+    
+    pthread_mutex_lock(&ctx->mutex);
+    while (ctx->main_waiting) {
+        int rc = pthread_cond_timedwait(&ctx->cond, &ctx->mutex, &ts);
+        if (rc == ETIMEDOUT && ctx->main_waiting) {
+            ctx->main_waiting = 0; /* Tell worker to free it later */
+            pthread_mutex_unlock(&ctx->mutex);
+            return "";
+        }
+    }
+    
+    int success = ctx->success;
     char ip[INET_ADDRSTRLEN];
-    inet_ntop(res->ai_family, &((struct sockaddr_in *)res->ai_addr)->sin_addr, ip, sizeof(ip));
-    freeaddrinfo(res);
-    return wolf_req_strdup(ip);
+    if (success) strcpy(ip, ctx->ip);
+    
+    pthread_mutex_unlock(&ctx->mutex);
+    pthread_mutex_destroy(&ctx->mutex);
+    pthread_cond_destroy(&ctx->cond);
+    free(ctx);
+    
+    return success ? wolf_req_strdup(ip) : "";
 }
 
 void* wolf_url_parse(const char* url) {
