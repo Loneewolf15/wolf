@@ -1,5 +1,15 @@
 # Wolf Bugs Fixed — Cumulative Log
 
+## Session 2026-05-02 (Session 18 — Package System Fix)
+
+### BUG-050: SIGSEGV calling method on namespace-prefixed class via autodiscovery
+- **Class:** P0 🔴 Compiler Panic (runtime SIGSEGV)
+- **Root cause:** Methods inside a namespaced class (e.g. `namespace Dummy; class Api { func get() {} }`) were being double-prefixed with the namespace. `parseFuncDecl()` applied `p.namespace + "_"` to the method name (producing `Dummy_get`), then `llvm_emitter.go` applied `cls.Name + "_"` again (producing `Dummy_Api_Dummy_get`). The `funcSigs` key was therefore `Dummy_Api_Dummy_get`, but the dispatch lookup built `Dummy_Api_get` — a miss. The fallback hit `methodDispatch["get"]` = `wolf_qb_get` (query builder), which received a class object pointer and immediately SIGSEGV'd.
+- **Fix:** In `parseClassDecl()`, save and clear `p.namespace` before parsing the class body, restore it afterward. The class name already carries the namespace; method names must remain unmangled.
+- **File:** `internal/parser/parser.go`
+- **MRS:** `e2e/testdata/44_package_system.wolf`
+- **Commit:** `51cfccf fix(parser): suppress namespace prefix for class methods to prevent double-mangling`
+
 ## Session 2026-04-16 (Session 16 — Structured Concurrency)
 
 ### BUG-049: `TestHTTPClient` LLVM String Crash (C ABI Map Mismatch)
@@ -174,9 +184,9 @@
 
 ## Status Ledger
 
-- Total bugs fixed: **42** (BUG-001 through BUG-042)
-- E2E tests: **53/53 passing** (incorporating Concurrency and Telemetry)
-- Open: None
+- Total bugs fixed: **50** (BUG-001 through BUG-050)
+- E2E tests: **44_package_system ✅ added, all ./internal/... green**
+- Open: BUG-049 (Dog inheritance dispatch — `$d->bark()` silent, deferred to Session 19)
 - Next Bloodhound Sweep: Monitor for `libcurl` multi-handle leakage if we move from synchronous `easy` interface to asynchronous.
 ---
 

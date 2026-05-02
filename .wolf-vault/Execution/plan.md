@@ -15,7 +15,8 @@
 | Interfaces / Traits (Phase 2) | ✅ Done | — |
 | Generics (Phase 2) | ✅ Done | — |
 | Structured Concurrency & Scheduler (Phase 2) | ✅ Done | — |
-| Package System (Phase 2) | ⬜ Up Next | — |
+| Package System (Phase 2) | ✅ Done | — |
+| `protected` visibility — `43_visibility.wolf` full E2E | 🔄 Partial | BUG-049 Dog inheritance dispatch |
 
 ## Completed Sprints
 - [x] **Sprint 6: Native Foundations** (WebSocket, HTTP Client, Math/Stats) — 2026-03-26
@@ -46,12 +47,28 @@ graph TD
 ```
 
 ### Next Unblocked Tasks
-2. **Generics (Phase 2)** — Support `List<T>` types in parser/resolver and monomorphization in LLVM emitter
-3. **Package System** — `import "wolf/std/http"` namespace; multi-file compilation support
-4. **wolf_dns_lookup timeout** — add `getaddrinfo_a` or a 2s deadline to prevent worker stall
-5. **Binary size** — investigate tree-shaking libcurl static link (currently 9.1MB vs 8MB target)
+1. **BUG-049** — Fix `Dog->bark()` calling inherited `makeSound()` (protected method dispatch for child classes via inheritance chain)
+2. **wolf_dns_lookup timeout** — add `getaddrinfo_a` or a 2s deadline to prevent worker stall (P0 roadmap item)
+3. **Package System v2** — multi-package `new` dispatch in `wolf___compiler_create_model` (currently string-matched, needs dynamic discovery)
+4. **Binary size** — investigate tree-shaking libcurl static link (currently 9.2MB vs 8MB target)
 
 ## Session History
+
+### 2026-05-02 (Session 18 — BUG-050 Fix: Package System Namespace Double-Mangling)
+**Done:**
+- Diagnosed and fixed BUG-050 (P0 SIGSEGV): methods inside a namespaced class were being double-prefixed with the namespace, generating `wolf_Dummy_Api_Dummy_get` instead of `wolf_Dummy_Api_get`.
+- Root fix in `internal/parser/parser.go` `parseClassDecl()`: suppress `p.namespace` while parsing class body; class name already carries the namespace prefix.
+- Also ensured namespace is restored after class body so subsequent declarations still get correct mangling.
+- Verified `44_package_system.wolf` binary correctly prints `Dummy Data`. Added `.out` expected file.
+- All `./internal/...` unit tests pass ✅. `43_visibility.wolf` output confirmed (`Generic`/`5`).
+- Commit: `51cfccf fix(parser): suppress namespace prefix for class methods to prevent double-mangling`
+
+### 2026-05-01 (Session 17 — Protected Keyword & Roadmap Updates)
+**Done:**
+- Added full lexer and parser support for the `protected` visibility keyword.
+- Maintained backward compatibility aliases (`pub`, `pri`, `pro`, `howl`).
+- Restructured `roadmap.md` with explicit P0 to P5 priority tracking per the Compass Decision Matrix.
+- Left the LLVM emitter method dispatch (`_getage` compilation error) unresolved (deferred to next session due to wrap-up execution).
 
 ### 2026-04-16 (Session 16 — Structured Concurrency, M:N Scheduler & Exceptions)
 **Done:**
