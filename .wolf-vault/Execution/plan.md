@@ -65,7 +65,8 @@ graph TD
 - Upgraded `wolf_file_basename` to handle both Unix (`/`) and Windows (`\`) separators, closing the MinGW attack vector.
 - Added explicit documentation for `wolf_db_escape` calls in `wolf_qb_insert` and `wolf_qb_update` to clarify construction-time escaping.
 - Logged new action items from AXIOM and SENTINEL audits for the next session.
-- Commits: `c696f9c`, `0f466d7`
+- Fixed CI pipeline by running `gofmt -w` across the codebase.
+- Commits: `c696f9c`, `0f466d7`, `9d08e1f`
 
 
 ### 2026-05-10 (Session 22 — AXIOM Audit Security & Stability Fixes)
