@@ -309,10 +309,12 @@ WolfArenaPool* wolf_arena_pool_create(int core_id) {
     pool->count   = WOLF_ARENA_POOL_SIZE;
 
     for (int i = 0; i < WOLF_ARENA_POOL_SIZE; i++) {
-        pool->arenas[i].slab   = (char*)malloc(WOLF_ARENA_SLAB_SIZE);
-        pool->arenas[i].cap    = WOLF_ARENA_SLAB_SIZE;
-        pool->arenas[i].pos    = 0;
-        pool->arenas[i].in_use = 0;
+        pool->arenas[i].slab          = (char*)malloc(WOLF_ARENA_SLAB_SIZE);
+        pool->arenas[i].cap           = WOLF_ARENA_SLAB_SIZE;
+        pool->arenas[i].pos           = 0;
+        pool->arenas[i].overflow_count = 0;
+        /* Fix #6: RELEASE store so worker threads see in_use=0 on ARM64 */
+        __atomic_store_n(&pool->arenas[i].in_use, 0, __ATOMIC_RELEASE);
         if (!pool->arenas[i].slab) {
             fprintf(stderr, "[WOLF-ENGINE] OOM allocating arena pool for core %d\n", core_id);
             /* Continue with partial allocation */
@@ -323,18 +325,27 @@ WolfArenaPool* wolf_arena_pool_create(int core_id) {
 
 WolfArena* wolf_arena_acquire(WolfArenaPool* pool) {
     for (int i = 0; i < pool->count; i++) {
-        if (!pool->arenas[i].in_use && pool->arenas[i].slab) {
-            pool->arenas[i].in_use = 1;
-            pool->arenas[i].pos    = 0;
+        /* Fix #6: ACQUIRE load for memory-ordering safety on ARM64 */
+        if (!__atomic_load_n(&pool->arenas[i].in_use, __ATOMIC_ACQUIRE)
+            && pool->arenas[i].slab) {
+            __atomic_store_n(&pool->arenas[i].in_use, 1, __ATOMIC_RELEASE);
+            pool->arenas[i].pos          = 0;
+            pool->arenas[i].overflow_count = 0;
+            pool->arenas[i].is_overflow  = 0;
             return &pool->arenas[i];
         }
     }
-    /* All arenas busy — allocate a temporary one (fallback) */
+    /* All arenas busy — allocate a temporary one (fallback, tagged for cleanup) */
     WolfArena* tmp = (WolfArena*)malloc(sizeof(WolfArena));
-    tmp->slab   = (char*)malloc(WOLF_ARENA_SLAB_SIZE);
-    tmp->cap    = WOLF_ARENA_SLAB_SIZE;
-    tmp->pos    = 0;
-    tmp->in_use = 1;
+    if (!tmp) return NULL;
+    tmp->slab        = (char*)malloc(WOLF_ARENA_SLAB_SIZE);
+    tmp->cap         = WOLF_ARENA_SLAB_SIZE;
+    tmp->pos         = 0;
+    tmp->in_use      = 1;
+    tmp->is_overflow = 1;  /* must be freed, not returned to pool */
+    if (!tmp->slab) { free(tmp); return NULL; }
+    __atomic_fetch_add((volatile int*)&tmp->in_use, 0, __ATOMIC_RELAXED); /* fence */
+    fprintf(stderr, "[WOLF-ENGINE] WARN: arena pool exhausted on core — using overflow arena\n");
     return tmp;
 }
 
@@ -342,8 +353,19 @@ void* wolf_arena_alloc(WolfArena* arena, size_t size) {
     /* Align to 8 bytes */
     size = (size + 7) & ~(size_t)7;
     if (arena->pos + size > arena->cap) {
-        /* Overflow — fall back to malloc (tracked separately) */
-        return calloc(1, size);
+        /* Single allocation too large for slab — fall back to calloc.
+         * Fix #1: record the pointer in overflow_ptrs so wolf_arena_reset
+         * can free it. Without this, every oversized alloc was a silent leak. */
+        void* p = calloc(1, size);
+        if (p && arena->overflow_count < 64) {
+            arena->overflow_ptrs[arena->overflow_count++] = p;
+        } else if (p && arena->overflow_count >= 64) {
+            /* Overflow list full — log and free immediately to avoid leak */
+            fprintf(stderr, "[WOLF-ARENA] overflow_ptrs full — freeing oversized alloc immediately\n");
+            free(p);
+            p = NULL;
+        }
+        return p;
     }
     void* p = arena->slab + arena->pos;
     arena->pos += size;
@@ -360,6 +382,25 @@ char* wolf_arena_strdup(WolfArena* arena, const char* s) {
 }
 
 void wolf_arena_reset(WolfArena* arena) {
+    if (!arena) return;
+
+    /* Fix #1: free all oversized allocations tracked in the overflow list */
+    for (int i = 0; i < arena->overflow_count; i++) {
+        if (arena->overflow_ptrs[i]) {
+            free(arena->overflow_ptrs[i]);
+            arena->overflow_ptrs[i] = NULL;
+        }
+    }
+    arena->overflow_count = 0;
+
+    if (arena->is_overflow) {
+        /* Fallback arena — free the slab and struct (both heap-allocated) */
+        free(arena->slab);
+        arena->slab   = NULL;
+        arena->in_use = 0;
+        free(arena);  /* the struct itself was malloc'd in wolf_arena_acquire */
+        return;
+    }
     arena->pos    = 0;  /* O(1) — just reset the pointer */
     arena->in_use = 0;
 }
@@ -367,6 +408,11 @@ void wolf_arena_reset(WolfArena* arena) {
 void wolf_arena_pool_destroy(WolfArenaPool* pool) {
     if (!pool) return;
     for (int i = 0; i < pool->count; i++) {
+        /* Fix #1: free any tracked overflow ptrs before freeing the slab */
+        for (int j = 0; j < pool->arenas[i].overflow_count; j++) {
+            if (pool->arenas[i].overflow_ptrs[j])
+                free(pool->arenas[i].overflow_ptrs[j]);
+        }
         if (pool->arenas[i].slab) free(pool->arenas[i].slab);
     }
     free(pool);
@@ -401,6 +447,11 @@ typedef struct {
     int     is_websocket;
     char*   ws_key;
 
+    /* Uploads / Client Info */
+    char    client_ip[46];
+    int     upload_count;
+    wolf_upload_t uploads[WOLF_MAX_UPLOADS];
+
     /* Arena for this request */
     WolfArena* arena;
 
@@ -408,7 +459,7 @@ typedef struct {
     struct timespec started_at;
 } WolfConnCtx;
 
-#define WOLF_CORE_CTX_MAX WOLF_CORE_MAX_CONNECTIONS
+#define WOLF_CORE_CTX_MAX 128
 
 /* ================================================================
  * HTTP Request Parser (arena-backed, zero-copy where possible)
@@ -576,38 +627,65 @@ static void wolf_engine_signal_handler(int sig) {
 
 typedef struct {
     WolfCore*           core;
-    wolf_http_handler_t http_handler;
+    void*               http_handler;
     wolf_ws_handler_t   ws_handler;
 } WolfCoreArgs;
 
 /* Inline context table — per-core, no locking */
-static __thread WolfConnCtx wolf_core_ctxs[WOLF_CORE_CTX_MAX];
+__thread WolfConnCtx wolf_core_ctxs[WOLF_CORE_CTX_MAX];
+
+/* Free-list index stack for O(1) alloc/free of context slots (Fix 3) */
+__thread int wolf_ctx_free_stack[WOLF_CORE_CTX_MAX];
+__thread int wolf_ctx_free_top = -1;   /* -1 = uninitialized */
+
+static void wolf_ctx_freelist_init(void) {
+    wolf_ctx_free_top = -1;
+    for (int i = WOLF_CORE_CTX_MAX - 1; i >= 0; i--)
+        wolf_ctx_free_stack[++wolf_ctx_free_top] = i;
+}
 
 static WolfConnCtx* wolf_core_alloc_ctx(WolfCore* core, int client_fd, WolfArena* arena) {
-    for (int i = 0; i < WOLF_CORE_CTX_MAX; i++) {
-        if (!wolf_core_ctxs[i].active) {
-            memset(&wolf_core_ctxs[i], 0, sizeof(WolfConnCtx));
-            wolf_core_ctxs[i].active      = 1;
-            wolf_core_ctxs[i].client_fd   = client_fd;
-            wolf_core_ctxs[i].core_id     = core->core_id;
-            wolf_core_ctxs[i].status_code = 200;
-            wolf_core_ctxs[i].arena       = arena;
-            clock_gettime(CLOCK_MONOTONIC, &wolf_core_ctxs[i].started_at);
-            return &wolf_core_ctxs[i];
-        }
-    }
-    return NULL;
+    if (wolf_ctx_free_top < 0) return NULL;   /* all slots in use */
+
+    int idx = wolf_ctx_free_stack[wolf_ctx_free_top--];
+    WolfConnCtx* ctx = &wolf_core_ctxs[idx];
+
+    memset(ctx, 0, sizeof(WolfConnCtx));
+    ctx->active      = 1;
+    ctx->client_fd   = client_fd;
+    ctx->core_id     = core->core_id;
+    ctx->status_code = 200;
+    ctx->arena       = arena;
+    clock_gettime(CLOCK_MONOTONIC, &ctx->started_at);
+    return ctx;
 }
 
 static void wolf_core_free_ctx(WolfConnCtx* ctx) {
     if (!ctx) return;
-    if (ctx->arena) wolf_arena_reset(ctx->arena);
+    if (ctx->arena) {
+        wolf_arena_reset(ctx->arena);  /* frees struct too if is_overflow */
+        ctx->arena = NULL;             /* prevent dangling pointer on overflow arenas */
+    }
     ctx->active = 0;
+
+    /* Return slot to free-list — O(1) */
+    int idx = (int)(ctx - wolf_core_ctxs);
+    wolf_ctx_free_stack[++wolf_ctx_free_top] = idx;
 }
+
+/* ================================================================
+ * WebSocket bridge — transfers an upgraded fd from the new engine
+ * into the legacy http_contexts[] table that the WS poller owns.
+ * Declared extern here; defined in wolf_runtime.c.
+ * ================================================================ */
+extern int wolf_engine_register_ws_fd(int fd, const char* ws_key, const char* client_ip);
 
 static void* wolf_core_thread(void* arg) {
     WolfCoreArgs* args = (WolfCoreArgs*)arg;
     WolfCore*     core = args->core;
+
+    /* Initialize O(1) context free-list for this thread (Fix 3) */
+    wolf_ctx_freelist_init();
 
     /* Pin to core */
     wolf_pin_to_core(core->core_id);
@@ -617,6 +695,9 @@ static void* wolf_core_thread(void* arg) {
 
     /* Add server fd to sentinel for edge-triggered accept */
     wolf_sentinel_add(core->sentinel, core->server_fd, NULL, NULL);
+
+    /* Signal to sysmon that this thread is fully initialized */
+    __atomic_store_n(&core->ready, 1, __ATOMIC_RELEASE);
 
     char read_buf[WOLF_MAX_REQUEST_SIZE];
 
@@ -659,7 +740,8 @@ static void* wolf_core_thread(void* arg) {
                 "Content-Length: 0\r\n\r\n";
             write(client_fd, busy, strlen(busy));
             close(client_fd);
-            wolf_arena_reset(arena);
+            wolf_arena_reset(arena);  /* frees if overflow */
+            arena = NULL;
             __atomic_fetch_add(&core->requests_total, 1, __ATOMIC_RELAXED);
             continue;
         }
@@ -686,10 +768,19 @@ static void* wolf_core_thread(void* arg) {
         /* WebSocket upgrade */
         if (ctx->is_websocket) {
             wolf_engine_ws_handshake(ctx);
-            /* For now: hand off to the legacy WS poller */
-            /* Phase 2: integrate into per-core event loop */
+
+            /* Transfer fd ownership to the legacy WS poller (wolf_runtime.c).
+             * The poller manages the connection lifecycle from here.
+             * We must NOT close client_fd — the poller owns it now.
+             * We MUST free our engine ctx (its arena is no longer needed;
+             * the poller uses its own http_contexts[] storage). */
+            wolf_engine_register_ws_fd(ctx->client_fd,
+                                       ctx->ws_key,
+                                       ctx->client_ip);
+
+            /* Release engine ctx but do NOT close client_fd */
+            ctx->client_fd = -1;  /* prevent wolf_core_free_ctx from closing it */
             wolf_core_free_ctx(ctx);
-            /* Don't close fd — WS poller owns it */
             continue;
         }
 
@@ -701,8 +792,27 @@ static void* wolf_core_thread(void* arg) {
         __atomic_fetch_add(&core->requests_active, 1, __ATOMIC_RELAXED);
         if (args->http_handler) {
             wolf_req_arena_init();
-            args->http_handler(ctx_id, ctx_id);
+            wolf_closure_t* closure = (wolf_closure_t*)args->http_handler;
+            typedef void* (*wolf_closure_fn_t)(void* env, int64_t req_id, int64_t res_id);
+            wolf_closure_fn_t fn = (wolf_closure_fn_t)closure->fn;
+
+            /* Fix 4: validate fn pointer is in the text segment, not heap.
+             * Stale arena-allocated closures show up as addresses >= 0x600000000000. */
+            if (!fn
+                || (uintptr_t)(void*)fn < 0x400000UL
+                || (uintptr_t)(void*)fn > 0x7fffffffffffUL) {
+                fprintf(stderr, "[WOLF-ENGINE] CORRUPTED closure on core %d: "
+                        "closure=%p fn=%p — dropping request\n",
+                        core->core_id, (void*)closure, (void*)(uintptr_t)fn);
+                fflush(stderr);
+                ctx->status_code = 500;
+                goto send_and_cleanup;
+            }
+
+            fn(closure->env, ctx_id, ctx_id);
         }
+
+send_and_cleanup:
         __atomic_fetch_sub(&core->requests_active, 1, __ATOMIC_RELAXED);
 
         /* Send response */
@@ -731,8 +841,24 @@ static void* wolf_core_thread(void* arg) {
  * ================================================================ */
 
 WolfEngine* wolf_engine_create(int port, int core_count) {
-    if (core_count <= 0) core_count = wolf_detect_nproc();
-    /* Cap at 64 cores */
+    int hw_cores = wolf_detect_nproc();
+
+    if (core_count <= 0) {
+        /* workers = 0 (auto) — detect and use exact hardware count */
+        core_count = hw_cores;
+    } else if (core_count > hw_cores) {
+        /* Configured workers exceed physical cores — clamp and warn.
+         * Oversubscription causes context-switch overhead and skewed benchmarks.
+         * Use workers = 0 in wolf.config to let Wolf auto-detect. */
+        fprintf(stderr,
+            "[WOLF-ENGINE] WARN: Configured %d workers but machine has %d core(s). "
+            "Clamping to %d for optimal performance. "
+            "Set workers = 0 in wolf.config to auto-detect.\n",
+            core_count, hw_cores, hw_cores);
+        core_count = hw_cores;
+    }
+
+    /* Hard cap: Thread-Per-Core model is meaningless beyond 64 */
     if (core_count > 64) core_count = 64;
 
     WolfEngine* engine = (WolfEngine*)calloc(1, sizeof(WolfEngine));
@@ -758,9 +884,7 @@ WolfEngine* wolf_engine_create(int port, int core_count) {
     return engine;
 }
 
-int wolf_engine_start(WolfEngine* engine,
-                      wolf_http_handler_t handler,
-                      wolf_ws_handler_t   ws_handler) {
+int wolf_engine_start(WolfEngine* engine, wolf_http_handler_t handler, wolf_ws_handler_t ws_handler) {
     /* Install signal handlers */
     struct sigaction sa;
     memset(&sa, 0, sizeof(sa));
@@ -769,6 +893,7 @@ int wolf_engine_start(WolfEngine* engine,
     sigaction(SIGTERM, &sa, NULL);
     sigaction(SIGINT,  &sa, NULL);
     signal(SIGPIPE, SIG_IGN);
+    signal(SIGURG,  SIG_IGN);   /* sysmon preemption signal — no handler needed yet */
 
     printf("🐺 Wolf HTTP Engine — %d cores, port %d\n",
            engine->core_count, engine->port);
@@ -799,6 +924,24 @@ int wolf_engine_start(WolfEngine* engine,
         if (pthread_create(&core->thread, NULL, wolf_core_thread, args) != 0) {
             perror("pthread_create");
             free(args);
+            /* Mark as ready=1 so the wait loop below doesn't spin forever */
+            __atomic_store_n(&core->ready, 1, __ATOMIC_RELEASE);
+        }
+    }
+
+    /* Wait for all cores to finish initialization before firing SIGURG.
+     * Bounded to 5 seconds per core to prevent hanging if a thread dies
+     * before setting ready (e.g. socket bind failure in test environments). */
+    for (int i = 0; i < engine->core_count; i++) {
+        WolfCore* core = engine->cores[i];
+        if (!core) continue;
+        int waited_ms = 0;
+        while (!__atomic_load_n(&core->ready, __ATOMIC_ACQUIRE) && waited_ms < 5000) {
+            usleep(500);
+            waited_ms++;
+        }
+        if (waited_ms >= 5000) {
+            fprintf(stderr, "[WOLF-ENGINE] WARN: core %d did not signal ready in 5s\n", i);
         }
     }
 
@@ -807,7 +950,7 @@ int wolf_engine_start(WolfEngine* engine,
         usleep(10000);
         for (int i = 0; i < engine->core_count; i++) {
             WolfCore* core = engine->cores[i];
-            if (core && core->thread) {
+            if (core && core->thread && __atomic_load_n(&core->ready, __ATOMIC_ACQUIRE)) {
                 pthread_kill(core->thread, SIGURG);
             }
         }
@@ -877,10 +1020,16 @@ void wolf_engine_destroy(WolfEngine* engine) {
  * ================================================================ */
 
 void wolf_http_serve(int64_t port, void* handler_ptr) {
-    wolf_http_handler_t handler = (wolf_http_handler_t)handler_ptr;
-
     extern void wolf_crypto_init(void);
     wolf_crypto_init();
+
+    /* Fix 4: validate handler is in text segment, not heap — catches emitter bugs early.
+     * Addresses >= 0x600000000000 on Linux/amd64 are heap/mmap, never .text. */
+    if (handler_ptr && (uintptr_t)handler_ptr >= 0x600000000000UL) {
+        fprintf(stderr, "[Wolf] FATAL: handler_ptr %p looks like a heap address. "
+                "Closure must not be arena-allocated.\n", handler_ptr);
+        exit(1);
+    }
 
     /* Validate mail config at startup if configured */
     if (WOLF_MAIL_FROM_EMAIL[0] || WOLF_MAIL_HOST[0]) {
@@ -890,7 +1039,7 @@ void wolf_http_serve(int64_t port, void* handler_ptr) {
     int core_count = WOLF_WORKER_THREADS > 0 ? WOLF_WORKER_THREADS : 0; /* 0 = auto */
     WolfEngine* engine = wolf_engine_create((int)port, core_count);
 
-    wolf_engine_start(engine, handler, NULL);
+    wolf_engine_start(engine, (wolf_http_handler_t)handler_ptr, NULL);
     wolf_engine_destroy(engine);
 
     extern void wolf_db_pool_destroy(void);

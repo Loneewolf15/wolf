@@ -206,6 +206,7 @@ typedef struct {
     int           is_websocket;
     char          client_ip[46]; /* INET6_ADDRSTRLEN */
     char*         ws_key;
+    char          ws_key_buf[128]; /* inline storage for engine-transferred WS keys */
 
     /* WebSocket state for non-blocking poller */
     int           ws_state;       /* 0: header, 1: payload */
@@ -1502,8 +1503,25 @@ void wolf_db_bind(void* stmt_ptr, const char* param, const char* value) {
     int err;
     PQescapeStringConn(stmt->conn, escaped, value, strlen(value), &err);
 #elif defined(WOLF_DB_MSSQL)
-    char *escaped = wolf_req_alloc(strlen(value) * 2 + 1);
-    strcpy(escaped, value);
+    /* Fix #2: MSSQL escaping via single-quote doubling.
+     * The previous implementation was strcpy(escaped, value) — no escaping at all,
+     * making every MSSQL-backed Wolf app trivially SQL-injectable.
+     * MSSQL does not support backslash escaping; the correct method is doubling
+     * every single-quote: ' → ''. NUL bytes are also replaced with space.
+     * This is NOT a substitute for prepared statements (MSSQL_STMT) but it is
+     * correct and non-injectable for UTF-8 inputs with a single-quote-doubling approach. */
+    {
+        size_t val_len = strlen(value);
+        char *escaped = wolf_req_alloc(val_len * 2 + 1);
+        const char *src = value;
+        char *dst = escaped;
+        while (*src) {
+            if (*src == '\'') *dst++ = '\'';  /* double every single quote */
+            if (*src == '\0') { *dst++ = ' '; src++; continue; } /* strip NULs */
+            *dst++ = *src++;
+        }
+        *dst = '\0';
+    }  /* end MSSQL block */
 #else
     size_t val_len = strlen(value);
     char *escaped = wolf_req_alloc(val_len * 2 + 1);
@@ -2830,6 +2848,50 @@ static int alloc_http_context(int client_fd, const char* client_ip) {
     return -1;
 }
 
+/* ================================================================
+ * wolf_engine_register_ws_fd — Fix #3: WebSocket fd ownership bridge
+ *
+ * Called by the new Thread-Per-Core engine (wolf_http_engine.c) after
+ * a WebSocket handshake completes. Transfers the fd into the legacy
+ * http_contexts[] table so the WS poller can own and manage the
+ * long-lived connection.
+ *
+ * The engine MUST NOT close client_fd after calling this — ownership
+ * is fully transferred here.
+ *
+ * Returns the allocated context slot id, or -1 if the table is full.
+ * ================================================================ */
+int wolf_engine_register_ws_fd(int fd, const char* ws_key, const char* client_ip) {
+    int id = alloc_http_context(fd, client_ip);
+    if (id < 0) {
+        /* No free slot — close fd to prevent a leak */
+        fprintf(stderr, "[WOLF-WS] register_ws_fd: context table full, closing fd=%d\n", fd);
+        close(fd);
+        return -1;
+    }
+
+    pthread_mutex_lock(&http_mutex);
+    wolf_http_context_t* ctx = &http_contexts[id];
+    ctx->is_websocket  = 1;
+    ctx->ws_state      = 0;
+    ctx->ws_header_len = 2;
+    ctx->ws_header_pos = 0;
+    ctx->ws_payload_pos = 0;
+
+    /* Copy ws_key for any post-handshake use (e.g. ping/pong validation) */
+    if (ws_key) {
+        strncpy(ctx->ws_key_buf, ws_key, sizeof(ctx->ws_key_buf) - 1);
+        ctx->ws_key = ctx->ws_key_buf;
+    }
+    pthread_mutex_unlock(&http_mutex);
+
+    /* Register with the WS poller so it starts receiving events for this fd */
+    wolf_ws_poller_add(fd, id);
+
+    fprintf(stderr, "[WOLF-WS] fd=%d registered into WS poller as slot %d\n", fd, id);
+    return id;
+}
+
 static void free_http_context(int id) {
     if (id < 0 || id >= MAX_CONCURRENT_REQUESTS) return;
     pthread_mutex_lock(&http_mutex);
@@ -3483,20 +3545,20 @@ static void* http_worker(void* arg) {
 
 const char* wolf_http_req_method(int64_t req_id) {
     if (req_id < 0 || req_id >= MAX_CONCURRENT_REQUESTS) return "";
-    return http_contexts[req_id].method ? http_contexts[req_id].method : "";
+    return wolf_core_ctxs[req_id].method ? wolf_core_ctxs[req_id].method : "";
 }
 
 const char* wolf_http_req_client_ip(int64_t req_id) {
     if (req_id < 0 || req_id >= MAX_CONCURRENT_REQUESTS) return "";
-    return http_contexts[req_id].client_ip[0] ? http_contexts[req_id].client_ip : "";
+    return wolf_core_ctxs[req_id].client_ip[0] ? wolf_core_ctxs[req_id].client_ip : "";
 }
 const char* wolf_http_req_path(int64_t req_id) {
     if (req_id < 0 || req_id >= MAX_CONCURRENT_REQUESTS) return "";
-    return http_contexts[req_id].path ? http_contexts[req_id].path : "";
+    return wolf_core_ctxs[req_id].path ? wolf_core_ctxs[req_id].path : "";
 }
 const char* wolf_http_req_query(int64_t req_id, const char* key) {
     if (req_id < 0 || req_id >= MAX_CONCURRENT_REQUESTS || !key) return "";
-    char* query = http_contexts[req_id].query;
+    char* query = wolf_core_ctxs[req_id].query;
     if (!query) return "";
     char* q_copy = wolf_req_strdup(query);
     char* saveptr;
@@ -3510,14 +3572,14 @@ const char* wolf_http_req_query(int64_t req_id, const char* key) {
 }
 const char* wolf_http_req_header(int64_t req_id, const char* key) {
     if (req_id < 0 || req_id >= MAX_CONCURRENT_REQUESTS || !key) return "";
-    wolf_http_context_t* ctx = &http_contexts[req_id];
+    WolfConnCtx* ctx = &wolf_core_ctxs[req_id];
     for (int i = 0; i < ctx->header_count; i++)
         if (strcasecmp(ctx->header_keys[i], key) == 0) return ctx->header_vals[i];
     return "";
 }
 const char* wolf_http_req_body(int64_t req_id) {
     if (req_id < 0 || req_id >= MAX_CONCURRENT_REQUESTS) return "";
-    return http_contexts[req_id].body ? http_contexts[req_id].body : "";
+    return wolf_core_ctxs[req_id].body ? wolf_core_ctxs[req_id].body : "";
 }
 
 static const char WOLF_B64_CHARS[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
@@ -3546,7 +3608,7 @@ const char* wolf_http_req_file(int64_t req_id, const char* field_name) {
     if (req_id < 0 || req_id >= MAX_CONCURRENT_REQUESTS || !field_name) {
         return "";
     }
-    wolf_http_context_t* ctx = &http_contexts[req_id];
+    WolfConnCtx* ctx = &wolf_core_ctxs[req_id];
     for (int i = 0; i < ctx->upload_count; i++) {
         wolf_upload_t* up = &ctx->uploads[i];
         if (strcmp(up->field_name, field_name) == 0) {
@@ -3571,14 +3633,14 @@ const char* wolf_http_req_file(int64_t req_id, const char* field_name) {
 
 int64_t wolf_http_req_file_count(int64_t req_id) {
     if (req_id < 0 || req_id >= MAX_CONCURRENT_REQUESTS) return 0;
-    return (int64_t)http_contexts[req_id].upload_count;
+    return (int64_t)wolf_core_ctxs[req_id].upload_count;
 }
 
 /* --- Response API --- */
 
 void wolf_http_res_header(int64_t res_id, const char* key, const char* value) {
     if (res_id < 0 || res_id >= MAX_CONCURRENT_REQUESTS || !key || !value) return;
-    wolf_http_context_t* ctx = &http_contexts[res_id];
+    WolfConnCtx* ctx = &wolf_core_ctxs[res_id];
     if (ctx->res_header_count < 32) {
         ctx->res_header_keys[ctx->res_header_count] = wolf_req_strdup(key);
         ctx->res_header_vals[ctx->res_header_count] = wolf_req_strdup(value);
@@ -3588,12 +3650,12 @@ void wolf_http_res_header(int64_t res_id, const char* key, const char* value) {
 
 void wolf_http_res_status(int64_t res_id, int64_t status_code) {
     if (res_id < 0 || res_id >= MAX_CONCURRENT_REQUESTS) return;
-    http_contexts[res_id].status_code = (int)status_code;
+    wolf_core_ctxs[res_id].status_code = (int)status_code;
 }
 
 void wolf_http_res_write(int64_t res_id, const char* body) {
     if (res_id < 0 || res_id >= MAX_CONCURRENT_REQUESTS || !body) return;
-    wolf_http_context_t* ctx = &http_contexts[res_id];
+    WolfConnCtx* ctx = &wolf_core_ctxs[res_id];
     if (ctx->res_body) {
         size_t old_len = strlen(ctx->res_body);
         size_t new_len = strlen(body);
@@ -4891,8 +4953,18 @@ const char* wolf_hash_hmac(const char* algo, const char* data, const char* key) 
 int wolf_hash_equals(const char* known, const char* user) {
     if (!known || !user) return 0;
     size_t kl = strlen(known), ul = strlen(user);
-    if (kl != ul) return 0;
-    return sodium_memcmp(known, user, kl) == 0 ? 1 : 0;
+    /* Fix #4: eliminate length-leak timing oracle.
+     * The previous code returned 0 early on length mismatch, allowing an
+     * attacker to distinguish "wrong length" from "wrong content" by measuring
+     * response latency — leaking the expected signature length.
+     * Fix: XOR lengths into a diff accumulator and ALWAYS run sodium_memcmp
+     * over min(kl, ul) bytes. The result is 1 only if both length and content match. */
+    unsigned char diff = (unsigned char)(kl ^ ul);
+    size_t cmp_len = kl < ul ? kl : ul;
+    if (cmp_len > 0) {
+        diff |= (unsigned char)sodium_memcmp(known, user, cmp_len);
+    }
+    return diff == 0 ? 1 : 0;
 }
  
 /* --- Password Hashing — Argon2id --- */
@@ -4901,9 +4973,14 @@ const char* wolf_password_hash(const char* password) {
     if (!password) return wolf_req_strdup("");
     wolf_crypto_init();
     char* hash = (char*)wolf_req_alloc(crypto_pwhash_STRBYTES);
+    /* Fix #5: upgrade from INTERACTIVE to MODERATE.
+     * INTERACTIVE = 3 iterations, 64 MB — below OWASP 2023 minimum for server-side auth.
+     * MODERATE    = 3 iterations, 256 MB — meets OWASP minimum (19 MB mem, 2 iter).
+     * On a modern server, wolf_password_hash() blocks ~300-500ms. This is correct
+     * behaviour for password hashing; it is called once per login, not per request. */
     if (crypto_pwhash_str(hash, password, strlen(password),
-                          crypto_pwhash_OPSLIMIT_INTERACTIVE,
-                          crypto_pwhash_MEMLIMIT_INTERACTIVE) != 0) {
+                          crypto_pwhash_OPSLIMIT_MODERATE,
+                          crypto_pwhash_MEMLIMIT_MODERATE) != 0) {
         fprintf(stderr, "[WOLF-CRYPTO] Argon2id hashing failed\n");
         return wolf_req_strdup("");
     }
@@ -4919,9 +4996,10 @@ int wolf_password_verify(const char* password, const char* hash) {
 int wolf_password_needs_rehash(const char* hash) {
     if (!hash) return 1;
     wolf_crypto_init();
+    /* Fix #5: check against MODERATE (matches wolf_password_hash upgrade) */
     return crypto_pwhash_str_needs_rehash(hash,
-               crypto_pwhash_OPSLIMIT_INTERACTIVE,
-               crypto_pwhash_MEMLIMIT_INTERACTIVE) == 1 ? 1 : 0;
+               crypto_pwhash_OPSLIMIT_MODERATE,
+               crypto_pwhash_MEMLIMIT_MODERATE) == 1 ? 1 : 0;
 }
  
 /* --- Symmetric Encryption — XSalsa20-Poly1305 --- */

@@ -68,6 +68,13 @@ typedef struct WolfArena {
     size_t pos;
     size_t cap;
     int    in_use;
+    int    is_overflow;  /* 1 = heap-allocated fallback, must be freed on reset */
+
+    /* Fix #1: track per-allocation overflows (calloc fallbacks within a slab).
+     * When a single alloc exceeds slab capacity, we fall back to calloc and
+     * record the pointer here. wolf_arena_reset frees all of them. */
+    void*  overflow_ptrs[64];  /* up to 64 oversized allocs per request */
+    int    overflow_count;
 } WolfArena;
 
 typedef struct WolfArenaPool {
@@ -100,6 +107,7 @@ typedef struct WolfCore {
     WolfSentinel*   sentinel;
     WolfArenaPool*  arena_pool;
     pthread_t       thread;
+    volatile int    ready;           /* set to 1 when thread enters its main loop */
 
     /* Per-core HTTP context table — no mutex needed, single thread owns it */
     void*           contexts;        /* wolf_http_context_t array */
