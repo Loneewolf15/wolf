@@ -20,11 +20,11 @@ func main() {
 
 	start := time.Now()
 	var (
-		mu       sync.Mutex
-		failed   int
-		success  int
-		maxLat   time.Duration
-		totalLat time.Duration
+		mu        sync.Mutex
+		failed    int
+		success   int
+		maxLat    time.Duration
+		totalLat  time.Duration
 		errorsMap = make(map[string]int)
 	)
 

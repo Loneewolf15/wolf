@@ -571,7 +571,6 @@ func (c *Compiler) configCFlags() []string {
 	}
 }
 
-
 // writeConfigSnapshot writes a .wolf_build_config file to outDir so deployment
 // tooling can inspect compiled-in settings. Never contains credentials.
 func (c *Compiler) writeConfigSnapshot(outDir string) error {

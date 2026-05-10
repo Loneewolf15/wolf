@@ -379,8 +379,6 @@ Edit `+"`wolf.config`"+` and change `+"`arch`"+`:
 	return nil
 }
 
-
-
 // Generate creates a new Wolf file of the given type and name.
 // Types: controller, model, service, library
 func Generate(kind, name string) (string, error) {

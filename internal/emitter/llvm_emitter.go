@@ -3701,12 +3701,12 @@ func (e *LLVMEmitter) emitMethodCall(mc *ir.MethodCallExpr) string {
 
 	// 3. Multiple candidates: Inline Dynamic Dispatch!
 	e.writelnIndent("; === Dynamic Method Dispatch ===")
-	
+
 	classKeyLabel := e.addStringConst("__class")
 	classKeyLen := len("__class") + 1
 	classKeyPtr := e.nextLocal()
 	e.writelnIndent(fmt.Sprintf("%s = getelementptr [%d x i8], ptr %s, i64 0, i64 0", classKeyPtr, classKeyLen, classKeyLabel))
-	
+
 	classNamePtr := e.nextLocal()
 	e.writelnIndent(fmt.Sprintf("%s = call ptr @wolf_map_get(ptr %s, ptr %s)", classNamePtr, objVal, classKeyPtr))
 
@@ -3724,48 +3724,48 @@ func (e *LLVMEmitter) emitMethodCall(mc *ir.MethodCallExpr) string {
 
 	endBlock := fmt.Sprintf("dyn_end_%d", e.labelCounter)
 	e.labelCounter++
-	
+
 	for i, callee := range candidates {
 		// "UsersController_index" -> "UsersController"
 		className := strings.TrimSuffix(callee, "_"+mc.Method)
-		
+
 		checkBlock := fmt.Sprintf("dyn_check_%d_%d", e.labelCounter, i)
 		matchBlock := fmt.Sprintf("dyn_match_%d_%d", e.labelCounter, i)
 		e.writelnIndent(fmt.Sprintf("br label %%%s", checkBlock))
 		e.writeln(fmt.Sprintf("%s:", checkBlock))
-		
+
 		lbl := e.addStringConst(className)
 		lblLen := len(className) + 1
 		nPtr := e.nextLocal()
 		e.writelnIndent(fmt.Sprintf("%s = getelementptr [%d x i8], ptr %s, i64 0, i64 0", nPtr, lblLen, lbl))
-		
+
 		cmpRes := e.nextLocal()
 		e.writelnIndent(fmt.Sprintf("%s = call i32 @strcmp(ptr %s, ptr %s)", cmpRes, classNamePtr, nPtr))
-		
+
 		isMatch := e.nextLocal()
 		e.writelnIndent(fmt.Sprintf("%s = icmp eq i32 %s, 0", isMatch, cmpRes))
-		
+
 		nextBlock := endBlock
 		if i < len(candidates)-1 {
 			nextBlock = fmt.Sprintf("dyn_check_%d_%d", e.labelCounter, i+1)
 		}
-		
+
 		e.writelnIndent(fmt.Sprintf("br i1 %s, label %%%s, label %%%s", isMatch, matchBlock, nextBlock))
 		e.writeln(fmt.Sprintf("%s:", matchBlock))
-		
+
 		// Build arg string
 		callArgs := []string{fmt.Sprintf("ptr %s", objVal)}
 		for _, argVal := range emittedArgs {
 			callArgs = append(callArgs, fmt.Sprintf("ptr %s", argVal))
 		}
-		
+
 		emitName := "wolf_" + callee
 		callRes := e.nextLocal()
 		e.writelnIndent(fmt.Sprintf("%s = call ptr @%s(%s)", callRes, emitName, strings.Join(callArgs, ", ")))
 		e.writelnIndent(fmt.Sprintf("store ptr %s, ptr %s", callRes, retAlloca))
 		e.writelnIndent(fmt.Sprintf("br label %%%s", endBlock))
 	}
-	
+
 	e.writeln(fmt.Sprintf("%s:", endBlock))
 	finalRet := e.nextLocal()
 	e.writelnIndent(fmt.Sprintf("%s = load ptr, ptr %s", finalRet, retAlloca))
@@ -4003,26 +4003,26 @@ func (e *LLVMEmitter) emitDynamicRegistry(program *ir.Program) {
 
 	for i, cls := range program.Classes {
 		e.writeln(fmt.Sprintf("%s:", blocks[i]))
-		
+
 		clsLabel := e.addStringConst(cls.Name)
 		clsLen := len(cls.Name) + 1
 		namePtr := e.nextLocal()
 		e.writelnIndent(fmt.Sprintf("%s = getelementptr [%d x i8], ptr %s, i64 0, i64 0", namePtr, clsLen, clsLabel))
-		
+
 		cmpRes := e.nextLocal()
 		e.writelnIndent(fmt.Sprintf("%s = call i32 @strcmp(ptr %%className, ptr %s)", cmpRes, namePtr))
-		
+
 		isMatch := e.nextLocal()
 		e.writelnIndent(fmt.Sprintf("%s = icmp eq i32 %s, 0", isMatch, cmpRes))
-		
+
 		nextBlock := "fallback"
 		if i < len(program.Classes)-1 {
 			nextBlock = blocks[i+1]
 		}
-		
+
 		matchBlock := fmt.Sprintf("match_%d", i)
 		e.writelnIndent(fmt.Sprintf("br i1 %s, label %%%s, label %%%s", isMatch, matchBlock, nextBlock))
-		
+
 		e.writeln(fmt.Sprintf("%s:", matchBlock))
 		retPtr := e.nextLocal()
 		e.writelnIndent(fmt.Sprintf("%s = call ptr @wolf_New%s()", retPtr, cls.Name))

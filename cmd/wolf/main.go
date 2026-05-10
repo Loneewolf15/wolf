@@ -279,7 +279,6 @@ database layer, and embeds CPython for native ML library access.`,
 	newCmd.Flags().StringVarP(&projectType, "type", "t", "script", "Project type: api, script, or mcu")
 	newCmd.Flags().StringVarP(&projectArch, "arch", "a", "", "MCU architecture (default: arm-cortex-m4). Options: arm-cortex-m4, arm-cortex-m0, riscv32")
 
-
 	generateCmd := &cobra.Command{
 		Use:   "generate [type] [name]",
 		Short: "Generate a Wolf file (controller, model, service, library)",
