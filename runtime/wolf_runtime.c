@@ -1498,44 +1498,63 @@ void* wolf_db_prepare(void* conn, const char* sql) {
     return stmt;
 }
 
+/* ================================================================
+ * wolf_db_escape — centralised SQL value escaping for all drivers.
+ *
+ * Takes a raw value string and returns an arena-allocated, escaped
+ * version safe for interpolation into SQL strings. The conn pointer
+ * is REQUIRED — mysql_real_escape_string and PQescapeStringConn both
+ * use the connection's character-set state to escape correctly.
+ *
+ * Returns an empty string (never NULL, never the raw value) if conn
+ * is NULL, preventing silent injection on misconfigured callers.
+ * ================================================================ */
+static char* wolf_db_escape(void* conn, const char* value) {
+    if (!value) value = "";
+    if (!conn) {
+        fprintf(stderr, "[WOLF-QB] wolf_db_escape called with NULL conn — "
+                        "returning empty string to prevent injection\n");
+        return wolf_req_strdup("");
+    }
+
+#if defined(WOLF_DB_POSTGRES)
+    int err;
+    size_t val_len = strlen(value);
+    char* escaped = (char*)wolf_req_alloc(val_len * 2 + 1);
+    PQescapeStringConn((PGconn*)conn, escaped, value, val_len, &err);
+    return escaped;
+#elif defined(WOLF_DB_MSSQL)
+    /* MSSQL single-quote doubling — see wolf_db_bind comment for rationale */
+    size_t val_len = strlen(value);
+    char* escaped = (char*)wolf_req_alloc(val_len * 2 + 1);
+    const char* src = value;
+    char* dst = escaped;
+    while (*src) {
+        if (*src == '\'') *dst++ = '\''; /* double every single quote */
+        if (*src == '\0') { *dst++ = ' '; src++; continue; } /* strip NULs */
+        *dst++ = *src++;
+    }
+    *dst = '\0';
+    return escaped;
+#else
+    /* MySQL: mysql_real_escape_string requires the connection for charset info */
+    size_t val_len = strlen(value);
+    char* escaped = (char*)wolf_req_alloc(val_len * 2 + 1);
+    mysql_real_escape_string((MYSQL*)conn, escaped, value, val_len);
+    return escaped;
+#endif
+}
+
 void wolf_db_bind(void* stmt_ptr, const char* param, const char* value) {
     if (!stmt_ptr || !param) return;
     WolfDBStmt* stmt = (WolfDBStmt*)stmt_ptr;
     if (!value) value = "";
 
-#if defined(WOLF_DB_POSTGRES)
-    char *escaped = wolf_req_alloc(strlen(value) * 2 + 1);
-    int err;
-    PQescapeStringConn(stmt->conn, escaped, value, strlen(value), &err);
-#elif defined(WOLF_DB_MSSQL)
-    /* Fix #2: MSSQL escaping via single-quote doubling.
-     * The previous implementation was strcpy(escaped, value) — no escaping at all,
-     * making every MSSQL-backed Wolf app trivially SQL-injectable.
-     * MSSQL does not support backslash escaping; the correct method is doubling
-     * every single-quote: ' → ''. NUL bytes are also replaced with space.
-     * This is NOT a substitute for prepared statements (MSSQL_STMT) but it is
-     * correct and non-injectable for UTF-8 inputs with a single-quote-doubling approach. */
-    {
-        size_t val_len = strlen(value);
-        char *escaped = wolf_req_alloc(val_len * 2 + 1);
-        const char *src = value;
-        char *dst = escaped;
-        while (*src) {
-            if (*src == '\'') *dst++ = '\'';  /* double every single quote */
-            if (*src == '\0') { *dst++ = ' '; src++; continue; } /* strip NULs */
-            *dst++ = *src++;
-        }
-        *dst = '\0';
-    }  /* end MSSQL block */
-#else
-    size_t val_len = strlen(value);
-    char *escaped = wolf_req_alloc(val_len * 2 + 1);
-    mysql_real_escape_string(stmt->conn, escaped, value, val_len);
-#endif
-
-    char *quoted = wolf_req_alloc(strlen(escaped) + 3);
+    /* Delegate to the centralised escaping helper */
+    char* escaped = wolf_db_escape(stmt->conn, value);
+    char* quoted  = wolf_req_alloc(strlen(escaped) + 3);
     sprintf(quoted, "'%s'", escaped);
-    char *new_sql = wolf_internal_str_replace(stmt->sql, param, quoted, 1);
+    char* new_sql = wolf_internal_str_replace(stmt->sql, param, quoted, 1);
     if (new_sql) stmt->sql = new_sql;
 }
 
@@ -2755,7 +2774,13 @@ const char* wolf_http_query(const char* key) {
     return wolf_http_req_query(wolf_current_req_id, key);
 }
 
-void* wolf_class_create(const char* name) { (void)name; return wolf_map_create(); }
+void* wolf_class_create(const char* name) { 
+    void* map = wolf_map_create(); 
+    if (name) {
+        wolf_map_set(map, "__class", (void*)name);
+    }
+    return map; 
+}
 
 /* ========== Conversions ========== */
 
@@ -6656,7 +6681,11 @@ void* wolf_qb_where(void* qb_ptr, const char* col, const char* val, const char* 
     if (qb->where_count >= WOLF_QB_MAX_WHERE) return qb_ptr;
     int i = qb->where_count++;
     qb->where_col[i] = wolf_req_strdup(col);
-    qb->where_val[i] = wolf_req_strdup(val ? val : "");
+    /* Escape at ingestion time — where_val[] always stores safe, escaped strings.
+     * wolf_qb_build_select, wolf_qb_update, wolf_qb_delete, and wolf_qb_paginate
+     * all read from this array and interpolate it directly; they do not need to
+     * know about the connection or escaping logic. Invariant: where_val[] is clean. */
+    qb->where_val[i] = wolf_db_escape(qb->conn, val ? val : "");
     qb->where_op [i] = wolf_req_strdup((op && strlen(op) > 0) ? op : "=");
     return qb_ptr;
 }
@@ -6785,7 +6814,9 @@ int64_t wolf_qb_insert(void* qb_ptr, void* data_ptr) {
         if (i > 0) wolf_strbuf_append(sb, ", ");
         wolf_strbuf_append(sb, "'");
         const char* val = wolf_map_get_str(data, data->keys[i]);
-        wolf_strbuf_append(sb, val ? val : "");
+        /* INSERT/UPDATE values are escaped here at construction time, not at ingestion, 
+         * because they enter via an arbitrary map rather than a single controlled entry point. */
+        wolf_strbuf_append(sb, wolf_db_escape(qb->conn, val ? val : ""));
         wolf_strbuf_append(sb, "'");
     }
     wolf_strbuf_append(sb, ")");
@@ -6810,7 +6841,9 @@ int64_t wolf_qb_update(void* qb_ptr, void* data_ptr) {
         wolf_strbuf_append(sb, data->keys[i]);
         wolf_strbuf_append(sb, " = '");
         const char* val = wolf_map_get_str(data, data->keys[i]);
-        wolf_strbuf_append(sb, val ? val : "");
+        /* INSERT/UPDATE values are escaped here at construction time, not at ingestion, 
+         * because they enter via an arbitrary map rather than a single controlled entry point. */
+        wolf_strbuf_append(sb, wolf_db_escape(qb->conn, val ? val : ""));
         wolf_strbuf_append(sb, "'");
     }
     if (qb->where_count > 0) {
