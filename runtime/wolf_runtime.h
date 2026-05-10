@@ -240,6 +240,8 @@ void        wolf_http_res_header(int64_t res_id, const char* key, const char* va
 void        wolf_http_res_status(int64_t res_id, int64_t status_code);
 void        wolf_http_res_write(int64_t res_id, const char* body);
 /* --- File Uploads --- */
+/* NOTE: wolf_http_req_file returns a basename-sanitized filename to prevent path traversal.
+ * Do not trust this filename for directory construction without a developer-supplied upload path prefix. */
 const char* wolf_http_req_file(int64_t req_id, const char* field_name);
 int64_t     wolf_http_req_file_count(int64_t req_id);
 

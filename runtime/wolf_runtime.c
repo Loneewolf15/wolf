@@ -3110,7 +3110,7 @@ static void wolf_parse_multipart(wolf_http_context_t* ctx,
 
         wolf_upload_t* up = &ctx->uploads[ctx->upload_count++];
         up->field_name   = field_name;
-        up->filename     = filename;
+        up->filename     = wolf_req_strdup(wolf_file_basename(filename));
         up->content_type = part_ct;
         up->data         = data_buf;
         up->size         = data_size;
@@ -5970,6 +5970,8 @@ int wolf_file_write(const char* path, const char* data) {
  * This is the Wolf_File::Save companion to wolf_http_req_file(). */
 int wolf_file_save(const char* path, const char* b64_data) {
     if (!path || !b64_data || !*b64_data) return 0;
+    if (strchr(path, '\0') != path + strlen(path)) return 0;
+    if (strcmp(path, wolf_file_basename(path)) != 0) return 0;
     /* Base64 decode */
     size_t b64_len = strlen(b64_data);
     size_t out_max = (b64_len * 3) / 4 + 4;
@@ -6022,8 +6024,11 @@ const char* wolf_file_extension(const char* path) {
 }
 const char* wolf_file_basename(const char* path) {
     if (!path) return wolf_req_strdup("");
-    const char* slash=strrchr(path,'/'); if(!slash) return wolf_req_strdup(path);
-    return wolf_req_strdup(slash+1);
+    const char* slash = strrchr(path, '/');
+    const char* bslash = strrchr(path, '\\');
+    const char* last = (slash > bslash) ? slash : bslash;
+    if (!last) return wolf_req_strdup(path);
+    return wolf_req_strdup(last + 1);
 }
 const char* wolf_file_dirname(const char* path) {
     if (!path) return wolf_req_strdup("");
