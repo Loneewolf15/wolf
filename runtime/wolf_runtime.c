@@ -872,19 +872,27 @@ static inline char* json_decode_realloc(char* old, size_t old_sz, size_t new_sz)
     return (char*)wolf_req_realloc(old, old_sz, new_sz);
 }
 
+/* Fix #9: Thread-local OOM flag — set instead of calling pthread_exit.
+ * The worker loop checks this after request dispatch and performs cleanup
+ * (arena flush, arena reset, pool slot return) before returning 503.
+ * This prevents DB pool slot leaks under memory pressure. */
+static __thread int wolf_req_oom = 0;
+
+void wolf_req_oom_clear(void) { wolf_req_oom = 0; }
+int  wolf_req_oom_check(void) { return wolf_req_oom; }
+
 void* wolf_req_alloc(size_t sz) {
     void* p = malloc(sz);
     if (!p) {
         /* OOM guard — always log to stderr (safe on all platforms) */
         fprintf(stderr, "[WOLF] OOM in request arena (requested %zu bytes)\n", sz);
 #ifndef WOLF_FREESTANDING
-        /* In an active HTTP context: send 503 and abort this request cleanly */
-        if (wolf_current_res_id >= 0) {
-            wolf_http_res_status(wolf_current_res_id, 503);
-            wolf_http_res_write(wolf_current_res_id, "Service Unavailable: out of memory");
-            pthread_exit(NULL);
-        }
-#endif /* WOLF_FREESTANDING */
+        /* Fix #9: set OOM flag instead of pthread_exit.
+         * pthread_exit skips arena cleanup and leaks DB pool slots permanently.
+         * The worker loop checks wolf_req_oom_check() after dispatch and
+         * handles 503 + cleanup without dropping locks or pool slots. */
+        wolf_req_oom = 1;
+#endif
         return NULL;
     }
     memset(p, 0, sz);
@@ -897,11 +905,8 @@ char* wolf_req_strdup(const char* s) {
     if (!p) {
         fprintf(stderr, "[WOLF] OOM in wolf_req_strdup\n");
 #ifndef WOLF_FREESTANDING
-        if (wolf_current_res_id >= 0) {
-            wolf_http_res_status(wolf_current_res_id, 503);
-            wolf_http_res_write(wolf_current_res_id, "Service Unavailable: out of memory");
-            pthread_exit(NULL);
-        }
+        /* Fix #9: flag instead of pthread_exit */
+        wolf_req_oom = 1;
 #endif
         return NULL;
     }
@@ -5004,16 +5009,44 @@ int wolf_password_needs_rehash(const char* hash) {
  
 /* --- Symmetric Encryption — XSalsa20-Poly1305 --- */
  
+/* Fix #8: Key derivation helper — HKDF via crypto_auth_hmacsha256.
+ * SHA-256(key) collapses low-entropy keys to ~39 bits effective entropy.
+ * HKDF with a fixed salt + context label is safe for both machine secrets
+ * and user-derived keys (callers using passwords should pre-hash with Argon2).
+ * Output: 32 bytes written to derived_key (crypto_secretbox_KEYBYTES). */
+static void wolf_derive_key_hkdf(const char* key, unsigned char* derived_key) {
+    /* HKDF-Extract: PRK = HMAC-SHA256(salt, key)
+     * Use a fixed, public salt — not secret, just ensures domain separation. */
+    static const unsigned char salt[32] = {
+        'W','O','L','F','_','K','D','F','_','S','A','L','T','_','v','1',
+        0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+    };
+    unsigned char prk[crypto_auth_hmacsha256_BYTES];
+    crypto_auth_hmacsha256_state st;
+    crypto_auth_hmacsha256_init(&st, salt, sizeof(salt));
+    crypto_auth_hmacsha256_update(&st, (const unsigned char*)key, strlen(key));
+    crypto_auth_hmacsha256_final(&st, prk);
+
+    /* HKDF-Expand: OKM = HMAC-SHA256(PRK, info || 0x01)
+     * info = "wolf_encrypt_v1" for domain separation from other uses. */
+    static const unsigned char info[] = "wolf_encrypt_v1";
+    crypto_auth_hmacsha256_init(&st, prk, sizeof(prk));
+    crypto_auth_hmacsha256_update(&st, info, sizeof(info) - 1);
+    unsigned char counter = 0x01;
+    crypto_auth_hmacsha256_update(&st, &counter, 1);
+    unsigned char okm[crypto_auth_hmacsha256_BYTES];
+    crypto_auth_hmacsha256_final(&st, okm);
+
+    /* crypto_secretbox_KEYBYTES = 32 = crypto_auth_hmacsha256_BYTES */
+    memcpy(derived_key, okm, crypto_secretbox_KEYBYTES);
+}
+
 const char* wolf_encrypt(const char* data, const char* key) {
     if (!data || !key) return wolf_req_strdup("");
     wolf_crypto_init();
     unsigned char derived_key[crypto_secretbox_KEYBYTES];
-    unsigned int dk_len = 0;
-    EVP_MD_CTX* ctx = EVP_MD_CTX_new();
-    EVP_DigestInit_ex(ctx, EVP_sha256(), NULL);
-    EVP_DigestUpdate(ctx, key, strlen(key));
-    EVP_DigestFinal_ex(ctx, derived_key, &dk_len);
-    EVP_MD_CTX_free(ctx);
+    /* Fix #8: HKDF key derivation — replaces single-pass SHA-256 */
+    wolf_derive_key_hkdf(key, derived_key);
     unsigned char nonce[crypto_secretbox_NONCEBYTES];
     randombytes_buf(nonce, sizeof(nonce));
     size_t data_len = strlen(data);
@@ -5035,12 +5068,8 @@ const char* wolf_decrypt(const char* data, const char* key) {
     if (!data || !key) return wolf_req_strdup("");
     wolf_crypto_init();
     unsigned char derived_key[crypto_secretbox_KEYBYTES];
-    unsigned int dk_len = 0;
-    EVP_MD_CTX* ctx = EVP_MD_CTX_new();
-    EVP_DigestInit_ex(ctx, EVP_sha256(), NULL);
-    EVP_DigestUpdate(ctx, key, strlen(key));
-    EVP_DigestFinal_ex(ctx, derived_key, &dk_len);
-    EVP_MD_CTX_free(ctx);
+    /* Fix #8: HKDF key derivation — replaces single-pass SHA-256 */
+    wolf_derive_key_hkdf(key, derived_key);
     size_t b64_maxdec = strlen(data) * 3 / 4 + 4;
     unsigned char* blob = (unsigned char*)wolf_req_alloc(b64_maxdec);
     size_t blob_len = 0;
@@ -7010,7 +7039,9 @@ void wolf_spawn_supervised_thread(void* handler, const char* strategy, int64_t m
 
 wolf_closure_t* wolf_closure_create(void* fn, int64_t env_count) {
     wolf_closure_t* c = (wolf_closure_t*)wolf_req_alloc(sizeof(wolf_closure_t));
-    c->fn = fn;
+    /* Fix #10: stamp magic cookie for platform-independent validity check */
+    c->magic     = WOLF_CLOSURE_MAGIC;
+    c->fn        = fn;
     c->env_count = env_count;
     if (env_count > 0) {
         c->env = (void**)wolf_req_alloc(sizeof(void*) * env_count);

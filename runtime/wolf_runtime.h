@@ -48,6 +48,9 @@ void* wolf_req_alloc_register(void* ptr);
 void* wolf_req_alloc(size_t sz);
 char* wolf_req_strdup(const char* s);
 void  wolf_req_arena_flush(void);
+/* Fix #9: OOM flag API — use instead of pthread_exit in alloc failure path */
+void wolf_req_oom_clear(void);
+int  wolf_req_oom_check(void);
 
 /* --- Output & Display (Wolf Way) --- */
 void wolf_say(const char* s);
@@ -91,11 +94,23 @@ wolf_value_t* wolf_val_array(void* arr);
 void* wolf_class_create(const char* name);
 
 /* --- Closures --- */
+/* Fix #10: Magic cookie for platform-independent closure validation.
+ * Replaces the hardcoded x86-64 Linux address range check in wolf_http_engine.c
+ * (which misfires on ARM64, macOS, and 32-bit targets).
+ * wolf_closure_create() stamps the magic at construction time.
+ * wolf_closure_valid() checks it at dispatch time in O(1). */
+#define WOLF_CLOSURE_MAGIC 0xC105F105U  /* "CLOS-FLOS" — wolf closure sentinel */
+
 typedef struct {
+    uint32_t magic;     /* must equal WOLF_CLOSURE_MAGIC — set in wolf_closure_create */
     void*   fn;
     void**  env;
     int64_t env_count;
 } wolf_closure_t;
+
+static inline int wolf_closure_valid(const wolf_closure_t* c) {
+    return c && c->magic == WOLF_CLOSURE_MAGIC && c->fn != NULL;
+}
 
 wolf_closure_t* wolf_closure_create(void* fn, int64_t env_count);
 void  wolf_closure_set_env(wolf_closure_t* c, int64_t index, void* ptr);

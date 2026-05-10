@@ -796,20 +796,30 @@ static void* wolf_core_thread(void* arg) {
             typedef void* (*wolf_closure_fn_t)(void* env, int64_t req_id, int64_t res_id);
             wolf_closure_fn_t fn = (wolf_closure_fn_t)closure->fn;
 
-            /* Fix 4: validate fn pointer is in the text segment, not heap.
-             * Stale arena-allocated closures show up as addresses >= 0x600000000000. */
-            if (!fn
-                || (uintptr_t)(void*)fn < 0x400000UL
-                || (uintptr_t)(void*)fn > 0x7fffffffffffUL) {
+            /* Fix #10: platform-independent closure validation via magic cookie.
+             * Replaces the x86-64 Linux address range check (0x400000–0x7fffffffffff)
+             * which misfires on ARM64 and macOS ASLR layouts. */
+            if (!wolf_closure_valid(closure)) {
                 fprintf(stderr, "[WOLF-ENGINE] CORRUPTED closure on core %d: "
-                        "closure=%p fn=%p — dropping request\n",
-                        core->core_id, (void*)closure, (void*)(uintptr_t)fn);
+                        "closure=%p magic=0x%08X fn=%p — dropping request\n",
+                        core->core_id, (void*)closure,
+                        closure ? closure->magic : 0,
+                        (void*)(uintptr_t)fn);
                 fflush(stderr);
                 ctx->status_code = 500;
                 goto send_and_cleanup;
             }
 
             fn(closure->env, ctx_id, ctx_id);
+
+            /* Fix #9: check OOM flag set by wolf_req_alloc / wolf_req_strdup.
+             * If set, the handler hit OOM mid-execution. Send 503, clear flag.
+             * The cleanup path below handles arena flush and pool slot return. */
+            if (wolf_req_oom_check()) {
+                ctx->status_code = 503;
+                if (!ctx->res_body) ctx->res_body = "Service Unavailable";
+                wolf_req_oom_clear();
+            }
         }
 
 send_and_cleanup:
