@@ -769,8 +769,39 @@ func (e *IREmitter) emitExpr(expr parser.Expression) ir.Expr {
 		for _, a := range ex.Args {
 			args = append(args, e.emitExpr(a))
 		}
+		
+		// If it's a static class name, optimize to a direct call to NewClassName
+		if ident, ok := ex.ClassExpr.(*parser.Identifier); ok {
+			return &ir.CallExpr{
+				Callee:   &ir.Ident{Name: "New" + ident.Name},
+				TypeArgs: ex.TypeArgs,
+				Args:     args,
+			}
+		} else if staticCall, ok := ex.ClassExpr.(*parser.StaticCall); ok {
+			// Handle Package::Class as a static call parsing artifact (or similar namespaces)
+			// For now, flatten it to NewPackage_Class
+			return &ir.CallExpr{
+				Callee:   &ir.Ident{Name: "New" + staticCall.Class + "_" + staticCall.Method},
+				TypeArgs: ex.TypeArgs,
+				Args:     args,
+			}
+		} else if enumAccess, ok := ex.ClassExpr.(*parser.EnumAccess); ok {
+			// Handle Package::Class as an EnumAccess parsing artifact
+			return &ir.CallExpr{
+				Callee:   &ir.Ident{Name: "New" + enumAccess.Enum + "_" + enumAccess.Variant},
+				TypeArgs: ex.TypeArgs,
+				Args:     args,
+			}
+		}
+		
+		// Dynamic instantiation: new $className()
+		// We'll emit an ir.CallExpr to a magic "wolf_instantiate_dynamic" function 
+		// which the LLVMEmitter will intercept and implement the registry lookup.
+		classExprIR := e.emitExpr(ex.ClassExpr)
+		args = append([]ir.Expr{classExprIR}, args...)
+		
 		return &ir.CallExpr{
-			Callee:   &ir.Ident{Name: "New" + ex.ClassName},
+			Callee:   &ir.Ident{Name: "wolf_instantiate_dynamic"},
 			TypeArgs: ex.TypeArgs,
 			Args:     args,
 		}

@@ -1,0 +1,15 @@
+// BUG-052: wolf_qb_where with NULL qb->conn produces silent empty-string values
+// Class: P1 — Runtime Stability / Security
+// Trigger: Call wolf_qb_where on a QB created with NULL conn (e.g., pool exhaustion)
+// Expected: Hard error / wolf_qb_last_error set; query not executed
+// Actual: wolf_db_escape logs to stderr and returns "" — WHERE clause becomes
+//         "WHERE id = ''" which matches no rows on SELECT but silently truncates
+//         all rows on DELETE (DELETE FROM users WHERE id = '' → affects 0 rows, no error)
+
+func main() {
+    // Simulate a QB that somehow has a NULL conn (pool exhausted path)
+    // In real code: $db = wolf_qb_create(NULL, "users")
+    // Then: wolf_qb_where($db, "id", "1", "=")
+    // Then: wolf_qb_delete($db)  // silently no-ops instead of hard error
+    say("BUG-052: NULL conn QB produces silent empty WHERE values")
+}

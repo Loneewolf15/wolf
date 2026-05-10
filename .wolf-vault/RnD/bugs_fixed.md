@@ -1,6 +1,58 @@
 # Wolf Bugs Fixed — Cumulative Log
 
+## Session 2026-05-10 (Session 22 — AXIOM Audit Security & Stability Fixes)
+
+### BUG-056 to BUG-064: AXIOM Audit Security & Memory Fixes
+- **Class:** P0 to P2 Security, Memory, and Stability vulnerabilities.
+- **Root cause:** Various issues discovered during the AXIOM stress-test audit of the new Thread-Per-Core architecture. These included an arena inner-slab overflow memory leak, MSSQL SQL injection via `strcpy` interpolation, WebSocket use-after-free orphaned FDs, a JWT verification timing oracle, sub-standard Argon2id operations limit, missing ARM64 memory fences during arena pool initialization, weak key derivation via SHA-256 instead of HKDF, unsafe `pthread_exit(NULL)` during OOM conditions, and non-portable closure memory sentinels relying on Linux x86-64 address ranges.
+- **Fix:** Handled all 9 active findings.
+  - Tracked calloc fallbacks in `WolfArena` and freed them in `wolf_arena_reset`.
+  - Implemented MSSQL single-quote doubling.
+  - Bridged engine FD ownership to the legacy WebSocket poller and used inline storage for WS keys.
+  - Eliminated the length-leak timing oracle in `wolf_hash_equals`.
+  - Upgraded Argon2id to OWASP `MODERATE` limit.
+  - Used `__atomic_store_n` and `__atomic_load_n` for arena pool init/acquire.
+  - Derived encryption keys via HKDF with fixed salt.
+  - Replaced `pthread_exit(NULL)` with a thread-local `wolf_req_oom` flag, checked explicitly after dispatch.
+  - Implemented `WOLF_CLOSURE_MAGIC` for cross-platform closure validation.
+- **File:** `runtime/wolf_http_engine.c`, `runtime/wolf_http_engine.h`, `runtime/wolf_runtime.c`, `runtime/wolf_runtime.h`
+19: 
+20: ### BUG-065: Path traversal via multipart filename
+21: - **Class:** P0 🔴 Security Vulnerability (Remote File Overwrite)
+22: - **Root cause:** `wolf_parse_multipart` ingested the `filename` parameter from `Content-Disposition` headers without sanitization. An attacker could use `../../etc/passwd` to traverse the filesystem.
+23: - **Fix:** Enforced `wolf_file_basename` extraction at the point of ingestion in `wolf_parse_multipart`. Upgraded `wolf_file_basename` to handle both `/` and `\` separators for cross-platform safety (MinGW). Added secondary validation in `wolf_file_save` to reject paths with slashes or embedded null bytes.
+24: - **File:** `runtime/wolf_runtime.c`, `runtime/wolf_runtime.h`
+
+## Session 2026-05-04 (Session 22 — HTTP Engine Stress-Test Hardening)
+
+### BUG-054: `wolf_engine_start` signature mismatch — `void*` vs `wolf_http_handler_t`
+- **Class:** P0 🔴 Compiler Error (C build failure)
+- **Root cause:** `wolf_engine_start` in `.c` declared `void* handler` but the header declared `wolf_http_handler_t handler`. Also `wolf_http_serve()` called `wolf_engine_start(engine, handler, NULL)` using `handler` which doesn't exist in scope (the param is `handler_ptr`). Two separate compile blockers.
+- **Fix:** Changed `.c` signature to `wolf_http_handler_t handler`; fixed the call site to `(wolf_http_handler_t)handler_ptr`.
+- **File:** `runtime/wolf_http_engine.c`
+
+### BUG-052: `SIGURG` fired into ASan thread-init window — DEADLYSIGNAL on startup
+- **Class:** P0 🔴 Runtime Panic (SIGSEGV/DEADLYSIGNAL under ASan, startup race on clean builds)
+- **Root cause:** Sysmon loop fired `pthread_kill(SIGURG)` 10ms after `pthread_create` — before thread had finished ASan wrapper init. PC landed at `0x603000000040` (an ASan heap shadow frame, non-executable). Three sub-issues: no `SIGURG` handler, no readiness barrier, sysmon loop not guarded.
+- **Fix:** `signal(SIGURG, SIG_IGN)`; added `volatile int ready` to `WolfCore`; thread sets `core->ready=1` via atomic release before entering `while` loop; engine waits for all `core->ready` (5s timeout) before sysmon; sysmon guards `pthread_kill` with `core->ready`; `pthread_create` failures immediately mark `ready=1` to prevent deadlock.
+- **File:** `runtime/wolf_http_engine.h`, `runtime/wolf_http_engine.c`
+
+### BUG-053: Arena overflow fallback — heap-allocated slab+struct never freed under pool exhaustion
+- **Class:** P1 🟠 Runtime Stability (memory leak under sustained 100k+ RPS load)
+- **Root cause:** `wolf_arena_acquire` fallback `malloc`'d a `WolfArena` struct + slab when all 128 pool slots were busy. `wolf_arena_reset` could not distinguish pool arenas from overflow arenas, so it only reset `pos/in_use` — the slab and struct leaked permanently on every pool-exhaustion event.
+- **Fix:** Added `int is_overflow` to `WolfArena`; fallback sets `is_overflow=1`; `wolf_arena_reset` now `free(slab) + free(struct)` for overflow arenas; `wolf_core_free_ctx` nulls `ctx->arena` after reset to prevent dangling pointer; 503 fast-path does the same.
+- **File:** `runtime/wolf_http_engine.h`, `runtime/wolf_http_engine.c`
+
+### BUG-055: `[DEBUG]` fprintf in hot path — log flood + missing closure NULL guard
+- **Class:** P3 🔵 Developer Experience / P1 Runtime Stability
+- **Root cause:** Debug `fprintf("[DEBUG] Executing closure=...")` was left in the per-request dispatch path. At high RPS this floods stderr and adds a syscall per request. Additionally, `closure->fn` was called unconditionally with no NULL guard — a corrupted closure would produce a wild jump instead of a recoverable 500.
+- **Fix:** Removed debug fprintf; replaced with NULL-check on `closure->fn` that emits `[WOLF-ENGINE] FATAL` and returns HTTP 500 on corruption.
+- **File:** `runtime/wolf_http_engine.c`
+
+---
+
 ## Session 2026-05-02 (Session 18 — Package System Fix)
+
 
 ### BUG-049: Inherited method dispatch failed to print (`$d->bark()` silent)
 - **Class:** P1 🟠 Runtime Stability / Functional Correctness
@@ -293,3 +345,13 @@ live beyond its test window regardless of what it does.
 - **Root cause:** `emitMethodCall` correctly checked `e.varClass` to resolve the direct method name, but `e.varClass` was completely untracked during method generation (no `$this` object was injected) and it was not reset per function body, causing global variable namespace collisions.
 - **Fix:** Refactored `emitFunction` in `llvm_emitter.go` to properly isolate `e.varClass` per function execution and inject `e.varClass["this"] = fn.Receiver` when generating methods, resolving the fallback correctly for inherited methods.
 - **File:** `internal/emitter/llvm_emitter.go`
+
+---
+
+### BUG-052: wolf_qb_where with NULL conn produces silent empty-string WHERE values
+- **Class:** P1 🟠 Runtime Stability / Security
+- **Status:** Open (MRS written, fix pending)
+- **Root cause:** `wolf_db_escape(NULL, val)` logs to stderr and returns `""` instead of hard-aborting. A QB created with a NULL conn (pool exhaustion race) will execute queries like `WHERE id = ''` or `DELETE FROM users WHERE id = ''` with no error signal to the caller.
+- **MRS:** `e2e/testdata/_bug_052.wolf`
+- **Fix:** Add `static __thread const char* wolf_qb_last_error = NULL;` near QB section. Set it in `wolf_db_escape` NULL-conn path. Gate `wolf_qb_insert`, `wolf_qb_update`, `wolf_qb_delete` on this flag before executing SQL.
+- **Identified by:** AXIOM Security audit 2026-05-10

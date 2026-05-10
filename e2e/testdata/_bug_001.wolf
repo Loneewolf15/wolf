@@ -1,14 +1,11 @@
-// BUG-001: Duplicate wolf_current_req_id thread-local declaration
-// Trigger: Run ANY wolf script via `./wolf run` or `go test ./e2e/...`
-// Expected: Program compiles and runs correctly
-// Actual: C compiler emits "redefinition of 'wolf_current_req_id'" — ALL scripts fail
-//
-// Root cause: static __thread int64_t wolf_current_req_id was declared at both:
-//   - Line 148  (canonical, under Forward declarations)
-//   - Line 2351 (duplicate, erroneously inserted during session repair)
-//
-// Fix: Remove the duplicate at line 2351.
+// BUG-001: HTTP Engine Data Race on http_contexts
+// Trigger: Concurrently writing to HTTP response under load
+// Expected: No segfault, clean memory access
+// Actual: SEGV on unknown address due to cross-thread memory corruption
 
-func main() {
-    print("hello");
+func handler($req: int, $res: int) {
+    wolf_http_res_status($res, 200)
+    wolf_http_res_write($res, "Hello World from Wolf")
 }
+
+wolf_http_serve(8084, handler)

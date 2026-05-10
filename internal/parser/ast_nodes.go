@@ -584,9 +584,9 @@ func (e *IndexExpr) nodeType() string    { return "IndexExpr" }
 func (e *IndexExpr) Pos() lexer.Position { return e.Pos_ }
 func (e *IndexExpr) exprNode()           {}
 
-// NewExpr represents: new ClassName(args) or new ClassName<T>(args)
+// NewExpr represents: new ClassName(args), new $dynamic(args), or new Package::Class(args)
 type NewExpr struct {
-	ClassName string
+	ClassExpr Expression
 	TypeArgs  []string // generic type arguments, e.g., ["int"]
 	Args      []Expression
 	Pos_      lexer.Position

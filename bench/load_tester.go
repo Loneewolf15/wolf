@@ -25,6 +25,7 @@ func main() {
 		success  int
 		maxLat   time.Duration
 		totalLat time.Duration
+		errorsMap = make(map[string]int)
 	)
 
 	// Custom transport with connection pooling optimization
@@ -51,8 +52,20 @@ func main() {
 				if lat > maxLat {
 					maxLat = lat
 				}
-				if err != nil || resp.StatusCode != 200 {
+				if err != nil {
 					failed++
+					errStr := err.Error()
+					// Simplify common timeout/EOF errors
+					if err, ok := err.(interface{ Timeout() bool }); ok && err.Timeout() {
+						errStr = "Timeout"
+					}
+					errorsMap[errStr]++
+				} else if resp.StatusCode != 200 {
+					failed++
+					errStr := fmt.Sprintf("HTTP %d", resp.StatusCode)
+					errorsMap[errStr]++
+					io.Copy(io.Discard, resp.Body)
+					resp.Body.Close()
 				} else {
 					success++
 					io.Copy(io.Discard, resp.Body)
@@ -69,5 +82,14 @@ func main() {
 	fmt.Printf("Completed %d requests in %v\n", *totalReqs, dur)
 	fmt.Printf("Success: %d, Failed: %d\n", success, failed)
 	fmt.Printf("Req/s: %.2f\n", float64(*totalReqs)/dur.Seconds())
-	fmt.Printf("Avg Latency: %v, Max Latency: %v\n", totalLat/time.Duration(*totalReqs), maxLat)
+	if *totalReqs > 0 {
+		fmt.Printf("Avg Latency: %v, Max Latency: %v\n", totalLat/time.Duration(*totalReqs), maxLat)
+	}
+
+	if len(errorsMap) > 0 {
+		fmt.Println("\nFailure Breakdown:")
+		for k, v := range errorsMap {
+			fmt.Printf("- [%d] %s\n", v, k)
+		}
+	}
 }

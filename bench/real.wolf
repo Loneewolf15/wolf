@@ -16,9 +16,8 @@ func handler($req: int, $res: int) {
     # To keep the payload static sized for the TCP frame, we'll manually frame it.
     
     $out = "{\"sql\": \"SELECT * FROM users WHERE id = 999 LIMIT 10\", \"math_result\": " .. $math_res .. "}"
-    $payload = "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: 68\r\n\r\n" .. $out
-    
-    wolf_http_res_write($res, $payload)
+    wolf_http_res_status($res, 200)
+    wolf_http_res_write($res, $out)
 }
 
 wolf_http_serve(8084, handler)

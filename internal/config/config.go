@@ -8,6 +8,8 @@ package config
 // Fields use concrete types (int, string, bool) so consumers never need
 // to parse strings themselves.
 type WolfConfig struct {
+	// ---- Target (highest priority — written by wolf new, read by wolf build) ----
+	Target TargetConfig
 	// ---- Project ----
 	App    AppConfig
 	Server ServerConfig
@@ -16,6 +18,14 @@ type WolfConfig struct {
 	JWT    JWTConfig
 	Log    LogConfig
 	Build  BuildConfig
+}
+
+// TargetConfig defines the compile-time execution target.
+// Written once by `wolf new`, never changed unless the user is intentionally
+// retargeting their project (e.g. from script to api).
+type TargetConfig struct {
+	Mode string // "api" | "script" | "mcu" — determines the runtime contract
+	Arch string // "native" | "arm-cortex-m4" | "riscv32" | "wasm" — cross-compile target
 }
 
 // AppConfig holds general application identity.
@@ -95,6 +105,10 @@ type BuildConfig struct {
 // so callers always get a fully populated struct.
 func Defaults() *WolfConfig {
 	return &WolfConfig{
+		Target: TargetConfig{
+			Mode: "script", // default: lightweight, no HTTP server spun up
+			Arch: "native", // compile for the host machine
+		},
 		App: AppConfig{
 			Name:    "wolf-app",
 			Env:     "development",

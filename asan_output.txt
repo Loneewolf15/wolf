@@ -1,0 +1,20 @@
+[WOLF-ENGINE] Core 0 started (tid=140452841912000)
+AddressSanitizer:DEADLYSIGNAL
+[WOLF-ENGINE] Core 1 started (tid=140452833519296)
+AddressSanitizer:DEADLYSIGNAL
+=================================================================
+==49098==ERROR: AddressSanitizer: SEGV on unknown address 0x603000000040 (pc 0x603000000040 bp 0x7fbdb97eec10 sp 0x7fbdb97dcfb8 T1)
+==49098==The signal is caused by a READ memory access.
+==49098==Hint: PC is at a non-executable region. Maybe a wild jump?
+    #0 0x603000000040  (<unknown module>)
+    #1 0x7fbdbe68f6b9 in start_thread nptl/pthread_create.c:444:8
+
+AddressSanitizer can not provide additional info.
+SUMMARY: AddressSanitizer: SEGV (<unknown module>) 
+Thread T1 created by T0 here:
+    #0 0x55991dc5489c in __interceptor_pthread_create (/home/askme/Pictures/wolf-lang/wolf_out/echo+0x12b89c) (BuildId: a1c7691a086df1e63a6701c467d06d292fdd84de)
+    #1 0x55991dcb8415 in wolf_engine_start /tmp/wolf_compiler_assets/runtime/wolf_http_engine.c:804:13
+    #2 0x55991dcbbe0d in wolf_http_serve /tmp/wolf_compiler_assets/runtime/wolf_http_engine.c:898:5
+    #3 0x55991dca5d20 in main (/home/askme/Pictures/wolf-lang/wolf_out/echo+0x17cd20) (BuildId: a1c7691a086df1e63a6701c467d06d292fdd84de)
+
+==49098==ABORTING

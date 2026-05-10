@@ -535,15 +535,19 @@ func TestDestructureAssign(t *testing.T) {
 // --- New Expression ---
 
 func TestNewExpr(t *testing.T) {
-	prog := parseSource(t, `$driver = new Driver("Ade", 4.8)`)
+	prog := parseSource(t, `$driver = new Router("Ade", 4.8)`)
 	stmt := prog.Statements[0].(*ExpressionStmt)
 	binExpr := stmt.Expr.(*BinaryExpr)
 	newExpr, ok := binExpr.Right.(*NewExpr)
 	if !ok {
 		t.Fatalf("Expected NewExpr, got %T", binExpr.Right)
 	}
-	if newExpr.ClassName != "Driver" {
-		t.Errorf("Expected 'Driver', got '%s'", newExpr.ClassName)
+	ident, ok := newExpr.ClassExpr.(*Identifier)
+	if !ok {
+		t.Fatalf("Expected class expression to be an Identifier, got %T", newExpr.ClassExpr)
+	}
+	if ident.Name != "Router" {
+		t.Errorf("Expected ClassName Router, got %s", ident.Name)
 	}
 	if len(newExpr.Args) != 2 {
 		t.Errorf("Expected 2 args, got %d", len(newExpr.Args))

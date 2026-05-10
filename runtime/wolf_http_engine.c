@@ -529,7 +529,7 @@ static void wolf_engine_parse_request(WolfConnCtx* ctx, char* raw, size_t len) {
  * HTTP Response Writer
  * ================================================================ */
 
-static void wolf_engine_send_response(WolfConnCtx* ctx) {
+static int wolf_engine_send_response(WolfConnCtx* ctx) {
     const char* status_text = "OK";
     switch (ctx->status_code) {
         case 201: status_text = "Created"; break;
@@ -550,21 +550,24 @@ static void wolf_engine_send_response(WolfConnCtx* ctx) {
     int hlen = snprintf(header_buf, sizeof(header_buf),
         "HTTP/1.1 %d %s\r\n", ctx->status_code, status_text);
 
-    write(ctx->client_fd, header_buf, hlen);
+    if (write(ctx->client_fd, header_buf, hlen) < 0) return -1;
 
     for (int i = 0; i < ctx->res_header_count; i++) {
         int n = snprintf(header_buf, sizeof(header_buf), "%s: %s\r\n",
                          ctx->res_header_keys[i], ctx->res_header_vals[i]);
-        write(ctx->client_fd, header_buf, n);
+        if (write(ctx->client_fd, header_buf, n) < 0) return -1;
     }
 
     int body_len = ctx->res_body ? (int)strlen(ctx->res_body) : 0;
     int n = snprintf(header_buf, sizeof(header_buf),
                      "Content-Length: %d\r\nConnection: keep-alive\r\n\r\n", body_len);
-    write(ctx->client_fd, header_buf, n);
+    if (write(ctx->client_fd, header_buf, n) < 0) return -1;
 
-    if (body_len > 0)
-        write(ctx->client_fd, ctx->res_body, body_len);
+    if (body_len > 0) {
+        if (write(ctx->client_fd, ctx->res_body, body_len) < 0) return -1;
+    }
+    
+    return 0;
 }
 
 /* ================================================================
@@ -826,12 +829,14 @@ send_and_cleanup:
         __atomic_fetch_sub(&core->requests_active, 1, __ATOMIC_RELAXED);
 
         /* Send response */
-        wolf_engine_send_response(ctx);
+        int send_ok = wolf_engine_send_response(ctx);
 
-        /* Stats */
-        __atomic_fetch_add(&core->requests_total, 1, __ATOMIC_RELAXED);
-        __atomic_fetch_add(&core->bytes_in,  bytes,                              __ATOMIC_RELAXED);
-        __atomic_fetch_add(&core->bytes_out, ctx->res_body ? strlen(ctx->res_body) : 0, __ATOMIC_RELAXED);
+        /* Stats (only increment if client didn't timeout/disconnect) */
+        if (send_ok == 0) {
+            __atomic_fetch_add(&core->requests_total, 1, __ATOMIC_RELAXED);
+            __atomic_fetch_add(&core->bytes_in,  bytes,                              __ATOMIC_RELAXED);
+            __atomic_fetch_add(&core->bytes_out, ctx->res_body ? strlen(ctx->res_body) : 0, __ATOMIC_RELAXED);
+        }
 
         /* Close and release — arena_reset is O(1) pointer reset */
         close(client_fd);
@@ -852,24 +857,23 @@ send_and_cleanup:
 
 WolfEngine* wolf_engine_create(int port, int core_count) {
     int hw_cores = wolf_detect_nproc();
+    int max_recommended = hw_cores * 4;
 
     if (core_count <= 0) {
-        /* workers = 0 (auto) — detect and use exact hardware count */
-        core_count = hw_cores;
-    } else if (core_count > hw_cores) {
-        /* Configured workers exceed physical cores — clamp and warn.
-         * Oversubscription causes context-switch overhead and skewed benchmarks.
-         * Use workers = 0 in wolf.config to let Wolf auto-detect. */
+        /* workers = 0 (auto) — use 4x physical cores for transitional oversubscription */
+        core_count = max_recommended;
+    } else if (core_count > max_recommended) {
+        /* Configured workers exceed 4x physical cores — clamp and warn.
+         * Extreme oversubscription causes context-switch overhead and memory exhaustion. */
         fprintf(stderr,
-            "[WOLF-ENGINE] WARN: Configured %d workers but machine has %d core(s). "
-            "Clamping to %d for optimal performance. "
-            "Set workers = 0 in wolf.config to auto-detect.\n",
-            core_count, hw_cores, hw_cores);
-        core_count = hw_cores;
+            "[WOLF-ENGINE] WARN: Configured %d workers but max recommended is %d (%dx physical cores). "
+            "Clamping to %d to prevent extreme context-switch overhead.\n",
+            core_count, max_recommended, 4, max_recommended);
+        core_count = max_recommended;
     }
 
-    /* Hard cap: Thread-Per-Core model is meaningless beyond 64 */
-    if (core_count > 64) core_count = 64;
+    /* Hard cap: absolute ceiling to prevent memory/stack exhaustion */
+    if (core_count > 256) core_count = 256;
 
     WolfEngine* engine = (WolfEngine*)calloc(1, sizeof(WolfEngine));
     engine->port       = port;

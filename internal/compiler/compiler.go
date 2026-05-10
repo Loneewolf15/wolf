@@ -154,6 +154,9 @@ func (c *Compiler) Compile(source, filename string) (*CompileResult, error) {
 	fmt.Printf(">> Phase 6: Emit LLVM\n")
 	// Phase 6: Emit LLVM IR (WIR → .ll)
 	llvmEmit := emitter.NewLLVMEmitter()
+	if c.Config != nil {
+		llvmEmit.CompilerMode = c.Config.Target.Mode
+	}
 	llvmEmit.TargetTriple = detectTargetTriple()
 	llvmSource := llvmEmit.Emit(irProgram)
 	result.LLVMSource = llvmSource
@@ -204,12 +207,12 @@ func (c *Compiler) Build(source, filename string) (*CompileResult, error) {
 	// Clean up .ll file unless keep_ll is set
 	// LLVM IR file is kept deliberately for debug
 
-	// Find wolf runtime
-	wolfRoot, err := findWolfRoot()
+	// Extract embedded assets to a cache directory
+	assetsDir, err := ensureAssetsExtracted()
 	if err != nil {
-		return result, err
+		return result, fmt.Errorf("failed to extract compiler assets: %w", err)
 	}
-	runtimeC := filepath.Join(wolfRoot, "runtime", "wolf_runtime.c")
+	runtimeC := filepath.Join(assetsDir, "runtime", "wolf_runtime.c")
 
 	// Compile LLVM IR to object file
 	objFile := filepath.Join(outDir, baseName+".o")
@@ -321,8 +324,7 @@ func (c *Compiler) Build(source, filename string) (*CompileResult, error) {
 	redisLibs := "-lhiredis"
 
 	// Production-grade library discovery via bundled static libs or pkg-config
-	wolfRoot, _ = findWolfRoot()
-	staticDir := filepath.Join(wolfRoot, "third_party", "lib")
+	staticDir := filepath.Join(assetsDir, "third_party", "lib")
 
 	// Platform-specific static paths
 	var bundledPath string
@@ -402,6 +404,13 @@ func (c *Compiler) Build(source, filename string) (*CompileResult, error) {
 		rtArgs = append(rtArgs, "-DWOLF_DEBUG")
 	}
 
+	if os.Getenv("WOLF_ASAN") != "" {
+		rtArgs = append(rtArgs, "-fsanitize=address", "-fno-omit-frame-pointer")
+	}
+	if os.Getenv("WOLF_TSAN") != "" {
+		rtArgs = append(rtArgs, "-fsanitize=thread", "-fno-omit-frame-pointer")
+	}
+
 	// Get cache key BEFORE adding dynamic paths
 	var rtCacheHit bool
 	cacheKey, err := runtimeCacheKey(runtimeC, rtArgs)
@@ -444,6 +453,13 @@ func (c *Compiler) Build(source, filename string) (*CompileResult, error) {
 	// Link everything into final binary
 	binaryPath := filepath.Join(outDir, baseName)
 	linkArgs := []string{"-o", binaryPath, objFile, runtimeObj, "-pthread", "-g"}
+
+	if os.Getenv("WOLF_ASAN") != "" {
+		linkArgs = append(linkArgs, "-fsanitize=address")
+	}
+	if os.Getenv("WOLF_TSAN") != "" {
+		linkArgs = append(linkArgs, "-fsanitize=thread")
+	}
 
 	// Prioritize system libraries to avoid XAMPP version conflicts
 	if prioritizedPath != "" {
@@ -517,7 +533,20 @@ func (c *Compiler) configCFlags() []string {
 		driverFlag = "-DWOLF_DB_MYSQL=1"
 	}
 
+	// Build target flag — gates entire subsystems at compile time:
+	//   API    → full HTTP engine, Thread-Per-Core, arena pool, DB pool
+	//   Script → lightweight build, single arena, no HTTP engine spun up
+	//   MCU    → no OS primitives: no pthreads, no epoll, static heap only
+	targetFlag := "-DWOLF_BUILD_TARGET_SCRIPT" // safe default
+	switch cfg.Target.Mode {
+	case "api":
+		targetFlag = "-DWOLF_BUILD_TARGET_API"
+	case "mcu":
+		targetFlag = "-DWOLF_BUILD_TARGET_MCU"
+	}
+
 	return []string{
+		targetFlag,
 		driverFlag,
 		// DB pool
 		fmt.Sprintf("-DWOLF_DB_POOL_SIZE=%d", cfg.DB.PoolSize),
@@ -528,6 +557,8 @@ func (c *Compiler) configCFlags() []string {
 		fmt.Sprintf("-DWOLF_MAX_CONCURRENT_REQUESTS=%d", cfg.Server.MaxConcurrent),
 		fmt.Sprintf("-DWOLF_MAX_REQUEST_SIZE=%d", cfg.Server.MaxRequestSize),
 		fmt.Sprintf("-DWOLF_MAX_UPLOADS=%d", cfg.Server.MaxUploads),
+		// Worker threads — 0 means auto-detect in C runtime (wolf_engine_create)
+		fmt.Sprintf("-DWOLF_WORKER_THREADS=%d", cfg.Server.Workers),
 		// DB credentials — baked as string literals so wolf source just calls db_connect()
 		fmt.Sprintf("-DWOLF_DB_HOST=\"%s\"", escapeCStr(cfg.DB.Host)),
 		fmt.Sprintf("-DWOLF_DB_PORT=%d", cfg.DB.Port),
@@ -539,6 +570,7 @@ func (c *Compiler) configCFlags() []string {
 		fmt.Sprintf("-DWOLF_APP_DEBUG=%d", boolToInt(cfg.App.Debug)),
 	}
 }
+
 
 // writeConfigSnapshot writes a .wolf_build_config file to outDir so deployment
 // tooling can inspect compiled-in settings. Never contains credentials.
@@ -588,37 +620,6 @@ func boolToInt(b bool) int {
 }
 
 // ========== Build helpers ==========
-
-func findWolfRoot() (string, error) {
-	exePath, err := os.Executable()
-	if err == nil {
-		dir := filepath.Dir(exePath)
-		runtimePath := filepath.Join(dir, "runtime", "wolf_runtime.c")
-		if _, err := os.Stat(runtimePath); err == nil {
-			return dir, nil
-		}
-		parentDir := filepath.Dir(dir)
-		runtimePath = filepath.Join(parentDir, "runtime", "wolf_runtime.c")
-		if _, err := os.Stat(runtimePath); err == nil {
-			return parentDir, nil
-		}
-	}
-
-	cwd, err := os.Getwd()
-	if err == nil {
-		runtimePath := filepath.Join(cwd, "runtime", "wolf_runtime.c")
-		if _, err := os.Stat(runtimePath); err == nil {
-			return cwd, nil
-		}
-		parentDir := filepath.Dir(cwd)
-		runtimePath = filepath.Join(parentDir, "runtime", "wolf_runtime.c")
-		if _, err := os.Stat(runtimePath); err == nil {
-			return parentDir, nil
-		}
-	}
-
-	return "", fmt.Errorf("could not find wolf runtime directory (looked for runtime/wolf_runtime.c) in %s", cwd)
-}
 
 func findCC() string {
 	for _, cc := range []string{"clang", "gcc", "cc"} {

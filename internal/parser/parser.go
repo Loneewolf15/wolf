@@ -1568,21 +1568,25 @@ func (p *Parser) parseNewExpr() Expression {
 	pos := p.currentPos()
 	p.advance() // consume 'new'
 
-	className := ""
-	if p.check(lexer.TOKEN_IDENT) {
-		className = p.advance().Literal
-	} else {
-		p.addError("expected class name after 'new'")
+	classExpr := p.parseCallAndAccess()
+	if classExpr == nil {
+		p.addError("expected class expression after 'new'")
 	}
 
 	typeArgs := p.parseTypeParams()
 
 	var args []Expression
-	if p.check(lexer.TOKEN_LPAREN) {
+	// Since parseCallAndAccess might have already consumed the '()', we need to check if it's a CallExpr.
+	// In Wolf, `new ClassName(args)` is valid, and so is `new ClassName`.
+	if callExpr, ok := classExpr.(*CallExpr); ok {
+		// It's `new ClassName(args)`. Unpack it.
+		classExpr = callExpr.Callee
+		args = callExpr.Args
+	} else if p.check(lexer.TOKEN_LPAREN) {
 		args = p.parseArgList()
 	}
 
-	return &NewExpr{ClassName: className, TypeArgs: typeArgs, Args: args, Pos_: pos}
+	return &NewExpr{ClassExpr: classExpr, TypeArgs: typeArgs, Args: args, Pos_: pos}
 }
 
 // ---- closure expression ----

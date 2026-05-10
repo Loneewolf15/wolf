@@ -13,6 +13,9 @@ import (
 
 // LLVMEmitter generates LLVM IR text from WIR.
 type LLVMEmitter struct {
+	CompilerMode    string // e.g. "api", "script", "mcu"
+	TargetTriple    string // auto-detected or set by compiler
+	usedDynamicInst bool   // tracks if wolf_instantiate_dynamic was called
 	buf             strings.Builder
 	stringConsts    map[string]string // value → @.str.N label
 	strCounter      int
@@ -27,7 +30,6 @@ type LLVMEmitter struct {
 	declaredExterns map[string]bool
 	emittedTypes    map[string]string // register → actual LLVM type emitted
 	funcWrappers    map[string]bool   // track wrapper generation
-	TargetTriple    string            // auto-detected or set by compiler
 	closureCounter  int               // unique ID for each closure function
 	closureDefs     strings.Builder   // top-level closure definitions to emit before main
 	errHandlerStack []string          // stack of %catch_block labels for error unwinding
@@ -239,6 +241,12 @@ func (e *LLVMEmitter) Emit(program *ir.Program) string {
 			e.emitFunction(method)
 			e.writeln("")
 		}
+	}
+
+	// Emit the dynamic class registry if used
+	if e.usedDynamicInst {
+		e.emitDynamicRegistry(program)
+		e.writeln("")
 	}
 
 	// Emit main function from InitStmts
@@ -3231,6 +3239,12 @@ func (e *LLVMEmitter) emitCallExpr(call *ir.CallExpr) string {
 			retType = "i64"
 		case "wolf_date_to_iso":
 			retType = "ptr"
+		case "wolf_instantiate_dynamic":
+			if e.CompilerMode == "mcu" {
+				panic("Dynamic instantiation (new $className) is banned in MCU mode.")
+			}
+			e.usedDynamicInst = true
+			retType = "ptr"
 		case "wolf_http_get", "wolf_http_post", "wolf_http_put", "wolf_http_delete", "wolf_http_patch", "wolf_http_set_header":
 			retType = "ptr"
 		case "wolf_path_join", "wolf_scan_dir":
@@ -3608,77 +3622,155 @@ func (e *LLVMEmitter) emitMethodCall(mc *ir.MethodCallExpr) string {
 	}
 
 	// 2. Fall back: search funcSigs for a function with matching suffix and arity
-	var calleeName string
+	var candidates []string
 	expectedArgs := len(mc.Args) + 1
 	for name, sig := range e.funcSigs {
 		if strings.HasSuffix(name, "_"+mc.Method) {
 			if len(sig.Params) == expectedArgs {
-				calleeName = name
-				break
+				candidates = append(candidates, name)
 			}
 		}
 	}
-	if calleeName == "" {
-		calleeName = mc.Method
+
+	if len(candidates) == 0 {
+		// No match at all, fallback to the raw method name (will likely cause a link error)
+		candidates = append(candidates, mc.Method)
 	}
 
-	fnSig := e.funcSigs[calleeName]
+	if len(candidates) == 1 {
+		// Only one candidate, we can statically call it!
+		calleeName := candidates[0]
+		fnSig := e.funcSigs[calleeName]
 
-	args := []string{fmt.Sprintf("ptr %s", objVal)}
-	for i, arg := range mc.Args {
-		expectedType := "ptr"
-		if fnSig != nil && i+1 < len(fnSig.Params) {
-			expectedType = e.wolfTypeToLLVM(fnSig.Params[i+1].Type)
-		}
-		var val string
-		if expectedType == "ptr" {
-			val = e.emitArgAsString(arg)
-		} else {
-			llType := e.inferExprType(arg)
-			val = e.emitExpr(arg, expectedType)
-			if llType == "ptr" {
-				if expectedType == "i64" {
-					casted := e.nextLocal()
-					e.writelnIndent(fmt.Sprintf("%s = call i64 @wolf_intval(ptr %s)", casted, val))
-					val = casted
-				} else if expectedType == "double" {
-					casted := e.nextLocal()
-					e.writelnIndent(fmt.Sprintf("%s = call double @wolf_floatval(ptr %s)", casted, val))
-					val = casted
-				} else if expectedType == "i1" {
-					casted := e.nextLocal()
-					e.writelnIndent(fmt.Sprintf("%s = call i1 @wolf_boolval(ptr %s)", casted, val))
-					val = casted
+		args := []string{fmt.Sprintf("ptr %s", objVal)}
+		for i, arg := range mc.Args {
+			expectedType := "ptr"
+			if fnSig != nil && i+1 < len(fnSig.Params) {
+				expectedType = e.wolfTypeToLLVM(fnSig.Params[i+1].Type)
+			}
+			var val string
+			if expectedType == "ptr" {
+				val = e.emitArgAsString(arg)
+			} else {
+				llType := e.inferExprType(arg)
+				val = e.emitExpr(arg, expectedType)
+				if llType == "ptr" {
+					if expectedType == "i64" {
+						casted := e.nextLocal()
+						e.writelnIndent(fmt.Sprintf("%s = call i64 @wolf_intval(ptr %s)", casted, val))
+						val = casted
+					} else if expectedType == "double" {
+						casted := e.nextLocal()
+						e.writelnIndent(fmt.Sprintf("%s = call double @wolf_floatval(ptr %s)", casted, val))
+						val = casted
+					}
 				}
 			}
+			if expectedType == "i64" {
+				args = append(args, fmt.Sprintf("i64 %s", val))
+			} else if expectedType == "double" {
+				args = append(args, fmt.Sprintf("double %s", val))
+			} else {
+				args = append(args, fmt.Sprintf("ptr %s", val))
+			}
 		}
-		args = append(args, fmt.Sprintf("%s %s", expectedType, val))
-	}
 
-	retType := "void"
-	if fnSig != nil {
-		if len(fnSig.ReturnTypes) > 0 {
-			retType = e.wolfTypeToLLVM(fnSig.ReturnTypes[0])
-		} else if functionHasReturnValue(fnSig.Body) {
-			retType = "ptr"
+		retType := "void"
+		if fnSig != nil {
+			if len(fnSig.ReturnTypes) > 0 {
+				retType = e.wolfTypeToLLVM(fnSig.ReturnTypes[0])
+			} else if functionHasReturnValue(fnSig.Body) {
+				retType = "ptr"
+			}
 		}
-	}
-
-	emitName := calleeName
-	if !strings.HasPrefix(emitName, "wolf_") {
-		emitName = "wolf_" + emitName
-	}
-
-	reg := e.nextLocal()
-	if retType == "void" {
-		e.writelnIndent(fmt.Sprintf("call void @%s(%s)", emitName, strings.Join(args, ", ")))
+		emitName := calleeName
+		if !strings.HasPrefix(emitName, "wolf_") && fnSig != nil {
+			emitName = "wolf_" + emitName
+		}
+		reg := e.nextLocal()
+		if retType == "void" {
+			e.writelnIndent(fmt.Sprintf("call void @%s(%s)", emitName, strings.Join(args, ", ")))
+			e.checkErrorPropagate()
+			return "null"
+		}
+		e.writelnIndent(fmt.Sprintf("%s = call %s @%s(%s)", reg, retType, emitName, strings.Join(args, ", ")))
 		e.checkErrorPropagate()
-		return "null"
+		e.emittedTypes[reg] = retType
+		return reg
 	}
-	e.writelnIndent(fmt.Sprintf("%s = call %s @%s(%s)", reg, retType, emitName, strings.Join(args, ", ")))
-	e.checkErrorPropagate()
-	e.emittedTypes[reg] = retType
-	return reg
+
+	// 3. Multiple candidates: Inline Dynamic Dispatch!
+	e.writelnIndent("; === Dynamic Method Dispatch ===")
+	
+	classKeyLabel := e.addStringConst("__class")
+	classKeyLen := len("__class") + 1
+	classKeyPtr := e.nextLocal()
+	e.writelnIndent(fmt.Sprintf("%s = getelementptr [%d x i8], ptr %s, i64 0, i64 0", classKeyPtr, classKeyLen, classKeyLabel))
+	
+	classNamePtr := e.nextLocal()
+	e.writelnIndent(fmt.Sprintf("%s = call ptr @wolf_map_get(ptr %s, ptr %s)", classNamePtr, objVal, classKeyPtr))
+
+	// Pre-evaluate arguments so we don't duplicate argument emission in every branch!
+	var emittedArgs []string
+	for _, arg := range mc.Args {
+		val := e.emitArgAsString(arg) // Always pass ptr to dynamically dispatched methods for safety, they must downcast if needed (Wolf generic boundary)
+		emittedArgs = append(emittedArgs, val)
+	}
+
+	// We'll use an alloca to store the return value since branches converge
+	retAlloca := e.nextLocal()
+	e.writelnIndent(fmt.Sprintf("%s = alloca ptr", retAlloca))
+	e.writelnIndent(fmt.Sprintf("store ptr null, ptr %s", retAlloca))
+
+	endBlock := fmt.Sprintf("dyn_end_%d", e.labelCounter)
+	e.labelCounter++
+	
+	for i, callee := range candidates {
+		// "UsersController_index" -> "UsersController"
+		className := strings.TrimSuffix(callee, "_"+mc.Method)
+		
+		checkBlock := fmt.Sprintf("dyn_check_%d_%d", e.labelCounter, i)
+		matchBlock := fmt.Sprintf("dyn_match_%d_%d", e.labelCounter, i)
+		e.writelnIndent(fmt.Sprintf("br label %%%s", checkBlock))
+		e.writeln(fmt.Sprintf("%s:", checkBlock))
+		
+		lbl := e.addStringConst(className)
+		lblLen := len(className) + 1
+		nPtr := e.nextLocal()
+		e.writelnIndent(fmt.Sprintf("%s = getelementptr [%d x i8], ptr %s, i64 0, i64 0", nPtr, lblLen, lbl))
+		
+		cmpRes := e.nextLocal()
+		e.writelnIndent(fmt.Sprintf("%s = call i32 @strcmp(ptr %s, ptr %s)", cmpRes, classNamePtr, nPtr))
+		
+		isMatch := e.nextLocal()
+		e.writelnIndent(fmt.Sprintf("%s = icmp eq i32 %s, 0", isMatch, cmpRes))
+		
+		nextBlock := endBlock
+		if i < len(candidates)-1 {
+			nextBlock = fmt.Sprintf("dyn_check_%d_%d", e.labelCounter, i+1)
+		}
+		
+		e.writelnIndent(fmt.Sprintf("br i1 %s, label %%%s, label %%%s", isMatch, matchBlock, nextBlock))
+		e.writeln(fmt.Sprintf("%s:", matchBlock))
+		
+		// Build arg string
+		callArgs := []string{fmt.Sprintf("ptr %s", objVal)}
+		for _, argVal := range emittedArgs {
+			callArgs = append(callArgs, fmt.Sprintf("ptr %s", argVal))
+		}
+		
+		emitName := "wolf_" + callee
+		callRes := e.nextLocal()
+		e.writelnIndent(fmt.Sprintf("%s = call ptr @%s(%s)", callRes, emitName, strings.Join(callArgs, ", ")))
+		e.writelnIndent(fmt.Sprintf("store ptr %s, ptr %s", callRes, retAlloca))
+		e.writelnIndent(fmt.Sprintf("br label %%%s", endBlock))
+	}
+	
+	e.writeln(fmt.Sprintf("%s:", endBlock))
+	finalRet := e.nextLocal()
+	e.writelnIndent(fmt.Sprintf("%s = load ptr, ptr %s", finalRet, retAlloca))
+	e.emittedTypes[finalRet] = "ptr"
+	return finalRet
 }
 
 // emitFuncLit lifts a closure / anonymous function to a top-level named LLVM
@@ -3887,4 +3979,58 @@ func (e *LLVMEmitter) writelnIndent(s string) {
 	}
 	e.buf.WriteString(s)
 	e.buf.WriteByte('\n')
+}
+
+// emitDynamicRegistry generates the wolf_instantiate_dynamic function, which
+// performs a series of strcmp calls against known class names to dynamically
+// dispatch to the correct constructor.
+func (e *LLVMEmitter) emitDynamicRegistry(program *ir.Program) {
+	e.writeln("; === Dynamic Class Registry ===")
+	e.writeln("define ptr @wolf_instantiate_dynamic(ptr %className) {")
+	e.writeln("entry:")
+
+	var blocks []string
+	for i := range program.Classes {
+		blocks = append(blocks, fmt.Sprintf("check_%d", i))
+	}
+	blocks = append(blocks, "fallback")
+
+	if len(program.Classes) > 0 {
+		e.writelnIndent(fmt.Sprintf("br label %%%s", blocks[0]))
+	} else {
+		e.writelnIndent("br label %fallback")
+	}
+
+	for i, cls := range program.Classes {
+		e.writeln(fmt.Sprintf("%s:", blocks[i]))
+		
+		clsLabel := e.addStringConst(cls.Name)
+		clsLen := len(cls.Name) + 1
+		namePtr := e.nextLocal()
+		e.writelnIndent(fmt.Sprintf("%s = getelementptr [%d x i8], ptr %s, i64 0, i64 0", namePtr, clsLen, clsLabel))
+		
+		cmpRes := e.nextLocal()
+		e.writelnIndent(fmt.Sprintf("%s = call i32 @strcmp(ptr %%className, ptr %s)", cmpRes, namePtr))
+		
+		isMatch := e.nextLocal()
+		e.writelnIndent(fmt.Sprintf("%s = icmp eq i32 %s, 0", isMatch, cmpRes))
+		
+		nextBlock := "fallback"
+		if i < len(program.Classes)-1 {
+			nextBlock = blocks[i+1]
+		}
+		
+		matchBlock := fmt.Sprintf("match_%d", i)
+		e.writelnIndent(fmt.Sprintf("br i1 %s, label %%%s, label %%%s", isMatch, matchBlock, nextBlock))
+		
+		e.writeln(fmt.Sprintf("%s:", matchBlock))
+		retPtr := e.nextLocal()
+		e.writelnIndent(fmt.Sprintf("%s = call ptr @wolf_New%s()", retPtr, cls.Name))
+		e.writelnIndent(fmt.Sprintf("ret ptr %s", retPtr))
+	}
+
+	e.writeln("fallback:")
+	e.writelnIndent("call void @wolf_system_die(ptr %className)")
+	e.writelnIndent("unreachable")
+	e.writeln("}")
 }

@@ -11,27 +11,28 @@ echo "--- 1. Go ---"
 GO_PID=$!
 sleep 2
 ./bench/load_tester -c 150 -n 100000 -url http://127.0.0.1:8081/ > bench/results_go.txt
-kill $GO_PID
+kill $GO_PID || true
 
 echo "--- 2. Node.js ---"
 node bench/echo.js &
 NODE_PID=$!
 sleep 2
 ./bench/load_tester -c 150 -n 100000 -url http://127.0.0.1:8082/ > bench/results_node.txt
-kill $NODE_PID
+kill $NODE_PID || true
 
 echo "--- 3. Python (asyncio) ---"
 python3 bench/echo.py &
 PY_PID=$!
 sleep 2
 ./bench/load_tester -c 150 -n 100000 -url http://127.0.0.1:8083/ > bench/results_python.txt
-kill $PY_PID
+kill $PY_PID || true
 
 echo "--- 4. Wolf ---"
+./wolf build bench/echo.wolf
 ./wolf_out/echo &
 WOLF_PID=$!
 sleep 2
 ./bench/load_tester -c 150 -n 100000 -url http://127.0.0.1:8084/ > bench/results_wolf.txt
-kill $WOLF_PID
+kill $WOLF_PID || true
 
 echo "=== Done ==="

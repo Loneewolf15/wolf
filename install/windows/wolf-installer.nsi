@@ -11,7 +11,11 @@
 
 ; ── General ─────────────────────────────────────────────────
 Name              "Wolf Language"
-OutFile           "Wolf-Setup.exe"
+!ifdef FULL_INSTALLER
+OutFile           "Wolf-Setup-Full.exe"
+!else
+OutFile           "Wolf-Setup-Web.exe"
+!endif
 InstallDir        "$PROGRAMFILES64\Wolf"
 InstallDirRegKey  HKLM "Software\Wolf Language" "InstallDir"
 RequestExecutionLevel admin
@@ -148,7 +152,21 @@ Section "Desktop Run Wolf launcher" SecDesktop
 SectionEnd
 
 ; ── Section: Install LLVM (optional) ────────────────────────
-Section /o "Install LLVM toolchain (required to compile)" SecLLVM
+!ifdef FULL_INSTALLER
+Section /o "Install LLVM & MinGW toolchain (offline bundle)" SecLLVM
+  SetOutPath "$INSTDIR\toolchain"
+  DetailPrint "Extracting bundled toolchain (this may take a minute)..."
+  File /r "toolchain\*.*"
+  
+  ; Add toolchain bin to PATH
+  ReadRegStr $0 HKLM "SYSTEM\CurrentControlSet\Control\Session Manager\Environment" "Path"
+  ${IfNot} $0 == ""
+    WriteRegExpandStr HKLM "SYSTEM\CurrentControlSet\Control\Session Manager\Environment" "Path" "$0;$INSTDIR\toolchain\bin"
+    SendMessage ${HWND_BROADCAST} ${WM_SETTINGCHANGE} 0 "STR:Environment" /TIMEOUT=5000
+  ${EndIf}
+SectionEnd
+!else
+Section /o "Install LLVM toolchain (via winget)" SecLLVM
   DetailPrint "Checking for winget..."
   nsExec::ExecToLog 'winget --version'
   Pop $0
@@ -167,6 +185,7 @@ Section /o "Install LLVM toolchain (required to compile)" SecLLVM
       "winget is not available on this system.$\r$\n$\r$\nPlease install LLVM manually from:$\r$\nhttps://releases.llvm.org$\r$\n$\r$\nDuring installation, check 'Add LLVM to system PATH'."
   ${EndIf}
 SectionEnd
+!endif
 
 ; ── Component descriptions ───────────────────────────────────
 !insertmacro MUI_FUNCTION_DESCRIPTION_BEGIN
@@ -174,7 +193,11 @@ SectionEnd
   !insertmacro MUI_DESCRIPTION_TEXT ${SecPath}      "Adds wolf to your system PATH so you can run 'wolf' from any terminal."
   !insertmacro MUI_DESCRIPTION_TEXT ${SecStartMenu} "Creates a Wolf Terminal shortcut in the Start Menu."
   !insertmacro MUI_DESCRIPTION_TEXT ${SecDesktop}   "Adds a drag-and-drop launcher shortcut to your Desktop."
+!ifdef FULL_INSTALLER
+  !insertmacro MUI_DESCRIPTION_TEXT ${SecLLVM}      "Installs the offline bundled LLVM + MinGW toolchain needed to compile .wolf files to native executables."
+!else
   !insertmacro MUI_DESCRIPTION_TEXT ${SecLLVM}      "Downloads and installs the LLVM toolchain (llc + clang) needed to compile .wolf files to native executables."
+!endif
 !insertmacro MUI_FUNCTION_DESCRIPTION_END
 
 ; ===========================================================

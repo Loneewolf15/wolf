@@ -10,6 +10,7 @@
 | 🧭 **Compass** | Roadmap & Prioritization | Before any new sprint task or feature |
 | 🛡️ **Sentinel** | 10× Speed Enforcer & Scaling Gatekeeper | Before merging runtime or emitter changes |
 | ⚡ **Forge** | Hardware & Bare-Metal Systems Agent | Before any `--freestanding` or embedded target work |
+| 🧠 **AXIOM** | First Principles Technical Advisor | Design decisions, architecture reviews, stress-testing assumptions |
 
 ---
 
@@ -28,6 +29,11 @@
  │ 🧭 COMPASS  │ ← "What should we build next?"
  └──────┬──────┘
         │ GO ✅
+        ▼
+ ┌──────────────┐
+ │ 🧠 AXIOM     │ ← "Is this design decision architecturally sound?"
+ └──────┬───────┘
+        │ SOUND ✅
         ▼
 [Work is done this session]
         │
@@ -84,6 +90,7 @@ Wolf targets every piece of silicon LLVM supports:
 | `/resume` | Reads vault → auto-runs Bloodhound → Compass → Sentinel |
 | `/bloodhound` | Full standalone bug scan |
 | `/compass` | Full standalone sprint planning |
+| `/axiom` | Architecture stress-test and first-principles review |
 | `/sentinel` | Full standalone scaling + speed audit |
 | `/forge` | Full standalone hardware compatibility audit |
 | `/wrap-up` | Updates vault → creates handoff → closes session |
@@ -93,3 +100,4 @@ Wolf targets every piece of silicon LLVM supports:
 - [compass.md](file:///home/askme/Pictures/wolf-lang/.wolf-vault/Agents/compass.md)
 - [sentinel.md](file:///home/askme/Pictures/wolf-lang/.wolf-vault/Agents/sentinel.md)
 - [forge.md](file:///home/askme/Pictures/wolf-lang/.wolf-vault/Agents/forge.md)
+- [axiom.md](file:///home/askme/Pictures/wolf-lang/.wolf-vault/Agents/axiom.md)

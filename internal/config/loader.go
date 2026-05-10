@@ -36,6 +36,14 @@ func Load(projectRoot string) (*WolfConfig, error) {
 	// 4. Auto-detect worker count if not set
 	if cfg.Server.Workers == 0 {
 		cfg.Server.Workers = runtime.NumCPU()
+	} else if cfg.Server.Workers > runtime.NumCPU() {
+		// Go-side mirror of the C-side clamping guard in wolf_engine_create().
+		// Catches the misconfiguration early, before the binary is even built.
+		fmt.Fprintf(os.Stderr,
+			"wolf: WARN: [server] workers=%d exceeds %d physical cores — "+
+				"clamping to %d. Set workers = 0 to auto-detect.\n",
+			cfg.Server.Workers, runtime.NumCPU(), runtime.NumCPU())
+		cfg.Server.Workers = runtime.NumCPU()
 	}
 
 	return cfg, nil
@@ -335,12 +343,25 @@ func applyKey(cfg *WolfConfig, section, key, val string, line int) error {
 			return errorf("unknown key")
 		}
 
+	case "target":
+		switch key {
+		case "mode":
+			validModes := map[string]bool{"api": true, "script": true, "mcu": true}
+			if !validModes[val] {
+				return errorf("mode must be api|script|mcu, got %q", val)
+			}
+			cfg.Target.Mode = val
+		case "arch":
+			cfg.Target.Arch = val
+		default:
+			return errorf("unknown key")
+		}
+
 	case "":
 		return fmt.Errorf("line %d: key %q is outside any section", line, key)
 
 	default:
 		// Unknown section — warn but don't error (forward compatibility)
-		// In strict mode this could become an error later.
 	}
 
 	return nil

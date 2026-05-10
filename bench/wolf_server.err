@@ -1,0 +1,21 @@
+[WOLF-ENGINE] Core 1 started (tid=139913544591040)
+[WOLF-ENGINE] Core 0 started (tid=139913552983744)
+[WOLF-ENGINE] Core 3 started (tid=139913527805632)
+[WOLF-ENGINE] Core 2 started (tid=139913536198336)
+[WOLF-ENGINE] Shutdown initiated...
+[WOLF-ENGINE] Core 2 shutting down (served 25547 requests)
+[WOLF-ENGINE] Core 3 shutting down (served 24412 requests)
+[WOLF-ENGINE] Core 0 shutting down (served 25116 requests)
+[WOLF-ENGINE] Core 1 shutting down (served 24825 requests)
+[WOLF-ENGINE] All cores stopped.
+
+[WOLF-ENGINE] Per-core stats:
+  Core 0: 25116 requests, 2386020 B in, 1858584 B out
+  Core 1: 24825 requests, 2358375 B in, 1837050 B out
+  Core 2: 25547 requests, 2426965 B in, 1890478 B out
+  Core 3: 24412 requests, 2319140 B in, 1806488 B out
+  Total:  99900 requests, 9490500 B in, 7392600 B out
+
+[WOLF-POOL] Destroying pool (10 slots)...
+[WOLF-POOL] Pool destroyed.
+[Wolf] Shutdown complete.

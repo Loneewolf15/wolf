@@ -1,8 +1,10 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/spf13/cobra"
 	"github.com/wolflang/wolf/internal/compiler"
@@ -232,27 +234,51 @@ database layer, and embeds CPython for native ML library access.`,
 
 	// New project scaffold
 	var projectType string
+	var projectArch string
 	newCmd := &cobra.Command{
 		Use:   "new [name]",
 		Short: "Create a new Wolf project",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			name := args[0]
+
+			// If --type was not explicitly set and we're in an interactive TTY,
+			// present a menu so the user declares intent once, never again.
+			if !cmd.Flags().Changed("type") && isTTY() {
+				selected, err := promptProjectType()
+				if err != nil {
+					return err
+				}
+				projectType = selected
+			}
+
+			// MCU: if arch not set, default to arm-cortex-m4
+			if projectType == "mcu" && projectArch == "" {
+				projectArch = "arm-cortex-m4"
+			}
+
 			fmt.Printf("wolf: creating %s project '%s'...\n", projectType, name)
 			if err := scaffold.Project(name, scaffold.ProjectType(projectType)); err != nil {
 				return err
 			}
 			fmt.Printf("wolf: project '%s' created ✓\n", name)
 
-			entry := "src/main.wolf"
-			if projectType == "api" {
-				entry = "public/index.wolf"
+			// Print the right getting-started command per mode
+			switch projectType {
+			case "api":
+				fmt.Printf("  cd %s && wolf run public/index.wolf\n", name)
+			case "mcu":
+				fmt.Printf("  cd %s && wolf build src/main.wolf\n", name)
+				fmt.Printf("  # Edit wolf.config [target] arch = %s\n", projectArch)
+			default: // script
+				fmt.Printf("  cd %s && wolf run src/main.wolf\n", name)
 			}
-			fmt.Printf("  cd %s && wolf run %s\n", name, entry)
 			return nil
 		},
 	}
-	newCmd.Flags().StringVarP(&projectType, "type", "t", "script", "Project type: script or api")
+	newCmd.Flags().StringVarP(&projectType, "type", "t", "script", "Project type: api, script, or mcu")
+	newCmd.Flags().StringVarP(&projectArch, "arch", "a", "", "MCU architecture (default: arm-cortex-m4). Options: arm-cortex-m4, arm-cortex-m0, riscv32")
+
 
 	generateCmd := &cobra.Command{
 		Use:   "generate [type] [name]",
@@ -370,5 +396,49 @@ database layer, and embeds CPython for native ML library access.`,
 
 	if err := rootCmd.Execute(); err != nil {
 		os.Exit(1)
+	}
+}
+
+// isTTY reports whether stdin is connected to an interactive terminal.
+// Returns false in CI, pipes, or when stdin is redirected — in those cases
+// wolf new falls back to the --type flag default without prompting.
+func isTTY() bool {
+	fi, err := os.Stdin.Stat()
+	if err != nil {
+		return false
+	}
+	// ModeCharDevice is set on real terminals; ModeNamedPipe on pipes/CI
+	return (fi.Mode() & os.ModeCharDevice) != 0
+}
+
+// promptProjectType shows an interactive menu and returns the selected mode.
+// Called only when isTTY() is true and --type was not explicitly provided.
+func promptProjectType() (string, error) {
+	fmt.Println()
+	fmt.Println("  What are you building?")
+	fmt.Println()
+	fmt.Println("  [1] API Server    — HTTP, JSON, DB, Redis, Thread-Per-Core")
+	fmt.Println("  [2] Script        — Automation, CLI tools, data processing")
+	fmt.Println("  [3] MCU/Embedded  — Microcontroller, bare-metal, no OS")
+	fmt.Println()
+	fmt.Print("  Select (1-3): ")
+
+	reader := bufio.NewReader(os.Stdin)
+	input, err := reader.ReadString('\n')
+	if err != nil {
+		return "", fmt.Errorf("wolf: failed to read selection: %w", err)
+	}
+	input = strings.TrimSpace(input)
+	fmt.Println()
+
+	switch input {
+	case "1", "api":
+		return "api", nil
+	case "2", "script":
+		return "script", nil
+	case "3", "mcu":
+		return "mcu", nil
+	default:
+		return "", fmt.Errorf("wolf: invalid selection %q — choose 1 (API), 2 (Script), or 3 (MCU)", input)
 	}
 }
