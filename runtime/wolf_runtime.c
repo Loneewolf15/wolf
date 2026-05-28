@@ -178,13 +178,7 @@ extern wolf_metric_t wolf_metrics_registry[WOLF_MAX_METRICS];
 
 /* --- HTTP / WebSocket Context Types --- */
 #define WOLF_MAX_UPLOADS 8
-typedef struct {
-    const char* field_name;
-    const char* filename;
-    const char* content_type;
-    const char* data;
-    size_t      size;
-} wolf_upload_t;
+/* --- Request Tables (Forward Declarations) --- */
 
 typedef struct {
     int    active;
@@ -232,6 +226,9 @@ static pthread_mutex_t http_mutex = PTHREAD_MUTEX_INITIALIZER;
 static wolf_http_handler_t global_wolf_handler    = NULL;
 static wolf_ws_handler_t   global_ws_handler      = NULL;
 static wolf_ws_handler_t   global_ws_close_handler = NULL;
+
+/* Tag bit to distinguish between core engine IDs and legacy WS IDs */
+#define WOLF_ID_TAG_WS (1LL << 62)
 
 /* WOLF_LOG: early definition so WS poller code below can use it before line 751 */
 #ifndef WOLF_LOG
@@ -398,9 +395,10 @@ dispatch:
             WOLF_LOG("[WOLF-WS] Worker %d popped WS task fd=%d, payload=%s\n", wid, (int)task.id, task.payload ? (char*)task.payload : "(null)");
             if (global_ws_handler) {
                 wolf_req_arena_init();
-                wolf_set_current_context((void*)(intptr_t)task.id, (void*)(intptr_t)task.id);
-                WOLF_LOG("[WOLF-WS] Dispatching to global_ws_handler!\n");
-                global_ws_handler(task.id, task.payload);
+                int64_t tagged_id = task.id | WOLF_ID_TAG_WS;
+                wolf_set_current_context((void*)(intptr_t)tagged_id, (void*)(intptr_t)tagged_id);
+                WOLF_LOG("[WOLF-WS] Dispatching to global_ws_handler with tagged ID %p!\n", (void*)tagged_id);
+                global_ws_handler(tagged_id, task.payload);
                 wolf_req_arena_flush();
             } else {
                 WOLF_LOG("[WOLF-WS] No global_ws_handler assigned!\n");
@@ -821,35 +819,59 @@ static void wolf_ws_poller_start(void) {
 
 #define WOLF_ARENA_CHUNK 256
 
-typedef struct {
+typedef struct WolfReqArena {
     void   **ptrs;
     int      count;
     int      cap;
     int      active;
+    volatile int refcount;
 } WolfReqArena;
 
-static __thread WolfReqArena wolf_req_arena = {NULL, 0, 0, 0};
+static __thread WolfReqArena* current_req_arena = NULL;
 
 void wolf_req_arena_init(void) {
-    wolf_req_arena.count  = 0;
-    wolf_req_arena.active = 1;
+    if (!current_req_arena) {
+        current_req_arena = (WolfReqArena*)malloc(sizeof(WolfReqArena));
+        current_req_arena->ptrs = NULL;
+        current_req_arena->count = 0;
+        current_req_arena->cap = 0;
+    }
+    current_req_arena->count  = 0;
+    current_req_arena->active = 1;
+    current_req_arena->refcount = 1;
+}
+
+void wolf_req_arena_ref(void) {
+    if (current_req_arena) {
+        __atomic_fetch_add(&current_req_arena->refcount, 1, __ATOMIC_SEQ_CST);
+    }
+}
+
+static void free_req_arena(WolfReqArena* arena) {
+    if (!arena) return;
+    for (int i = 0; i < arena->count; i++) {
+        if (arena->ptrs[i]) {
+            free(arena->ptrs[i]);
+            arena->ptrs[i] = NULL;
+        }
+    }
+    arena->count = 0;
+    arena->active = 0;
 }
 
 void* wolf_req_alloc_register(void* ptr) {
-    if (!ptr || !wolf_req_arena.active) return ptr;
-    if (wolf_req_arena.count >= wolf_req_arena.cap) {
-        int      new_cap   = wolf_req_arena.cap + WOLF_ARENA_CHUNK;
-        void**   new_ptrs  = realloc(wolf_req_arena.ptrs, new_cap * sizeof(void*));
+    if (!ptr || !current_req_arena || !current_req_arena->active) return ptr;
+    if (current_req_arena->count >= current_req_arena->cap) {
+        int      new_cap   = current_req_arena->cap + WOLF_ARENA_CHUNK;
+        void**   new_ptrs  = realloc(current_req_arena->ptrs, new_cap * sizeof(void*));
         if (!new_ptrs) {
-            /* OOM in arena management — we must free the ptr and return NULL
-               to prevent a leak since we can't track it anymore. */
             if (ptr) free(ptr);
             return NULL;
         }
-        wolf_req_arena.ptrs = new_ptrs;
-        wolf_req_arena.cap  = new_cap;
+        current_req_arena->ptrs = new_ptrs;
+        current_req_arena->cap  = new_cap;
     }
-    wolf_req_arena.ptrs[wolf_req_arena.count++] = ptr;
+    current_req_arena->ptrs[current_req_arena->count++] = ptr;
     return ptr;
 }
 
@@ -914,21 +936,37 @@ char* wolf_req_strdup(const char* s) {
 }
 
 void wolf_req_arena_flush(void) {
-    wolf_req_arena.active = 0;
-    for (int i = 0; i < wolf_req_arena.count; i++) {
-        if (wolf_req_arena.ptrs[i]) {
-            free(wolf_req_arena.ptrs[i]);
-            wolf_req_arena.ptrs[i] = NULL;
-        }
+    if (!current_req_arena) return;
+    current_req_arena->active = 0;
+    
+    if (__atomic_sub_fetch(&current_req_arena->refcount, 1, __ATOMIC_SEQ_CST) == 0) {
+        free_req_arena(current_req_arena);
+    } else {
+        /* Detached tasks are still using this arena. Detach it from the thread 
+         * so the next request gets a fresh arena instead of overwriting this one. */
+        current_req_arena = NULL;
     }
-    wolf_req_arena.count = 0;
+}
+
+void* wolf_req_arena_get_current(void) {
+    return current_req_arena;
+}
+
+void wolf_req_arena_unref_task(void* arena_ptr) {
+    WolfReqArena* arena = (WolfReqArena*)arena_ptr;
+    if (!arena) return;
+    if (__atomic_sub_fetch(&arena->refcount, 1, __ATOMIC_SEQ_CST) == 0) {
+        free_req_arena(arena);
+        if (arena->ptrs) free(arena->ptrs);
+        free(arena);
+    }
 }
 
 #ifndef WOLF_FREESTANDING
 static int wolf_curl_inited = 0;
 static void wolf_ensure_curl(void) {
     if (!wolf_curl_inited) {
-        curl_global_init(CURL_GLOBAL_DEFAULT);
+                curl_global_init(CURL_GLOBAL_DEFAULT);
         wolf_curl_inited = 1;
     }
 }
@@ -1177,7 +1215,13 @@ const char* wolf_time_date(const char* format, int64_t timestamp) {
     return buf;
 }
 
-void wolf_system_sleep(int64_t seconds) { sleep((unsigned int)seconds); }
+void wolf_system_sleep(int64_t seconds) {
+    struct timespec req = { (time_t)seconds, 0 };
+    struct timespec rem;
+    while (nanosleep(&req, &rem) == -1 && errno == EINTR) {
+        req = rem;
+    }
+}
 void wolf_system_exit(int64_t code)     { exit((int)code); }
 void wolf_system_die(const char* message) {
     if (message) printf("%s\n", message);
@@ -1461,31 +1505,55 @@ void* wolf_db_connect(const char* host, const char* user,
 
 static char* wolf_internal_str_replace(const char* orig, const char* rep,
                                         const char* with, int limit) {
-    char *result, *ins, *tmp;
-    int len_rep, len_with, len_front, count;
+    /* Fix #6: use size_t throughout — signed int arithmetic overflowed on large inputs */
     if (!orig || !rep) return NULL;
-    len_rep = strlen(rep);
+    size_t len_rep = strlen(rep);
     if (len_rep == 0) return NULL;
     if (!with) with = "";
-    len_with = strlen(with);
-    ins = (char *)orig;
-    for (count = 0; (tmp = strstr(ins, rep)); ++count) {
+    size_t len_with = strlen(with);
+    size_t orig_len = strlen(orig);
+
+    /* Count occurrences (capped by limit) */
+    const char* ins = orig;
+    const char* tmp;
+    size_t count = 0;
+    while ((tmp = strstr(ins, rep)) != NULL) {
+        count++;
         ins = tmp + len_rep;
-        if (limit > 0 && count + 1 >= limit) { count++; break; }
+        if (limit > 0 && (int)count >= limit) break;
     }
-    tmp = result = wolf_req_alloc(strlen(orig) + (len_with - len_rep) * count + 1);
+
+    /* Guard against size_t overflow in the final allocation */
+    size_t growth = 0;
+    if (len_with > len_rep) {
+        size_t per = len_with - len_rep;
+        if (count > 0 && per > (SIZE_MAX - orig_len - 1) / count) return NULL; /* overflow */
+        growth = per * count;
+    } else {
+        size_t shrink = (len_rep - len_with) * count;
+        growth = 0;
+        if (orig_len < shrink) return NULL; /* should never happen */
+        orig_len -= shrink;
+    }
+    size_t new_size = orig_len + growth + 1;
+
+    char* result = (char*)wolf_req_alloc(new_size);
     if (!result) return NULL;
+    char* dst = result;
     int replaced = 0;
     while (count--) {
-        ins = strstr(orig, rep);
-        len_front = ins - orig;
-        tmp = strncpy(tmp, orig, len_front) + len_front;
-        tmp = strcpy(tmp, with) + len_with;
-        orig += len_front + len_rep;
+        const char* found = strstr(orig, rep);
+        if (!found) break;
+        size_t front = (size_t)(found - orig);
+        memcpy(dst, orig, front);   dst += front;
+        memcpy(dst, with,  len_with); dst += len_with;
+        orig += front + len_rep;
         replaced++;
         if (limit > 0 && replaced >= limit) break;
     }
-    strcpy(tmp, orig);
+    size_t tail = strlen(orig);
+    memcpy(dst, orig, tail);
+    dst[tail] = '\0';
     return result;
 }
 
@@ -1567,7 +1635,9 @@ int64_t wolf_db_execute(void* stmt_ptr) {
     WolfDBRes *res = PQexec(stmt->conn, stmt->sql);
     if (PQresultStatus(res) != PGRES_COMMAND_OK &&
         PQresultStatus(res) != PGRES_TUPLES_OK) {
-        printf("[WOLF-DB] PG Query failed: %s | SQL: %s\n", PQerrorMessage(stmt->conn), stmt->sql);
+        /* Fix #7: never log the SQL text — it may contain sensitive interpolated values.
+         * Log only the DB error message. Check logs + monitors for repeated failures. */
+        fprintf(stderr, "[WOLF-DB] PG Query failed: %s\n", PQerrorMessage(stmt->conn));
         PQclear(res); return 0;
     }
     stmt->last_result = res; return 1;
@@ -1577,7 +1647,8 @@ int64_t wolf_db_execute(void* stmt_ptr) {
 #else
     if (stmt->last_result) { mysql_free_result(stmt->last_result); stmt->last_result = NULL; }
     if (mysql_query(stmt->conn, stmt->sql)) {
-        printf("[WOLF-DB] MySQL Query failed: %s | SQL: %s\n", mysql_error(stmt->conn), stmt->sql);
+        /* Fix #7: never log the SQL text — it may contain sensitive interpolated values. */
+        fprintf(stderr, "[WOLF-DB] MySQL Query failed: %s\n", mysql_error(stmt->conn));
         return 0;
     }
     stmt->last_result = mysql_store_result(stmt->conn);
@@ -2755,7 +2826,10 @@ void* wolf_map_get(void* map_ptr, const char* key) {
 
 int64_t wolf_math_randomint(int64_t max) {
     if (max <= 0) return 0;
-    return rand() % max;
+    /* Fix #10: use libsodium CSPRNG — rand() is predictable when seeded with time(NULL) */
+    uint64_t rnd;
+    randombytes_buf(&rnd, sizeof(rnd));
+    return (int64_t)(rnd % (uint64_t)max);
 }
 
 bool wolf_strings_isempty(const char* s) {
@@ -2887,11 +2961,14 @@ static int alloc_http_context(int client_fd, const char* client_ip) {
  * long-lived connection.
  *
  * The engine MUST NOT close client_fd after calling this — ownership
- * is fully transferred here.
+ * transfer the metadata pointers themselves but DEEP COPY them so they
+ * survive the engine's arena reset.
  *
  * Returns the allocated context slot id, or -1 if the table is full.
  * ================================================================ */
-int wolf_engine_register_ws_fd(int fd, const char* ws_key, const char* client_ip) {
+int wolf_engine_register_ws_fd(int fd, const char* method, const char* path, 
+                               const char* query, const char* ws_key, 
+                               const char* client_ip) {
     int id = alloc_http_context(fd, client_ip);
     if (id < 0) {
         /* No free slot — close fd to prevent a leak */
@@ -2907,6 +2984,11 @@ int wolf_engine_register_ws_fd(int fd, const char* ws_key, const char* client_ip
     ctx->ws_header_len = 2;
     ctx->ws_header_pos = 0;
     ctx->ws_payload_pos = 0;
+
+    /* Deep copy metadata so it survives the HTTP arena reset */
+    if (method) ctx->method = strdup(method);
+    if (path)   ctx->path   = strdup(path);
+    if (query)  ctx->query  = strdup(query);
 
     /* Copy ws_key for any post-handshake use (e.g. ping/pong validation) */
     if (ws_key) {
@@ -2928,11 +3010,16 @@ static void free_http_context(int id) {
     wolf_http_context_t* ctx = &http_contexts[id];
     
     /* 
-     * NOTE: We NO LONGER call free() on ctx->method, ctx->path, etc. here.
-     * These are allocated via wolf_req_strdup() which places them in the
-     * per-request arena. wolf_req_arena_flush() handles the actual freeing.
-     * Manual free() here causes a double-free crash.
+     * NOTE: For WebSockets, we MUST free the heap-allocated metadata copies
+     * created in register_ws_fd. For standard HTTP (legacy), these are
+     * arena-allocated and handled by wolf_req_arena_flush().
      */
+    if (ctx->is_websocket) {
+        if (ctx->method) free(ctx->method);
+        if (ctx->path)   free(ctx->path);
+        if (ctx->query)  free(ctx->query);
+        if (ctx->body)   free(ctx->body);
+    }
     ctx->method = NULL;
     ctx->path   = NULL;
     ctx->query  = NULL;
@@ -3177,7 +3264,6 @@ static void parse_http_request(int id, char* raw_req, size_t len) {
 }
 
 #ifndef WOLF_REQUEST_TIMEOUT_SEC
-#define WOLF_REQUEST_TIMEOUT_SEC 30
 #endif
 
 void* wolf_ws_on_message(void* handler) {
@@ -3190,22 +3276,45 @@ void* wolf_ws_on_close(void* handler) {
     return NULL;
 }
 
+/* Max string lengths for WS room names and presence IDs — prevent DoS/OOB */
+#define WOLF_WS_ROOM_MAX_LEN    64
+#define WOLF_WS_USERID_MAX_LEN 128
+
 void wolf_ws_broadcast(const char* message) {
     if (!message) return;
+    /* Fix #1: snapshot active fds under lock then write() OUTSIDE the lock.
+     * write() can block on a full TCP send buffer — holding http_mutex while
+     * blocked lets a single slow client freeze the entire WS subsystem. */
+    int fds[MAX_CONCURRENT_REQUESTS];
+    int count = 0;
     pthread_mutex_lock(&http_mutex);
     for (int i = 0; i < MAX_CONCURRENT_REQUESTS; i++) {
         if (http_contexts[i].active &&
             http_contexts[i].is_websocket &&
             http_contexts[i].client_fd > 0) {
-            wolf_ws_send((int64_t)i, message);
+            fds[count++] = http_contexts[i].client_fd;
         }
     }
     pthread_mutex_unlock(&http_mutex);
+    /* Build WS frame header once, send to each fd outside lock */
+    size_t len = strlen(message);
+    unsigned char hdr[10]; int hlen = 0;
+    hdr[0] = 0x81;
+    if (len <= 125)       { hdr[1] = (unsigned char)len; hlen = 2; }
+    else if (len <= 65535){ hdr[1] = 126; hdr[2]=(len>>8)&0xFF; hdr[3]=len&0xFF; hlen=4; }
+    else                  { hdr[1] = 127; for(int i=0;i<8;i++) hdr[9-i]=(len>>(i*8))&0xFF; hlen=10; }
+    for (int i = 0; i < count; i++) {
+        write(fds[i], hdr, hlen);
+        if (len > 0) write(fds[i], message, len);
+    }
 }
 
 void wolf_ws_join(int64_t req_id, const char* room) {
+    /* Fix #8: strip tag bit so WS handlers can call with tagged IDs */
+    if (req_id & WOLF_ID_TAG_WS) req_id &= ~WOLF_ID_TAG_WS;
     if (req_id < 0 || req_id >= MAX_CONCURRENT_REQUESTS) return;
-    if (!room) return;
+    /* Fix #9: enforce max room name length to prevent memory DoS */
+    if (!room || strlen(room) > WOLF_WS_ROOM_MAX_LEN) return;
     pthread_mutex_lock(&http_mutex);
     wolf_http_context_t* ctx = &http_contexts[req_id];
     if (ctx->active && ctx->is_websocket && ctx->ws_room_count < 8) {
@@ -3225,25 +3334,42 @@ void wolf_ws_join(int64_t req_id, const char* room) {
 
 void wolf_ws_broadcast_to(const char* room, const char* message) {
     if (!room || !message) return;
+    /* Fix #1: same snapshot pattern as wolf_ws_broadcast */
+    int fds[MAX_CONCURRENT_REQUESTS];
+    int count = 0;
     pthread_mutex_lock(&http_mutex);
     for (int i = 0; i < MAX_CONCURRENT_REQUESTS; i++) {
         if (http_contexts[i].active &&
             http_contexts[i].is_websocket &&
             http_contexts[i].client_fd > 0) {
             for (int r = 0; r < http_contexts[i].ws_room_count; r++) {
-                if (http_contexts[i].ws_rooms[r] && strcmp(http_contexts[i].ws_rooms[r], room) == 0) {
-                    wolf_ws_send((int64_t)i, message);
+                if (http_contexts[i].ws_rooms[r] &&
+                    strcmp(http_contexts[i].ws_rooms[r], room) == 0) {
+                    fds[count++] = http_contexts[i].client_fd;
                     break;
                 }
             }
         }
     }
     pthread_mutex_unlock(&http_mutex);
+    size_t len = strlen(message);
+    unsigned char hdr[10]; int hlen = 0;
+    hdr[0] = 0x81;
+    if (len <= 125)       { hdr[1] = (unsigned char)len; hlen = 2; }
+    else if (len <= 65535){ hdr[1] = 126; hdr[2]=(len>>8)&0xFF; hdr[3]=len&0xFF; hlen=4; }
+    else                  { hdr[1] = 127; for(int i=0;i<8;i++) hdr[9-i]=(len>>(i*8))&0xFF; hlen=10; }
+    for (int i = 0; i < count; i++) {
+        write(fds[i], hdr, hlen);
+        if (len > 0) write(fds[i], message, len);
+    }
 }
 
 void wolf_presence_track(int64_t req_id, const char* user_id) {
+    /* Fix #8: strip tag bit so WS handlers can call with tagged IDs */
+    if (req_id & WOLF_ID_TAG_WS) req_id &= ~WOLF_ID_TAG_WS;
     if (req_id < 0 || req_id >= MAX_CONCURRENT_REQUESTS) return;
-    if (!user_id) return;
+    /* Fix #9: cap user_id length to prevent memory DoS and presence_list overflow */
+    if (!user_id || strlen(user_id) > WOLF_WS_USERID_MAX_LEN) return;
     pthread_mutex_lock(&http_mutex);
     wolf_http_context_t* ctx = &http_contexts[req_id];
     if (ctx->active && ctx->is_websocket) {
@@ -3253,41 +3379,81 @@ void wolf_presence_track(int64_t req_id, const char* user_id) {
     pthread_mutex_unlock(&http_mutex);
 }
 
+/* Inline JSON escaping for presence IDs (avoids dependency on wolf_json_escape
+ * which is defined later in the file). Only escapes \ and " as required by RFC 8259. */
+static void wolf_presence_json_escape(char* dst, size_t dst_cap, const char* src) {
+    size_t out = 0;
+    while (*src && out + 3 < dst_cap) {
+        if (*src == '"' || *src == '\\') {
+            if (out + 3 >= dst_cap) break;
+            dst[out++] = '\\';
+        }
+        dst[out++] = *src++;
+    }
+    dst[out] = '\0';
+}
+
 const char* wolf_presence_list(const char* room) {
     if (!room) return "[]";
-    /* Allocate from wolf_req_alloc since a Wolf handler calls it and expects GC */
-    char* result = wolf_req_alloc(65536);
-    if (!result) return "[]";
-    strcpy(result, "[");
-    int count = 0;
-    
+
+    /* Fix #2/#12: two-pass approach — compute exact required size first,
+     * then allocate precisely. Also JSON-escape presence IDs before writing.
+     * Each entry worst-case: '"' + (USERID_MAX_LEN*2 escaped) + '",'. */
+    const size_t MAX_ENTRY = WOLF_WS_USERID_MAX_LEN * 2 + 4;
+
     pthread_mutex_lock(&http_mutex);
+
+    /* Pass 1: count matching entries */
+    int match_count = 0;
     for (int i = 0; i < MAX_CONCURRENT_REQUESTS; i++) {
         wolf_http_context_t* ctx = &http_contexts[i];
-        if (ctx->active && ctx->is_websocket && ctx->ws_presence_id) {
-            int match = 0;
-            if (strcmp(room, "global") == 0) {
-                match = 1;
-            } else {
-                for (int r = 0; r < ctx->ws_room_count; r++) {
-                    if (ctx->ws_rooms[r] && strcmp(ctx->ws_rooms[r], room) == 0) { 
-                        match = 1; break; 
-                    }
-                }
-            }
-            if (match) {
-                if (count > 0) strcat(result, ",");
-                sprintf(result + strlen(result), "\"%s\"", ctx->ws_presence_id);
-                count++;
+        if (!ctx->active || !ctx->is_websocket || !ctx->ws_presence_id) continue;
+        int match = (strcmp(room, "global") == 0);
+        if (!match) {
+            for (int r = 0; r < ctx->ws_room_count; r++) {
+                if (ctx->ws_rooms[r] && strcmp(ctx->ws_rooms[r], room) == 0) { match = 1; break; }
             }
         }
+        if (match) match_count++;
+    }
+
+    /* Allocate exactly: '[' + count*(MAX_ENTRY+1 for comma) + ']' + NUL */
+    size_t buf_size = 2 + (size_t)match_count * (MAX_ENTRY + 1) + 2;
+    char* result = (char*)wolf_req_alloc(buf_size);
+    if (!result) { pthread_mutex_unlock(&http_mutex); return "[]"; }
+
+    /* Pass 2: build JSON array */
+    char* p = result;
+    *p++ = '[';
+    int written = 0;
+    char escaped[WOLF_WS_USERID_MAX_LEN * 2 + 2];
+    for (int i = 0; i < MAX_CONCURRENT_REQUESTS; i++) {
+        wolf_http_context_t* ctx = &http_contexts[i];
+        if (!ctx->active || !ctx->is_websocket || !ctx->ws_presence_id) continue;
+        int match = (strcmp(room, "global") == 0);
+        if (!match) {
+            for (int r = 0; r < ctx->ws_room_count; r++) {
+                if (ctx->ws_rooms[r] && strcmp(ctx->ws_rooms[r], room) == 0) { match = 1; break; }
+            }
+        }
+        if (!match) continue;
+        if (written > 0) *p++ = ',';
+        *p++ = '"';
+        wolf_presence_json_escape(escaped, sizeof(escaped), ctx->ws_presence_id);
+        size_t el = strlen(escaped);
+        memcpy(p, escaped, el); p += el;
+        *p++ = '"';
+        written++;
     }
     pthread_mutex_unlock(&http_mutex);
-    strcat(result, "]");
+    *p++ = ']';
+    *p   = '\0';
     return result;
 }
 
 void wolf_ws_close(int64_t req_id) {
+    /* Fix #8: strip tag bit so WS handlers can safely call with tagged IDs */
+    if (req_id & WOLF_ID_TAG_WS) req_id &= ~WOLF_ID_TAG_WS;
     if (req_id < 0 || req_id >= MAX_CONCURRENT_REQUESTS) return;
     wolf_http_context_t* ctx = &http_contexts[req_id];
     if (!ctx->active || ctx->client_fd <= 0) return;
@@ -3310,6 +3476,8 @@ void wolf_ws_close(int64_t req_id) {
 }
 
 void* wolf_ws_send(int64_t req_id, const char* message) {
+    /* Fix #8: strip tag bit so WS handlers can safely call with tagged IDs */
+    if (req_id & WOLF_ID_TAG_WS) req_id &= ~WOLF_ID_TAG_WS;
     if (req_id < 0 || req_id >= MAX_CONCURRENT_REQUESTS) return NULL;
     wolf_http_context_t* ctx = &http_contexts[req_id];
     if (!ctx->active || ctx->client_fd <= 0) return NULL;
@@ -3567,6 +3735,7 @@ static void* http_worker(void* arg) {
 #include "wolf_uring.c"
 #include "wolf_http_engine.c"
 #include "wolf_scheduler.c"
+#include "wolf_mailer.c"
 
 #endif /* WOLF_FREESTANDING — end of HTTP server block */
 
@@ -3574,21 +3743,44 @@ static void* http_worker(void* arg) {
 #ifndef WOLF_FREESTANDING
 
 const char* wolf_http_req_method(int64_t req_id) {
+    if (req_id & WOLF_ID_TAG_WS) {
+        int64_t idx = req_id & ~WOLF_ID_TAG_WS;
+        if (idx < 0 || idx >= MAX_CONCURRENT_REQUESTS) return "";
+        return http_contexts[idx].method ? http_contexts[idx].method : "";
+    }
     if (req_id < 0 || req_id >= MAX_CONCURRENT_REQUESTS) return "";
     return wolf_core_ctxs[req_id].method ? wolf_core_ctxs[req_id].method : "";
 }
 
 const char* wolf_http_req_client_ip(int64_t req_id) {
+    if (req_id & WOLF_ID_TAG_WS) {
+        int64_t idx = req_id & ~WOLF_ID_TAG_WS;
+        if (idx < 0 || idx >= MAX_CONCURRENT_REQUESTS) return "";
+        return http_contexts[idx].client_ip[0] ? http_contexts[idx].client_ip : "";
+    }
     if (req_id < 0 || req_id >= MAX_CONCURRENT_REQUESTS) return "";
     return wolf_core_ctxs[req_id].client_ip[0] ? wolf_core_ctxs[req_id].client_ip : "";
 }
 const char* wolf_http_req_path(int64_t req_id) {
+    if (req_id & WOLF_ID_TAG_WS) {
+        int64_t idx = req_id & ~WOLF_ID_TAG_WS;
+        if (idx < 0 || idx >= MAX_CONCURRENT_REQUESTS) return "";
+        return http_contexts[idx].path ? http_contexts[idx].path : "";
+    }
     if (req_id < 0 || req_id >= MAX_CONCURRENT_REQUESTS) return "";
     return wolf_core_ctxs[req_id].path ? wolf_core_ctxs[req_id].path : "";
 }
 const char* wolf_http_req_query(int64_t req_id, const char* key) {
-    if (req_id < 0 || req_id >= MAX_CONCURRENT_REQUESTS || !key) return "";
-    char* query = wolf_core_ctxs[req_id].query;
+    char* query = NULL;
+    if (req_id & WOLF_ID_TAG_WS) {
+        int64_t idx = req_id & ~WOLF_ID_TAG_WS;
+        if (idx < 0 || idx >= MAX_CONCURRENT_REQUESTS || !key) return "";
+        query = http_contexts[idx].query;
+    } else {
+        if (req_id < 0 || req_id >= MAX_CONCURRENT_REQUESTS || !key) return "";
+        query = wolf_core_ctxs[req_id].query;
+    }
+
     if (!query) return "";
     char* q_copy = wolf_req_strdup(query);
     char* saveptr;
@@ -3601,13 +3793,26 @@ const char* wolf_http_req_query(int64_t req_id, const char* key) {
     return "";
 }
 const char* wolf_http_req_header(int64_t req_id, const char* key) {
-    if (req_id < 0 || req_id >= MAX_CONCURRENT_REQUESTS || !key) return "";
-    WolfConnCtx* ctx = &wolf_core_ctxs[req_id];
-    for (int i = 0; i < ctx->header_count; i++)
-        if (strcasecmp(ctx->header_keys[i], key) == 0) return ctx->header_vals[i];
+    if (req_id & WOLF_ID_TAG_WS) {
+        int64_t idx = req_id & ~WOLF_ID_TAG_WS;
+        if (idx < 0 || idx >= MAX_CONCURRENT_REQUESTS || !key) return "";
+        wolf_http_context_t* ctx = &http_contexts[idx];
+        for (int i = 0; i < ctx->header_count; i++)
+            if (strcasecmp(ctx->header_keys[i], key) == 0) return ctx->header_vals[i];
+    } else {
+        if (req_id < 0 || req_id >= MAX_CONCURRENT_REQUESTS || !key) return "";
+        WolfConnCtx* ctx = &wolf_core_ctxs[req_id];
+        for (int i = 0; i < ctx->header_count; i++)
+            if (strcasecmp(ctx->header_keys[i], key) == 0) return ctx->header_vals[i];
+    }
     return "";
 }
 const char* wolf_http_req_body(int64_t req_id) {
+    if (req_id & WOLF_ID_TAG_WS) {
+        int64_t idx = req_id & ~WOLF_ID_TAG_WS;
+        if (idx < 0 || idx >= MAX_CONCURRENT_REQUESTS) return "";
+        return http_contexts[idx].body ? http_contexts[idx].body : "";
+    }
     if (req_id < 0 || req_id >= MAX_CONCURRENT_REQUESTS) return "";
     return wolf_core_ctxs[req_id].body ? wolf_core_ctxs[req_id].body : "";
 }
@@ -3635,6 +3840,8 @@ static char* wolf_base64_encode_bin(const char* data, size_t len) {
  * Format: {"name":"photo.jpg","type":"image/jpeg","size":12345,"data":"<base64>"}
  * The caller can then json_decode() it and use Wolf_File::Save() to persist. */
 const char* wolf_http_req_file(int64_t req_id, const char* field_name) {
+    /* File uploads are only valid on standard HTTP (engine) contexts, not WS */
+    if (req_id & WOLF_ID_TAG_WS) return "";
     if (req_id < 0 || req_id >= MAX_CONCURRENT_REQUESTS || !field_name) {
         return "";
     }
@@ -3662,6 +3869,8 @@ const char* wolf_http_req_file(int64_t req_id, const char* field_name) {
 }
 
 int64_t wolf_http_req_file_count(int64_t req_id) {
+    /* File uploads are only valid on standard HTTP (engine) contexts, not WS */
+    if (req_id & WOLF_ID_TAG_WS) return 0;
     if (req_id < 0 || req_id >= MAX_CONCURRENT_REQUESTS) return 0;
     return (int64_t)wolf_core_ctxs[req_id].upload_count;
 }
@@ -3669,7 +3878,20 @@ int64_t wolf_http_req_file_count(int64_t req_id) {
 /* --- Response API --- */
 
 void wolf_http_res_header(int64_t res_id, const char* key, const char* value) {
-    if (res_id < 0 || res_id >= MAX_CONCURRENT_REQUESTS || !key || !value) return;
+    if (!key || !value) return;
+    if (res_id & WOLF_ID_TAG_WS) {
+        /* WS context: lives in http_contexts[], not wolf_core_ctxs[] */
+        int64_t idx = res_id & ~WOLF_ID_TAG_WS;
+        if (idx < 0 || idx >= MAX_CONCURRENT_REQUESTS) return;
+        wolf_http_context_t* ctx = &http_contexts[idx];
+        if (ctx->res_header_count < 32) {
+            ctx->res_header_keys[ctx->res_header_count] = wolf_req_strdup(key);
+            ctx->res_header_vals[ctx->res_header_count] = wolf_req_strdup(value);
+            ctx->res_header_count++;
+        }
+        return;
+    }
+    if (res_id < 0 || res_id >= MAX_CONCURRENT_REQUESTS) return;
     WolfConnCtx* ctx = &wolf_core_ctxs[res_id];
     if (ctx->res_header_count < 32) {
         ctx->res_header_keys[ctx->res_header_count] = wolf_req_strdup(key);
@@ -3679,22 +3901,45 @@ void wolf_http_res_header(int64_t res_id, const char* key, const char* value) {
 }
 
 void wolf_http_res_status(int64_t res_id, int64_t status_code) {
-    if (res_id < 0 || res_id >= MAX_CONCURRENT_REQUESTS) return;
-    wolf_core_ctxs[res_id].status_code = (int)status_code;
+    if (res_id & WOLF_ID_TAG_WS) {
+        int64_t idx = res_id & ~WOLF_ID_TAG_WS;
+        if (idx < 0 || idx >= MAX_CONCURRENT_REQUESTS) return;
+        http_contexts[idx].status_code = (int)status_code;
+    } else {
+        if (res_id < 0 || res_id >= MAX_CONCURRENT_REQUESTS) return;
+        wolf_core_ctxs[res_id].status_code = (int)status_code;
+    }
 }
 
 void wolf_http_res_write(int64_t res_id, const char* body) {
-    if (res_id < 0 || res_id >= MAX_CONCURRENT_REQUESTS || !body) return;
-    WolfConnCtx* ctx = &wolf_core_ctxs[res_id];
-    if (ctx->res_body) {
-        size_t old_len = strlen(ctx->res_body);
-        size_t new_len = strlen(body);
-        char* new_body = wolf_req_alloc(old_len + new_len + 1);
-        strcpy(new_body, ctx->res_body);
-        strcat(new_body, body);
-        ctx->res_body = new_body;
+    if (!body) return;
+    if (res_id & WOLF_ID_TAG_WS) {
+        int64_t idx = res_id & ~WOLF_ID_TAG_WS;
+        if (idx < 0 || idx >= MAX_CONCURRENT_REQUESTS) return;
+        wolf_http_context_t* ctx = &http_contexts[idx];
+        if (ctx->res_body) {
+            size_t old_len = strlen(ctx->res_body);
+            size_t new_len = strlen(body);
+            char* new_body = wolf_req_alloc(old_len + new_len + 1);
+            strcpy(new_body, ctx->res_body);
+            strcat(new_body, body);
+            ctx->res_body = new_body;
+        } else {
+            ctx->res_body = wolf_req_strdup(body);
+        }
     } else {
-        ctx->res_body = wolf_req_strdup(body);
+        if (res_id < 0 || res_id >= MAX_CONCURRENT_REQUESTS) return;
+        WolfConnCtx* ctx = &wolf_core_ctxs[res_id];
+        if (ctx->res_body) {
+            size_t old_len = strlen(ctx->res_body);
+            size_t new_len = strlen(body);
+            char* new_body = wolf_req_alloc(old_len + new_len + 1);
+            strcpy(new_body, ctx->res_body);
+            strcat(new_body, body);
+            ctx->res_body = new_body;
+        } else {
+            ctx->res_body = wolf_req_strdup(body);
+        }
     }
 }
 
@@ -3802,9 +4047,12 @@ void* wolf_http_request(const char* method, const char* url, const char* body, v
     curl_easy_setopt(curl, CURLOPT_HEADERFUNCTION, wolf_http_client_header_cb);
     curl_easy_setopt(curl, CURLOPT_HEADERDATA, (void *)&state);
     curl_easy_setopt(curl, CURLOPT_USERAGENT, "wolf/1.0");
-    curl_easy_setopt(curl, CURLOPT_TIMEOUT, 10L); 
+    curl_easy_setopt(curl, CURLOPT_TIMEOUT, 10L);
     curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 5L);
-    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
+    /* Fix #4: re-enable TLS peer verification — disabling it allows MITM on all
+     * outbound HTTPS calls. If a custom CA is required, set CURLOPT_CAINFO instead. */
+    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 1L);
+    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 2L);
 
     res = curl_easy_perform(curl);
     long status_code = 0;
@@ -4125,10 +4373,21 @@ const char* wolf_str_replace(const char* find, const char* rep, const char* s) {
 }
 
 const char* wolf_str_repeat(const char* s, int64_t times) {
-    if (!s||times<=0) return wolf_req_strdup("");
-    size_t sl=strlen(s);
-    char* r=(char*)wolf_req_alloc(sl*times+1); r[0]='\0';
-    for (int64_t i=0;i<times;i++) strcat(r,s);
+    if (!s || times <= 0) return wolf_req_strdup("");
+    size_t sl = strlen(s);
+    if (sl == 0) return wolf_req_strdup("");
+    /* Fix #3: guard against integer overflow in sl*times and DoS via huge allocation.
+     * Cap output at 64MB — if a caller genuinely needs more, they have a design problem. */
+#define WOLF_STR_REPEAT_MAX (64UL * 1024UL * 1024UL)
+    if ((uint64_t)sl > WOLF_STR_REPEAT_MAX / (uint64_t)times) {
+        return wolf_req_strdup(""); /* would overflow or exceed cap */
+    }
+    size_t total = sl * (size_t)times;
+    char* r = (char*)wolf_req_alloc(total + 1);
+    if (!r) return wolf_req_strdup("");
+    /* Use memcpy instead of O(n) strcat — safe and cache-friendly */
+    for (size_t i = 0; i < (size_t)times; i++) memcpy(r + i * sl, s, sl);
+    r[total] = '\0';
     return r;
 }
 
@@ -6583,6 +6842,16 @@ static void wolf_validate_field(wolf_validator_t* v, const char* field,
 
 /* ========== Query Builder (DB-01) ========== */
 
+/* Fix N1: safe identifier validation to prevent SQL injection in column/table names */
+static const char* wolf_qb_safe_column(const char* key) {
+    if (!key || key[0] == '\0') return "wolf_invalid_identifier_dropped";
+    if (!isalpha((unsigned char)key[0]) && key[0] != '_') return "wolf_invalid_identifier_dropped";
+    for (int i = 1; key[i] != '\0'; i++) {
+        if (!isalnum((unsigned char)key[i]) && key[i] != '_') return "wolf_invalid_identifier_dropped";
+    }
+    return key;
+}
+
 #define WOLF_QB_MAX_WHERE  32
 #define WOLF_QB_MAX_COL    64
 
@@ -6658,7 +6927,7 @@ static char* wolf_qb_build_select(wolf_qb_t* qb) {
 void* wolf_qb_create(void* conn, const char* table) {
     wolf_qb_t* qb = (wolf_qb_t*)wolf_req_alloc(sizeof(wolf_qb_t));
     qb->conn        = conn;
-    qb->table       = wolf_req_strdup(table ? table : "");
+    qb->table       = wolf_req_strdup(wolf_qb_safe_column(table ? table : ""));
     qb->where_count = 0;
     qb->order_col   = NULL;
     qb->order_dir   = NULL;
@@ -6674,9 +6943,9 @@ void* wolf_qb_with(void* qb_ptr, const char* rel_name, const char* local_key, co
     if (qb->with_count >= WOLF_QB_MAX_WITH) return qb_ptr;
     int i = qb->with_count++;
     qb->with_rels[i].relation_name = wolf_req_strdup(rel_name);
-    qb->with_rels[i].local_key     = wolf_req_strdup(local_key);
-    qb->with_rels[i].related_table = wolf_req_strdup(rel_table);
-    qb->with_rels[i].related_key   = wolf_req_strdup(rel_key);
+    qb->with_rels[i].local_key     = wolf_req_strdup(wolf_qb_safe_column(local_key));
+    qb->with_rels[i].related_table = wolf_req_strdup(wolf_qb_safe_column(rel_table));
+    qb->with_rels[i].related_key   = wolf_req_strdup(wolf_qb_safe_column(rel_key));
     return qb_ptr;
 }
 
@@ -6685,7 +6954,7 @@ void* wolf_qb_where(void* qb_ptr, const char* col, const char* val, const char* 
     if (!qb || !col) return qb_ptr;
     if (qb->where_count >= WOLF_QB_MAX_WHERE) return qb_ptr;
     int i = qb->where_count++;
-    qb->where_col[i] = wolf_req_strdup(col);
+    qb->where_col[i] = wolf_req_strdup(wolf_qb_safe_column(col));
     /* Escape at ingestion time — where_val[] always stores safe, escaped strings.
      * wolf_qb_build_select, wolf_qb_update, wolf_qb_delete, and wolf_qb_paginate
      * all read from this array and interpolate it directly; they do not need to
@@ -6698,7 +6967,7 @@ void* wolf_qb_where(void* qb_ptr, const char* col, const char* val, const char* 
 void* wolf_qb_order_by(void* qb_ptr, const char* col, const char* dir) {
     wolf_qb_t* qb = (wolf_qb_t*)qb_ptr;
     if (!qb || !col) return qb_ptr;
-    qb->order_col = wolf_req_strdup(col);
+    qb->order_col = wolf_req_strdup(wolf_qb_safe_column(col));
     qb->order_dir = wolf_req_strdup((dir && strlen(dir) > 0) ? dir : "ASC");
     return qb_ptr;
 }
@@ -6812,7 +7081,7 @@ int64_t wolf_qb_insert(void* qb_ptr, void* data_ptr) {
 
     for (int64_t i = 0; i < data->size; i++) {
         if (i > 0) wolf_strbuf_append(sb, ", ");
-        wolf_strbuf_append(sb, data->keys[i]);
+        wolf_strbuf_append(sb, wolf_qb_safe_column(data->keys[i]));
     }
     wolf_strbuf_append(sb, ") VALUES (");
     for (int64_t i = 0; i < data->size; i++) {
@@ -6843,7 +7112,7 @@ int64_t wolf_qb_update(void* qb_ptr, void* data_ptr) {
     wolf_strbuf_append(sb, " SET ");
     for (int64_t i = 0; i < data->size; i++) {
         if (i > 0) wolf_strbuf_append(sb, ", ");
-        wolf_strbuf_append(sb, data->keys[i]);
+        wolf_strbuf_append(sb, wolf_qb_safe_column(data->keys[i]));
         wolf_strbuf_append(sb, " = '");
         const char* val = wolf_map_get_str(data, data->keys[i]);
         /* INSERT/UPDATE values are escaped here at construction time, not at ingestion, 
@@ -7014,6 +7283,7 @@ typedef struct {
 	void (*handler)(void);
 	const char* strategy;
 	int64_t max_retries;
+	void* arena;
 } supervise_ctx_t;
 
 static supervise_ctx_t wolf_supervisors[WOLF_MAX_SUPERVISORS];
@@ -7032,14 +7302,24 @@ static void* supervise_thread_func(void* arg) {
 			wolf_system_sleep(1);
 		}
 	}
+	void* arena = ctx->arena;
 	while (atomic_exchange(&wolf_supervisors_lock, 1)) {} // spin
 	ctx->handler = NULL;
 	atomic_store(&wolf_supervisors_lock, 0);
+	
+	wolf_req_arena_unref_task(arena);
 	return NULL;
+}
+
+void wolf_thread_yield(void) {
+	sched_yield();
 }
 
 void wolf_spawn_supervised_thread(void* handler, const char* strategy, int64_t max_retries) {
 	if (!handler) return;
+	
+	wolf_req_arena_ref();
+	void* arena = wolf_req_arena_get_current();
 	
 	supervise_ctx_t* ctx = NULL;
 	while (atomic_exchange(&wolf_supervisors_lock, 1)) {} // spin
@@ -7049,6 +7329,7 @@ void wolf_spawn_supervised_thread(void* handler, const char* strategy, int64_t m
 			ctx->handler = (void (*)(void))handler;
 			ctx->strategy = strategy;
 			ctx->max_retries = max_retries;
+			ctx->arena = arena;
 			break;
 		}
 	}
@@ -7067,6 +7348,10 @@ void wolf_spawn_supervised_thread(void* handler, const char* strategy, int64_t m
 
 void wolf_spawn_supervised_thread(void* handler, const char* strategy, int64_t max_retries) {
 	/* No-op in freestanding bare-metal environments (no pthread) */
+}
+
+void wolf_thread_yield(void) {
+	/* No-op */
 }
 
 #endif

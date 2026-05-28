@@ -5,6 +5,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/wolflang/wolf"
 )
@@ -57,11 +58,21 @@ func ensureAssetsExtracted() (string, error) {
 }
 
 func extractFS(f fs.FS, srcDir string, destDir string) error {
+	// Fix #14: resolve destDir once so we can verify no asset escapes it.
+	absDest, err := filepath.Abs(destDir)
+	if err != nil {
+		return fmt.Errorf("extractFS: cannot resolve destDir: %w", err)
+	}
 	return fs.WalkDir(f, srcDir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
 		targetPath := filepath.Join(destDir, path[len(srcDir):])
+		// Guard: ensure no asset escapes the destination directory.
+		absTarget := filepath.Clean(targetPath)
+		if !strings.HasPrefix(absTarget, absDest+string(filepath.Separator)) && absTarget != absDest {
+			return fmt.Errorf("extractFS: asset path %q escapes destination %q", path, destDir)
+		}
 		if d.IsDir() {
 			return os.MkdirAll(targetPath, 0755)
 		}

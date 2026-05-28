@@ -284,7 +284,10 @@ func TestFindPython(t *testing.T) {
 
 func TestBuildWrapperNoVars(t *testing.T) {
 	b := New()
-	wrapper := b.buildWrapper("print('hello')", nil, nil)
+	wrapper, err := b.buildWrapper("print('hello')", nil, nil)
+	if err != nil {
+		t.Fatalf("buildWrapper failed: %v", err)
+	}
 	if !strings.Contains(wrapper, "print('hello')") {
 		t.Error("Wrapper should contain user code")
 	}
@@ -296,7 +299,10 @@ func TestBuildWrapperNoVars(t *testing.T) {
 func TestBuildWrapperWithInVars(t *testing.T) {
 	b := New()
 	inVars := map[string]interface{}{"x": 42}
-	wrapper := b.buildWrapper("print(x)", inVars, nil)
+	wrapper, err := b.buildWrapper("print(x)", inVars, nil)
+	if err != nil {
+		t.Fatalf("buildWrapper failed: %v", err)
+	}
 	if !strings.Contains(wrapper, "__wolf_in__") {
 		t.Error("Wrapper should inject input vars")
 	}
@@ -307,7 +313,10 @@ func TestBuildWrapperWithInVars(t *testing.T) {
 
 func TestBuildWrapperWithOutVars(t *testing.T) {
 	b := New()
-	wrapper := b.buildWrapper("result = 42", nil, []string{"result"})
+	wrapper, err := b.buildWrapper("result = 42", nil, []string{"result"})
+	if err != nil {
+		t.Fatalf("buildWrapper failed: %v", err)
+	}
 	if !strings.Contains(wrapper, "__WOLF_OUT__") {
 		t.Error("Wrapper should output vars marker")
 	}
@@ -318,8 +327,23 @@ func TestBuildWrapperWithOutVars(t *testing.T) {
 
 func TestBuildWrapperStripsDollar(t *testing.T) {
 	b := New()
-	wrapper := b.buildWrapper("result = 42", nil, []string{"$result"})
+	wrapper, err := b.buildWrapper("result = 42", nil, []string{"$result"})
+	if err != nil {
+		t.Fatalf("buildWrapper failed: %v", err)
+	}
 	if !strings.Contains(wrapper, "__wolf_out__['result']") {
 		t.Error("Wrapper should strip $ prefix from output var names")
+	}
+}
+
+func TestBuildWrapperInvalidVars(t *testing.T) {
+	b := New()
+	_, err := b.buildWrapper("print(x)", map[string]interface{}{"invalid;ident": 42}, nil)
+	if err == nil {
+		t.Error("expected error for invalid input identifier")
+	}
+	_, err = b.buildWrapper("result = 42", nil, []string{"invalid;ident"})
+	if err == nil {
+		t.Error("expected error for invalid output identifier")
 	}
 }

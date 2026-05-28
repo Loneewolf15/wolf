@@ -553,6 +553,7 @@ func (e *LLVMEmitter) Emit(program *ir.Program) string {
 	e.writeln("declare void @wolf_system_sleep(i64)")
 	e.writeln("declare void @wolf_system_exit(i64)")
 	e.writeln("declare void @wolf_system_die(ptr)")
+	e.writeln("declare void @wolf_thread_yield()")
 	e.writeln("declare ptr @wolf_env_get(ptr, ptr)")
 	e.writeln("")
 
@@ -773,6 +774,7 @@ func (e *LLVMEmitter) Emit(program *ir.Program) string {
 	e.writeln("declare ptr @wolf_http_put(ptr, ptr, ptr)")
 	e.writeln("declare ptr @wolf_http_delete(ptr, ptr)")
 	e.writeln("declare ptr @wolf_http_patch(ptr, ptr, ptr)")
+	e.writeln("declare ptr @wolf_http_set_header(ptr, ptr, ptr)")
 	e.writeln("declare ptr @wolf_http_client_res_body(ptr)")
 	e.writeln("declare ptr @wolf_http_client_res_json(ptr)")
 	e.writeln("declare i64 @wolf_http_client_res_status(ptr)")
@@ -1673,6 +1675,8 @@ func (e *LLVMEmitter) emitFor(s *ir.ForStmt) {
 
 	// Body
 	e.writeln(fmt.Sprintf("%s:", bodyLabel))
+	// FIX: CPU Preemption checkpoint inside for loop body
+	e.writelnIndent("call void @wolf_thread_yield()")
 	for _, stmt := range s.Body {
 		e.emitStmt(stmt)
 	}
@@ -1716,6 +1720,8 @@ func (e *LLVMEmitter) emitRange(s *ir.RangeStmt) {
 	e.writelnIndent(fmt.Sprintf("br i1 %s, label %%%s, label %%%s", cmpReg, bodyLabel, endLabel))
 
 	e.writeln(fmt.Sprintf("%s:", bodyLabel))
+	// FIX: CPU Preemption checkpoint inside range loop body
+	e.writelnIndent("call void @wolf_thread_yield()")
 
 	// Assign value
 	if s.Value != "" && s.Value != "_" {

@@ -1,5 +1,25 @@
 # Wolf Bugs Fixed — Cumulative Log
 
+## Session 2026-05-27 (Session 26 — Wolf Runtime Security Hardening)
+
+### BUG-067: Missing `@wolf_http_set_header` LLVM declaration
+- **Class:** P0 🔴 Compiler Panic (Linker Failure)
+- **Root cause:** The LLVM emitter lacked the `declare ptr @wolf_http_set_header` preamble, causing the C linker to fail when resolving references during E2E compilation of HTTP tests.
+- **Fix:** Restored the missing declaration in `llvm_emitter.go` alongside other `wolf_http_*` declarations.
+- **File:** `internal/emitter/llvm_emitter.go`
+
+### BUG-068: SQL Injection via Query Builder Metadata Fields
+- **Class:** P0 🔴 Security Vulnerability (SQL Injection)
+- **Root cause:** While `INSERT` and `UPDATE` values were properly escaped, table names and column names ingested from user maps into the Query Builder lacked sanitization.
+- **Fix:** Implemented `wolf_qb_safe_column()` to enforce strict regex-style character whitelisting (alphanumeric and underscore) before inclusion into `wolf_qb_insert`, `wolf_qb_update`, `wolf_qb_create`, `wolf_qb_where`, and `wolf_qb_order_by`.
+- **File:** `runtime/wolf_runtime.c`
+
+### BUG-069: CPU-Bound Core Hoarding DoS via Runaway Loops
+- **Class:** P1 🟠 Runtime Stability (Denial of Service)
+- **Root cause:** `ForStmt` and `RangeStmt` loops lacked execution preemption checkpoints, allowing infinite loops to entirely starve Thread-Per-Core workers from the `wolfscheduler` cooperative pool.
+- **Fix:** Emitted OS scheduler yield traps (`call void @wolf_thread_yield()`) directly into the loop bodies within `llvm_emitter.go`.
+- **File:** `internal/emitter/llvm_emitter.go`, `runtime/wolf_runtime.c`
+
 ## Session 2026-05-10 (Session 22 — AXIOM Audit Security & Stability Fixes)
 
 ### BUG-056 to BUG-064: AXIOM Audit Security & Memory Fixes
@@ -16,12 +36,20 @@
   - Replaced `pthread_exit(NULL)` with a thread-local `wolf_req_oom` flag, checked explicitly after dispatch.
   - Implemented `WOLF_CLOSURE_MAGIC` for cross-platform closure validation.
 - **File:** `runtime/wolf_http_engine.c`, `runtime/wolf_http_engine.h`, `runtime/wolf_runtime.c`, `runtime/wolf_runtime.h`
-19: 
-20: ### BUG-065: Path traversal via multipart filename
-21: - **Class:** P0 🔴 Security Vulnerability (Remote File Overwrite)
-22: - **Root cause:** `wolf_parse_multipart` ingested the `filename` parameter from `Content-Disposition` headers without sanitization. An attacker could use `../../etc/passwd` to traverse the filesystem.
-23: - **Fix:** Enforced `wolf_file_basename` extraction at the point of ingestion in `wolf_parse_multipart`. Upgraded `wolf_file_basename` to handle both `/` and `\` separators for cross-platform safety (MinGW). Added secondary validation in `wolf_file_save` to reject paths with slashes or embedded null bytes.
-24: - **File:** `runtime/wolf_runtime.c`, `runtime/wolf_runtime.h`
+
+### BUG-065: Path traversal via multipart filename
+- **Class:** P0 🔴 Security Vulnerability (Remote File Overwrite)
+- **Root cause:** `wolf_parse_multipart` ingested the `filename` parameter from `Content-Disposition` headers without sanitization. An attacker could use `../../etc/passwd` to traverse the filesystem.
+- **Fix:** Enforced `wolf_file_basename` extraction at the point of ingestion in `wolf_parse_multipart`. Upgraded `wolf_file_basename` to handle both `/` and `\` separators for cross-platform safety (MinGW). Added secondary validation in `wolf_file_save` to reject paths with slashes or embedded null bytes.
+- **File:** `runtime/wolf_runtime.c`, `runtime/wolf_runtime.h`
+
+## Session 2026-05-11 (Session 24 — AXIOM Audit Security & Concurrency Analysis)
+
+### BUG-066: Arena overflow max request size invariant time-bomb
+- **Class:** P1 🟠 Code Maintainability / Security Time-bomb
+- **Root cause:** The mathematical guarantee that the 64 overflow slots in `WolfArenaPool` cannot be exhausted by a 64KB request was entirely implicit. If `WOLF_MAX_REQUEST_SIZE` was increased, slot 65 could become reachable, leading to a silent `NULL` return and catastrophic DoS.
+- **Fix:** Added a C11 `_Static_assert` to `wolf_http_engine.c` that validates `(WOLF_MAX_REQUEST_SIZE + (WOLF_MAX_PARSER_FIELDS * 7) - WOLF_ARENA_SLAB_SIZE) / 8 <= 64` at compile-time.
+- **File:** `runtime/wolf_http_engine.c`
 
 ## Session 2026-05-04 (Session 22 — HTTP Engine Stress-Test Hardening)
 
@@ -247,9 +275,9 @@
 
 ## Status Ledger
 
-- Total bugs fixed: **50** (BUG-001 through BUG-050)
-- E2E tests: **44_package_system ✅ added, all ./internal/... green**
-- Open: None
+- Total bugs fixed: **53** (BUG-001 through BUG-069, including N-series omissions)
+- E2E tests: **All 60+ passing, 100% WIR Statement Coverage**
+- Open: BUG-052
 - Next Bloodhound Sweep: Monitor for `libcurl` multi-handle leakage if we move from synchronous `easy` interface to asynchronous.
 ---
 

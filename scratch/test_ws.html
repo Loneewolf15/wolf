@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html>
+<body>
+    <h1>Wolf WS Test</h1>
+    <div id="output"></div>
+    <script>
+        const ws = new WebSocket('ws://' + window.location.host + '/ws-test-path?query=123');
+        const output = document.getElementById('output');
+        
+        ws.onopen = () => {
+            output.innerHTML += '<p>Connected!</p>';
+            ws.send('Hello from Browser');
+        };
+        
+        ws.onmessage = (event) => {
+            output.innerHTML += '<p>Received: ' + event.data + '</p>';
+        };
+        
+        ws.onerror = (error) => {
+            output.innerHTML += '<p style="color:red">Error: ' + error + '</p>';
+        };
+    </script>
+</body>
+</html>

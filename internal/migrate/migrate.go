@@ -52,6 +52,8 @@ func (m *Migrator) Up(n int) error {
 		return err
 	}
 
+	// Execute each pending migration inside its own transaction.
+	// If any statement fails, the tx is rolled back so the schema is never half-applied.
 	count := 0
 	for _, mg := range migrations {
 		if _, done := applied[mg.Filename]; done {
@@ -68,26 +70,41 @@ func (m *Migrator) Up(n int) error {
 
 		fmt.Fprintf(m.out, "  ▶ Applying %s...\n", mg.Filename)
 
-		// Execute UP SQL (may contain multiple statements)
+		tx, err := db.Begin()
+		if err != nil {
+			return fmt.Errorf("wolf migrate: begin tx for %s: %w", mg.Filename, err)
+		}
+
+		var txErr error
 		statements := splitStatements(mg.UpSQL)
 		for _, stmt := range statements {
 			stmt = strings.TrimSpace(stmt)
 			if stmt == "" {
 				continue
 			}
-			if _, err := db.Exec(stmt); err != nil {
-				return fmt.Errorf("wolf migrate: failed running Up for %s: %w", mg.Filename, err)
+			if _, txErr = tx.Exec(stmt); txErr != nil {
+				break
 			}
 		}
 
-		// Mark as applied
-		if strings.ToLower(m.cfg.Driver) == "postgres" {
-			err = markAppliedPostgres(db, mg.Filename)
-		} else {
-			err = markApplied(db, mg.Filename)
+		if txErr != nil {
+			_ = tx.Rollback()
+			return fmt.Errorf("wolf migrate: failed running Up for %s (rolled back): %w", mg.Filename, txErr)
 		}
-		if err != nil {
-			return fmt.Errorf("wolf migrate: failed to mark %s as applied: %w", mg.Filename, err)
+
+		// Mark applied inside the same transaction — atomic with the DDL.
+		if strings.ToLower(m.cfg.Driver) == "postgres" {
+			_, txErr = tx.Exec("INSERT INTO wolf_migrations (filename) VALUES ($1)", mg.Filename)
+		} else {
+			_, txErr = tx.Exec("INSERT INTO wolf_migrations (filename) VALUES (?)", mg.Filename)
+		}
+		if txErr != nil {
+			_ = tx.Rollback()
+			return fmt.Errorf("wolf migrate: failed to mark %s as applied (rolled back): %w", mg.Filename, txErr)
+		}
+
+		if err := tx.Commit(); err != nil {
+			return fmt.Errorf("wolf migrate: commit for %s: %w", mg.Filename, err)
 		}
 
 		fmt.Fprintf(m.out, "  ✓ Applied %s\n", mg.Filename)
@@ -129,7 +146,7 @@ func (m *Migrator) Down(n int) error {
 		return err
 	}
 
-	// Reverse order for rollback
+	// Roll back each migration inside its own transaction.
 	count := 0
 	for i := len(migrations) - 1; i >= 0; i-- {
 		mg := migrations[i]
@@ -148,24 +165,41 @@ func (m *Migrator) Down(n int) error {
 
 		fmt.Fprintf(m.out, "  ◀ Rolling back %s...\n", mg.Filename)
 
+		tx, err := db.Begin()
+		if err != nil {
+			return fmt.Errorf("wolf migrate: begin tx for rollback of %s: %w", mg.Filename, err)
+		}
+
+		var txErr error
 		statements := splitStatements(mg.DownSQL)
 		for _, stmt := range statements {
 			stmt = strings.TrimSpace(stmt)
 			if stmt == "" {
 				continue
 			}
-			if _, err := db.Exec(stmt); err != nil {
-				return fmt.Errorf("wolf migrate: failed running Down for %s: %w", mg.Filename, err)
+			if _, txErr = tx.Exec(stmt); txErr != nil {
+				break
 			}
 		}
 
-		if strings.ToLower(m.cfg.Driver) == "postgres" {
-			err = markRolledBackPostgres(db, mg.Filename)
-		} else {
-			err = markRolledBack(db, mg.Filename)
+		if txErr != nil {
+			_ = tx.Rollback()
+			return fmt.Errorf("wolf migrate: failed running Down for %s (rolled back): %w", mg.Filename, txErr)
 		}
-		if err != nil {
-			return fmt.Errorf("wolf migrate: failed to remove %s from applied list: %w", mg.Filename, err)
+
+		// Remove from tracking inside the same transaction.
+		if strings.ToLower(m.cfg.Driver) == "postgres" {
+			_, txErr = tx.Exec("DELETE FROM wolf_migrations WHERE filename = $1", mg.Filename)
+		} else {
+			_, txErr = tx.Exec("DELETE FROM wolf_migrations WHERE filename = ?", mg.Filename)
+		}
+		if txErr != nil {
+			_ = tx.Rollback()
+			return fmt.Errorf("wolf migrate: failed to remove %s from applied list (rolled back): %w", mg.Filename, txErr)
+		}
+
+		if err := tx.Commit(); err != nil {
+			return fmt.Errorf("wolf migrate: commit for rollback of %s: %w", mg.Filename, err)
 		}
 
 		fmt.Fprintf(m.out, "  ✓ Rolled back %s\n", mg.Filename)

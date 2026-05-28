@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 #include <stddef.h>  /* size_t */
+#include "wolf_mailer.h"
 
 /* ================================================================ *
  * wolf_runtime.h — Public API for the Wolf runtime library         *
@@ -240,6 +241,14 @@ void        wolf_http_res_header(int64_t res_id, const char* key, const char* va
 void        wolf_http_res_status(int64_t res_id, int64_t status_code);
 void        wolf_http_res_write(int64_t res_id, const char* body);
 /* --- File Uploads --- */
+typedef struct {
+    const char* field_name;
+    const char* filename;
+    const char* content_type;
+    const char* data;
+    size_t      size;
+} wolf_upload_t;
+
 /* NOTE: wolf_http_req_file returns a basename-sanitized filename to prevent path traversal.
  * Do not trust this filename for directory construction without a developer-supplied upload path prefix. */
 const char* wolf_http_req_file(int64_t req_id, const char* field_name);
@@ -536,6 +545,7 @@ void wolf_metrics_histogram(const char* metric_name, double value);
 
 /* --- Concurrency --- */
 void wolf_spawn_supervised_thread(void* handler, const char* strategy, int64_t max_retries);
+void wolf_thread_yield(void);
 
 /* --- Validation Rules Engine (STDLIB-08) --- */
 void*       wolf_validate(void* data, void* rules);

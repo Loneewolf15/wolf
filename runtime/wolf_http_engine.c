@@ -303,6 +303,25 @@ void wolf_sentinel_destroy(WolfSentinel* s) {
  * Per-Core Arena Pool
  * ================================================================ */
 
+#ifndef WOLF_MAX_PARSER_FIELDS
+#define WOLF_MAX_PARSER_FIELDS 69 /* body, method, path, query, ws_key, 64 headers */
+#endif
+
+/* 
+ * Encode the mathematical invariant for arena safety:
+ * The maximum memory requested by the parser is the raw request size plus 
+ * 7 bytes of worst-case 8-byte alignment padding per parsed field.
+ * The overflow slots (64 max) must be able to absorb any allocations that exceed the slab.
+ * Since every overflow allocation consumes at least 8 bytes, the max possible 
+ * overflow count is (MaxRequested - SlabSize) / 8.
+ */
+#if defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L
+_Static_assert(
+    (WOLF_MAX_REQUEST_SIZE + (WOLF_MAX_PARSER_FIELDS * 7) - WOLF_ARENA_SLAB_SIZE) / 8 <= 64,
+    "WOLF_MAX_REQUEST_SIZE is too large for the 64 overflow slots. Increase overflow array size or slab capacity."
+);
+#endif
+
 WolfArenaPool* wolf_arena_pool_create(int core_id) {
     WolfArenaPool* pool = (WolfArenaPool*)calloc(1, sizeof(WolfArenaPool));
     pool->core_id = core_id;
@@ -332,6 +351,7 @@ WolfArena* wolf_arena_acquire(WolfArenaPool* pool) {
             pool->arenas[i].pos          = 0;
             pool->arenas[i].overflow_count = 0;
             pool->arenas[i].is_overflow  = 0;
+            pool->arenas[i].refcount     = 1;
             return &pool->arenas[i];
         }
     }
@@ -343,6 +363,7 @@ WolfArena* wolf_arena_acquire(WolfArenaPool* pool) {
     tmp->pos         = 0;
     tmp->in_use      = 1;
     tmp->is_overflow = 1;  /* must be freed, not returned to pool */
+    tmp->refcount    = 1;
     if (!tmp->slab) { free(tmp); return NULL; }
     __atomic_fetch_add((volatile int*)&tmp->in_use, 0, __ATOMIC_RELAXED); /* fence */
     fprintf(stderr, "[WOLF-ENGINE] WARN: arena pool exhausted on core — using overflow arena\n");
@@ -379,6 +400,18 @@ char* wolf_arena_strdup(WolfArena* arena, const char* s) {
     char* p = (char*)wolf_arena_alloc(arena, len + 1);
     if (p) { memcpy(p, s, len); p[len] = '\0'; }
     return p;
+}
+
+void wolf_arena_ref(WolfArena* arena) {
+    if (!arena) return;
+    __atomic_fetch_add(&arena->refcount, 1, __ATOMIC_SEQ_CST);
+}
+
+void wolf_arena_unref(WolfArena* arena) {
+    if (!arena) return;
+    if (__atomic_sub_fetch(&arena->refcount, 1, __ATOMIC_SEQ_CST) == 0) {
+        wolf_arena_reset(arena);
+    }
 }
 
 void wolf_arena_reset(WolfArena* arena) {
@@ -637,6 +670,9 @@ typedef struct {
 /* Inline context table — per-core, no locking */
 __thread WolfConnCtx wolf_core_ctxs[WOLF_CORE_CTX_MAX];
 
+/* Watchdog pointer for signal-safe timeout enforcement */
+static __thread WolfConnCtx* wolf_active_ctx = NULL;
+
 /* Free-list index stack for O(1) alloc/free of context slots (Fix 3) */
 __thread int wolf_ctx_free_stack[WOLF_CORE_CTX_MAX];
 __thread int wolf_ctx_free_top = -1;   /* -1 = uninitialized */
@@ -666,7 +702,7 @@ static WolfConnCtx* wolf_core_alloc_ctx(WolfCore* core, int client_fd, WolfArena
 static void wolf_core_free_ctx(WolfConnCtx* ctx) {
     if (!ctx) return;
     if (ctx->arena) {
-        wolf_arena_reset(ctx->arena);  /* frees struct too if is_overflow */
+        wolf_arena_unref(ctx->arena);  /* W1 Fix: decrements ref, frees if 0 */
         ctx->arena = NULL;             /* prevent dangling pointer on overflow arenas */
     }
     ctx->active = 0;
@@ -681,7 +717,27 @@ static void wolf_core_free_ctx(WolfConnCtx* ctx) {
  * into the legacy http_contexts[] table that the WS poller owns.
  * Declared extern here; defined in wolf_runtime.c.
  * ================================================================ */
-extern int wolf_engine_register_ws_fd(int fd, const char* ws_key, const char* client_ip);
+extern int wolf_engine_register_ws_fd(int fd, const char* method, const char* path, 
+                                      const char* query, const char* ws_key, 
+                                      const char* client_ip);
+
+static void wolf_engine_watchdog_handler(int sig) {
+    (void)sig;
+    /* Release-Acquire: ensure we see the correct started_at/client_fd */
+    WolfConnCtx* ctx = __atomic_load_n(&wolf_active_ctx, __ATOMIC_ACQUIRE);
+    if (ctx && ctx->active && ctx->client_fd > 0) {
+        struct timespec now;
+        clock_gettime(CLOCK_MONOTONIC, &now);
+        double delta = (now.tv_sec - ctx->started_at.tv_sec) + 
+                       (now.tv_nsec - ctx->started_at.tv_nsec) / 1e9;
+        
+        if (delta > WOLF_REQUEST_TIMEOUT_SEC) {
+            /* Soft kill: force blocking I/O to fail. 
+             * This unblocks the core thread and triggers normal cleanup. */
+            shutdown(ctx->client_fd, SHUT_RDWR);
+        }
+    }
+}
 
 static void* wolf_core_thread(void* arg) {
     WolfCoreArgs* args = (WolfCoreArgs*)arg;
@@ -778,6 +834,7 @@ static void* wolf_core_thread(void* arg) {
              * We MUST free our engine ctx (its arena is no longer needed;
              * the poller uses its own http_contexts[] storage). */
             wolf_engine_register_ws_fd(ctx->client_fd,
+                                       ctx->method, ctx->path, ctx->query,
                                        ctx->ws_key,
                                        ctx->client_ip);
 
@@ -794,14 +851,14 @@ static void* wolf_core_thread(void* arg) {
         /* Call Wolf HTTP handler */
         __atomic_fetch_add(&core->requests_active, 1, __ATOMIC_RELAXED);
         if (args->http_handler) {
+            /* Mark active for watchdog (Release-Acquire sync) */
+            __atomic_store_n(&wolf_active_ctx, ctx, __ATOMIC_RELEASE);
+
             wolf_req_arena_init();
             wolf_closure_t* closure = (wolf_closure_t*)args->http_handler;
             typedef void* (*wolf_closure_fn_t)(void* env, int64_t req_id, int64_t res_id);
             wolf_closure_fn_t fn = (wolf_closure_fn_t)closure->fn;
 
-            /* Fix #10: platform-independent closure validation via magic cookie.
-             * Replaces the x86-64 Linux address range check (0x400000–0x7fffffffffff)
-             * which misfires on ARM64 and macOS ASLR layouts. */
             if (!wolf_closure_valid(closure)) {
                 fprintf(stderr, "[WOLF-ENGINE] CORRUPTED closure on core %d: "
                         "closure=%p magic=0x%08X fn=%p — dropping request\n",
@@ -810,14 +867,15 @@ static void* wolf_core_thread(void* arg) {
                         (void*)(uintptr_t)fn);
                 fflush(stderr);
                 ctx->status_code = 500;
+                __atomic_store_n(&wolf_active_ctx, NULL, __ATOMIC_RELEASE);
                 goto send_and_cleanup;
             }
 
             fn(closure->env, ctx_id, ctx_id);
 
-            /* Fix #9: check OOM flag set by wolf_req_alloc / wolf_req_strdup.
-             * If set, the handler hit OOM mid-execution. Send 503, clear flag.
-             * The cleanup path below handles arena flush and pool slot return. */
+            /* Clear active marker */
+            __atomic_store_n(&wolf_active_ctx, NULL, __ATOMIC_RELEASE);
+
             if (wolf_req_oom_check()) {
                 ctx->status_code = 503;
                 if (!ctx->res_body) ctx->res_body = "Service Unavailable";
@@ -907,7 +965,14 @@ int wolf_engine_start(WolfEngine* engine, wolf_http_handler_t handler, wolf_ws_h
     sigaction(SIGTERM, &sa, NULL);
     sigaction(SIGINT,  &sa, NULL);
     signal(SIGPIPE, SIG_IGN);
-    signal(SIGURG,  SIG_IGN);   /* sysmon preemption signal — no handler needed yet */
+    
+    /* Sysmon watchdog handler */
+    struct sigaction sw;
+    memset(&sw, 0, sizeof(sw));
+    sw.sa_handler = wolf_engine_watchdog_handler;
+    sigfillset(&sw.sa_mask);
+    sw.sa_flags = SA_RESTART;
+    sigaction(SIGURG, &sw, NULL);
 
     printf("🐺 Wolf HTTP Engine — %d cores, port %d\n",
            engine->core_count, engine->port);
@@ -1037,6 +1102,14 @@ void wolf_http_serve(int64_t port, void* handler_ptr) {
     extern void wolf_crypto_init(void);
     wolf_crypto_init();
 
+    /* Fix #3: Ensure the legacy WS poller is initialized if we use it */
+    extern void wolf_ws_poller_init(void);
+    wolf_ws_poller_init();
+
+    /* Get the global WS handler registered via wolf_ws_on_message() */
+    typedef void (*wolf_ws_handler_t)(int64_t req_id, const char* message);
+    extern wolf_ws_handler_t global_ws_handler;
+
     /* Fix 4: validate handler is in text segment, not heap — catches emitter bugs early.
      * Addresses >= 0x600000000000 on Linux/amd64 are heap/mmap, never .text. */
     if (handler_ptr && (uintptr_t)handler_ptr >= 0x600000000000UL) {
@@ -1053,7 +1126,7 @@ void wolf_http_serve(int64_t port, void* handler_ptr) {
     int core_count = WOLF_WORKER_THREADS > 0 ? WOLF_WORKER_THREADS : 0; /* 0 = auto */
     WolfEngine* engine = wolf_engine_create((int)port, core_count);
 
-    wolf_engine_start(engine, (wolf_http_handler_t)handler_ptr, NULL);
+    wolf_engine_start(engine, (wolf_http_handler_t)handler_ptr, global_ws_handler);
     wolf_engine_destroy(engine);
 
     extern void wolf_db_pool_destroy(void);

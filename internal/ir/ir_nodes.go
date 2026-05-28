@@ -76,7 +76,7 @@ type VarDeclStmt struct {
 	Value Expr // may be nil
 }
 
-func (*VarDeclStmt) irStmt() {}
+func (*VarDeclStmt) irStmt() { _ = 0 }
 
 // AssignStmt: x = value
 type AssignStmt struct {
@@ -85,21 +85,21 @@ type AssignStmt struct {
 	Value  Expr
 }
 
-func (*AssignStmt) irStmt() {}
+func (*AssignStmt) irStmt() { _ = 0 }
 
 // ExprStmt wraps an expression used as a statement.
 type ExprStmt struct {
 	Expr Expr
 }
 
-func (*ExprStmt) irStmt() {}
+func (*ExprStmt) irStmt() { _ = 0 }
 
 // ReturnStmt: return val1, val2
 type ReturnStmt struct {
 	Values []Expr
 }
 
-func (*ReturnStmt) irStmt() {}
+func (*ReturnStmt) irStmt() { _ = 0 }
 
 // IfStmt: if cond { } else if { } else { }
 type IfStmt struct {
@@ -109,7 +109,7 @@ type IfStmt struct {
 	ElseBody  []Stmt // may be nil
 }
 
-func (*IfStmt) irStmt() {}
+func (*IfStmt) irStmt() { _ = 0 }
 
 // ElseIfClause is a single else-if branch.
 type ElseIfClause struct {
@@ -125,7 +125,7 @@ type ForStmt struct {
 	Body   []Stmt
 }
 
-func (*ForStmt) irStmt() {}
+func (*ForStmt) irStmt() { _ = 0 }
 
 // RangeStmt: for key, value := range iterable { }
 type RangeStmt struct {
@@ -135,7 +135,7 @@ type RangeStmt struct {
 	Body     []Stmt
 }
 
-func (*RangeStmt) irStmt() {}
+func (*RangeStmt) irStmt() { _ = 0 }
 
 // SwitchStmt: Go switch for Wolf's match.
 type SwitchStmt struct {
@@ -144,7 +144,7 @@ type SwitchStmt struct {
 	Default []Stmt
 }
 
-func (*SwitchStmt) irStmt() {}
+func (*SwitchStmt) irStmt() { _ = 0 }
 
 // SwitchCase is one case in a switch.
 type SwitchCase struct {
@@ -157,7 +157,7 @@ type BlockStmt struct {
 	Stmts []Stmt
 }
 
-func (*BlockStmt) irStmt() {}
+func (*BlockStmt) irStmt() { _ = 0 }
 
 // TryCatchStmt: try { } catch (err) { }
 type TryCatchStmt struct {
@@ -166,7 +166,7 @@ type TryCatchStmt struct {
 	CatchBody []Stmt
 }
 
-func (*TryCatchStmt) irStmt() {}
+func (*TryCatchStmt) irStmt() { _ = 0 }
 
 // SpawnStmt: spawn fn(args...) inside a supervise module
 type SpawnStmt struct {
@@ -174,26 +174,26 @@ type SpawnStmt struct {
 	Call *CallExpr
 }
 
-func (*SpawnStmt) irStmt() {}
+func (*SpawnStmt) irStmt() { _ = 0 }
 
 // WaitAllStmt represents the synchronization barrier at the end of @supervise
 type WaitAllStmt struct{}
 
-func (*WaitAllStmt) irStmt() {}
+func (*WaitAllStmt) irStmt() { _ = 0 }
 
 // DeferStmt: defer statement.
 type DeferStmt struct {
 	Call Expr
 }
 
-func (*DeferStmt) irStmt() {}
+func (*DeferStmt) irStmt() { _ = 0 }
 
 // RawStmt emits raw Go code verbatim.
 type RawStmt struct {
 	Code string
 }
 
-func (*RawStmt) irStmt() {}
+func (*RawStmt) irStmt() { _ = 0 }
 
 // SuperviseStmt implements the Let It Crash block in WIR.
 type SuperviseStmt struct {
@@ -203,7 +203,7 @@ type SuperviseStmt struct {
 	Body     []Stmt
 }
 
-func (*SuperviseStmt) irStmt() {}
+func (*SuperviseStmt) irStmt() { _ = 0 }
 
 // TraceStmt implements the observability trace block in WIR.
 type TraceStmt struct {
@@ -211,7 +211,7 @@ type TraceStmt struct {
 	Body     []Stmt
 }
 
-func (*TraceStmt) irStmt() {}
+func (*TraceStmt) irStmt() { _ = 0 }
 
 // ========== Expressions ==========
 
@@ -225,40 +225,40 @@ type Ident struct {
 	Name string
 }
 
-func (*Ident) irExpr() {}
+func (*Ident) irExpr() { _ = 0 }
 
 // IntLit is an integer literal.
 type IntLit struct {
 	Value string
 }
 
-func (*IntLit) irExpr() {}
+func (*IntLit) irExpr() { _ = 0 }
 
 // FloatLit is a float literal.
 type FloatLit struct {
 	Value string
 }
 
-func (*FloatLit) irExpr() {}
+func (*FloatLit) irExpr() { _ = 0 }
 
 // StringLit is a string literal (Go-escaped).
 type StringLit struct {
 	Value string
 }
 
-func (*StringLit) irExpr() {}
+func (*StringLit) irExpr() { _ = 0 }
 
 // BoolLit is true/false.
 type BoolLit struct {
 	Value bool
 }
 
-func (*BoolLit) irExpr() {}
+func (*BoolLit) irExpr() { _ = 0 }
 
 // NilLit is Go's nil.
 type NilLit struct{}
 
-func (*NilLit) irExpr() {}
+func (*NilLit) irExpr() { _ = 0 }
 
 // BinaryExpr: left op right.
 type BinaryExpr struct {
@@ -267,7 +267,7 @@ type BinaryExpr struct {
 	Right Expr
 }
 
-func (*BinaryExpr) irExpr() {}
+func (*BinaryExpr) irExpr() { _ = 0 }
 
 // UnaryExpr: op operand.
 type UnaryExpr struct {
@@ -275,7 +275,7 @@ type UnaryExpr struct {
 	Operand Expr
 }
 
-func (*UnaryExpr) irExpr() {}
+func (*UnaryExpr) irExpr() { _ = 0 }
 
 // CallExpr: callee(args).
 type CallExpr struct {
@@ -284,7 +284,7 @@ type CallExpr struct {
 	Args     []Expr
 }
 
-func (*CallExpr) irExpr() {}
+func (*CallExpr) irExpr() { _ = 0 }
 
 // FieldAccess: obj.field (Go dot notation).
 type FieldAccess struct {
@@ -292,7 +292,7 @@ type FieldAccess struct {
 	Field  string
 }
 
-func (*FieldAccess) irExpr() {}
+func (*FieldAccess) irExpr() { _ = 0 }
 
 // MethodCallExpr: obj.Method(args).
 type MethodCallExpr struct {
@@ -302,7 +302,7 @@ type MethodCallExpr struct {
 	Args     []Expr
 }
 
-func (*MethodCallExpr) irExpr() {}
+func (*MethodCallExpr) irExpr() { _ = 0 }
 
 // StaticCall: Class::Method(args).
 type StaticCall struct {
@@ -311,7 +311,7 @@ type StaticCall struct {
 	Args   []Expr
 }
 
-func (*StaticCall) irExpr() {}
+func (*StaticCall) irExpr() { _ = 0 }
 
 // IndexExpr: obj[index].
 type IndexExpr struct {
@@ -319,7 +319,7 @@ type IndexExpr struct {
 	Index  Expr
 }
 
-func (*IndexExpr) irExpr() {}
+func (*IndexExpr) irExpr() { _ = 0 }
 
 // SliceLit: []Type{elems}.
 type SliceLit struct {
@@ -327,7 +327,7 @@ type SliceLit struct {
 	Elements []Expr
 }
 
-func (*SliceLit) irExpr() {}
+func (*SliceLit) irExpr() { _ = 0 }
 
 // MapLit: map[K]V{entries}.
 type MapLit struct {
@@ -337,7 +337,7 @@ type MapLit struct {
 	Values    []Expr
 }
 
-func (*MapLit) irExpr() {}
+func (*MapLit) irExpr() { _ = 0 }
 
 // StructLit: TypeName{fields}.
 type StructLit struct {
@@ -345,7 +345,7 @@ type StructLit struct {
 	Fields   map[string]Expr
 }
 
-func (*StructLit) irExpr() {}
+func (*StructLit) irExpr() { _ = 0 }
 
 // FuncLit: func(params) ReturnType { body }.
 type FuncLit struct {
@@ -354,7 +354,7 @@ type FuncLit struct {
 	Body        []Stmt
 }
 
-func (*FuncLit) irExpr() {}
+func (*FuncLit) irExpr() { _ = 0 }
 
 // FmtSprintf: fmt.Sprintf(format, args...) for string interpolation.
 type FmtSprintf struct {
@@ -362,14 +362,14 @@ type FmtSprintf struct {
 	Args   []Expr
 }
 
-func (*FmtSprintf) irExpr() {}
+func (*FmtSprintf) irExpr() { _ = 0 }
 
 // ChanMake: make(chan Type).
 type ChanMake struct {
 	ElemType string
 }
 
-func (*ChanMake) irExpr() {}
+func (*ChanMake) irExpr() { _ = 0 }
 
 // ChanSend: ch <- value.
 type ChanSend struct {
@@ -377,14 +377,14 @@ type ChanSend struct {
 	Value   Expr
 }
 
-func (*ChanSend) irExpr() {}
+func (*ChanSend) irExpr() { _ = 0 }
 
 // ChanRecv: <-ch.
 type ChanRecv struct {
 	Channel Expr
 }
 
-func (*ChanRecv) irExpr() {}
+func (*ChanRecv) irExpr() { _ = 0 }
 
 // PostfixExpr: operand++ or operand--.
 type PostfixExpr struct {
@@ -392,7 +392,7 @@ type PostfixExpr struct {
 	Op      string
 }
 
-func (*PostfixExpr) irExpr() {}
+func (*PostfixExpr) irExpr() { _ = 0 }
 
 // StringConcat: left + right (Go string concatenation).
 type StringConcat struct {
@@ -400,14 +400,14 @@ type StringConcat struct {
 	Right Expr
 }
 
-func (*StringConcat) irExpr() {}
+func (*StringConcat) irExpr() { _ = 0 }
 
 // ErrorNew: errors.New(msg) or fmt.Errorf(msg).
 type ErrorNew struct {
 	Message Expr
 }
 
-func (*ErrorNew) irExpr() {}
+func (*ErrorNew) irExpr() { _ = 0 }
 
 // ========== HTTP Server Nodes ==========
 
@@ -418,7 +418,7 @@ type RouteStmt struct {
 	Handler string // function name to call
 }
 
-func (*RouteStmt) irStmt() {}
+func (*RouteStmt) irStmt() { _ = 0 }
 
 // ServeStmt starts the HTTP server.
 type ServeStmt struct {
@@ -426,7 +426,7 @@ type ServeStmt struct {
 	Handler Expr // handler function expression
 }
 
-func (*ServeStmt) irStmt() {}
+func (*ServeStmt) irStmt() { _ = 0 }
 
 // RespondStmt sends an HTTP JSON response.
 type RespondStmt struct {
@@ -434,4 +434,4 @@ type RespondStmt struct {
 	Body   Expr // response body (map/value to JSON encode)
 }
 
-func (*RespondStmt) irStmt() {}
+func (*RespondStmt) irStmt() { _ = 0 }

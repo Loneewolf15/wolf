@@ -5,7 +5,11 @@ import "reflect"
 // DeepClone creates a deep copy of a WIR node using reflection.
 // This is used for LLVM monomorphization (instantiating templates).
 func DeepClone[T any](v T) T {
-	res := cloneValue(reflect.ValueOf(v))
+	val := reflect.ValueOf(v)
+	if !val.IsValid() {
+		return v
+	}
+	res := cloneValue(val)
 	return res.Interface().(T)
 }
 

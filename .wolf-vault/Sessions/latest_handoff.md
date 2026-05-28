@@ -1,27 +1,30 @@
-# Handoff — 2026-05-10
+# Handoff — 2026-05-27
 
 ## Where We Left Off
-Session 23 focused on security hardening following the AXIOM audit. We mitigated a critical path traversal vulnerability in `wolf_parse_multipart` by enforcing basename extraction for all uploaded filenames and hardening `wolf_file_save` against directory traversals and null-byte injections. We also updated the query builder to explicitly document construction-time escaping for INSERT/UPDATE operations.
+Conducted compiler infrastructure test hardening. Fixed regressions in `internal/mlbridge/bridge_test.go` stemming from the secure signature updates to `buildWrapper`. Designed and implemented a comprehensive AST cloning validation suite inside `internal/ir/clone_test.go`, achieving exactly **100.0% statement coverage** for `internal/ir/clone.go`.
 
-## Commits This Session
-0f466d7 fix(runtime): mitigate path traversal via multipart filename sanitization and file_save checks
-c696f9c docs(runtime): clarify query builder insert/update escaping at construction time
-1590d8b fix(runtime): AXIOM audit P2 security and stability fixes
-0e44e67 fix(runtime): AXIOM audit P0+P1 security and memory fixes
+## Commits / Work This Session
+- Fixed mlbridge unit tests to handle `buildWrapper` returning `(string, error)`.
+- Added test validation for invalid python variable name rejection in `mlbridge`.
+- Wrote `TestDeepCloneAllNodes` covering deep copies of all 48 distinct WIR nodes.
+- Wrote specialized branch coverage tests covering nil interfaces, unexported fields, and invalid reflect values.
+- Standardized the custom `assertClone` helper to bypass pointer divergence checks on zero-sized empty structures.
 
 ## Tests Status
-The full test suite (`go test ./internal/... ./e2e/...`) was initiated. Internal tests pass locally. E2E tests are stable with pre-existing CI skips.
+- Go unit tests (`go test ./internal/...`): `PASS` (100.0% statement coverage in `internal/ir/clone.go`)
+- E2E tests: `PASS` / `SKIP` (known skipped in CI / server environment setup)
 
 ## Next Immediate Task
-Investigate binary size and implement the `WOLF_HTTP_CLIENT_ENABLED` compile flag to isolate `libcurl` dependency. This is a SENTINEL-identified priority to keep Wolf binaries within the 8MB target for micro-targets.
+Address **BUG-052**: `wolf_qb_where` with a `NULL` connection silently generates empty strings instead of fatalling, risking SQL injection via dropped conditions. 
+- Setup thread-local error indicators inside `wolf_db_escape` when connection context is invalid.
+- Abort statements inside `wolf_qb_insert`, `wolf_qb_update`, and `wolf_qb_delete` if error context is populated.
 
 ## Open Issues / Watch Out For
-1. **BUG-052**: `wolf_qb_where` with NULL conn produces silent empty-string WHERE values.
-2. **`wolf_req_arena.active` guard**: Add a check in `wolf_db_escape` to ensure the arena is live before allocation.
-3. **`__class` key filtering**: Ensure internal metadata tags don't leak into `wolf_json_encode_map` output.
+- **Empty Struct Allocation**: Go maps all zero-sized empty structures to a single global static memory pointer (e.g. `WaitAllStmt` and `NilLit`), meaning cloning these returns exact matching pointer addresses.
+- **Detached `spawn` Tasks**: Explicit `spawn` detached tasks capture raw arena pointers but outlive the HTTP request lifecycle. Keep watching for subsequent use-after-free vulnerabilities.
 
 ## Relevant Files Modified This Session
-- `runtime/wolf_runtime.c`
-- `runtime/wolf_runtime.h`
+- `internal/ir/clone_test.go`
+- `internal/mlbridge/bridge_test.go`
 - `.wolf-vault/Execution/plan.md`
-- `.wolf-vault/RnD/bugs_fixed.md`
+- `.wolf-vault/Sessions/latest_handoff.md`

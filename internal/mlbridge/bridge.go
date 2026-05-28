@@ -8,11 +8,13 @@
 package mlbridge
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"sync"
 )
@@ -86,6 +88,17 @@ func (b *Bridge) PythonPath() string {
 	return b.pythonPath
 }
 
+// validPythonIdent matches safe Python identifier names: [a-zA-Z_][a-zA-Z0-9_]*
+var validPythonIdent = regexp.MustCompile(`^[a-zA-Z_][a-zA-Z0-9_]*$`)
+
+// isValidPythonIdentifier returns true only for safe, injection-free variable names.
+func isValidPythonIdentifier(name string) bool {
+	if name == "" || len(name) > 64 {
+		return false
+	}
+	return validPythonIdent.MatchString(name)
+}
+
 // Exec executes a Python source string with variable bridging.
 // inVars are injected into the Python namespace, outVars are extracted after execution.
 func (b *Bridge) Exec(pythonSrc string, inVars map[string]interface{}, outVars []string) (*ExecResult, error) {
@@ -103,7 +116,10 @@ func (b *Bridge) Exec(pythonSrc string, inVars map[string]interface{}, outVars [
 	// 1. Deserializes input variables from JSON
 	// 2. Executes the user's Python code
 	// 3. Serializes output variables to JSON
-	wrapper := b.buildWrapper(pythonSrc, inVars, outVars)
+	wrapper, err := b.buildWrapper(pythonSrc, inVars, outVars)
+	if err != nil {
+		return nil, err
+	}
 
 	// Execute via subprocess
 	cmd := exec.Command(b.pythonPath, "-c", wrapper)
@@ -194,17 +210,34 @@ func (b *Bridge) SetVenvPath(path string) {
 // ========== Internal Helpers ==========
 
 // buildWrapper creates a Python wrapper script that handles variable bridging.
-func (b *Bridge) buildWrapper(userCode string, inVars map[string]interface{}, outVars []string) string {
+// Fix #5: all variable names are validated against a strict Python identifier regex
+// before being embedded in code. JSON data is injected via base64 to prevent
+// single-quote or backslash sequences in serialized values from breaking the script.
+func (b *Bridge) buildWrapper(userCode string, inVars map[string]interface{}, outVars []string) (string, error) {
 	var sb strings.Builder
 
-	sb.WriteString("import json, sys\n")
+	sb.WriteString("import json, sys, base64\n")
 
-	// Inject input variables
+	// Inject input variables via base64-encoded JSON — avoids any quoting issues
 	if len(inVars) > 0 {
-		inJSON, _ := json.Marshal(inVars)
-		sb.WriteString(fmt.Sprintf("__wolf_in__ = json.loads('%s')\n", string(inJSON)))
+		// Validate all variable names before touching the code string
 		for k := range inVars {
-			sb.WriteString(fmt.Sprintf("%s = __wolf_in__['%s']\n", k, k))
+			cleanK := strings.TrimPrefix(k, "$")
+			if !isValidPythonIdentifier(cleanK) {
+				return "", fmt.Errorf("ml bridge: invalid variable name %q (must be [a-zA-Z_][a-zA-Z0-9_]*)", k)
+			}
+		}
+		inJSON, err := json.Marshal(inVars)
+		if err != nil {
+			return "", fmt.Errorf("ml bridge: failed to serialize input vars: %w", err)
+		}
+		// Embed as base64 — safe against any content in the JSON values
+		b64 := base64.StdEncoding.EncodeToString(inJSON)
+		sb.WriteString(fmt.Sprintf("__wolf_in__ = json.loads(base64.b64decode('%s').decode('utf-8'))\n", b64))
+		for k := range inVars {
+			clean := strings.TrimPrefix(k, "$")
+			// clean is already validated above
+			sb.WriteString(fmt.Sprintf("%s = __wolf_in__['%s']\n", clean, clean))
 		}
 	}
 
@@ -213,21 +246,22 @@ func (b *Bridge) buildWrapper(userCode string, inVars map[string]interface{}, ou
 	sb.WriteString(userCode)
 	sb.WriteString("\n")
 
-	// Extract output variables
+	// Extract output variables — names validated against identifier regex
 	if len(outVars) > 0 {
 		sb.WriteString("\n__wolf_out__ = {}\n")
 		for _, v := range outVars {
-			// Strip $ prefix if present
-			clean := v
-			if strings.HasPrefix(clean, "$") {
-				clean = clean[1:]
+			clean := strings.TrimPrefix(v, "$")
+			if !isValidPythonIdentifier(clean) {
+				return "", fmt.Errorf("ml bridge: invalid output variable name %q", v)
 			}
-			sb.WriteString(fmt.Sprintf("try:\n    __wolf_out__['%s'] = %s\nexcept NameError:\n    __wolf_out__['%s'] = None\n", clean, clean, clean))
+			sb.WriteString(fmt.Sprintf(
+				"try:\n    __wolf_out__['%s'] = %s\nexcept NameError:\n    __wolf_out__['%s'] = None\n",
+				clean, clean, clean))
 		}
 		sb.WriteString("print('__WOLF_OUT__:' + json.dumps(__wolf_out__, default=str))\n")
 	}
 
-	return sb.String()
+	return sb.String(), nil
 }
 
 // findPython locates a Python 3 interpreter.

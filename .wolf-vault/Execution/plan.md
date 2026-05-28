@@ -19,6 +19,8 @@
 | `protected` visibility — `43_visibility.wolf` full E2E | ✅ Done | — |
 | HTTP Client conditional compile flag (`WOLF_HTTP_CLIENT_ENABLED`) | 🔄 Pending | — |
 | `wolf_req_arena.active` guard in `wolf_db_escape` | 🔄 Pending | — |
+| Write `ir/clone.go` AST unit tests | ✅ Done | — |
+| Phase 2 io_uring Streaming Multipart Parser | 🔄 Pending | — |
 
 ## Completed Sprints
 - [x] **Sprint 6: Native Foundations** (WebSocket, HTTP Client, Math/Stats) — 2026-03-26
@@ -57,6 +59,29 @@ graph TD
 
 
 ## Session History
+
+### 2026-05-27 (Session 26 — Wolf Runtime Security Hardening)
+**Done:**
+- Implemented `wolf_thread_yield()` CPU preemption checkpoints natively inside LLVM loop bodies (`ForStmt`, `RangeStmt`) via OS scheduler `sched_yield`, entirely mitigating CPU-bound thread hoarding vulnerabilities.
+- Integrated `wolf_qb_safe_column` regex-style identifier verification in the Query Builder. Fully secures DB metadata parameters (tables/columns) against SQL Injection across `insert`, `update`, `where`, and `with` relational statements.
+- Fixed an accidental LLVM Declaration deletion (`@wolf_http_set_header`), resolving the `30_http_client` E2E linker compilation hang.
+- Successfully verified E2E and `go test ./...` completion across all tests.
+
+### 2026-05-27 (Session 25 — WIR Compiler Test Hardening)
+**Done:**
+- Achieved a perfect 100.0% statement coverage for `internal/ir/clone.go` monomorphization logic.
+- Resolved build regressions in `mlbridge_test.go` due to signature updates in variable name sanitization wrapper.
+- Verified that all compiler and HTTP engine unit tests pass completely.
+
+### 2026-05-11 (Session 24 — AXIOM Audit Security & Concurrency Analysis)
+**Done:**
+- Resolved AXIOM audit findings regarding the C runtime architecture and execution model.
+- Proved memory safety of the 64KB arena slab under maximum parser fragmentation (exactly 60 overflows possible out of 64).
+- Added `_Static_assert` to `wolf_http_engine.c` to enforce arena overflow constraints mathematically at build-time.
+- Confirmed `parallel {}` cooperative multitasking via `ucontext_t` and identified its lack of preemption for blocking operations.
+- Confirmed use-after-free vulnerability in explicit `spawn` detached tasks due to LLVM IR capturing raw arena pointers.
+- Tests status: `TestGracefulShutdown` timeout known/pre-existing.
+- Commits: `29bec53 fix(scaffold): update controller template...` (to `2873238`)
 
 ### 2026-05-10 (Session 23 — Security Hardening: Path Traversal & QB Escaping)
 **Done:**

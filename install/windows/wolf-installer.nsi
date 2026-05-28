@@ -79,6 +79,10 @@ Section "Wolf Compiler (required)" SecCore
   Rename "$INSTDIR\wolf-windows-amd64.exe" "$INSTDIR\wolf.exe"
   File "run_wolf.bat"
 
+  SetOutPath "$INSTDIR\runtime"
+  File "..\..\runtime\*.c"
+  File "..\..\runtime\*.h"
+
   ; Write install info to registry
   WriteRegStr HKLM "Software\Wolf Language" "InstallDir" "$INSTDIR"
   WriteRegStr HKLM "Software\Wolf Language" "Version"    "0.1.0"

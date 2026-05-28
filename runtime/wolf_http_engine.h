@@ -75,6 +75,8 @@ typedef struct WolfArena {
      * record the pointer here. wolf_arena_reset frees all of them. */
     void*  overflow_ptrs[64];  /* up to 64 oversized allocs per request */
     int    overflow_count;
+    
+    volatile int refcount; /* W1 Fix: track detached concurrent spawn tasks */
 } WolfArena;
 
 typedef struct WolfArenaPool {
@@ -87,6 +89,8 @@ WolfArenaPool* wolf_arena_pool_create(int core_id);
 WolfArena*     wolf_arena_acquire(WolfArenaPool* pool);
 void*          wolf_arena_alloc(WolfArena* arena, size_t size);
 char*          wolf_arena_strdup(WolfArena* arena, const char* s);
+void           wolf_arena_ref(WolfArena* arena);     /* inc refcount */
+void           wolf_arena_unref(WolfArena* arena);   /* dec refcount, resets if 0 */
 void           wolf_arena_reset(WolfArena* arena);   /* O(1) — just resets pos */
 void           wolf_arena_pool_destroy(WolfArenaPool* pool);
 

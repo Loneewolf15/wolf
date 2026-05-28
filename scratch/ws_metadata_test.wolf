@@ -1,0 +1,18 @@
+func handler($req_id, $res_id) {
+    $path = wolf_get_request_path()
+    if $path == "/" {
+        wolf_http_res_header($res_id, "Content-Type", "text/html")
+        $html = wolf_file_read("scratch/test_ws.html")
+        wolf_http_write_response($html)
+    }
+}
+
+func ws_handler($req_id, $message) {
+    $path = wolf_get_request_path()
+    print("WS Message: " + $message + " | Path: " + $path)
+    wolf_ws_send($req_id, "Echo: " + $message + " | Handshake Path: " + $path)
+}
+
+wolf_ws_on_message(ws_handler)
+print("🐺 Starting WS Metadata Test on port 8080...")
+wolf_http_serve(8080, handler)

@@ -4,6 +4,7 @@
 package pythonenv
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -140,11 +141,15 @@ func (m *Manager) Install() error {
 
 	// Create venv if it doesn't exist
 	if !m.VenvExists() {
+		// Use a 5-minute timeout — venv creation is fast but pip can be slow on first install.
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+		defer cancel()
+
 		pythonCmd := "python" + m.config.PythonVersion
-		cmd := exec.Command(pythonCmd, "-m", "venv", m.venvDir)
+		cmd := exec.CommandContext(ctx, pythonCmd, "-m", "venv", m.venvDir)
 		if out, err := cmd.CombinedOutput(); err != nil {
 			// Fallback to python3
-			cmd = exec.Command("python3", "-m", "venv", m.venvDir)
+			cmd = exec.CommandContext(ctx, "python3", "-m", "venv", m.venvDir)
 			if out, err := cmd.CombinedOutput(); err != nil {
 				return fmt.Errorf("failed to create venv: %s\n%s", err, string(out))
 			}
@@ -246,10 +251,15 @@ func (m *Manager) Remove(name string) error {
 		return err
 	}
 
-	// Uninstall from venv
+	// Uninstall from venv — best-effort with timeout; log but don't fail.
 	if m.VenvExists() {
-		cmd := exec.Command(m.PipPath(), "uninstall", "-y", name)
-		cmd.CombinedOutput()
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+		defer cancel()
+		cmd := exec.CommandContext(ctx, m.PipPath(), "uninstall", "-y", name)
+		if out, err := cmd.CombinedOutput(); err != nil {
+			// Non-fatal: package may already be absent; surface as warning.
+			fmt.Fprintf(os.Stderr, "[wolf python] warning: pip uninstall %s: %s\n%s\n", name, err, string(out))
+		}
 	}
 
 	return nil
@@ -261,7 +271,10 @@ func (m *Manager) List() ([]LockedPkg, error) {
 		return nil, fmt.Errorf("no virtual environment found. Run 'wolf python install' first")
 	}
 
-	cmd := exec.Command(m.PipPath(), "list", "--format=json", "--disable-pip-version-check")
+	// 30-second timeout for pip list — it should never take longer.
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, m.PipPath(), "list", "--format=json", "--disable-pip-version-check")
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		return nil, fmt.Errorf("pip list failed: %w", err)
@@ -333,8 +346,10 @@ func (m *Manager) GenerateLock() error {
 		return err
 	}
 
-	// Get Python version
-	cmd := exec.Command(m.PythonPath(), "--version")
+	// Get Python version (30s timeout).
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, m.PythonPath(), "--version")
 	verOut, _ := cmd.CombinedOutput()
 	pyVer := strings.TrimSpace(string(verOut))
 
@@ -363,7 +378,10 @@ func (m *Manager) installPackages(pkgs []PackageSpec) error {
 		args = append(args, pkg.String())
 	}
 
-	cmd := exec.Command(m.PipPath(), args...)
+	// 5-minute timeout — network-dependent installs can be slow but shouldn't hang forever.
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, m.PipPath(), args...)
 	if out, err := cmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("pip install failed: %s\n%s", err, string(out))
 	}

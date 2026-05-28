@@ -228,4 +228,6 @@ static inline char* wolf_mcu_strdup(const char* s) {
 #  define wolf_is_mcu() 0
 #endif
 
+#define WOLF_REQUEST_TIMEOUT_SEC 30
+
 #endif /* WOLF_CONFIG_RUNTIME_H */

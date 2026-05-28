@@ -1,0 +1,14 @@
+func handler($req_id, $res_id) {
+    $path = wolf_get_request_path()
+    if $path == "/slow" {
+        print("Starting slow request (60s)... Watchdog should kill it at 30s.")
+        wolf_system_sleep(60)
+        print("CRITICAL FAILURE: Watchdog did NOT kill the request!")
+        wolf_http_write_response("Slow response finished")
+    } else {
+        wolf_http_write_response("Fast response OK")
+    }
+}
+
+print("🐺 Starting Timeout Test on port 8080...")
+wolf_http_serve(8080, handler)
