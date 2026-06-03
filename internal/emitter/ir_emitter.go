@@ -263,6 +263,9 @@ func (e *IREmitter) emitExprStmt(s *parser.ExpressionStmt) ir.Stmt {
 				return e.emitServeCall(call)
 			case "respond":
 				return e.emitRespondCall(call)
+			case "require":
+				// Handled at compile-time by AutoDiscover, ignore at runtime
+				return nil
 			}
 		}
 	}

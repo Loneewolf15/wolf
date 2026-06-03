@@ -1,5 +1,19 @@
 # Wolf Bugs Fixed — Cumulative Log
 
+## Session 2026-06-03 (Session 27 — HMR Dev Server Pathing & LLVM Emitter Fixes)
+
+### BUG-070: LLVM Emitter returns `void` inside `ptr` methods missing explicit returns
+- **Class:** P0 🔴 Compiler Panic (LLVM `value doesn't match function result type 'ptr'`)
+- **Root cause:** `emitConstructor` failed to set `e.currentRetType = "ptr"`, inheriting the `"void"` return type from the previous function. Consequently, implicit error-checking branches inside the constructor generated `ret void` instead of `ret ptr null`. Additionally, `emitReturn` emitted `ret void` for bare `return` statements in `ptr` functions.
+- **Fix:** Initialized `e.currentRetType = "ptr"` within `emitConstructor` and restored it afterward. Updated `emitReturn` and implicit return generators to return `ret ptr null` if `e.currentRetType == "ptr"`.
+- **File:** `internal/emitter/llvm_emitter.go`
+
+### BUG-071: HMR Dev Server Pathing misses `controllers` due to incorrect `ProjectRoot`
+- **Class:** P1 🟠 Development Experience (AutoDiscover Failure)
+- **Root cause:** Running `wolf dev public/index.wolf` resolved the `ProjectRoot` to `./public`, failing to AutoDiscover `../controllers/WelcomeController.wolf`.
+- **Fix:** Tracked `ProjectRoot` in the `Compiler` struct and added config initialization logic in `cmd/wolf/dev.go` to traverse upwards and locate the true project root via `wolf.config` before instantiating the compiler.
+- **File:** `internal/compiler/compiler.go`, `cmd/wolf/dev.go`
+
 ## Session 2026-05-27 (Session 26 — Wolf Runtime Security Hardening)
 
 ### BUG-067: Missing `@wolf_http_set_header` LLVM declaration
@@ -275,7 +289,7 @@
 
 ## Status Ledger
 
-- Total bugs fixed: **53** (BUG-001 through BUG-069, including N-series omissions)
+- Total bugs fixed: **55** (BUG-001 through BUG-071, including N-series omissions)
 - E2E tests: **All 60+ passing, 100% WIR Statement Coverage**
 - Open: BUG-052
 - Next Bloodhound Sweep: Monitor for `libcurl` multi-handle leakage if we move from synchronous `easy` interface to asynchronous.

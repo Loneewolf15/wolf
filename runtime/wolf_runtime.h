@@ -12,10 +12,14 @@
  *   clang -c wolf_runtime.c -o wolf_runtime.o                     *
  *                                                                  *
  * Optional feature flags (pass as -D flags to clang):             *
- *   -DWOLF_REDIS_ENABLED   link against hiredis                   *
- *   -DWOLF_DB_POSTGRES     link against libpq instead of MySQL    *
- *   -DWOLF_DB_MSSQL        use MSSQL mock driver                  *
- *   -DWOLF_DEBUG           enable verbose pool/arena logging       *
+ *   -DWOLF_REDIS_ENABLED          link against hiredis             *
+ *   -DWOLF_DB_POSTGRES            link against libpq (not MySQL)   *
+ *   -DWOLF_DB_MSSQL               use MSSQL mock driver            *
+ *   -DWOLF_DEBUG                  enable verbose pool/arena logging *
+ *   -DWOLF_HTTP_CLIENT_ENABLED    link against libcurl for outbound *
+ *                                 HTTP (wolf_http_request, etc.).   *
+ *                                 Without this flag, those calls   *
+ *                                 return NULL (safe no-op stubs).  *
  * ================================================================ */
 
 /* --- Typed Value System --- */

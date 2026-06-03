@@ -1,0 +1,13 @@
+version: '3.8'
+services:
+  db:
+    image: mysql:8.0
+    environment:
+      MYSQL_ROOT_PASSWORD: secret
+      MYSQL_DATABASE: project_test_db
+    ports:
+      - "3306:3306"
+  redis:
+    image: redis:latest
+    ports:
+      - "6379:6379"

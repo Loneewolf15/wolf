@@ -60,6 +60,14 @@ graph TD
 
 ## Session History
 
+### 2026-06-03 (Session 27 — HMR Dev Server Pathing & LLVM Emitter Fixes)
+**Done:**
+- Fixed AutoDiscover project root resolution by tracking `ProjectRoot` in the `Compiler` struct and explicitly resolving it during `wolf dev` initialization.
+- Ignored `require` function calls in `ir_emitter.go` since `AutoDiscover` resolves dependencies natively at compile-time.
+- Resolved LLVM compiler panics (`undefined value @index` and `value doesn't match function result type 'ptr'`) by isolating `currentRetType` within `emitConstructor` and generating implicit `ret ptr null` returns instead of `ret void` for pointer methods lacking explicit returns.
+- Successfully verified dynamic shared-object (`app.so`) generation and live HTTP endpoint listening via `wolf dev public/index.wolf`.
+
+
 ### 2026-05-27 (Session 26 — Wolf Runtime Security Hardening)
 **Done:**
 - Implemented `wolf_thread_yield()` CPU preemption checkpoints natively inside LLVM loop bodies (`ForStmt`, `RangeStmt`) via OS scheduler `sched_yield`, entirely mitigating CPU-bound thread hoarding vulnerabilities.

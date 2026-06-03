@@ -1,0 +1,21 @@
+# Base Controller
+class Controller {
+    func model($model) {
+        return __compiler_create_model($model)
+    }
+
+    func getData() {
+        $raw = wolf_get_request_body()
+        return json_decode($raw)
+    }
+
+    func sendResponse($status, $message, $data, $httpCode) {
+        http_response_code($httpCode)
+        print(json_encode({
+            "status": $status,
+            "message": $message,
+            "data": $data,
+            "timestamp": time()
+        }))
+    }
+}

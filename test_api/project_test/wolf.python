@@ -1,0 +1,6 @@
+{
+  "python_version": "3",
+  "packages": [],
+  "venv_path": ".wolf-venv",
+  "auto_activate": true
+}

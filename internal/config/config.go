@@ -24,8 +24,9 @@ type WolfConfig struct {
 // Written once by `wolf new`, never changed unless the user is intentionally
 // retargeting their project (e.g. from script to api).
 type TargetConfig struct {
-	Mode string // "api" | "script" | "mcu" — determines the runtime contract
-	Arch string // "native" | "arm-cortex-m4" | "riscv32" | "wasm" — cross-compile target
+	Mode   string // "api" | "script" | "mcu" — determines the runtime contract
+	Arch   string // "native" | "arm-cortex-m4" | "riscv32" | "wasm" — cross-compile target
+	Shared bool   // If true, compile as a dynamically loaded shared library (.so) instead of an executable
 }
 
 // AppConfig holds general application identity.
@@ -98,6 +99,7 @@ type BuildConfig struct {
 	Optimise   bool   // BUILD_OPTIMISE: -O2 vs -O0 (default true in production)
 	KeepLL     bool   // BUILD_KEEP_LL: retain .ll file for debugging (default false)
 	StrictMode bool   // BUILD_STRICT_MODE
+	HTTPClient bool   // BUILD_HTTP_CLIENT: conditionally link libcurl (default true)
 }
 
 // Defaults returns a WolfConfig with every field set to its production default.
@@ -161,6 +163,7 @@ func Defaults() *WolfConfig {
 			Optimise:   true,
 			KeepLL:     false,
 			StrictMode: false,
+			HTTPClient: true,
 		},
 	}
 }

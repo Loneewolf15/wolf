@@ -2,8 +2,8 @@ package main
 
 import (
 	"fmt"
-	"io/fs"
 	"github.com/wolflang/wolf"
+	"io/fs"
 )
 
 func main() {

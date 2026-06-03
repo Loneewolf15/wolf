@@ -33,6 +33,10 @@ type LLVMEmitter struct {
 	closureCounter  int               // unique ID for each closure function
 	closureDefs     strings.Builder   // top-level closure definitions to emit before main
 	errHandlerStack []string          // stack of %catch_block labels for error unwinding
+	Errors          []string          // non-fatal compiler diagnostics during IR emission
+	RequiresCurl    bool              // flag if outbound HTTP features are used
+	RequiresRedis   bool              // flag if Redis features are used
+	Shared          bool              // if true, emit wolf_app_main instead of main
 }
 
 // NewLLVMEmitter creates a new LLVM IR emitter.
@@ -250,9 +254,14 @@ func (e *LLVMEmitter) Emit(program *ir.Program) string {
 	}
 
 	// Emit main function from InitStmts
+	mainFuncName := "main"
+	if e.Shared {
+		mainFuncName = "wolf_app_main"
+	}
+
 	if len(program.InitStmts) > 0 {
 		e.currentRetType = "i32"
-		e.writeln("define i32 @main(i32 %argc, ptr %argv) {")
+		e.writeln(fmt.Sprintf("define i32 @%s(i32 %%argc, ptr %%argv) {", mainFuncName))
 		e.writeln("entry:")
 		e.indent++
 		e.writelnIndent("call void @wolf_init_args(i32 %argc, ptr %argv)")
@@ -278,8 +287,8 @@ func (e *LLVMEmitter) Emit(program *ir.Program) string {
 		e.writeln("}")
 	} else if _, hasFuncMain := e.funcSigs["main"]; hasFuncMain {
 		// Wolf file declares `func main() { ... }` — emit a C entry stub
-		// that calls @wolf_main() so the linker finds 'main'.
-		e.writeln("define i32 @main(i32 %argc, ptr %argv) {")
+		// that calls @wolf_main() so the linker finds 'main' (or wolf_app_main).
+		e.writeln(fmt.Sprintf("define i32 @%s(i32 %%argc, ptr %%argv) {", mainFuncName))
 		e.writeln("entry:")
 		e.indent++
 		e.writelnIndent("call void @wolf_init_args(i32 %argc, ptr %argv)")
@@ -960,8 +969,12 @@ func (e *LLVMEmitter) emitFunction(fn *ir.Function) {
 	}
 
 	// Add implicit return if missing
-	if retType == "void" && !e.lastStmtIsReturn(fn.Body) {
-		e.writelnIndent("ret void")
+	if !e.lastStmtIsReturn(fn.Body) {
+		if retType == "void" {
+			e.writelnIndent("ret void")
+		} else {
+			e.writelnIndent(fmt.Sprintf("ret %s null", retType))
+		}
 	}
 
 	e.varTypes = oldVarTypes
@@ -985,6 +998,10 @@ func (e *LLVMEmitter) emitConstructor(fn *ir.Function, className string) {
 	e.writeln(fmt.Sprintf("define ptr @%s(%s) {", emitName, strings.Join(params, ", ")))
 	e.writeln("entry:")
 	e.indent++
+
+	// Keep track of previous return type and restore it after
+	prevRetType := e.currentRetType
+	e.currentRetType = "ptr"
 
 	// Reset local var types (but keep param types!)
 	oldVarTypes := e.varTypes
@@ -1032,6 +1049,7 @@ func (e *LLVMEmitter) emitConstructor(fn *ir.Function, className string) {
 	e.writelnIndent(fmt.Sprintf("%s = load ptr, ptr %%this", retReg))
 	e.writelnIndent(fmt.Sprintf("ret ptr %s", retReg))
 
+	e.currentRetType = prevRetType
 	e.varTypes = oldVarTypes
 	e.varClass = oldVarClass
 	e.indent--
@@ -1506,7 +1524,11 @@ func (e *LLVMEmitter) emitExprStmt(s *ir.ExprStmt) {
 
 func (e *LLVMEmitter) emitReturn(s *ir.ReturnStmt) {
 	if len(s.Values) == 0 {
-		e.writelnIndent("ret void")
+		if e.currentRetType == "ptr" {
+			e.writelnIndent("ret ptr null")
+		} else {
+			e.writelnIndent("ret void")
+		}
 	} else {
 		llType := e.inferExprType(s.Values[0])
 		val := e.emitExpr(s.Values[0], llType)
@@ -2234,6 +2256,14 @@ func (e *LLVMEmitter) emitUnaryExpr(ex *ir.UnaryExpr) string {
 func (e *LLVMEmitter) emitCallExpr(call *ir.CallExpr) string {
 	// Check for built-in print
 	if ident, ok := call.Callee.(*ir.Ident); ok {
+		// Flag HTTP/Redis dependencies for AST auto-linking
+		if ident.Name == "wolf_http_get" || ident.Name == "wolf_http_post" || strings.HasPrefix(ident.Name, "wolf_mailer_") {
+			e.RequiresCurl = true
+		}
+		if strings.HasPrefix(ident.Name, "wolf_redis_") {
+			e.RequiresRedis = true
+		}
+
 		switch ident.Name {
 		case "fmt_Println", "fmt.Println", "wolf_print", "print":
 			return e.emitPrintCall(call)
@@ -3247,7 +3277,7 @@ func (e *LLVMEmitter) emitCallExpr(call *ir.CallExpr) string {
 			retType = "ptr"
 		case "wolf_instantiate_dynamic":
 			if e.CompilerMode == "mcu" {
-				panic("Dynamic instantiation (new $className) is banned in MCU mode.")
+				e.Errors = append(e.Errors, "Dynamic instantiation (new $className) is banned in MCU mode.")
 			}
 			e.usedDynamicInst = true
 			retType = "ptr"

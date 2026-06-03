@@ -64,6 +64,10 @@ void wolf_mailer_validate_config(void) {
 }
 
 static int internal_mailer_send(const char* to, const char* subject, const char* body, int is_html) {
+#ifndef WOLF_HTTP_CLIENT_ENABLED
+    fprintf(stderr, "wolf_mailer_send failed: compiled without HTTP/Curl support\n");
+    return 0;
+#else
     CURL *curl;
     CURLcode res = CURLE_OK;
     struct curl_slist *recipients = NULL;
@@ -117,6 +121,7 @@ static int internal_mailer_send(const char* to, const char* subject, const char*
     free(payload_text);
 
     return (res == CURLE_OK) ? 1 : 0;
+#endif
 }
 
 int wolf_mailer_send(const char* to, const char* subject, const char* body) {

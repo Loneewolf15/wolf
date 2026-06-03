@@ -39,8 +39,18 @@
 #include <arpa/inet.h>
 #include <unistd.h>
 #include <pthread.h>
+/* Outbound HTTP client (libcurl) is optional.
+ * Compile with -DWOLF_HTTP_CLIENT_ENABLED to include the full libcurl-backed
+ * implementation. Without this flag, all wolf_http_request / wolf_http_get /
+ * wolf_http_post / ... functions are provided as no-op stubs, which:
+ *   - reduces binary size by ~500KB (libcurl + TLS symbols)
+ *   - removes the libcurl link dependency for server-only or CLI deployments
+ *   - still satisfies the LLVM emitter's symbol requirements */
+#ifdef WOLF_HTTP_CLIENT_ENABLED
 #include <curl/curl.h>
+#endif /* WOLF_HTTP_CLIENT_ENABLED */
 #endif /* WOLF_FREESTANDING */
+
 
 /* Maximum HTTP requests per keep-alive connection (Rule 3) */
 #ifndef WOLF_KEEPALIVE_MAX_REQUESTS
@@ -255,18 +265,25 @@ typedef struct {
     char*            payload; /* for WS_EVENT */
 } wolf_task_t;
 
-#ifndef WOLF_WORKER_THREADS
-/* Auto-size: clamp between 16 and 256, using 4× CPU count for I/O-bound serving */
 #include <unistd.h>
 static int wolf_auto_thread_count(void) {
+#if defined(WOLF_WORKER_THREADS) && WOLF_WORKER_THREADS > 0
+    return WOLF_WORKER_THREADS;
+#else
+    /* Auto-size: clamp between 16 and 256, using 4× CPU count for I/O-bound serving */
     long n = sysconf(_SC_NPROCESSORS_ONLN);
     if (n < 16)  n = 16;
     if (n > 256) n = 256;
     n = n * 4;
     if (n > 256) n = 256;
     return (int)n;
+#endif
 }
-#define WOLF_WORKER_THREADS 256
+
+#if !defined(WOLF_WORKER_THREADS) || WOLF_WORKER_THREADS <= 0
+  #define WOLF_THREAD_ARRAY_SIZE 256
+#else
+  #define WOLF_THREAD_ARRAY_SIZE WOLF_WORKER_THREADS
 #endif
 
 /* ================================================================ *
@@ -295,10 +312,10 @@ typedef struct {
     _Atomic int       tail __attribute__((aligned(64)));
 } wolf_core_queue_t;
 
-static wolf_core_queue_t wolf_core_queues[WOLF_WORKER_THREADS];
+static wolf_core_queue_t wolf_core_queues[WOLF_THREAD_ARRAY_SIZE];
 static _Atomic int        wolf_rr_index = 0;   /* round-robin push counter */
 
-static pthread_t wolf_worker_pool[WOLF_WORKER_THREADS];
+static pthread_t wolf_worker_pool[WOLF_THREAD_ARRAY_SIZE];
 static int       wolf_actual_threads = 16;     /* set in wolf_worker_pool_init */
 
 /* ---- Push from accept thread (or any producer) → chosen worker ring ---- */
@@ -357,7 +374,7 @@ static void* http_worker(void* arg); /* Forward declaration */
 
 /* Worker ID is passed at thread creation */
 typedef struct { int wid; } wolf_worker_arg_t;
-static wolf_worker_arg_t wolf_worker_args[WOLF_WORKER_THREADS];
+static wolf_worker_arg_t wolf_worker_args[WOLF_THREAD_ARRAY_SIZE];
 
 static void* wolf_worker_thread_func(void* arg) {
     int wid = ((wolf_worker_arg_t*)arg)->wid;
@@ -963,6 +980,7 @@ void wolf_req_arena_unref_task(void* arena_ptr) {
 }
 
 #ifndef WOLF_FREESTANDING
+#ifdef WOLF_HTTP_CLIENT_ENABLED
 static int wolf_curl_inited = 0;
 static void wolf_ensure_curl(void) {
     if (!wolf_curl_inited) {
@@ -994,6 +1012,7 @@ static size_t wolf_http_client_write_cb(void* contents, size_t size, size_t nmem
 
     return realsize;
 }
+#endif /* WOLF_HTTP_CLIENT_ENABLED */
 #endif /* WOLF_FREESTANDING */
 
 
@@ -1574,14 +1593,37 @@ void* wolf_db_prepare(void* conn, const char* sql) {
  * is REQUIRED — mysql_real_escape_string and PQescapeStringConn both
  * use the connection's character-set state to escape correctly.
  *
- * Returns an empty string (never NULL, never the raw value) if conn
- * is NULL, preventing silent injection on misconfigured callers.
+ * BUG-052 FIX: Returns an empty string AND sets wolf_tl_error via
+ * wolf_throw() when conn is NULL. This propagates through the QB
+ * chain (wolf_qb_where checks wolf_has_error() post-escape) and
+ * poisons the entire QB so no SQL ever executes with the bad value.
+ *
+ * Arena guard: logs a fatal warning if called outside a live request
+ * arena (current_req_arena->active == 0). This catches callers that
+ * invoke the QB after the request has been flushed.
  * ================================================================ */
 static char* wolf_db_escape(void* conn, const char* value) {
     if (!value) value = "";
+
+    /* Arena active guard — wolf_db_escape allocates into the request
+     * arena via wolf_req_alloc. Calling it after arena flush means the
+     * returned pointer will immediately be freed on the next request,
+     * producing a use-after-free. Log loudly if this happens. */
+    if (!current_req_arena || !current_req_arena->active) {
+        wolf_throw("[WOLF-QB] wolf_db_escape: inactive/dead request arena — memory safety violation");
+        fprintf(stderr, "[WOLF-QB] FATAL: wolf_db_escape called outside active request arena "
+                        "— arena is not live. Memory safety violation. Aborting escape.\n");
+        /* Return a static empty string — do NOT wolf_req_alloc into a dead arena */
+        return "";
+    }
+
     if (!conn) {
+        /* BUG-052: Set the thread-local error flag so callers (wolf_qb_where)
+         * can detect this and poison the QB. Do NOT silently return empty string
+         * — that would allow WHERE id = '' to reach the database undetected. */
+        wolf_throw("[WOLF-QB] wolf_db_escape: NULL connection — query aborted to prevent silent SQL corruption");
         fprintf(stderr, "[WOLF-QB] wolf_db_escape called with NULL conn — "
-                        "returning empty string to prevent injection\n");
+                        "throwing error to abort QB chain\n");
         return wolf_req_strdup("");
     }
 
@@ -1895,7 +1937,6 @@ void* wolf_redis_connect(const char* host, int64_t port, const char* pass) {
 
 void wolf_redis_set(const char* key, const char* value, int64_t ttl) {
     redisContext* c = wolf_redis_ctx;
-    fprintf(stderr, "[DEBUG REDIS SET] ctx=%p key=%s val=%s ttl=%ld\n", c, key ? key : "NULL", value ? value : "NULL", ttl);
     if (!c || !key) return;
     redisReply *reply;
     if (ttl > 0)
@@ -2032,6 +2073,8 @@ typedef struct {
     int64_t size;
     int64_t capacity;
 } wolf_map_t;
+
+static const char* wolf_map_get_str(wolf_map_t* m, const char* key);
 
 int wolf_is_tagged_value(void* ptr) {
     if (!ptr) return 0;
@@ -3943,7 +3986,11 @@ void wolf_http_res_write(int64_t res_id, const char* body) {
     }
 }
 
-/* --- HTTP Client (libcurl integration) --- */
+/* --- HTTP Client (libcurl integration) ---
+ * Conditionally compiled: requires -DWOLF_HTTP_CLIENT_ENABLED.
+ * Without the flag, no-op stubs at the end of this block satisfy linker. */
+
+#ifdef WOLF_HTTP_CLIENT_ENABLED
 
 static char* wolf_json_escape(const char* s) {
     if (!s) return "";
@@ -3962,8 +4009,6 @@ static char* wolf_json_escape(const char* s) {
     *p = '\0';
     return res;
 }
-
-static const char* wolf_map_get_str(wolf_map_t* m, const char* key);
 
 /* Internal struct to pass state to curl callbacks */
 typedef struct {
@@ -4140,6 +4185,33 @@ const char* wolf_http_client_res_header(void* res, const char* key) {
     const char* val = wolf_map_get_str((wolf_map_t*)hr->headers, key);
     return val ? val : "";
 }
+
+/* ================================================================
+ * No-op stubs for WOLF_HTTP_CLIENT_ENABLED=off
+ * These let the LLVM emitter link wolf_http_request / wolf_http_get /
+ * etc. without requiring libcurl in the final binary.
+ * ================================================================ */
+#else  /* !WOLF_HTTP_CLIENT_ENABLED */
+
+void* wolf_http_request(const char* m, const char* u, const char* b, void* h)
+    { (void)m; (void)u; (void)b; (void)h;
+      fprintf(stderr, "[WOLF] wolf_http_request: HTTP client not compiled in "
+                      "(rebuild with -DWOLF_HTTP_CLIENT_ENABLED)\n");
+      return NULL; }
+void* wolf_http_get(const char* u, void* h)               { (void)u; (void)h; return NULL; }
+void* wolf_http_post(const char* u, const char* b, void* h){ (void)u; (void)b; (void)h; return NULL; }
+void* wolf_http_put(const char* u, const char* b, void* h) { (void)u; (void)b; (void)h; return NULL; }
+void* wolf_http_delete(const char* u, void* h)             { (void)u; (void)h; return NULL; }
+void* wolf_http_patch(const char* u, const char* b, void* h){ (void)u; (void)b; (void)h; return NULL; }
+
+const char* wolf_http_client_res_body(void* r)             { (void)r; return ""; }
+void*       wolf_http_client_res_json(void* r)             { (void)r; return NULL; }
+int64_t     wolf_http_client_res_status(void* r)           { (void)r; return 0; }
+int64_t     wolf_http_client_res_ok(void* r)               { (void)r; return 0; }
+int64_t     wolf_http_client_res_failed(void* r)           { (void)r; return 1; }
+const char* wolf_http_client_res_header(void* r, const char* k) { (void)r; (void)k; return ""; }
+
+#endif /* WOLF_HTTP_CLIENT_ENABLED */
 
 #include <netdb.h>
 #include <errno.h>
@@ -6885,6 +6957,10 @@ typedef struct {
     /* DB-02: Eager loading relations */
     int                 with_count;
     wolf_qb_relation_t  with_rels[WOLF_QB_MAX_WITH];
+    /* BUG-052: poisoned flag — set when any QB operation detects a NULL conn
+     * or NULL-conn escape. All execute functions check this and abort early.
+     * Prevents silent empty-string WHERE clauses from reaching the database. */
+    int                 poisoned;
 } wolf_qb_t;
 
 /* Build SQL FROM + WHERE + ORDER BY + LIMIT */
@@ -6934,6 +7010,13 @@ void* wolf_qb_create(void* conn, const char* table) {
     qb->limit_n     = 0;
     qb->offset_n    = 0;
     qb->with_count  = 0;
+    /* BUG-052: Pre-poison QBs created with NULL conn so any later execute
+     * fails fast rather than silently producing malformed SQL. */
+    qb->poisoned    = (conn == NULL) ? 1 : 0;
+    if (qb->poisoned) {
+        wolf_throw("[WOLF-QB] wolf_qb_create: NULL connection — QB poisoned, all operations will abort");
+        fprintf(stderr, "[WOLF-QB] wolf_qb_create called with NULL conn — QB poisoned\n");
+    }
     return qb;
 }
 
@@ -6952,6 +7035,13 @@ void* wolf_qb_with(void* qb_ptr, const char* rel_name, const char* local_key, co
 void* wolf_qb_where(void* qb_ptr, const char* col, const char* val, const char* op) {
     wolf_qb_t* qb = (wolf_qb_t*)qb_ptr;
     if (!qb || !col) return qb_ptr;
+    /* BUG-052: abort early — do not accumulate WHERE clauses on a poisoned QB.
+     * This prevents silent empty-string values from building up and eventually
+     * being interpolated into a live SQL query. */
+    if (qb->poisoned) {
+        fprintf(stderr, "[WOLF-QB] wolf_qb_where: QB is poisoned (NULL conn) — ignoring WHERE clause\n");
+        return qb_ptr;
+    }
     if (qb->where_count >= WOLF_QB_MAX_WHERE) return qb_ptr;
     int i = qb->where_count++;
     qb->where_col[i] = wolf_req_strdup(wolf_qb_safe_column(col));
@@ -6960,6 +7050,13 @@ void* wolf_qb_where(void* qb_ptr, const char* col, const char* val, const char* 
      * all read from this array and interpolate it directly; they do not need to
      * know about the connection or escaping logic. Invariant: where_val[] is clean. */
     qb->where_val[i] = wolf_db_escape(qb->conn, val ? val : "");
+    /* BUG-052: Propagate poisoned state if wolf_db_escape detected a NULL conn
+     * at escape time (wolf_throw() will have been called — check error flag). */
+    if (wolf_has_error()) {
+        qb->poisoned = 1;
+        fprintf(stderr, "[WOLF-QB] wolf_qb_where: wolf_db_escape set error — QB poisoned\n");
+        return qb_ptr;
+    }
     qb->where_op [i] = wolf_req_strdup((op && strlen(op) > 0) ? op : "=");
     return qb_ptr;
 }
@@ -6988,7 +7085,11 @@ void* wolf_qb_offset(void* qb_ptr, int64_t n) {
 
 void* wolf_qb_get(void* qb_ptr) {
     wolf_qb_t* qb = (wolf_qb_t*)qb_ptr;
-    if (!qb || !qb->conn) return wolf_array_create();
+    /* BUG-052: abort on poisoned QB or NULL conn */
+    if (!qb || !qb->conn || qb->poisoned) {
+        fprintf(stderr, "[WOLF-QB] wolf_qb_get: aborted — QB poisoned or no connection\n");
+        return wolf_array_create();
+    }
 
     /* 1. Fetch parent rows */
     char* sql = wolf_qb_build_select(qb);
@@ -7060,7 +7161,11 @@ void* wolf_qb_get(void* qb_ptr) {
 
 void* wolf_qb_first(void* qb_ptr) {
     wolf_qb_t* qb = (wolf_qb_t*)qb_ptr;
-    if (!qb || !qb->conn) return NULL;
+    /* BUG-052: abort on poisoned QB */
+    if (!qb || !qb->conn || qb->poisoned) {
+        fprintf(stderr, "[WOLF-QB] wolf_qb_first: aborted — QB poisoned or no connection\n");
+        return NULL;
+    }
     qb->limit_n = 1;
     void* results_ptr = wolf_qb_get(qb_ptr);
     if (!results_ptr) return NULL;
@@ -7072,7 +7177,12 @@ void* wolf_qb_first(void* qb_ptr) {
 int64_t wolf_qb_insert(void* qb_ptr, void* data_ptr) {
     wolf_qb_t* qb   = (wolf_qb_t*)qb_ptr;
     wolf_map_t* data = (wolf_map_t*)data_ptr;
-    if (!qb || !qb->conn || !data || data->size == 0) return 0;
+    /* BUG-052: abort on poisoned QB */
+    if (!qb || !qb->conn || qb->poisoned || !data || data->size == 0) {
+        if (qb && qb->poisoned)
+            fprintf(stderr, "[WOLF-QB] wolf_qb_insert: aborted — QB poisoned (NULL conn)\n");
+        return 0;
+    }
 
     wolf_strbuf_t* sb = wolf_strbuf_new();
     wolf_strbuf_append(sb, "INSERT INTO ");
@@ -7088,9 +7198,16 @@ int64_t wolf_qb_insert(void* qb_ptr, void* data_ptr) {
         if (i > 0) wolf_strbuf_append(sb, ", ");
         wolf_strbuf_append(sb, "'");
         const char* val = wolf_map_get_str(data, data->keys[i]);
-        /* INSERT/UPDATE values are escaped here at construction time, not at ingestion, 
-         * because they enter via an arbitrary map rather than a single controlled entry point. */
+        /* INSERT/UPDATE values are escaped here at construction time, not at ingestion,
+         * because they enter via an arbitrary map rather than a single controlled entry point.
+         * BUG-054: check wolf_has_error() after each escape — if conn was invalidated between
+         * QB creation and execute, wolf_db_escape() will wolf_throw() and we must abort. */
         wolf_strbuf_append(sb, wolf_db_escape(qb->conn, val ? val : ""));
+        if (wolf_has_error()) {
+            fprintf(stderr, "[WOLF-QB] wolf_qb_insert: escape error on column '%s' — aborting INSERT\n",
+                    data->keys[i] ? data->keys[i] : "?");
+            return 0;
+        }
         wolf_strbuf_append(sb, "'");
     }
     wolf_strbuf_append(sb, ")");
@@ -7104,7 +7221,12 @@ int64_t wolf_qb_insert(void* qb_ptr, void* data_ptr) {
 int64_t wolf_qb_update(void* qb_ptr, void* data_ptr) {
     wolf_qb_t* qb   = (wolf_qb_t*)qb_ptr;
     wolf_map_t* data = (wolf_map_t*)data_ptr;
-    if (!qb || !qb->conn || !data || data->size == 0) return 0;
+    /* BUG-052: abort on poisoned QB */
+    if (!qb || !qb->conn || qb->poisoned || !data || data->size == 0) {
+        if (qb && qb->poisoned)
+            fprintf(stderr, "[WOLF-QB] wolf_qb_update: aborted — QB poisoned (NULL conn)\n");
+        return 0;
+    }
 
     wolf_strbuf_t* sb = wolf_strbuf_new();
     wolf_strbuf_append(sb, "UPDATE ");
@@ -7115,9 +7237,15 @@ int64_t wolf_qb_update(void* qb_ptr, void* data_ptr) {
         wolf_strbuf_append(sb, wolf_qb_safe_column(data->keys[i]));
         wolf_strbuf_append(sb, " = '");
         const char* val = wolf_map_get_str(data, data->keys[i]);
-        /* INSERT/UPDATE values are escaped here at construction time, not at ingestion, 
-         * because they enter via an arbitrary map rather than a single controlled entry point. */
+        /* INSERT/UPDATE values are escaped here at construction time, not at ingestion,
+         * because they enter via an arbitrary map rather than a single controlled entry point.
+         * BUG-054: check wolf_has_error() after each escape. */
         wolf_strbuf_append(sb, wolf_db_escape(qb->conn, val ? val : ""));
+        if (wolf_has_error()) {
+            fprintf(stderr, "[WOLF-QB] wolf_qb_update: escape error on column '%s' — aborting UPDATE\n",
+                    data->keys[i] ? data->keys[i] : "?");
+            return 0;
+        }
         wolf_strbuf_append(sb, "'");
     }
     if (qb->where_count > 0) {
@@ -7139,7 +7267,12 @@ int64_t wolf_qb_update(void* qb_ptr, void* data_ptr) {
 
 int64_t wolf_qb_delete(void* qb_ptr) {
     wolf_qb_t* qb = (wolf_qb_t*)qb_ptr;
-    if (!qb || !qb->conn) return 0;
+    /* BUG-052: abort on poisoned QB — a NULL-conn delete must never reach the DB */
+    if (!qb || !qb->conn || qb->poisoned) {
+        if (qb && qb->poisoned)
+            fprintf(stderr, "[WOLF-QB] wolf_qb_delete: aborted — QB poisoned (NULL conn)\n");
+        return 0;
+    }
 
     wolf_strbuf_t* sb = wolf_strbuf_new();
     wolf_strbuf_append(sb, "DELETE FROM ");
@@ -7163,7 +7296,12 @@ int64_t wolf_qb_delete(void* qb_ptr) {
 
 void* wolf_qb_paginate(void* qb_ptr, int64_t page, int64_t per_page) {
     wolf_qb_t* qb = (wolf_qb_t*)qb_ptr;
-    if (!qb || !qb->conn) return wolf_map_create();
+    /* BUG-052: abort on poisoned QB */
+    if (!qb || !qb->conn || qb->poisoned) {
+        if (qb && qb->poisoned)
+            fprintf(stderr, "[WOLF-QB] wolf_qb_paginate: aborted — QB poisoned (NULL conn)\n");
+        return wolf_map_create();
+    }
     if (page < 1) page = 1;
     if (per_page < 1) per_page = 10;
 
@@ -7390,3 +7528,84 @@ void* wolf_closure_get_env(wolf_closure_t* c, int64_t index) {
 void* wolf_closure_get_fn(wolf_closure_t* c) {
     return c ? c->fn : NULL;
 }
+
+/* ================================================================ *
+ * Host Shell (HMR & Developer Server)                              *
+ * ================================================================ */
+#ifdef WOLF_HOST_SHELL
+#include <dlfcn.h>
+#include <signal.h>
+#include <stdio.h>
+#include <stdlib.h>
+
+static void* current_app_lib = NULL;
+static int (*wolf_app_main)(int, char**) = NULL;
+
+static void reload_app_library(int signo) {
+    (void)signo;
+    if (current_app_lib) {
+        fprintf(stderr, "[WOLF-HOST] HMR: Unloading previous app.so\n");
+        dlclose(current_app_lib);
+    }
+    
+    const char* so_path = getenv("WOLF_APP_SO_PATH");
+    if (!so_path) so_path = "./app.so";
+    
+    fprintf(stderr, "[WOLF-HOST] HMR: Loading %s\n", so_path);
+    current_app_lib = dlopen(so_path, RTLD_NOW | RTLD_GLOBAL);
+    if (!current_app_lib) {
+        fprintf(stderr, "[WOLF-HOST] HMR Error: %s\n", dlerror());
+        return;
+    }
+    
+    wolf_app_main = (int (*)(int, char**))dlsym(current_app_lib, "wolf_app_main");
+    if (!wolf_app_main) {
+        fprintf(stderr, "[WOLF-HOST] HMR Error: could not find wolf_app_main in app.so\n");
+        return;
+    }
+    
+    fprintf(stderr, "[WOLF-HOST] HMR: Successfully loaded app.so\n");
+    /* In script mode, we just re-run it on reload */
+    /* In API mode, the host shell runs the engine, and the handlers are in app.so */
+#if !defined(WOLF_BUILD_TARGET_API)
+    wolf_app_main(wolf_argc(), (char**)wolf_argv(0)); /* Need to pass args properly if stored globally */
+#endif
+}
+
+int main(int argc, char** argv) {
+    wolf_init_args(argc, argv);
+    
+    struct sigaction sa;
+    sa.sa_handler = reload_app_library;
+    sigemptyset(&sa.sa_mask);
+    sa.sa_flags = SA_RESTART;
+    if (sigaction(SIGUSR1, &sa, NULL) == -1) {
+        perror("sigaction");
+        exit(1);
+    }
+    
+    /* Load initial application */
+    reload_app_library(0);
+    
+#if defined(WOLF_BUILD_TARGET_API)
+    fprintf(stderr, "[WOLF-HOST] API Mode: Listening for HTTP connections (HMR active)...\n");
+    /* Phase 2 HMR for API mode expects wolf_http_engine to call wolf_app_main or a proxy handler */
+    /* For now, just call wolf_app_main to let it start the server (if the user script calls serve()) */
+    if (wolf_app_main) {
+        wolf_app_main(argc, argv);
+    }
+    
+    /* If the app exits or serve() blocks, we stay alive to handle SIGUSR1? 
+       Actually, serve() blocks. The engine must handle the pause. */
+    while (!wolf_shutdown_requested) {
+        pause(); /* Wait for signals */
+    }
+#else
+    fprintf(stderr, "[WOLF-HOST] Script execution finished. Waiting for file changes (HMR active)...\n");
+    while (1) {
+        pause(); /* Wait for SIGUSR1 to reload script */
+    }
+#endif
+    return 0;
+}
+#endif

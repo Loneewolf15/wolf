@@ -1,0 +1,5 @@
+wolf_out/
+*.exe
+.wolf-venv/
+__pycache__/
+wolf.python.lock

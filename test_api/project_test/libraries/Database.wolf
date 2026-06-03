@@ -1,0 +1,8 @@
+# Base Database
+class Database {
+    $dbh
+    func __construct() {
+        $this->dbh = db_connect(env("DB_HOST"), env("DB_USER"), env("DB_PASS"), env("DB_NAME"))
+    }
+    func query($q) { return db_prepare($this->dbh, $q) }
+}

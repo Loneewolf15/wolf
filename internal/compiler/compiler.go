@@ -22,10 +22,11 @@ import (
 
 // Compiler orchestrates the full Wolf compilation pipeline.
 type Compiler struct {
-	StrictMode bool
-	OutDir     string // default: wolf_out/
-	Verbose    bool
-	Config     *config.WolfConfig // loaded from wolf.config + env vars
+	StrictMode  bool
+	OutDir      string // default: wolf_out/
+	Verbose     bool
+	Config      *config.WolfConfig // loaded from wolf.config + env vars
+	ProjectRoot string             // Root directory of the project for autodiscovery
 }
 
 // New creates a Compiler with defaults and no config file.
@@ -45,17 +46,20 @@ func NewWithConfig(projectRoot string) (*Compiler, error) {
 		return nil, fmt.Errorf("configuration error: %w", err)
 	}
 	return &Compiler{
-		OutDir:     cfg.Build.OutDir,
-		StrictMode: cfg.Build.StrictMode,
-		Config:     cfg,
+		OutDir:      cfg.Build.OutDir,
+		StrictMode:  cfg.Build.StrictMode,
+		Config:      cfg,
+		ProjectRoot: projectRoot,
 	}, nil
 }
 
 // CompileResult holds the output of a compilation.
 type CompileResult struct {
-	LLVMSource string   // generated LLVM IR
-	OutputPath string   // path to compiled binary
-	Errors     []string // compilation errors (human-readable)
+	LLVMSource    string   // generated LLVM IR
+	OutputPath    string   // path to compiled binary
+	Errors        []string // compilation errors (human-readable)
+	RequiresCurl  bool     // AST auto-linking flag for HTTP features
+	RequiresRedis bool     // AST auto-linking flag for Redis features
 }
 
 // Compile runs the full pipeline: source → tokens → AST → resolve → typecheck → WIR → LLVM IR.
@@ -88,7 +92,10 @@ func (c *Compiler) Compile(source, filename string) (*CompileResult, error) {
 
 	fmt.Printf(">> Phase 2.5: AutoDiscover\n")
 	// Phase 2.5: Auto-Discover Libraries and Controllers
-	projectRoot := filepath.Dir(filename)
+	projectRoot := c.ProjectRoot
+	if projectRoot == "" {
+		projectRoot = filepath.Dir(filename)
+	}
 	discoveredASTs, err := c.AutoDiscover(projectRoot)
 	if err != nil {
 		result.Errors = append(result.Errors, err.Error())
@@ -156,10 +163,19 @@ func (c *Compiler) Compile(source, filename string) (*CompileResult, error) {
 	llvmEmit := emitter.NewLLVMEmitter()
 	if c.Config != nil {
 		llvmEmit.CompilerMode = c.Config.Target.Mode
+		llvmEmit.Shared = c.Config.Target.Shared
 	}
 	llvmEmit.TargetTriple = detectTargetTriple()
 	llvmSource := llvmEmit.Emit(irProgram)
+	if len(llvmEmit.Errors) > 0 {
+		for _, errStr := range llvmEmit.Errors {
+			result.Errors = append(result.Errors, errStr)
+		}
+		return result, fmt.Errorf("LLVM emission errors: %d errors found", len(llvmEmit.Errors))
+	}
 	result.LLVMSource = llvmSource
+	result.RequiresCurl = llvmEmit.RequiresCurl
+	result.RequiresRedis = llvmEmit.RequiresRedis
 
 	fmt.Printf(">> Done returning\n")
 	return result, nil
@@ -320,8 +336,10 @@ func (c *Compiler) Build(source, filename string) (*CompileResult, error) {
 		dbLibs = ""
 	}
 
-	// Always link hiredis for Redis support
-	redisLibs := "-lhiredis"
+	redisLibs := ""
+	if result.RequiresRedis {
+		redisLibs = "-lhiredis"
+	}
 
 	// Production-grade library discovery via bundled static libs or pkg-config
 	staticDir := filepath.Join(assetsDir, "third_party", "lib")
@@ -392,8 +410,18 @@ func (c *Compiler) Build(source, filename string) (*CompileResult, error) {
 		rtArgs = append(rtArgs, strings.Fields(cryptoCflags)...)
 	}
 
-	// Enable real Redis implementation
-	rtArgs = append(rtArgs, "-DWOLF_REDIS_ENABLED")
+	// Enable real Redis implementation if AST detected it
+	if result.RequiresRedis {
+		rtArgs = append(rtArgs, "-DWOLF_REDIS_ENABLED")
+	}
+
+	httpClientEnabled := false
+	if result.RequiresCurl {
+		httpClientEnabled = true
+	}
+	if httpClientEnabled {
+		rtArgs = append(rtArgs, "-DWOLF_HTTP_CLIENT_ENABLED")
+	}
 
 	// Bake wolf.config values into the runtime as -D constants.
 	// This is how pool size, timeouts, credentials, and server limits
@@ -409,6 +437,10 @@ func (c *Compiler) Build(source, filename string) (*CompileResult, error) {
 	}
 	if os.Getenv("WOLF_TSAN") != "" {
 		rtArgs = append(rtArgs, "-fsanitize=thread", "-fno-omit-frame-pointer")
+	}
+
+	if c.Config != nil && c.Config.Target.Shared {
+		rtArgs = append(rtArgs, "-DWOLF_HOST_SHELL")
 	}
 
 	// Get cache key BEFORE adding dynamic paths
@@ -452,7 +484,19 @@ func (c *Compiler) Build(source, filename string) (*CompileResult, error) {
 
 	// Link everything into final binary
 	binaryPath := filepath.Join(outDir, baseName)
-	linkArgs := []string{"-o", binaryPath, objFile, runtimeObj, "-pthread", "-g"}
+	if c.Config != nil && c.Config.Target.Shared {
+		binaryPath += ".so"
+	}
+
+	var linkArgs []string
+	if c.Config != nil && c.Config.Target.Shared {
+		linkArgs = []string{"-shared", "-fPIC", "-o", binaryPath, objFile, "-g"}
+		if runtime.GOOS == "darwin" {
+			linkArgs = append(linkArgs, "-undefined", "dynamic_lookup")
+		}
+	} else {
+		linkArgs = []string{"-o", binaryPath, objFile, runtimeObj, "-pthread", "-g"}
+	}
 
 	if os.Getenv("WOLF_ASAN") != "" {
 		linkArgs = append(linkArgs, "-fsanitize=address")
@@ -467,7 +511,9 @@ func (c *Compiler) Build(source, filename string) (*CompileResult, error) {
 	}
 
 	linkArgs = append(linkArgs, strings.Fields(dbLibs)...)
-	linkArgs = append(linkArgs, strings.Fields(redisLibs)...)
+	if redisLibs != "" {
+		linkArgs = append(linkArgs, strings.Fields(redisLibs)...)
+	}
 	linkArgs = append(linkArgs, strings.Fields(cryptoLibs)...)
 	// Auto-extract rpath from -L flags in dbLibs so binary finds the DB library at runtime
 	for _, field := range strings.Fields(dbLibs) {
@@ -479,12 +525,57 @@ func (c *Compiler) Build(source, filename string) (*CompileResult, error) {
 	}
 
 	if runtime.GOOS == "linux" || runtime.GOOS == "darwin" {
-		linkArgs = append(linkArgs, "-lm", "-lcurl")
+		linkArgs = append(linkArgs, "-lm")
+		if httpClientEnabled {
+			linkArgs = append(linkArgs, "-lcurl")
+		}
 	}
 
 	linkCmd := exec.Command(cc, linkArgs...)
 	if out, err := linkCmd.CombinedOutput(); err != nil {
 		return result, fmt.Errorf("linking failed: %s\n%s", err, string(out))
+	}
+
+	if c.Config != nil && c.Config.Target.Shared {
+		// Also link wolf_host executable using just runtimeObj
+		hostPath := filepath.Join(outDir, "wolf_host")
+
+		hostLinkArgs := []string{"-o", hostPath, runtimeObj, "-pthread", "-g", "-rdynamic"}
+		if runtime.GOOS == "darwin" {
+			// -rdynamic on mac is sometimes -Wl,-export_dynamic
+			// actually clang supports -rdynamic directly on macOS usually.
+		}
+		if os.Getenv("WOLF_ASAN") != "" {
+			hostLinkArgs = append(hostLinkArgs, "-fsanitize=address")
+		}
+		if os.Getenv("WOLF_TSAN") != "" {
+			hostLinkArgs = append(hostLinkArgs, "-fsanitize=thread")
+		}
+		if prioritizedPath != "" {
+			hostLinkArgs = append(hostLinkArgs, prioritizedPath)
+		}
+		hostLinkArgs = append(hostLinkArgs, strings.Fields(dbLibs)...)
+		if redisLibs != "" {
+			hostLinkArgs = append(hostLinkArgs, strings.Fields(redisLibs)...)
+		}
+		hostLinkArgs = append(hostLinkArgs, strings.Fields(cryptoLibs)...)
+		for _, field := range strings.Fields(dbLibs) {
+			if strings.HasPrefix(field, "-L") {
+				libPath := strings.TrimPrefix(field, "-L")
+				libPath = strings.TrimSuffix(libPath, "/")
+				hostLinkArgs = append(hostLinkArgs, "-Wl,-rpath,"+libPath)
+			}
+		}
+		if runtime.GOOS == "linux" || runtime.GOOS == "darwin" {
+			hostLinkArgs = append(hostLinkArgs, "-lm", "-ldl")
+			if httpClientEnabled {
+				hostLinkArgs = append(hostLinkArgs, "-lcurl")
+			}
+		}
+		hostCmd := exec.Command(cc, hostLinkArgs...)
+		if out, err := hostCmd.CombinedOutput(); err != nil {
+			return result, fmt.Errorf("wolf_host linking failed: %s\n%s", err, string(out))
+		}
 	}
 
 	result.OutputPath = binaryPath

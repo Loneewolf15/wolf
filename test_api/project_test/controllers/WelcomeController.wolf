@@ -1,0 +1,8 @@
+class WelcomeController extends Controller {
+    func index() {
+        $this->sendResponse(true, "Welcome to project_test API", {
+            "version": "1.0.0",
+            "status": "online"
+        }, 200)
+    }
+}

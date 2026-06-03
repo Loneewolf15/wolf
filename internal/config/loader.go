@@ -339,6 +339,12 @@ func applyKey(cfg *WolfConfig, section, key, val string, line int) error {
 				return errorf("expected true/false, got %q", val)
 			}
 			cfg.Build.StrictMode = b
+		case "http_client":
+			b, err := parseBool(val)
+			if err != nil {
+				return errorf("expected true/false, got %q", val)
+			}
+			cfg.Build.HTTPClient = b
 		default:
 			return errorf("unknown key")
 		}
@@ -443,6 +449,7 @@ func overlayEnv(cfg *WolfConfig) {
 	boolEnv("BUILD_OPTIMISE", &cfg.Build.Optimise)
 	boolEnv("BUILD_KEEP_LL", &cfg.Build.KeepLL)
 	boolEnv("BUILD_STRICT_MODE", &cfg.Build.StrictMode)
+	boolEnv("BUILD_HTTP_CLIENT", &cfg.Build.HTTPClient)
 }
 
 // validate checks that required fields are coherent.
