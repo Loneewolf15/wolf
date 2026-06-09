@@ -2,27 +2,18 @@
 
 > Updated every session via `/wrap-up`. Read via `/resume`.
 
-## Current Sprint: Sprint 8 — Language Completeness (Phase 2 Kick-Off) 🔄
+## Current Sprint: Sprint 9 — Ecosystem (Phase 3 Kick-Off) 🔄
 
 ### Active Tasks
 | Task | Status | Blocking |
 |------|--------|---------|
-| Outbound HTTP Client (STDLIB-06) | ✅ Done | — |
-| URL & Network Utilities (STDLIB-06b) | ✅ Done | — |
-| Closures & First-Class Functions | ✅ Done | — |
-| Error Handling (try/catch) | ✅ Done | — |
+| `__class` key filtering in `wolf_json_encode_map` | 🔄 Pending | — |
+| `wolf install` package registry spec | 🔄 Pending | — |
+| Wolf LSP + VS Code foundation | 🔄 Pending | — |
 | Real MSSQL implementation | 🔄 Deferred | freetds-dev |
-| Interfaces / Traits (Phase 2) | ✅ Done | — |
-| Generics (Phase 2) | ✅ Done | — |
-| Structured Concurrency & Scheduler (Phase 2) | ✅ Done | — |
-| Package System (Phase 2) | ✅ Done | — |
-| `protected` visibility — `43_visibility.wolf` full E2E | ✅ Done | — |
-| HTTP Client conditional compile flag (`WOLF_HTTP_CLIENT_ENABLED`) | 🔄 Pending | — |
-| `wolf_req_arena.active` guard in `wolf_db_escape` | 🔄 Pending | — |
-| Write `ir/clone.go` AST unit tests | ✅ Done | — |
-| Phase 2 io_uring Streaming Multipart Parser | 🔄 Pending | — |
 
 ## Completed Sprints
+- [x] **Sprint 8: Language Completeness** (Phase 2) — 2026-06-09
 - [x] **Sprint 6: Native Foundations** (WebSocket, HTTP Client, Math/Stats) — 2026-03-26
 - [x] **Sprint 5: File Uploads & Metal-Ready** — 2026-03-25
 - [x] **Sprint 4: Technical Debt** — 2026-03-25
@@ -51,14 +42,20 @@ graph TD
 ```
 
 ### Next Unblocked Tasks
-1. BUG-052: `wolf_qb_where` with NULL conn produces silent empty-string WHERE values.
-2. `wolf_req_arena.active` guard in `wolf_db_escape`: assert/check before allocating, log fatal if not live.
-3. `__class` key filtering in `wolf_json_encode_map`.
-4. Binary size investigation: curl isolation (`WOLF_HTTP_CLIENT_ENABLED` compile flag).
-
-
+1. `__class` key filtering in `wolf_json_encode_map`.
+2. `wolf install` package registry specs.
+3. Wolf LSP + VS Code foundation.
 
 ## Session History
+
+### 2026-06-09 (Session 28 — LLVM Emitter Hardening & Preamble Fixes)
+**Done:**
+- Completely mitigated BUG-052 (Query builder silent failure on `NULL` connection) by implementing thread-local error poisoning flag and active arena guards.
+- Fixed `emitReturn` emitting `ret ptr` inside `void`-declared functions (BUG-072).
+- Added missing `strcmp` declaration to LLVM preamble (BUG-073) and fixed double `wolf_` prefix in dynamic dispatch emitter (BUG-074).
+- Verified `WOLF_HTTP_CLIENT_ENABLED` compile flag isolation and Phase 2 `io_uring` HTTP engine streaming multipart parser.
+- **Sprint 8 Complete — Phase 2 Language Completeness Shipped!**
+
 
 ### 2026-06-03 (Session 27 — HMR Dev Server Pathing & LLVM Emitter Fixes)
 **Done:**

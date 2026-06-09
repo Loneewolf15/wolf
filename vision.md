@@ -182,7 +182,7 @@ Wolf is built in phases. Each phase gate is a testable, shippable milestone.
 - Security: SQL injection prevention, path traversal hardening, arena slab proofs,
   Argon2id at OWASP standard, AES-256-GCM, HKDF key derivation
 
-### Phase 2 — Language Completeness 🔄 (Current)
+### Phase 2 — Language Completeness ✅ (Complete)
 *What it proves: Wolf is a complete programming language.*
 
 - Interfaces, generics (monomorphised), closures, first-class functions
@@ -191,10 +191,9 @@ Wolf is built in phases. Each phase gate is a testable, shippable milestone.
 - Enums, protected visibility, structured concurrency
 - Outbound HTTP client (`libcurl`), URL/network utilities
 - `wolf dev` HMR dev server with live reload
-- Remaining: `WOLF_HTTP_CLIENT_ENABLED` compile flag, `io_uring` streaming multipart,
-  `wolf_req_arena.active` guard
+- `WOLF_HTTP_CLIENT_ENABLED` compile flag, `io_uring` streaming multipart, `wolf_req_arena.active` guard
 
-### Phase 3 — Ecosystem
+### Phase 3 — Ecosystem 🔄 (Current)
 *What it proves: Wolf can serve a team, not just a solo developer.*
 
 - `wolf install` and package registry

@@ -1,5 +1,29 @@
 # Wolf Bugs Fixed — Cumulative Log
 
+## Session 2026-06-09 (Session 28 — LLVM Emitter Hardening)
+
+### BUG-072: `emitReturn` emits `ret ptr` inside `void`-declared functions
+- **Class:** P0 🔴 Compiler Panic (LLVM `value doesn't match function result type 'void'`)
+- **Root cause:** `emitReturn` inferred the return type from the expression (`ptr`) and emitted `ret ptr %tN` inside a `define void @f()`. Triggered in void controller methods containing early-return guards like `return $this->RouteProtection()` where `RouteProtection()` returns `ptr`.
+- **Fix:** Added void short-circuit in `emitReturn`: when `e.currentRetType == "void"`, emit `ret void` immediately after evaluating the expression (for side-effects) and return.
+- **File:** `internal/emitter/llvm_emitter.go`
+
+### BUG-073: Missing `declare i32 @strcmp(ptr, ptr)` in LLVM preamble
+- **Class:** P0 🔴 Compiler Panic (LLVM `use of undefined value '@strcmp'`)
+- **Root cause:** ADR-020 dynamic class dispatch emits `call i32 @strcmp` (raw libc) but only `wolf_strcmp` was declared in the preamble.
+- **Fix:** Added `declare i32 @strcmp(ptr, ptr)` to the LLVM preamble.
+- **File:** `internal/emitter/llvm_emitter.go`
+
+### BUG-074: Double `wolf_` prefix in ADR-020 dynamic dispatch emitter
+- **Class:** P0 🔴 Compiler Panic (LLVM `use of undefined value '@wolf_wolf_db_bind'`)
+- **Root cause:** Dynamic dispatch emitter blindly applied `"wolf_" + callee`. When `callee` was already a qualified stdlib name like `"wolf_db_bind"` from `funcSigs`, this produced `wolf_wolf_db_bind`.
+- **Fix:** Applied `!strings.HasPrefix(emitName, "wolf_")` guard before prefixing — consistent with all other emitter sites.
+- **File:** `internal/emitter/llvm_emitter.go`
+
+### BUG-052 — CLOSED ✅
+- **Class:** P1 🟠 Runtime Stability / Security (previously Open)
+- **Status:** Confirmed implemented and verified. `qb->poisoned` flag, `wolf_throw()` on NULL conn, arena active guard all in place. BUG-052 is closed.
+
 ## Session 2026-06-03 (Session 27 — HMR Dev Server Pathing & LLVM Emitter Fixes)
 
 ### BUG-070: LLVM Emitter returns `void` inside `ptr` methods missing explicit returns
@@ -289,9 +313,9 @@
 
 ## Status Ledger
 
-- Total bugs fixed: **55** (BUG-001 through BUG-071, including N-series omissions)
-- E2E tests: **All 60+ passing, 100% WIR Statement Coverage**
-- Open: BUG-052
+- Total bugs fixed: **58** (BUG-001 through BUG-074, including N-series omissions)
+- E2E tests: **10/10 Phase 2 tests passing** (`01_hello`, `14_classes`, `36_closures`, `39_interfaces`, `41_enums`, `42_try_catch`, `43_visibility`, `44_package_system`, `52_supervise`, `54_cpu_preempt`)
+- Open: **None** (BUG-052 closed ✅)
 - Next Bloodhound Sweep: Monitor for `libcurl` multi-handle leakage if we move from synchronous `easy` interface to asynchronous.
 ---
 

@@ -1,27 +1,17 @@
-# Handoff — 2026-06-03
+# Session 28 Handoff — Phase 2 Shipped
 
-## Where We Left Off
-Successfully completed Phase 2 native HMR (Hot Module Replacement) compiler integration! We resolved the AutoDiscover project root resolution bugs, which prevented `wolf dev` from finding library and controller files when launched from a subdirectory (`public/index.wolf`). We also diagnosed and fixed a critical LLVM Emitter panic (`undefined value @index` and `value doesn't match function result type 'ptr'`) which was caused by missing `currentRetType` isolation inside `emitConstructor`. The HMR server now perfectly compiles, links, and hosts `app.so` dynamically using the C runtime host. 
+## What Was Accomplished
+- **BUG-052 Resolved:** Confirmed implementation of Query Builder NULL connection poisoning (`wolf_throw()`, `qb->poisoned`) and `wolf_db_escape` arena active guards to prevent silent execution and memory corruption.
+- **LLVM Emitter Hardening:** Fixed void return type mismatch (BUG-072), added missing `strcmp` declaration to LLVM preamble (BUG-073), and fixed double `wolf_` prefix in ADR-020 dynamic class dispatch (BUG-074).
+- **Phase 2 Completion:** Verified `WOLF_HTTP_CLIENT_ENABLED` compile flag isolation and `io_uring` HTTP streaming parser integration.
+- **Sprint 8 Completed:** Shipped "Phase 2 Language Completeness" milestone! 
 
-## Commits This Session
-```
-e92ad2f fix(compiler): resolve HMR AutoDiscover root pathing and LLVM ptr implicit return validation
-```
+## Current State
+- All 10/10 Phase 2 E2E tests are passing (`01_hello` through `54_cpu_preempt`).
+- All internal compiler tests are 100% green.
+- `plan.md` and `vision.md` updated to reflect the transition to Phase 3.
 
-## Tests Status
-- Go Unit Tests: Pending run/validation. E2E tests are taking slightly longer to boot locally, but no regressions were introduced to the AST or LLVM structure for standard E2E tests.
-- HMR Integration: Tested manually via `wolf dev` and verified API JSON output.
-
-## Next Immediate Task
-- **BUG-052**: Address `wolf_qb_where` with NULL conn producing silent empty-string WHERE values. 
-- Implement `wolf_req_arena.active` guard in `wolf_db_escape` to proactively assert/check before allocating arena memory, triggering a fatal log if the arena is not live.
-
-## Open Issues / Watch Out For
-- **E2E Timeout Flakiness**: The `go test ./e2e/...` test suite can occasionally hang for 30+ seconds due to port binding collisions or OS scheduling. Run with `-short` or specific `-run` flags if iteration speed drops.
-- **LLVM Void vs Ptr Returns**: When working in `llvm_emitter.go`, always ensure `e.currentRetType` is preserved and restored if generating localized functions or anonymous execution blocks, as trailing error checks rely heavily on this state to decide between `ret void` and `ret ptr null`.
-
-## Relevant Files Modified This Session
-- `internal/compiler/compiler.go`
-- `cmd/wolf/dev.go`
-- `internal/emitter/ir_emitter.go`
-- `internal/emitter/llvm_emitter.go`
+## Next Steps (Sprint 9 — Ecosystem)
+1. Implement `__class` key filtering in `wolf_json_encode_map`.
+2. Define the `wolf install` package registry specs.
+3. Establish the Wolf LSP + VS Code extension foundation.
