@@ -8,8 +8,9 @@ description: Start a Wolf development session — reads vault context and picks 
 Reads the Wolf Vault to give full context on the project state before any work begins.
 
 // turbo
-1. Read the execution plan and last handoff:
+1. Read the north star and execution plan:
 ```
+cat /home/askme/Pictures/wolf-lang/vision.md
 cat /home/askme/Pictures/wolf-lang/.wolf-vault/Execution/plan.md
 cat /home/askme/Pictures/wolf-lang/.wolf-vault/Sessions/latest_handoff.md 2>/dev/null || echo "(no handoff yet — fresh session)"
 ```
