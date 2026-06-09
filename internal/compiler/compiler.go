@@ -246,7 +246,34 @@ func (c *Compiler) Build(source, filename string) (*CompileResult, error) {
 		hasGoPlugin = true
 	}
 
-	// Compile LLVM IR to object file
+	// ── P0: LLVM Optimizer Pass ─────────────────────────────────────────────
+	// When opt is available and optimisation is enabled, run the full LLVM
+	// middle-end pipeline (O3) on the .ll before handing it to llc.
+	// This enables: TCO, loop unrolling, constant folding, function inlining,
+	// SROA, GVN, and all standard LLVM optimization passes.
+	// Gracefully falls back to the raw .ll if opt is not installed.
+	optimise := c.Config == nil || c.Config.Build.Optimise // default: true
+	llOrBcFile := llFile // llc will read this; may be upgraded to .bc after opt
+	if optimise && hasOpt() {
+		optLevel := "-O3"
+		bcFile := filepath.Join(outDir, baseName+".bc")
+		fmt.Printf(">> Running opt %s (.ll → .bc)\n", optLevel)
+		optCmd := exec.Command("opt", optLevel, "-o", bcFile, llFile)
+		if out, err := optCmd.CombinedOutput(); err != nil {
+			// opt failed — warn and proceed with unoptimized IR
+			if c.Verbose {
+				fmt.Printf("wolf: opt failed (falling back to unoptimized IR): %s\n%s\n", err, string(out))
+			}
+		} else {
+			llOrBcFile = bcFile // hand the optimized bitcode to llc
+			if c.Verbose {
+				fmt.Printf("wolf: opt %s applied → %s\n", optLevel, bcFile)
+			}
+		}
+		fmt.Printf(">> opt finished\n")
+	}
+
+	// Compile LLVM IR (or optimized bitcode) to object file
 	objFile := filepath.Join(outDir, baseName+".o")
 	compiled := false
 
@@ -256,7 +283,7 @@ func (c *Compiler) Build(source, filename string) (*CompileResult, error) {
 	fmt.Printf(">> Testing hasLLC\n")
 	if hasLLC() {
 		fmt.Printf(">> Running llc\n")
-		llcCmd := exec.Command("llc", "-filetype=obj", "-relocation-model=pic", "-o", objFile, llFile)
+		llcCmd := exec.Command("llc", "-filetype=obj", "-relocation-model=pic", "-o", objFile, llOrBcFile)
 		if out, err := llcCmd.CombinedOutput(); err != nil {
 			compileErrors = append(compileErrors, fmt.Sprintf("llc error: %s\n%s", err, string(out)))
 			if c.Verbose {
@@ -265,37 +292,41 @@ func (c *Compiler) Build(source, filename string) (*CompileResult, error) {
 		} else {
 			compiled = true
 			if c.Verbose {
-				fmt.Printf("wolf: compiled .ll → .o via llc\n")
+				fmt.Printf("wolf: compiled → .o via llc\n")
 			}
 		}
 		fmt.Printf(">> llc finished\n")
 	}
 
 	fmt.Printf(">> Checking compiled\n")
-	// Strategy 2: Use clang to compile .ll directly
+	// Strategy 2: Use clang to compile .ll/.bc directly
 	if !compiled && hasClang() {
-		fmt.Printf(">> Running clang (ll -> o)\n")
-		clangCmd := exec.Command("clang", "-c", "-O2", "-o", objFile, llFile)
+		fmt.Printf(">> Running clang (→ o)\n")
+		clangOptFlag := "-O0"
+		if optimise {
+			clangOptFlag = "-O3"
+		}
+		clangCmd := exec.Command("clang", "-c", clangOptFlag, "-o", objFile, llOrBcFile)
 		if out, err := clangCmd.CombinedOutput(); err != nil {
 			compileErrors = append(compileErrors, fmt.Sprintf("clang error: %s\n%s", err, string(out)))
 			if c.Verbose {
-				fmt.Printf("wolf: clang .ll compilation failed: %s\n%s\n", err, string(out))
+				fmt.Printf("wolf: clang compilation failed: %s\n%s\n", err, string(out))
 			}
 		} else {
 			compiled = true
 			if c.Verbose {
-				fmt.Printf("wolf: compiled .ll → .o via clang\n")
+				fmt.Printf("wolf: compiled → .o via clang\n")
 			}
 		}
 	}
 
-	// Strategy 3: Use llvm-as + llc pipeline
+	// Strategy 3: Use llvm-as + llc pipeline (raw .ll only — opt already ran above)
 	if !compiled {
 		fmt.Printf(">> Running llvm-as\n")
-		bcFile := filepath.Join(outDir, baseName+".bc")
-		llvmAsCmd := exec.Command("llvm-as", "-o", bcFile, llFile)
+		bcFallback := filepath.Join(outDir, baseName+"_as.bc")
+		llvmAsCmd := exec.Command("llvm-as", "-o", bcFallback, llFile)
 		if asOut, err := llvmAsCmd.CombinedOutput(); err == nil {
-			llcCmd := exec.Command("llc", "-filetype=obj", "-relocation-model=pic", "-o", objFile, bcFile)
+			llcCmd := exec.Command("llc", "-filetype=obj", "-relocation-model=pic", "-o", objFile, bcFallback)
 			if llcOut, err := llcCmd.CombinedOutput(); err == nil {
 				compiled = true
 			} else {
@@ -750,6 +781,17 @@ func hasLLC() bool {
 func hasClang() bool {
 	_, err := exec.LookPath("clang")
 	return err == nil
+}
+
+// hasOpt returns true if the LLVM `opt` optimizer is available on PATH.
+// Tries the unversioned name first, then common versioned suffixes.
+func hasOpt() bool {
+	for _, name := range []string{"opt", "opt-15", "opt-14", "opt-16", "opt-17", "opt-18"} {
+		if _, err := exec.LookPath(name); err == nil {
+			return true
+		}
+	}
+	return false
 }
 
 func detectTargetTriple() string {

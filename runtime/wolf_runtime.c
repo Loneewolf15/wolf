@@ -2193,13 +2193,21 @@ static char* wolf_json_encode_map(wolf_map_t* m) {
     wolf_strbuf_t* buf = wolf_strbuf_new();
     if (!buf) return wolf_req_strdup("{}");
     wolf_strbuf_append(buf, "{");
+    int64_t written = 0;
     for (int64_t i = 0; i < n; i++) {
-        if (i > 0) wolf_strbuf_append(buf, ",");
+        const char* key = m->keys[order[i]];
+        // Strip internal compiler metadata keys — never expose these in JSON output.
+        // __class is set by the LLVM emitter on every object map for type dispatch.
+        if (key && strncmp(key, "__class", 7) == 0 && (key[7] == '\0' || key[7] == '_')) {
+            continue;
+        }
+        if (written > 0) wolf_strbuf_append(buf, ",");
         wolf_strbuf_append(buf, "\"");
-        wolf_strbuf_append(buf, m->keys[order[i]]);
+        wolf_strbuf_append(buf, key);
         wolf_strbuf_append(buf, "\":");
         char* val = wolf_json_encode_value(m->values[order[i]]);
         wolf_strbuf_append(buf, val);
+        written++;
     }
     wolf_strbuf_append(buf, "}");
     return wolf_strbuf_take(buf);

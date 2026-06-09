@@ -9,8 +9,11 @@
 #include <unistd.h>
 #include <stdint.h>
 
-#define WOLF_TASK_STACK_SIZE (64 * 1024) // 64KB fixed stack per task
-#define WOLF_MAX_TASKS_PER_CORE 16
+#define WOLF_TASK_STACK_SIZE        (64 * 1024) // 64KB fixed stack per task
+#define WOLF_MAX_TASKS_PER_CORE     16
+// Backpressure: max spin attempts when all slots are occupied before giving up.
+// Each attempt drains completed tasks; this allows burst spawning to self-regulate.
+#define WOLF_SPAWN_BACKPRESSURE_RETRIES 32
 
 typedef struct {
     ucontext_t ctx;         // POSIX ucontext for stack switching
@@ -37,6 +40,10 @@ typedef enum {
 static __thread WolfSuperviseStrategy wolf_current_strategy = WOLF_SUPERVISE_RESTART;
 static __thread int                   wolf_current_max_retries = 3;
 static __thread int                   wolf_supervise_retry_counts[WOLF_MAX_TASKS_PER_CORE];
+
+// Forward declaration — wolf_task_wait_all is defined later in this file
+// but called from wolf_spawn_task's backpressure loop.
+static void wolf_task_wait_all_internal(void);
 
 void wolf_supervise_begin(int64_t strategy, int64_t max_retries) {
     wolf_current_strategy = (WolfSuperviseStrategy)strategy;
@@ -124,8 +131,33 @@ void wolf_spawn_task(wolf_closure_t* closure) {
     }
 
     if (task_id == -1) {
-        fprintf(stderr, "[WOLF-SCHEDULER] Error: Max tasks reached on thread. Exiting.\n");
-        exit(EXIT_FAILURE);
+        // Backpressure: try to drain completed tasks and reclaim a slot.
+        // This prevents a 'spawn bomb' from crashing the process.
+        for (int attempt = 0; attempt < WOLF_SPAWN_BACKPRESSURE_RETRIES && task_id == -1; attempt++) {
+            // Reclaim any slots that are finished
+            for (int i = 0; i < WOLF_MAX_TASKS_PER_CORE; i++) {
+                if (wolf_task_pool[i].in_use && wolf_task_pool[i].done) {
+                    wolf_task_pool[i].in_use = 0;
+                }
+            }
+            // Try again
+            for (int i = 0; i < WOLF_MAX_TASKS_PER_CORE; i++) {
+                if (!wolf_task_pool[i].in_use || wolf_task_pool[i].done) {
+                    task_id = i;
+                    break;
+                }
+            }
+            // Yield to let running tasks complete if still full
+            if (task_id == -1) {
+                wolf_task_wait_all_internal();
+            }
+        }
+        if (task_id == -1) {
+            fprintf(stderr, "[WOLF-SCHEDULER] spawn backpressure limit reached "
+                            "(WOLF_MAX_TASKS_PER_CORE=%d). Task dropped.\n",
+                            WOLF_MAX_TASKS_PER_CORE);
+            return; // drop gracefully instead of crashing the process
+        }
     }
 
     WolfTaskSchedulerEntry* t = &wolf_task_pool[task_id];
@@ -161,7 +193,7 @@ void wolf_spawn_task(wolf_closure_t* closure) {
     }
 }
 
-void wolf_task_wait_all(void) {
+static void wolf_task_wait_all_internal(void) {
     // Basic scheduler loop: keep yielding until no tasks are strictly 'in_use' && !'done'
     int pending = 1;
     while (pending) {
@@ -188,6 +220,10 @@ void wolf_task_wait_all(void) {
             wolf_task_pool[i].in_use = 0;
         }
     }
+}
+
+void wolf_task_wait_all(void) {
+    wolf_task_wait_all_internal();
 }
 
 #endif /* WOLF_FREESTANDING */
