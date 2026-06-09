@@ -37,6 +37,8 @@ type LLVMEmitter struct {
 	RequiresCurl    bool              // flag if outbound HTTP features are used
 	RequiresRedis   bool              // flag if Redis features are used
 	Shared          bool              // if true, emit wolf_app_main instead of main
+	CgoFuncs        []CGOFunction     // parsed CGO functions to declare
+	cgoFuncsMap     map[string]bool   // quick lookup for CGO functions
 }
 
 // NewLLVMEmitter creates a new LLVM IR emitter.
@@ -181,6 +183,11 @@ func (e *LLVMEmitter) Emit(program *ir.Program) string {
 	// Swap buffers: emit body first to collect string constants
 	mainBuf := &e.buf
 	e.buf = bodyBuf
+
+	e.cgoFuncsMap = make(map[string]bool)
+	for _, f := range e.CgoFuncs {
+		e.cgoFuncsMap[f.Name] = true
+	}
 
 	// Pre-populate all signatures so forward references work
 	for _, fn := range program.Functions {
@@ -345,6 +352,43 @@ func (e *LLVMEmitter) Emit(program *ir.Program) string {
 	e.writeln("declare ptr @wolf_int_to_string(i64)")
 	e.writeln("declare ptr @wolf_float_to_string(double)")
 	e.writeln("declare ptr @wolf_bool_to_string(i1)")
+
+	// CGO Plugins
+	if len(e.CgoFuncs) > 0 {
+		e.writeln("; --- Go Plugin Exports ---")
+		for _, f := range e.CgoFuncs {
+			// Convert C types to LLVM types
+			// For simplicity: char* -> ptr, void -> void, int/GoInt -> i64, etc.
+			retType := "ptr"
+			if strings.Contains(f.ReturnType, "int") {
+				retType = "i64"
+			} else if f.ReturnType == "void" {
+				retType = "void"
+			}
+
+			var llvmParams []string
+			for _, p := range f.Params {
+				pType := "ptr"
+				if strings.Contains(p, "int") {
+					pType = "i64"
+				}
+				llvmParams = append(llvmParams, pType)
+			}
+			
+			e.writeln(fmt.Sprintf("declare %s @%s(%s)", retType, f.Name, strings.Join(llvmParams, ", ")))
+			
+			// Also register it in funcSigs so that users can call it!
+			var irParams []*ir.Param
+			for _, p := range llvmParams {
+				irParams = append(irParams, &ir.Param{Type: p})
+			}
+			e.funcSigs[f.Name] = &ir.Function{
+				Name: f.Name,
+				ReturnTypes: []string{retType},
+				Params: irParams,
+			}
+		}
+	}
 	e.writeln("")
 
 	e.writeln("; --- Math ---")
@@ -1135,11 +1179,29 @@ func (e *LLVMEmitter) emitStmt(stmt ir.Stmt) {
 		e.emitWaitAll(s)
 	case *ir.TraceStmt:
 		e.emitTrace(s)
+	case *ir.MLBlockStmt:
+		e.emitMLBlock(s)
 	case *ir.RawStmt:
 		e.writelnIndent(fmt.Sprintf("; raw: %s", s.Code))
 	default:
 		e.writelnIndent(fmt.Sprintf("; TODO: unhandled statement type %T", stmt))
 	}
+}
+
+func (e *LLVMEmitter) emitMLBlock(s *ir.MLBlockStmt) {
+	e.writelnIndent("; --- @ml block ---")
+	
+	// Create string constants for the Python source and an empty JSON input
+	srcLabel := e.addStringConst(s.PythonCode)
+	jsonLabel := e.addStringConst("{}") // MVP: empty input vars
+	
+	// Call the native CGO exported ML bridge
+	resReg := e.nextLocal()
+	e.writelnIndent(fmt.Sprintf("%s = call ptr @WolfML_Exec(ptr %s, ptr %s)", resReg, srcLabel, jsonLabel))
+	
+	// Print the output of the Python script to stdout for the MVP implementation
+	e.writelnIndent(fmt.Sprintf("call void @wolf_print_str(ptr %s)", resReg))
+	e.writelnIndent("call void @wolf_println()")
 }
 
 func (e *LLVMEmitter) emitSupervise(s *ir.SuperviseStmt) {
@@ -2278,7 +2340,7 @@ func (e *LLVMEmitter) emitCallExpr(call *ir.CallExpr) string {
 		}
 
 		switch ident.Name {
-		case "fmt_Println", "fmt.Println", "wolf_print", "print":
+		case "fmt_Println", "fmt.Println", "wolf_print", "print", "println", "wolf_println":
 			return e.emitPrintCall(call)
 		}
 	}
@@ -2977,7 +3039,7 @@ func (e *LLVMEmitter) emitCallExpr(call *ir.CallExpr) string {
 			calleeName = "wolf_presence_list"
 		default:
 			// Prefix all other Wolf-defined global functions
-			if calleeName != "" && !strings.HasPrefix(calleeName, "wolf_") {
+			if !strings.HasPrefix(calleeName, "wolf_") && !e.cgoFuncsMap[calleeName] {
 				calleeName = "wolf_" + calleeName
 			}
 		}

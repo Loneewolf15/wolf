@@ -42,31 +42,38 @@ func (c *Compiler) AutoDiscover(projectRoot string) ([]*parser.Program, error) {
 			if err != nil {
 				return err
 			}
-			if !info.IsDir() && strings.HasSuffix(info.Name(), ".wolf") {
-				if c.Verbose {
-					fmt.Printf("wolf: auto-discovered %s\n", path)
-				}
+			if !info.IsDir() {
+				if strings.HasSuffix(info.Name(), ".wolf") {
+					if c.Verbose {
+						fmt.Printf("wolf: auto-discovered %s\n", path)
+					}
 
-				source, readErr := os.ReadFile(path)
-				if readErr != nil {
-					return fmt.Errorf("failed to read %s: %w", path, readErr)
-				}
+					source, readErr := os.ReadFile(path)
+					if readErr != nil {
+						return fmt.Errorf("failed to read %s: %w", path, readErr)
+					}
 
-				// Lex
-				l := lexer.New(string(source), info.Name())
-				tokens, lexErrs := l.Tokenize()
-				if len(lexErrs) > 0 {
-					return fmt.Errorf("lex error in %s: %v", path, lexErrs)
-				}
+					// Lex
+					l := lexer.New(string(source), info.Name())
+					tokens, lexErrs := l.Tokenize()
+					if len(lexErrs) > 0 {
+						return fmt.Errorf("lex error in %s: %v", path, lexErrs)
+					}
 
-				// Parse
-				p := parser.New(tokens, info.Name())
-				fileAST, parseErrs := p.Parse()
-				if len(parseErrs) > 0 {
-					return fmt.Errorf("parse error in %s: %v", path, parseErrs)
-				}
+					// Parse
+					p := parser.New(tokens, info.Name())
+					fileAST, parseErrs := p.Parse()
+					if len(parseErrs) > 0 {
+						return fmt.Errorf("parse error in %s: %v", path, parseErrs)
+					}
 
-				asts = append(asts, fileAST)
+					asts = append(asts, fileAST)
+				} else if strings.HasSuffix(info.Name(), ".go") {
+					if c.Verbose {
+						fmt.Printf("wolf: auto-discovered Go plugin %s\n", path)
+					}
+					c.GoPlugins = append(c.GoPlugins, path)
+				}
 			}
 			return nil
 		})

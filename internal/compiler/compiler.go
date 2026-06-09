@@ -14,6 +14,7 @@ import (
 
 	"github.com/wolflang/wolf/internal/config"
 	"github.com/wolflang/wolf/internal/emitter"
+	"github.com/wolflang/wolf/internal/ir"
 	"github.com/wolflang/wolf/internal/lexer"
 	"github.com/wolflang/wolf/internal/parser"
 	"github.com/wolflang/wolf/internal/resolver"
@@ -27,6 +28,7 @@ type Compiler struct {
 	Verbose     bool
 	Config      *config.WolfConfig // loaded from wolf.config + env vars
 	ProjectRoot string             // Root directory of the project for autodiscovery
+	GoPlugins   []string           // Discovered .go files for Zero-Friction C/Go interop
 }
 
 // New creates a Compiler with defaults and no config file.
@@ -158,9 +160,16 @@ func (c *Compiler) Compile(source, filename string) (*CompileResult, error) {
 	irEmit := emitter.New(res)
 	irProgram := irEmit.Emit(program)
 
+	fmt.Printf(">> Phase 5.5: Build Go Plugins (c-archive)\n")
+	cgoFuncs, err := c.buildGoPlugins(irProgram)
+	if err != nil {
+		return result, fmt.Errorf("go plugin build error: %w", err)
+	}
+
 	fmt.Printf(">> Phase 6: Emit LLVM\n")
 	// Phase 6: Emit LLVM IR (WIR → .ll)
 	llvmEmit := emitter.NewLLVMEmitter()
+	llvmEmit.CgoFuncs = cgoFuncs
 	if c.Config != nil {
 		llvmEmit.CompilerMode = c.Config.Target.Mode
 		llvmEmit.Shared = c.Config.Target.Shared
@@ -229,6 +238,13 @@ func (c *Compiler) Build(source, filename string) (*CompileResult, error) {
 		return result, fmt.Errorf("failed to extract compiler assets: %w", err)
 	}
 	runtimeC := filepath.Join(assetsDir, "runtime", "wolf_runtime.c")
+
+	// Determine if we need to link the Go Plugin Archive
+	goPluginArchive := filepath.Join(assetsDir, "..", "cache", "goplugin.a")
+	hasGoPlugin := false
+	if _, err := os.Stat(goPluginArchive); err == nil {
+		hasGoPlugin = true
+	}
 
 	// Compile LLVM IR to object file
 	objFile := filepath.Join(outDir, baseName+".o")
@@ -491,11 +507,17 @@ func (c *Compiler) Build(source, filename string) (*CompileResult, error) {
 	var linkArgs []string
 	if c.Config != nil && c.Config.Target.Shared {
 		linkArgs = []string{"-shared", "-fPIC", "-o", binaryPath, objFile, "-g"}
+		if hasGoPlugin {
+			linkArgs = append(linkArgs, goPluginArchive)
+		}
 		if runtime.GOOS == "darwin" {
 			linkArgs = append(linkArgs, "-undefined", "dynamic_lookup")
 		}
 	} else {
 		linkArgs = []string{"-o", binaryPath, objFile, runtimeObj, "-pthread", "-g"}
+		if hasGoPlugin {
+			linkArgs = append(linkArgs, goPluginArchive)
+		}
 	}
 
 	if os.Getenv("WOLF_ASAN") != "" {
@@ -814,6 +836,116 @@ func runtimeCacheKey(runtimeC string, flags []string) (string, error) {
 		h.Write([]byte(flag))
 	}
 	return fmt.Sprintf("%x", h.Sum(nil))[:16], nil
+}
+
+// loadConfig reads the config file safely
+func (c *Compiler) loadConfig(path string) error {
+	cfg, err := config.Load(path)
+	if err != nil {
+		return err
+	}
+	c.Config = cfg
+	return nil
+}
+
+// buildGoPlugins handles the "Zero-Friction C/Go Interop" compilation.
+// It creates a synthetic main.go that imports all discovered .go plugins and mlbridge,
+// compiles them into a c-archive, and parses the resulting header.
+func (c *Compiler) buildGoPlugins(irProg *ir.Program) ([]emitter.CGOFunction, error) {
+	if len(c.GoPlugins) == 0 && !irProg.RequiresMLBridge {
+		return nil, nil
+	}
+
+	assetsDir, err := ensureAssetsExtracted()
+	if err != nil {
+		return nil, err
+	}
+	cacheDir := filepath.Join(assetsDir, "..", "cache", "go_src")
+	if err := os.MkdirAll(cacheDir, 0755); err != nil {
+		return nil, err
+	}
+
+	// Copy internal/mlbridge/bridge.go to cacheDir as main_mlbridge.go
+	bridgeSrcPath := filepath.Join(c.ProjectRoot, "internal", "mlbridge", "bridge.go")
+	if bSrc, err := os.ReadFile(bridgeSrcPath); err == nil {
+		bSrcStr := strings.Replace(string(bSrc), "package mlbridge", "package main", 1)
+		os.WriteFile(filepath.Join(cacheDir, "main_mlbridge.go"), []byte(bSrcStr), 0644)
+	} else {
+		// Fallback for tests or local execution
+		bSrc, err := os.ReadFile(filepath.Join("..", "internal", "mlbridge", "bridge.go"))
+		if err == nil {
+			bSrcStr := strings.Replace(string(bSrc), "package mlbridge", "package main", 1)
+			os.WriteFile(filepath.Join(cacheDir, "main_mlbridge.go"), []byte(bSrcStr), 0644)
+		} else {
+			fmt.Printf("wolf warning: could not locate internal/mlbridge/bridge.go for ML compilation\n")
+		}
+	}
+
+	// Create a synthetic main.go
+	mainGoPath := filepath.Join(cacheDir, "main.go")
+	mainContent := "package main\n\nimport \"C\"\n\n"
+
+	for i, pluginPath := range c.GoPlugins {
+		// Read the plugin, replace `package [whatever]` with `package main`
+		srcBytes, err := os.ReadFile(pluginPath)
+		if err != nil {
+			return nil, err
+		}
+		
+		lines := strings.Split(string(srcBytes), "\n")
+		for j, line := range lines {
+			if strings.HasPrefix(strings.TrimSpace(line), "package ") {
+				lines[j] = "package main"
+				break
+			}
+		}
+
+		pluginDest := filepath.Join(cacheDir, fmt.Sprintf("plugin_%d.go", i))
+		if err := os.WriteFile(pluginDest, []byte(strings.Join(lines, "\n")), 0644); err != nil {
+			return nil, err
+		}
+	}
+
+	mainContent += "\nfunc main() {}\n"
+	if err := os.WriteFile(mainGoPath, []byte(mainContent), 0644); err != nil {
+		return nil, err
+	}
+
+	// Initialize go mod to avoid go.mod not found errors
+	if _, err := os.Stat(filepath.Join(cacheDir, "go.mod")); os.IsNotExist(err) {
+		cmdMod := exec.Command("go", "mod", "init", "goplugin")
+		cmdMod.Dir = cacheDir
+		if out, err := cmdMod.CombinedOutput(); err != nil {
+			return nil, fmt.Errorf("failed to init go mod: %s\n%s", err, string(out))
+		}
+	}
+
+	archivePath := filepath.Join(assetsDir, "..", "cache", "goplugin.a")
+
+	// Build the archive
+	cmd := exec.Command("go", "build", "-buildmode=c-archive", "-o", archivePath, ".")
+	cmd.Dir = cacheDir
+	cmd.Env = append(os.Environ(), "CGO_ENABLED=1")
+
+	if out, err := cmd.CombinedOutput(); err != nil {
+		return nil, fmt.Errorf("failed to compile go plugins: %s\n%s", err, string(out))
+	}
+
+	// Parse the header
+	headerPath := filepath.Join(assetsDir, "..", "cache", "goplugin.h")
+	funcs, err := emitter.ParseCGOHeader(headerPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse cgo header: %w", err)
+	}
+
+	if c.Verbose {
+		fmt.Printf("wolf: generated goplugin.a with %d exported functions\n", len(funcs))
+		for _, f := range funcs {
+			fmt.Printf("  - %s %s(%v)\n", f.ReturnType, f.Name, f.Params)
+		}
+	}
+
+	return funcs, nil
 }
 
 // copyFile copies src to dst, creating dst if needed.

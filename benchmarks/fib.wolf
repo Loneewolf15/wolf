@@ -1,0 +1,12 @@
+func fib($n) {
+    if ($n <= 1) {
+        return $n
+    }
+    return fib($n - 1) + fib($n - 2)
+}
+
+$start = time_ms()
+$res = fib(35)
+$end = time_ms()
+println("Result: " .. $res)
+println("Time: " .. ($end - $start) .. " ms")

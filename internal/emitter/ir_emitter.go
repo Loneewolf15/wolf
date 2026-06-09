@@ -13,10 +13,11 @@ import (
 
 // IREmitter transforms a Wolf AST into WIR.
 type IREmitter struct {
-	resolver     *resolver.Resolver
-	imports      map[string]bool // track needed imports
-	declared     map[string]bool // track declared variables (for := vs =)
-	httpHandlers map[string]bool // track functions used as HTTP handlers
+	resolver         *resolver.Resolver
+	imports          map[string]bool // track needed imports
+	declared         map[string]bool // track declared variables (for := vs =)
+	httpHandlers     map[string]bool // track functions used as HTTP handlers
+	RequiresMLBridge bool            // track if @ml blocks are used
 }
 
 // New creates a new IREmitter.
@@ -71,6 +72,7 @@ func (e *IREmitter) Emit(program *parser.Program) *ir.Program {
 	}
 
 	e.instantiateTemplates(irProg)
+	irProg.RequiresMLBridge = e.RequiresMLBridge
 
 	return irProg
 }
@@ -222,8 +224,19 @@ func (e *IREmitter) emitStmt(stmt parser.Statement) ir.Stmt {
 		return e.emitDestructure(s)
 	case *parser.BlockStmt:
 		return e.emitBlock(s)
+	case *parser.MLBlockStmt:
+		return e.emitMLBlock(s)
 	default:
 		return nil
+	}
+}
+
+func (e *IREmitter) emitMLBlock(s *parser.MLBlockStmt) ir.Stmt {
+	e.RequiresMLBridge = true
+	return &ir.MLBlockStmt{
+		PythonCode: s.Body,
+		InputVars:  s.InVars,
+		OutputVars: s.OutVars,
 	}
 }
 

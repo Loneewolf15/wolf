@@ -858,7 +858,12 @@ func (p *Parser) consumeRawBlock() string {
 				break
 			}
 		}
-		raw += tok.Literal + " "
+		
+		if tok.Type == lexer.TOKEN_STRING {
+			raw += "\"" + tok.Literal + "\" "
+		} else {
+			raw += tok.Literal + " "
+		}
 	}
 	return raw
 }

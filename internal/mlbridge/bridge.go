@@ -8,6 +8,7 @@
 package mlbridge
 
 import (
+	"C"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -279,4 +280,42 @@ func findPython() (string, error) {
 		}
 	}
 	return "", fmt.Errorf("Python 3 not found. Install Python 3.8+ to use @ml blocks")
+}
+
+// ========== CGO Export for LLVM Runtime ==========
+
+var defaultBridge *Bridge
+var bridgeOnce sync.Once
+
+//export WolfML_Exec
+func WolfML_Exec(pythonSrc *C.char, inJsonStr *C.char) *C.char {
+	bridgeOnce.Do(func() {
+		defaultBridge = New()
+		_ = defaultBridge.Init()
+	})
+
+	src := C.GoString(pythonSrc)
+	inJson := C.GoString(inJsonStr)
+
+	var inVars map[string]interface{}
+	if inJson != "" && inJson != "{}" {
+		if err := json.Unmarshal([]byte(inJson), &inVars); err != nil {
+			return C.CString(fmt.Sprintf("{\"__wolf_error\": \"failed to parse input vars: %v\"}", err))
+		}
+	}
+
+	// We pass empty outVars here since we just want to execute and get all output if possible,
+	// but currently the Bridge requires explicit outVars.
+	// For the LLVM native bridge, we can just extract everything that was defined or changed.
+	// As a simple hack for Option B, we just execute the code. If the user wants specific output,
+	// they can manually print it as JSON, or we can use a wrapper that dumps locals().
+	
+	// Temporary: execute and capture output
+	res, err := defaultBridge.Exec(src, inVars, nil)
+	if err != nil {
+		return C.CString(fmt.Sprintf("{\"__wolf_error\": %q}", err.Error()))
+	}
+	
+	// Just return the stdout for now
+	return C.CString(res.Stdout)
 }

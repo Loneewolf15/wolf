@@ -8,9 +8,10 @@ type Program struct {
 	Package    string
 	Imports    []string
 	Interfaces []*Interface
-	Functions  []*Function
-	Classes    []*Class
-	InitStmts  []Stmt // top-level statements placed in main() or init()
+	Functions        []*Function
+	Classes          []*Class
+	InitStmts        []Stmt // top-level statements placed in main() or init()
+	RequiresMLBridge bool   // true if @ml block is used
 }
 
 // Function represents a Go function.
@@ -212,6 +213,15 @@ type TraceStmt struct {
 }
 
 func (*TraceStmt) irStmt() { _ = 0 }
+
+// MLBlockStmt implements the @ml Python block in WIR.
+type MLBlockStmt struct {
+	PythonCode string
+	InputVars  []string
+	OutputVars []string
+}
+
+func (*MLBlockStmt) irStmt() { _ = 0 }
 
 // ========== Expressions ==========
 

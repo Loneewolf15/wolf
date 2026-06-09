@@ -65,6 +65,7 @@ func TestEndToEnd(t *testing.T) {
 			// Compile
 			startBuild := time.Now()
 			c := compiler.New()
+			c.ProjectRoot = testdata
 			// Set OutDir exactly 3 levels deep from repo root: e2e/testdata/wolf_out_X
 			c.OutDir = filepath.Join(testdata, "wolf_out_"+name)
 			defer os.RemoveAll(c.OutDir)
