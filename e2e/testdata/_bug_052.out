@@ -1,0 +1,1 @@
+BUG-052: NULL conn QB produces silent empty WHERE values

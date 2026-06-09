@@ -434,6 +434,7 @@ func (e *LLVMEmitter) Emit(program *ir.Program) string {
 	e.writeln("declare i64 @wolf_strrpos(ptr, ptr)")
 	e.writeln("declare i64 @wolf_str_word_count(ptr)")
 	e.writeln("declare i64 @wolf_strcmp(ptr, ptr)")
+	e.writeln("declare i32 @strcmp(ptr, ptr)") // BUG-073: ADR-020 class dispatch uses raw libc strcmp
 	e.writeln("declare ptr @wolf_nl2br(ptr)")
 	e.writeln("declare ptr @wolf_strip_tags(ptr)")
 	e.writeln("declare ptr @wolf_htmlspecialchars(ptr)")
@@ -1532,6 +1533,18 @@ func (e *LLVMEmitter) emitReturn(s *ir.ReturnStmt) {
 	} else {
 		llType := e.inferExprType(s.Values[0])
 		val := e.emitExpr(s.Values[0], llType)
+
+		// BUG-072 FIX: void functions must always emit "ret void" regardless of
+		// what the return expression evaluates to. Emitting "ret ptr %x" inside
+		// "define void @f()" is an LLVM type mismatch error. This happens in void
+		// controller methods that contain early-return guards like:
+		//   return $this->RouteProtection()
+		// where RouteProtection() returns ptr but the caller is void.
+		if e.currentRetType == "void" {
+			_ = val // expression already emitted above for side-effects
+			e.writelnIndent("ret void")
+			return
+		}
 
 		// If the function explicitly or implicitly returns ptr, coerce mismatching types
 		if e.currentRetType == "ptr" {
@@ -3795,7 +3808,13 @@ func (e *LLVMEmitter) emitMethodCall(mc *ir.MethodCallExpr) string {
 			callArgs = append(callArgs, fmt.Sprintf("ptr %s", argVal))
 		}
 
-		emitName := "wolf_" + callee
+		// BUG-074 FIX: callee may already be a fully-qualified stdlib name (e.g.
+		// "wolf_db_bind" from funcSigs). Blindly prepending "wolf_" produces
+		// "wolf_wolf_db_bind". Apply the same HasPrefix guard used elsewhere.
+		emitName := callee
+		if !strings.HasPrefix(emitName, "wolf_") {
+			emitName = "wolf_" + emitName
+		}
 		callRes := e.nextLocal()
 		e.writelnIndent(fmt.Sprintf("%s = call ptr @%s(%s)", callRes, emitName, strings.Join(callArgs, ", ")))
 		e.writelnIndent(fmt.Sprintf("store ptr %s, ptr %s", callRes, retAlloca))
