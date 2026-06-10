@@ -15,7 +15,7 @@ import (
 func (c *Compiler) AutoDiscover(projectRoot string) ([]*parser.Program, error) {
 	var asts []*parser.Program
 
-	dirsToScan := []string{"packages", "config", "libraries", "models", "controllers", "services", "helpers"}
+	dirsToScan := []string{"packages", "config", "libraries", "models", "controllers", "services", "helpers", ".wolf_modules"}
 
 	// Determine WOLF_ROOT for standard library discovery
 	wolfRoot := os.Getenv("WOLF_ROOT")

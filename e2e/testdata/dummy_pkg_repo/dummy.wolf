@@ -1,0 +1,1 @@
+class DummyPkg { func greet() { print("Hello from DummyPkg") } }

@@ -12,6 +12,7 @@ import (
 	"github.com/wolflang/wolf/internal/compiler"
 	"github.com/wolflang/wolf/internal/config"
 	"github.com/wolflang/wolf/internal/migrate"
+	"github.com/wolflang/wolf/internal/packager"
 	"github.com/wolflang/wolf/internal/pythonenv"
 	"github.com/wolflang/wolf/internal/scaffold"
 )
@@ -499,7 +500,19 @@ database layer, and embeds CPython for native ML library access.`,
 	}
 	skillsCmd.AddCommand(skillsGetCmd)
 
-	rootCmd.AddCommand(buildCmd, runCmd, fmtCmd, testCmd, pythonCmd, newCmd, generateCmd, migrateCmd, tokensCmd, skillsCmd, devCmd)
+	installCmd := &cobra.Command{
+		Use:   "install",
+		Short: "Install dependencies defined in wolf.mod",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			projectRoot, err := os.Getwd()
+			if err != nil {
+				return fmt.Errorf("cannot determine working directory: %w", err)
+			}
+			return packager.Install(projectRoot)
+		},
+	}
+
+	rootCmd.AddCommand(buildCmd, runCmd, fmtCmd, testCmd, pythonCmd, newCmd, generateCmd, migrateCmd, tokensCmd, skillsCmd, devCmd, installCmd)
 
 	if err := rootCmd.Execute(); err != nil {
 		os.Exit(1)

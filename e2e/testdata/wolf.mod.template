@@ -1,0 +1,5 @@
+module = "e2e-tests"
+wolf = "0.1"
+
+[require]
+"file://{PWD}/dummy_pkg_repo" = "main"

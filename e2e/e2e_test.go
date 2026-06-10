@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/wolflang/wolf/internal/compiler"
+	"github.com/wolflang/wolf/internal/packager"
 )
 
 // isHTTPTest returns true for tests that require a live network or bind a
@@ -44,6 +45,30 @@ func TestEndToEnd(t *testing.T) {
 				if os.Getenv("WOLF_HTTP_TEST") != "1" {
 					t.Skip("skipping HTTP/WS e2e locally (set WOLF_HTTP_TEST=1 to run)")
 				}
+			}
+
+			if name == "45_package_install.wolf" {
+				// Setup wolf.mod dynamically
+				absTestdata, _ := filepath.Abs(testdata)
+				tmpl, _ := os.ReadFile(filepath.Join(testdata, "wolf.mod.template"))
+				modContent := strings.ReplaceAll(string(tmpl), "{PWD}", absTestdata)
+				os.WriteFile(filepath.Join(testdata, "wolf.mod"), []byte(modContent), 0644)
+				
+				// Ensure dummy_pkg_repo is a git repo so clone works
+				dummyRepo := filepath.Join(testdata, "dummy_pkg_repo")
+				exec.Command("git", "-C", dummyRepo, "init", "-b", "main").Run()
+				exec.Command("git", "-C", dummyRepo, "config", "user.name", "Test").Run()
+				exec.Command("git", "-C", dummyRepo, "config", "user.email", "test@test").Run()
+				exec.Command("git", "-C", dummyRepo, "add", ".").Run()
+				exec.Command("git", "-C", dummyRepo, "commit", "-m", "Init").Run()
+
+				// Run packager
+				if err := packager.Install(testdata); err != nil {
+					t.Fatalf("Failed to run wolf install: %v", err)
+				}
+				defer os.RemoveAll(filepath.Join(testdata, ".wolf_modules"))
+				defer os.Remove(filepath.Join(testdata, "wolf.mod"))
+				defer os.Remove(filepath.Join(testdata, "wolf.lock"))
 			}
 
 			wolfFile := filepath.Join(testdata, name)
