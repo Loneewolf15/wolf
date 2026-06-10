@@ -309,13 +309,13 @@ func WolfML_Exec(pythonSrc *C.char, inJsonStr *C.char) *C.char {
 	// For the LLVM native bridge, we can just extract everything that was defined or changed.
 	// As a simple hack for Option B, we just execute the code. If the user wants specific output,
 	// they can manually print it as JSON, or we can use a wrapper that dumps locals().
-	
+
 	// Temporary: execute and capture output
 	res, err := defaultBridge.Exec(src, inVars, nil)
 	if err != nil {
 		return C.CString(fmt.Sprintf("{\"__wolf_error\": %q}", err.Error()))
 	}
-	
+
 	// Just return the stdout for now
 	return C.CString(res.Stdout)
 }

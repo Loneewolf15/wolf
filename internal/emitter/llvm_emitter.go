@@ -420,7 +420,7 @@ func (e *LLVMEmitter) Emit(program *ir.Program) string {
 				}
 				llvmParams = append(llvmParams, pType)
 			}
-			
+
 			e.writeln(fmt.Sprintf("declare %s @%s(%s)", retType, f.Name, strings.Join(llvmParams, ", ")))
 		}
 	}
@@ -1240,15 +1240,15 @@ func (e *LLVMEmitter) emitStmt(stmt ir.Stmt) {
 
 func (e *LLVMEmitter) emitMLBlock(s *ir.MLBlockStmt) {
 	e.writelnIndent("; --- @ml block ---")
-	
+
 	// Create string constants for the Python source and an empty JSON input
 	srcLabel := e.addStringConst(s.PythonCode)
 	jsonLabel := e.addStringConst("{}") // MVP: empty input vars
-	
+
 	// Call the native CGO exported ML bridge
 	resReg := e.nextLocal()
 	e.writelnIndent(fmt.Sprintf("%s = call ptr @WolfML_Exec(ptr %s, ptr %s)", resReg, srcLabel, jsonLabel))
-	
+
 	// Print the output of the Python script to stdout for the MVP implementation
 	e.writelnIndent(fmt.Sprintf("call void @wolf_print_str(ptr %s)", resReg))
 	e.writelnIndent("call void @wolf_println()")

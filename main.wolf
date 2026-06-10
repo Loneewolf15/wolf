@@ -1,7 +1,0 @@
-# main.wolf
-# This file initializes the Wolf framework and starts the native HTTP server
-
-var $core = new Core()
-
-# Start the server on port 2006 (blocks execution)
-$core->init(2006)

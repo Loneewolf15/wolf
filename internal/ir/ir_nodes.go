@@ -5,9 +5,9 @@ package ir
 
 // Program is the top-level WIR node — a complete compilation unit.
 type Program struct {
-	Package    string
-	Imports    []string
-	Interfaces []*Interface
+	Package          string
+	Imports          []string
+	Interfaces       []*Interface
 	Functions        []*Function
 	Classes          []*Class
 	InitStmts        []Stmt // top-level statements placed in main() or init()

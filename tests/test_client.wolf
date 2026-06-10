@@ -1,2 +1,0 @@
-$res = wolf_http_get("http://example.com")
-print($res)

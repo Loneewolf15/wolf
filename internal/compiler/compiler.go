@@ -253,7 +253,7 @@ func (c *Compiler) Build(source, filename string) (*CompileResult, error) {
 	// SROA, GVN, and all standard LLVM optimization passes.
 	// Gracefully falls back to the raw .ll if opt is not installed.
 	optimise := c.Config == nil || c.Config.Build.Optimise // default: true
-	llOrBcFile := llFile // llc will read this; may be upgraded to .bc after opt
+	llOrBcFile := llFile                                   // llc will read this; may be upgraded to .bc after opt
 	if optimise && hasOpt() {
 		optLevel := "-O3"
 		bcFile := filepath.Join(outDir, baseName+".bc")
@@ -933,7 +933,7 @@ func (c *Compiler) buildGoPlugins(irProg *ir.Program) ([]emitter.CGOFunction, er
 		if err != nil {
 			return nil, err
 		}
-		
+
 		lines := strings.Split(string(srcBytes), "\n")
 		for j, line := range lines {
 			if strings.HasPrefix(strings.TrimSpace(line), "package ") {
