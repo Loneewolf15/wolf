@@ -39,6 +39,14 @@ type LLVMEmitter struct {
 	Shared          bool              // if true, emit wolf_app_main instead of main
 	CgoFuncs        []CGOFunction     // parsed CGO functions to declare
 	cgoFuncsMap     map[string]bool   // quick lookup for CGO functions
+
+	// intUnboxFuncs is the set of user-defined Wolf functions that are provably
+	// "integer-pure": every parameter is used only in integer arithmetic/comparison
+	// contexts, and every return value is a plain integer. Such functions are emitted
+	// with native i64 signatures instead of ptr, eliminating wolf_val_int() heap
+	// allocations on recursive integer-only paths (e.g. fib, factorials, counters).
+	// Populated during the pre-pass in Emit().
+	intUnboxFuncs map[string]bool
 }
 
 // NewLLVMEmitter creates a new LLVM IR emitter.
@@ -52,6 +60,7 @@ func NewLLVMEmitter() *LLVMEmitter {
 		declaredExterns: make(map[string]bool),
 		emittedTypes:    make(map[string]string),
 		funcWrappers:    make(map[string]bool),
+		intUnboxFuncs:   make(map[string]bool),
 	}
 	e.registerStdlib()
 	return e
@@ -187,6 +196,28 @@ func (e *LLVMEmitter) Emit(program *ir.Program) string {
 	e.cgoFuncsMap = make(map[string]bool)
 	for _, f := range e.CgoFuncs {
 		e.cgoFuncsMap[f.Name] = true
+
+		// Populate funcSigs so body emission knows the correct types
+		retType := "ptr"
+		if strings.Contains(strings.ToLower(f.ReturnType), "int") {
+			retType = "i64"
+		} else if f.ReturnType == "void" {
+			retType = "void"
+		}
+
+		var irParams []*ir.Param
+		for _, p := range f.Params {
+			pType := "ptr"
+			if strings.Contains(strings.ToLower(p), "int") {
+				pType = "i64"
+			}
+			irParams = append(irParams, &ir.Param{Type: pType})
+		}
+		e.funcSigs[f.Name] = &ir.Function{
+			Name:        f.Name,
+			ReturnTypes: []string{retType},
+			Params:      irParams,
+		}
 	}
 
 	// Pre-populate all signatures so forward references work
@@ -227,6 +258,21 @@ func (e *LLVMEmitter) Emit(program *ir.Program) string {
 				cls.Constructor = &copiedCtor
 				e.funcSigs[copiedCtor.Name] = cls.Constructor
 			}
+		}
+	}
+
+	// ── Integer Unboxing Pre-pass ──────────────────────────────────────────────
+	// Analyse every function and mark those that are integer-pure.
+	// A function is integer-pure when:
+	//   • All parameters have no explicit type annotation (Wolf default) AND
+	//     every use inside the body is an integer arithmetic/comparison context.
+	//   • Every return statement returns an integer-typed expression.
+	// We do a conservative approximation: if inferExprType of every return value
+	// in the body is i64 AND no parameter ever appears as a ptr argument to a
+	// call that expects ptr (e.g. wolf_map_set, string concat), mark it pure.
+	for _, fn := range program.Functions {
+		if isFuncIntegerPure(fn, e.funcSigs) {
+			e.intUnboxFuncs[fn.Name] = true
 		}
 	}
 
@@ -360,7 +406,7 @@ func (e *LLVMEmitter) Emit(program *ir.Program) string {
 			// Convert C types to LLVM types
 			// For simplicity: char* -> ptr, void -> void, int/GoInt -> i64, etc.
 			retType := "ptr"
-			if strings.Contains(f.ReturnType, "int") {
+			if strings.Contains(strings.ToLower(f.ReturnType), "int") {
 				retType = "i64"
 			} else if f.ReturnType == "void" {
 				retType = "void"
@@ -369,24 +415,13 @@ func (e *LLVMEmitter) Emit(program *ir.Program) string {
 			var llvmParams []string
 			for _, p := range f.Params {
 				pType := "ptr"
-				if strings.Contains(p, "int") {
+				if strings.Contains(strings.ToLower(p), "int") {
 					pType = "i64"
 				}
 				llvmParams = append(llvmParams, pType)
 			}
 			
 			e.writeln(fmt.Sprintf("declare %s @%s(%s)", retType, f.Name, strings.Join(llvmParams, ", ")))
-			
-			// Also register it in funcSigs so that users can call it!
-			var irParams []*ir.Param
-			for _, p := range llvmParams {
-				irParams = append(irParams, &ir.Param{Type: p})
-			}
-			e.funcSigs[f.Name] = &ir.Function{
-				Name: f.Name,
-				ReturnTypes: []string{retType},
-				Params: irParams,
-			}
 		}
 	}
 	e.writeln("")
@@ -841,6 +876,11 @@ func (e *LLVMEmitter) Emit(program *ir.Program) string {
 	e.writeln("declare ptr @wolf_build_query(ptr)")
 	e.writeln("declare ptr @wolf_dns_lookup(ptr)")
 	e.writeln("declare ptr @wolf_get_client_ip()")
+	e.writeln("declare i64 @wolf_socket_create(i64, i64, i64)")
+	e.writeln("declare i64 @wolf_socket_connect(i64, ptr, i64)")
+	e.writeln("declare i64 @wolf_socket_send(i64, ptr)")
+	e.writeln("declare ptr @wolf_socket_recv(i64, i64)")
+	e.writeln("declare void @wolf_socket_close(i64)")
 	e.writeln("")
 
 	// Closure function definitions (lifted anonymous functions)
@@ -958,9 +998,17 @@ func functionHasReturnValue(stmts []ir.Stmt) bool {
 
 func (e *LLVMEmitter) emitFunction(fn *ir.Function) {
 	// Build param list
+	// ── Integer Unboxing: promote param types if this function is integer-pure ──
+	// Instead of ptr, pure-integer params are emitted as i64, eliminating
+	// the wolf_val_int() boxing call on every recursive call edge.
 	params := make([]string, len(fn.Params))
+	paramLLTypes := make([]string, len(fn.Params))
 	for i, p := range fn.Params {
 		llType := e.wolfTypeToLLVM(p.Type)
+		if llType == "ptr" && e.intUnboxFuncs[fn.Name] {
+			llType = "i64" // unbox: integer-pure param
+		}
+		paramLLTypes[i] = llType
 		params[i] = fmt.Sprintf("%s %%%s.arg", llType, p.Name)
 	}
 
@@ -971,6 +1019,9 @@ func (e *LLVMEmitter) emitFunction(fn *ir.Function) {
 		// Wolf methods without explicit return types that return values
 		// should be promoted to ptr (the universal Wolf type)
 		retType = "ptr"
+		if e.intUnboxFuncs[fn.Name] {
+			retType = "i64" // unbox: integer-pure return
+		}
 	}
 
 	e.currentRetType = retType
@@ -989,10 +1040,9 @@ func (e *LLVMEmitter) emitFunction(fn *ir.Function) {
 		e.varClass["this"] = fn.Receiver
 	}
 
-	// Register parameters first
-	for _, p := range fn.Params {
-		llType := e.wolfTypeToLLVM(p.Type)
-		e.varTypes[p.Name] = llType
+	// Register parameters — use promoted i64 type for integer-pure functions
+	for i, p := range fn.Params {
+		e.varTypes[p.Name] = paramLLTypes[i]
 	}
 
 	// Pre-scan statements to find all local vars and determine their types
@@ -1003,9 +1053,9 @@ func (e *LLVMEmitter) emitFunction(fn *ir.Function) {
 		e.writelnIndent(fmt.Sprintf("%%%s = alloca %s", name, llType))
 	}
 
-	// Store args into parameter allocas
-	for _, p := range fn.Params {
-		llType := e.wolfTypeToLLVM(p.Type)
+	// Store args into parameter allocas — use the promoted type
+	for i, p := range fn.Params {
+		llType := paramLLTypes[i]
 		e.writelnIndent(fmt.Sprintf("store %s %%%s.arg, ptr %%%s", llType, p.Name, p.Name))
 	}
 
@@ -1448,6 +1498,10 @@ func (e *LLVMEmitter) inferExprType(expr ir.Expr) string {
 		return "ptr"
 	case *ir.CallExpr:
 		if ident, ok := ex.Callee.(*ir.Ident); ok {
+			// Integer-pure user-defined functions return i64 directly
+			if e.intUnboxFuncs[ident.Name] {
+				return "i64"
+			}
 			switch ident.Name {
 			case "time", "strtotime", "db_execute", "db_row_count", "db_last_insert_id",
 				"count", "strlen", "strpos", "strrpos", "str_word_count", "strcmp",
@@ -1464,11 +1518,13 @@ func (e *LLVMEmitter) inferExprType(expr ir.Expr) string {
 				"money_subtract", "wolf_money_subtract",
 				"money_multiply", "wolf_money_multiply",
 				"money_divide", "wolf_money_divide",
-				"money_percentage", "wolf_money_percentage":
+				"money_percentage", "wolf_money_percentage",
+				"socket_create", "wolf_socket_create", "socket_connect", "wolf_socket_connect", "socket_send", "wolf_socket_send":
 				return "i64"
 			case "wolf_http_request", "wolf_http_get", "wolf_http_post", "wolf_http_put", "wolf_http_delete", "wolf_http_patch",
 				"wolf_http_client_res_body", "wolf_http_client_res_json", "wolf_http_client_res_header",
-				"wolf_url_encode", "wolf_url_decode", "wolf_url_parse", "wolf_build_query", "wolf_dns_lookup", "wolf_get_client_ip", "http_query", "wolf_http_query", "redis_connect", "wolf_redis_connect", "redis_get", "wolf_redis_get":
+				"wolf_url_encode", "wolf_url_decode", "wolf_url_parse", "wolf_build_query", "wolf_dns_lookup", "wolf_get_client_ip", "http_query", "wolf_http_query", "redis_connect", "wolf_redis_connect", "redis_get", "wolf_redis_get",
+				"socket_recv", "wolf_socket_recv":
 				return "ptr"
 			case "date", "env", "session_get", "date_to_iso", "wolf_date_to_iso":
 				return "ptr"
@@ -2975,6 +3031,16 @@ func (e *LLVMEmitter) emitCallExpr(call *ir.CallExpr) string {
 			calleeName = "wolf_dns_lookup"
 		case "get_client_ip", "client_ip":
 			calleeName = "wolf_get_client_ip"
+		case "socket_create":
+			calleeName = "wolf_socket_create"
+		case "socket_connect":
+			calleeName = "wolf_socket_connect"
+		case "socket_send":
+			calleeName = "wolf_socket_send"
+		case "socket_recv":
+			calleeName = "wolf_socket_recv"
+		case "socket_close":
+			calleeName = "wolf_socket_close"
 
 		// --- JWT ---
 		case "sha512":
@@ -3065,6 +3131,37 @@ func (e *LLVMEmitter) emitCallExpr(call *ir.CallExpr) string {
 		}
 	}
 
+	// ── Integer Unboxing: fast-path for integer-pure user functions ──────────
+	// If this callee is a provably integer-pure Wolf function, we can call it
+	// with raw i64 arguments and expect an i64 return — no wolf_val_int() boxes.
+	origCalleeForUnbox := ""
+	if ident, okI := call.Callee.(*ir.Ident); okI {
+		origCalleeForUnbox = ident.Name
+	}
+	if e.intUnboxFuncs[origCalleeForUnbox] {
+		// Emit each arg as i64
+		unboxArgs := make([]string, len(call.Args))
+		for i, arg := range call.Args {
+			argType := e.inferExprType(arg)
+			val := e.emitExpr(arg, argType)
+			if argType == "ptr" {
+				// Arg came in as ptr — unbox to i64
+				casted := e.nextLocal()
+				e.writelnIndent(fmt.Sprintf("%s = call i64 @wolf_intval(ptr %s)", casted, val))
+				val = casted
+			} else if argType == "i1" {
+				casted := e.nextLocal()
+				e.writelnIndent(fmt.Sprintf("%s = zext i1 %s to i64", casted, val))
+				val = casted
+			}
+			unboxArgs[i] = fmt.Sprintf("i64 %s", val)
+		}
+		reg := e.nextLocal()
+		e.writelnIndent(fmt.Sprintf("%s = call i64 @%s(%s)", reg, calleeName, strings.Join(unboxArgs, ", ")))
+		e.emittedTypes[reg] = "i64"
+		return reg
+	}
+
 	args := make([]string, len(call.Args))
 	for i, arg := range call.Args {
 		expectedType := "ptr"
@@ -3110,6 +3207,20 @@ func (e *LLVMEmitter) emitCallExpr(call *ir.CallExpr) string {
 				}
 			case "wolf_redis_connect":
 				if i == 1 {
+					expectedType = "i64"
+				} else {
+					expectedType = "ptr"
+				}
+			case "wolf_socket_create", "wolf_socket_recv", "wolf_socket_close":
+				expectedType = "i64"
+			case "wolf_socket_connect":
+				if i == 0 || i == 2 {
+					expectedType = "i64"
+				} else {
+					expectedType = "ptr"
+				}
+			case "wolf_socket_send":
+				if i == 0 {
 					expectedType = "i64"
 				} else {
 					expectedType = "ptr"
@@ -3346,7 +3457,9 @@ func (e *LLVMEmitter) emitCallExpr(call *ir.CallExpr) string {
 			"wolf_qb_insert", "wolf_qb_update", "wolf_qb_delete",
 			// Money arithmetic — return i64 (cents)
 			"wolf_money_add", "wolf_money_subtract",
-			"wolf_money_multiply", "wolf_money_divide", "wolf_money_percentage":
+			"wolf_money_multiply", "wolf_money_divide", "wolf_money_percentage",
+			// Sockets
+			"wolf_socket_create", "wolf_socket_connect", "wolf_socket_send":
 			retType = "i64"
 		case "wolf_date_to_iso":
 			retType = "ptr"

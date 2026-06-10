@@ -4,9 +4,8 @@
 target triple = "x86_64-pc-linux-gnu"
 
 ; --- String Constants ---
-@.str.1 = private unnamed_addr constant [3 x i8] c"OK\00"
-@.str.2 = private unnamed_addr constant [10 x i8] c"Dummy_Api\00"
-@.str.3 = private unnamed_addr constant [11 x i8] c"Dummy Data\00"
+@.str.1 = private unnamed_addr constant [10 x i8] c"Dummy_Api\00"
+@.str.2 = private unnamed_addr constant [11 x i8] c"Dummy Data\00"
 
 ; --- External Runtime Functions ---
 declare void @wolf_print_str(ptr)
@@ -450,48 +449,19 @@ declare ptr @wolf_url_parse(ptr)
 declare ptr @wolf_build_query(ptr)
 declare ptr @wolf_dns_lookup(ptr)
 declare ptr @wolf_get_client_ip()
-
-
-define ptr @__wrapper_wolf_handler(ptr %__env_ignored, i64 %arg0, i64 %arg1) {
-entry:
-  %res = call ptr @wolf_handler(i64 %arg0, i64 %arg1)
-  ret ptr %res
-}
-define void @wolf_handler(i64 %req_id.arg, i64 %res_id.arg) {
-entry:
-  %req_id = alloca i64
-  %res_id = alloca i64
-  store i64 %req_id.arg, ptr %req_id
-  store i64 %res_id.arg, ptr %res_id
-  %t1 = load i64, ptr %res_id
-  %t2 = call ptr @wolf_http_res_status(i64 %t1, i64 200)
-  %t3 = call i1 @wolf_has_error()
-  br i1 %t3, label %err.true.1, label %err.false.2
-
-err.true.1:
-    ret void
-
-err.false.2:
-  %t4 = load i64, ptr %res_id
-  %t5 = getelementptr [3 x i8], ptr @.str.1, i64 0, i64 0
-  %t6 = call ptr @wolf_http_res_write(i64 %t4, ptr %t5)
-  %t7 = call i1 @wolf_has_error()
-  br i1 %t7, label %err.true.3, label %err.false.4
-
-err.true.3:
-    ret void
-
-err.false.4:
-  ret void
-}
+declare i64 @wolf_socket_create(i64, i64, i64)
+declare i64 @wolf_socket_connect(i64, ptr, i64)
+declare i64 @wolf_socket_send(i64, ptr)
+declare ptr @wolf_socket_recv(i64, i64)
+declare void @wolf_socket_close(i64)
 
 define i1 @wolf___compiler_dispatch_controller(ptr %c.arg, ptr %m.arg, ptr %args.arg, ptr %req.arg, ptr %res.arg) {
 entry:
+  %res = alloca ptr
   %c = alloca ptr
   %m = alloca ptr
   %args = alloca ptr
   %req = alloca ptr
-  %res = alloca ptr
   store ptr %c.arg, ptr %c
   store ptr %m.arg, ptr %m
   store ptr %args.arg, ptr %args
@@ -504,55 +474,69 @@ define ptr @wolf___compiler_create_model(ptr %name.arg) {
 entry:
   %name = alloca ptr
   store ptr %name.arg, ptr %name
-  %t8 = load ptr, ptr %name
-  %t9 = getelementptr [10 x i8], ptr @.str.2, i64 0, i64 0
-  %t11 = call i64 @wolf_strcmp(ptr %t8, ptr %t9)
-  %t10 = icmp eq i64 %t11, 0
-  br i1 %t10, label %if.then.5, label %if.end.6
-if.then.5:
-  %t12 = call ptr @wolf_NewDummy_Api()
-  %t13 = call i1 @wolf_has_error()
-  br i1 %t13, label %err.true.7, label %err.false.8
+  %t1 = load ptr, ptr %name
+  %t2 = getelementptr [10 x i8], ptr @.str.1, i64 0, i64 0
+  %t4 = call i64 @wolf_strcmp(ptr %t1, ptr %t2)
+  %t3 = icmp eq i64 %t4, 0
+  br i1 %t3, label %if.then.1, label %if.end.2
+if.then.1:
+  %t5 = call ptr @wolf_NewDummy_Api()
+  %t6 = call i1 @wolf_has_error()
+  br i1 %t6, label %err.true.3, label %err.false.4
 
-err.true.7:
+err.true.3:
     ret ptr null
 
-err.false.8:
-  ret ptr %t12
-  br label %if.end.6
-if.end.6:
+err.false.4:
+  ret ptr %t5
+  br label %if.end.2
+if.end.2:
   ret ptr null
 }
 
 define ptr @wolf_NewDummy_Api() {
 entry:
   %this = alloca ptr
-  %Dummy_Api.name_var = getelementptr [10 x i8], ptr @.str.2, i64 0, i64 0
-  %t14 = call ptr @wolf_class_create(ptr %Dummy_Api.name_var)
-  store ptr %t14, ptr %this
-  %t15 = load ptr, ptr %this
-  ret ptr %t15
+  %Dummy_Api.name_var = getelementptr [10 x i8], ptr @.str.1, i64 0, i64 0
+  %t7 = call ptr @wolf_class_create(ptr %Dummy_Api.name_var)
+  store ptr %t7, ptr %this
+  %t8 = load ptr, ptr %this
+  ret ptr %t8
 }
 
 define ptr @wolf_Dummy_Api_get(ptr %this.arg) {
 entry:
   %this = alloca ptr
   store ptr %this.arg, ptr %this
-  %t16 = getelementptr [11 x i8], ptr @.str.3, i64 0, i64 0
-  ret ptr %t16
+  %t9 = getelementptr [11 x i8], ptr @.str.2, i64 0, i64 0
+  ret ptr %t9
 }
 
 define i32 @main(i32 %argc, ptr %argv) {
 entry:
   call void @wolf_init_args(i32 %argc, ptr %argv)
-  %t17 = call ptr @wolf_closure_create(ptr @__wrapper_wolf_handler, i64 0)
-  %t18 = call ptr @wolf_http_serve(i64 9999, ptr %t17)
-  %t19 = call i1 @wolf_has_error()
-  br i1 %t19, label %err.true.9, label %err.false.10
+  %api = alloca ptr
+  %t10 = call ptr @wolf_NewDummy_Api()
+  %t11 = call i1 @wolf_has_error()
+  br i1 %t11, label %err.true.5, label %err.false.6
 
-err.true.9:
+err.true.5:
     ret i32 1
 
-err.false.10:
+err.false.6:
+  store ptr %t10, ptr %api
+  %t12 = load ptr, ptr %api
+  ; DEBUG ident.Name=api, varClass=Dummy_Api
+  ; DEBUG directName=Dummy_Api_get, foundInSigs=true
+  %t13 = call ptr @wolf_Dummy_Api_get(ptr %t12)
+  %t14 = call i1 @wolf_has_error()
+  br i1 %t14, label %err.true.7, label %err.false.8
+
+err.true.7:
+    ret i32 1
+
+err.false.8:
+  call void @wolf_print_str(ptr %t13)
+  call void @wolf_println()
   ret i32 0
 }

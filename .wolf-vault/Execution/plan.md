@@ -2,15 +2,24 @@
 
 > Updated every session via `/wrap-up`. Read via `/resume`.
 
-## Current Sprint: Sprint 9 — Ecosystem (Phase 3 Kick-Off) 🔄
+## Current Sprint: Sprint 9 — Package Registry MVP 🔄
 
 ### Active Tasks
 | Task | Status | Blocking |
 |------|--------|---------|
-| `__class` key filtering in `wolf_json_encode_map` | 🔄 Pending | — |
-| `wolf install` package registry spec | 🔄 Pending | — |
-| Wolf LSP + VS Code foundation | 🔄 Pending | — |
-| Real MSSQL implementation | 🔄 Deferred | freetds-dev |
+| Commit BUG-080/081/082 fixes | 🔄 **Next session first commit** | — |
+| `__class` key filter in `wolf_json_encode_map` | 🔄 Warm-up (15 min) | — |
+| Design `wolf.mod` spec | 🔄 Pending | — |
+| `internal/packager/registry.go` | 🔄 Pending | wolf.mod spec |
+| `internal/packager/fetcher.go` | 🔄 Pending | registry.go |
+| `internal/cli/install.go` + `wolf install` command | 🔄 Pending | fetcher.go |
+| `wolf install` E2E fixture test | 🔄 Pending | install.go |
+| Wolf LSP + VS Code foundation | ⏸ Deferred to Phase 11 | — |
+
+### Queen's Ruling — Sprint 9 Charter
+> `wolf install` (Package Manager MVP) is the sole primary track for Sprint 9.  
+> LSP is deferred. It is a multi-week build with zero user-facing value until there is a package ecosystem to navigate.  
+> `__class` JSON filter is a 15-minute pre-flight fix, not a sprint task.
 
 ## Completed Sprints
 - [x] **Sprint 8: Language Completeness** (Phase 2) — 2026-06-09
@@ -47,6 +56,15 @@ graph TD
 3. Wolf LSP + VS Code foundation.
 
 ## Session History
+
+### 2026-06-10 (Session 29 — Go Interop Stabilization & Sprint 9 Charter)
+**Done:**
+- Fixed BUG-080: CGO type mapping case-sensitivity (`GoInt` not matching `"int"` due to uppercase). Fixed with `strings.ToLower()`.
+- Fixed BUG-081: CGO `funcSigs` populated in preamble writer (runs after body emission). Moved signature registration to the TOP of `LLVMEmitter.Emit()`. Eliminated `ptr`→`GoInt` LLVM type mismatch and segfault in Go interop binaries.
+- Fixed BUG-082: `wolf_socket_create/connect/send` missing from `i64` return type registry. Fixed in `emitCallExpr` switch. `58_sockets.wolf` E2E now passes cleanly.
+- **Queen's ruling issued:** Sprint 9 primary track = `wolf install` Package Registry MVP. LSP deferred to Phase 11.
+- All `./internal/...` unit tests pass ✅. `58_sockets` and Go interop E2E verified individually ✅.
+- **NOTE:** Three fixes above are applied but uncommitted. Must commit at start of next session.
 
 ### 2026-06-09 (Session 28 — LLVM Emitter Hardening, Benchmarking & Wrap-Up)
 **Done:**

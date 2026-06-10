@@ -14,31 +14,31 @@
 >> llc finished
 >> Checking compiled
 >> Setting up wolf runtime args
-Error: failed to compile wolf runtime: exit status 1
-/tmp/wolf_compiler_assets/runtime/wolf_runtime.c:513:27: warning: call to undeclared function 'wolf_auto_thread_count'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration]
-    wolf_actual_threads = wolf_auto_thread_count();
-                          ^
-/tmp/wolf_compiler_assets/runtime/wolf_runtime.c:4355:25: warning: call to undeclared function 'wolf_map_get_str'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration]
-        const char* v = wolf_map_get_str(hm, k);
-                        ^
-/tmp/wolf_compiler_assets/runtime/wolf_runtime.c:4355:21: error: incompatible integer to pointer conversion initializing 'const char *' with an expression of type 'int' [-Wint-conversion]
-        const char* v = wolf_map_get_str(hm, k);
-                    ^   ~~~~~~~~~~~~~~~~~~~~~~~
-/tmp/wolf_compiler_assets/runtime/wolf_runtime.c:6637:20: error: static declaration of 'wolf_map_get_str' follows non-static declaration
-static const char* wolf_map_get_str(wolf_map_t* m, const char* key) {
-                   ^
-/tmp/wolf_compiler_assets/runtime/wolf_runtime.c:4355:25: note: previous implicit declaration is here
-        const char* v = wolf_map_get_str(hm, k);
-                        ^
-2 warnings and 2 errors generated.
+🐺 Wolf HTTP Engine — 4 cores, port 8082
+   Architecture: Thread-Per-Core + epoll (Phase 1)
+   Arena pool: 128 × 64KB per core
+   Send SIGTERM or Ctrl+C to shut down gracefully.
+[WOLF-ENGINE] Core 0 started (tid=139895364384448)
+[WOLF-ENGINE] Core 1 started (tid=139895355991744)
+[WOLF-ENGINE] Core 2 started (tid=139895347599040)
+[WOLF-ENGINE] Core 3 started (tid=139895339206336)
+[WOLF-WS] poller_add called fd=27 id=0
+[WOLF-WS] epoll_ctl ADD fd=27 id=0 rc=0
+[WOLF-WS] fd=27 registered into WS poller as slot 0
+[WOLF-ENGINE] Core 3 shutting down (served 0 requests)
+[WOLF-ENGINE] Core 2 shutting down (served 0 requests)
+[WOLF-ENGINE] Shutdown initiated...
+[WOLF-ENGINE] Core 1 shutting down (served 0 requests)
+[WOLF-ENGINE] Core 0 shutting down (served 0 requests)
+[WOLF-ENGINE] All cores stopped.
 
-Usage:
-  wolf run [file] [flags]
+[WOLF-ENGINE] Per-core stats:
+  Core 0: 0 requests, 0 B in, 0 B out
+  Core 1: 0 requests, 0 B in, 0 B out
+  Core 2: 0 requests, 0 B in, 0 B out
+  Core 3: 0 requests, 0 B in, 0 B out
+  Total:  0 requests, 0 B in, 0 B out
 
-Flags:
-  -h, --help   help for run
-
-Global Flags:
-      --strict    Enable strict type checking mode
-  -V, --verbose   Enable verbose output
-
+[WOLF-POOL] Destroying pool (10 slots)...
+[WOLF-POOL] Pool destroyed.
+[Wolf] Shutdown complete.

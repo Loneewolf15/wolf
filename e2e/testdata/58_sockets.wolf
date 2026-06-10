@@ -1,0 +1,30 @@
+AF_INET = 2
+SOCK_STREAM = 1
+
+fd = socket_create(AF_INET, SOCK_STREAM, 0)
+if fd < 0 {
+    print("Failed to create socket")
+    system_exit(1)
+}
+
+res = socket_connect(fd, "example.com", 80)
+if res < 0 {
+    print("Failed to connect")
+    system_exit(1)
+}
+
+req = "GET / HTTP/1.1\r\nHost: example.com\r\nConnection: close\r\n\r\n"
+sent = socket_send(fd, req)
+if sent <= 0 {
+    print("Failed to send")
+    system_exit(1)
+}
+
+response = socket_recv(fd, 256)
+if strpos(response, "HTTP/1.1 200 OK") >= 0 {
+    print("SUCCESS_HTTP_200")
+} else {
+    print("FAILED_RESPONSE")
+}
+
+socket_close(fd)

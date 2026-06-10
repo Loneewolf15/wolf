@@ -285,6 +285,13 @@ const char* wolf_build_query(void* map_ptr);
 const char* wolf_dns_lookup(const char* hostname);
 const char* wolf_get_client_ip(void);
 
+/* --- STDLIB-07: Native OS Sockets (Pure Wolf Networking) --- */
+int64_t     wolf_socket_create(int64_t domain, int64_t type, int64_t protocol);
+int64_t     wolf_socket_connect(int64_t fd, const char* host, int64_t port);
+int64_t     wolf_socket_send(int64_t fd, const char* data);
+const char* wolf_socket_recv(int64_t fd, int64_t size);
+void        wolf_socket_close(int64_t fd);
+
 /* --- Phase 1 Stdlib: Strings --- */
 const char* wolf_strtoupper(const char* s);
 const char* wolf_strtolower(const char* s);

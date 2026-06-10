@@ -1,0 +1,2 @@
+res = MyGoFunc(10, 20)
+print(res)

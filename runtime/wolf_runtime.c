@@ -2197,8 +2197,9 @@ static char* wolf_json_encode_map(wolf_map_t* m) {
     for (int64_t i = 0; i < n; i++) {
         const char* key = m->keys[order[i]];
         // Strip internal compiler metadata keys — never expose these in JSON output.
-        // __class is set by the LLVM emitter on every object map for type dispatch.
-        if (key && strncmp(key, "__class", 7) == 0 && (key[7] == '\0' || key[7] == '_')) {
+        // All double-underscore-prefixed keys (__class, __type, etc.) are reserved
+        // for the LLVM emitter and must never appear in user-visible JSON serialisation.
+        if (key && strncmp(key, "__", 2) == 0) {
             continue;
         }
         if (written > 0) wolf_strbuf_append(buf, ",");
@@ -4311,6 +4312,58 @@ const char* wolf_dns_lookup(const char* hostname) {
     free(ctx);
     
     return success ? wolf_req_strdup(ip) : "";
+}
+
+/* --- STDLIB-07: Native OS Sockets (Pure Wolf Networking) --- */
+int64_t wolf_socket_create(int64_t domain, int64_t type, int64_t protocol) {
+    int fd = socket((int)domain, (int)type, (int)protocol);
+    return (int64_t)fd;
+}
+
+int64_t wolf_socket_connect(int64_t fd, const char* host, int64_t port) {
+    if (fd < 0 || !host) return -1;
+    char port_str[16];
+    snprintf(port_str, sizeof(port_str), "%lld", (long long)port);
+
+    struct addrinfo hints, *res;
+    memset(&hints, 0, sizeof(hints));
+    hints.ai_family = AF_UNSPEC; /* IPv4 or IPv6 */
+    hints.ai_socktype = SOCK_STREAM;
+
+    if (getaddrinfo(host, port_str, &hints, &res) != 0) {
+        return -1;
+    }
+
+    int success = -1;
+    struct addrinfo *p;
+    for (p = res; p != NULL; p = p->ai_next) {
+        if (connect((int)fd, p->ai_addr, p->ai_addrlen) == 0) {
+            success = 0;
+            break;
+        }
+    }
+    freeaddrinfo(res);
+    return success;
+}
+
+int64_t wolf_socket_send(int64_t fd, const char* data) {
+    if (fd < 0 || !data) return -1;
+    size_t len = strlen(data);
+    ssize_t sent = send((int)fd, data, len, 0);
+    return (int64_t)sent;
+}
+
+const char* wolf_socket_recv(int64_t fd, int64_t size) {
+    if (fd < 0 || size <= 0) return "";
+    char* buf = (char*)wolf_req_alloc((size_t)size + 1);
+    ssize_t r = recv((int)fd, buf, (size_t)size, 0);
+    if (r <= 0) return "";
+    buf[r] = '\0';
+    return buf;
+}
+
+void wolf_socket_close(int64_t fd) {
+    if (fd >= 0) close((int)fd);
 }
 
 void* wolf_url_parse(const char* url) {

@@ -1,5 +1,25 @@
 # Wolf Bugs Fixed — Cumulative Log
 
+## Session 2026-06-10 (Session 29 — Go Interop Stabilization)
+
+### BUG-080: CGO type mapping fails on `GoInt` (case-sensitivity)
+- **Class:** P0 🔴 Compiler Bug / Linker Error
+- **Root cause:** `strings.Contains(f.ReturnType, "int")` is case-sensitive. CGO generates `GoInt` (capital G) for exported Go integer types. The check failed silently, causing all `GoInt` return types to fall through to the `ptr` default, generating `call ptr @MyGoFunc(i64, i64)` — a type mismatch LLVM verifier error.
+- **Fix:** Replaced `strings.Contains(f.ReturnType, "int")` with `strings.Contains(strings.ToLower(f.ReturnType), "int")`. Same fix applied to parameter type mapping.
+- **File:** `internal/emitter/llvm_emitter.go`
+
+### BUG-081: CGO funcSigs populated in preamble writer (timing bug → segfault)
+- **Class:** P0 🔴 Runtime Segfault
+- **Root cause:** `e.funcSigs[f.Name]` was populated inside the preamble-writing loop, which executes AFTER the function body has already been emitted (due to the dual-buffer `bodyBuf`/`mainBuf` swap in `Emit()`). When `emitCallExpr` encountered a CGO function call, `fnSig` was `nil` → arguments defaulted to `ptr` regardless of actual type → call convention mismatch → segmentation fault in generated binary.
+- **Fix:** Moved the entire CGO signature extraction block to the top of `LLVMEmitter.Emit()`, strictly before any body emission begins. The preamble writer now only emits the `declare` statement.
+- **File:** `internal/emitter/llvm_emitter.go`
+
+### BUG-082: `wolf_socket_create/connect/send` emit `ptr` instead of `i64`
+- **Class:** P0 🔴 Compiler Error (LLVM type mismatch)
+- **Root cause:** `wolf_socket_create`, `wolf_socket_connect`, and `wolf_socket_send` were missing from the static return-type switch in `emitCallExpr`. They fell through to the default `ptr` case. When the result was stored into an `i64` alloca (`%fd = alloca i64`, `store i64 %t12, ptr %fd`), LLVM rejected with `'%t12' defined with type 'ptr' but expected 'i64'`.
+- **Fix:** Added all three functions to the `i64` case block in the `fnSig == nil` fallback switch.
+- **File:** `internal/emitter/llvm_emitter.go`
+
 ## Session 2026-06-09 (Session 28 — LLVM Emitter Hardening)
 
 ### BUG-072: `emitReturn` emits `ret ptr` inside `void`-declared functions
