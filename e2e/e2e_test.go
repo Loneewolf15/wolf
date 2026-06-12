@@ -12,6 +12,7 @@ import (
 
 	"github.com/wolflang/wolf/internal/compiler"
 	"github.com/wolflang/wolf/internal/packager"
+	"github.com/wolflang/wolf/internal/tester"
 )
 
 // isHTTPTest returns true for tests that require a live network or bind a
@@ -69,6 +70,66 @@ func TestEndToEnd(t *testing.T) {
 				defer os.RemoveAll(filepath.Join(testdata, ".wolf_modules"))
 				defer os.Remove(filepath.Join(testdata, "wolf.mod"))
 				defer os.Remove(filepath.Join(testdata, "wolf.lock"))
+			}
+
+			if name == "46_test_runner.wolf" {
+				// We don't want to compile 46_test_runner.wolf directly, it's just a dummy to trigger this
+				// But we need to capture stdout.
+				// Actually, e2e_test.go always compiles and runs the file. We can just let it compile the dummy file.
+				// But we want to run tester.Run(). Let's capture stdout here.
+				
+				// Create a temporary directory for testing
+				testDir := filepath.Join(testdata, "temp_test_dir")
+				os.MkdirAll(testDir, 0755)
+				defer os.RemoveAll(testDir)
+
+				// Write a dummy test file
+				os.WriteFile(filepath.Join(testDir, "dummy_test.wolf"), []byte(`
+func test_math() {
+    assert(1 + 1 == 2, "Math is broken")
+}
+func test_fail() {
+    assert(1 == 2, "Expected failure")
+}
+`), 0644)
+
+				// Capture stdout
+				oldStdout := os.Stdout
+				r, w, _ := os.Pipe()
+				os.Stdout = w
+
+				err := tester.Run(testDir)
+
+				w.Close()
+				os.Stdout = oldStdout
+
+				var buf bytes.Buffer
+				buf.ReadFrom(r)
+				
+				out := buf.String()
+				
+				// Strip time and compiler debug output
+				lines := strings.Split(out, "\n")
+				var cleanLines []string
+				for _, line := range lines {
+					if !strings.HasPrefix(line, "wolf test: Running tests") && !strings.HasPrefix(line, "Total Time:") && !strings.HasPrefix(line, ">> ") && !strings.HasPrefix(line, "Warning: ") {
+						cleanLines = append(cleanLines, line)
+					}
+				}
+				cleanOut := strings.TrimSpace(strings.Join(cleanLines, "\n"))
+				
+				expectedOut, _ := os.ReadFile(filepath.Join(testdata, "46_test_runner.out"))
+				expectedStr := strings.TrimSpace(string(expectedOut))
+				
+				if cleanOut != expectedStr {
+					t.Errorf("Test runner output mismatch.\nExpected:\n%s\nGot:\n%s", expectedStr, cleanOut)
+				}
+				
+				if err == nil {
+					t.Errorf("Expected tester.Run() to return an error because test_fail failed")
+				}
+				
+				return // skip the normal build/run phase
 			}
 
 			wolfFile := filepath.Join(testdata, name)

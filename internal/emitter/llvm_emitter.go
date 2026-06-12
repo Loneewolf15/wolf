@@ -734,6 +734,9 @@ func (e *LLVMEmitter) Emit(program *ir.Program) string {
 	e.writeln("declare i1 @wolf_dir_create(ptr)")
 	e.writeln("declare ptr @wolf_path_join(ptr, ptr)")
 	e.writeln("declare ptr @wolf_scan_dir(ptr)")
+	e.writeln("declare ptr @wolf_file_list_dir(ptr)")
+	e.writeln("declare ptr @wolf_sys_getenv(ptr)")
+	e.writeln("declare ptr @wolf_os_exec(ptr)")
 	e.writeln("")
 
 	e.writeln("; --- Phase 3: Utilities ---")
@@ -2911,6 +2914,12 @@ func (e *LLVMEmitter) emitCallExpr(call *ir.CallExpr) string {
 			calleeName = "wolf_path_join"
 		case "scan_dir":
 			calleeName = "wolf_scan_dir"
+		case "file_list_dir":
+			calleeName = "wolf_file_list_dir"
+		case "sys_getenv":
+			calleeName = "wolf_sys_getenv"
+		case "os_exec":
+			calleeName = "wolf_os_exec"
 
 		// --- Phase 3: Utilities ---
 		case "slug":
@@ -3471,7 +3480,7 @@ func (e *LLVMEmitter) emitCallExpr(call *ir.CallExpr) string {
 			retType = "ptr"
 		case "wolf_http_get", "wolf_http_post", "wolf_http_put", "wolf_http_delete", "wolf_http_patch", "wolf_http_set_header":
 			retType = "ptr"
-		case "wolf_path_join", "wolf_scan_dir":
+		case "wolf_path_join", "wolf_scan_dir", "wolf_file_list_dir", "wolf_sys_getenv", "wolf_os_exec":
 			retType = "ptr"
 		case "wolf_typeof", "wolf_settype", "wolf_money_format", "wolf_pluralise", "wolf_phone_format":
 			retType = "ptr"

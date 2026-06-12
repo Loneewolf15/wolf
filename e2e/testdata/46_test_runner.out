@@ -1,0 +1,6 @@
+wolf test: Compiling 2 tests...
+
+✅ test_math
+❌ test_fail - FAILED: Expected failure
+
+Tests: 1 passed, 1 failed

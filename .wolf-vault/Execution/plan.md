@@ -57,6 +57,15 @@ graph TD
 
 ## Session History
 
+### 2026-06-10 (Session 30 — Sprint 10: Test Runner & C Runtime Gaps)
+**Done:**
+- Developed the native Wolf test runner (`wolf test` CLI wiring, `internal/tester/runner.go` test auto-discovery and assertion handling).
+- Solved limitations with the `require` module system by actively concatenating source text into an ephemeral `_wolf_test_runner.wolf` file on the fly.
+- Filled critical gaps in the C runtime for bootstrapping the compiler: implemented `wolf_sys_getenv(key)`, `wolf_os_exec(command)`, and `wolf_file_list_dir(path)`.
+- Exported and mapped the new runtime functions securely via the LLVM Emitter (`llvm_emitter.go`).
+- Passed execution and End-to-End behavioral validations using isolated compilation and `./wolf test` integration.
+- **Sprint 10 Phase 1 & 2 Complete!** We are now fully equipped with the test harness and subprocess orchestration necessary for the Phase 5 Self-Hosting compiler porting (starting with `Lexer.wolf`).
+
 ### 2026-06-10 (Session 29 — Go Interop Stabilization & Sprint 9 Charter)
 **Done:**
 - Fixed BUG-080: CGO type mapping case-sensitivity (`GoInt` not matching `"int"` due to uppercase). Fixed with `strings.ToLower()`.

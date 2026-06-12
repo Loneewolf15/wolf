@@ -136,6 +136,8 @@ void        wolf_system_exit(int64_t code);
 void        wolf_system_die(const char* message);
 const char* wolf_env_get(const char* key, const char* def_val); /* single declaration */
 int         wolf_env_has(const char* key);
+const char* wolf_sys_getenv(const char* key);
+const char* wolf_os_exec(const char* command);
 
 /* --- Sessions --- */
 void        wolf_session_begin(void);
@@ -510,6 +512,7 @@ const char* wolf_file_extension(const char* path);
 const char* wolf_file_basename(const char* path);
 const char* wolf_file_dirname(const char* path);
 int         wolf_dir_exists(const char* path);
+void*       wolf_file_list_dir(const char* path);
 
 /* --- Phase 3: Utilities --- */
 const char* wolf_slug(const char* s);

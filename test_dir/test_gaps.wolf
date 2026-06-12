@@ -1,0 +1,2 @@
+dump(sys_getenv("PATH"))
+dump(os_exec("echo hello wolf"))

@@ -1226,6 +1226,48 @@ int wolf_env_has(const char* key) {
     return getenv(key) != NULL ? 1 : 0;
 }
 
+const char* wolf_sys_getenv(const char* key) {
+    return wolf_env_get(key, "");
+}
+
+const char* wolf_os_exec(const char* command) {
+    if (!command) return wolf_req_strdup("");
+#ifndef WOLF_FREESTANDING
+    FILE* fp = popen(command, "r");
+    if (!fp) return wolf_req_strdup("");
+    
+    size_t cap = 1024;
+    size_t len = 0;
+    char* out = (char*)wolf_req_alloc(cap);
+    if (!out) {
+        pclose(fp);
+        return wolf_req_strdup("");
+    }
+    
+    char buf[1024];
+    while (fgets(buf, sizeof(buf), fp) != NULL) {
+        size_t l = strlen(buf);
+        if (len + l >= cap) {
+            size_t new_cap = cap * 2;
+            if (new_cap < len + l + 1) new_cap = len + l + 1;
+            out = (char*)wolf_req_realloc(out, cap, new_cap);
+            if (!out) {
+                pclose(fp);
+                return wolf_req_strdup("");
+            }
+            cap = new_cap;
+        }
+        memcpy(out + len, buf, l);
+        len += l;
+    }
+    out[len] = '\0';
+    pclose(fp);
+    return out;
+#else
+    return wolf_req_strdup("");
+#endif
+}
+
 const char* wolf_time_date(const char* format, int64_t timestamp) {
     time_t rawtime = (time_t)timestamp;
     struct tm *info = localtime(&rawtime);
@@ -6539,6 +6581,23 @@ const char* wolf_scan_dir(const char* path) {
 #else
 const char* wolf_scan_dir(const char* path) { (void)path; return wolf_req_strdup("[]"); }
 #endif /* WOLF_FREESTANDING */
+
+void* wolf_file_list_dir(const char* path) {
+    void* arr = wolf_array_create();
+    if (!path) return arr;
+#ifndef WOLF_FREESTANDING
+    DIR* dir = opendir(path);
+    if (!dir) return arr;
+    struct dirent* entry;
+    while ((entry = readdir(dir)) != NULL) {
+        if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0)
+            continue;
+        wolf_array_push(arr, wolf_req_strdup(entry->d_name));
+    }
+    closedir(dir);
+#endif
+    return arr;
+}
 
 /* ========== Phase 3 Stdlib — Slug & Truncate ========== */
 

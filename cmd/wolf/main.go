@@ -15,6 +15,7 @@ import (
 	"github.com/wolflang/wolf/internal/packager"
 	"github.com/wolflang/wolf/internal/pythonenv"
 	"github.com/wolflang/wolf/internal/scaffold"
+	"github.com/wolflang/wolf/internal/tester"
 )
 
 var version = "0.1.0-dev"
@@ -148,11 +149,15 @@ database layer, and embeds CPython for native ML library access.`,
 	}
 
 	testCmd := &cobra.Command{
-		Use:   "test [file|dir]",
+		Use:   "test [dir]",
 		Short: "Run Wolf test files",
-		Args:  cobra.MinimumNArgs(0),
+		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return fmt.Errorf("wolf test: not yet implemented")
+			dir, _ := os.Getwd()
+			if len(args) > 0 {
+				dir = args[0]
+			}
+			return tester.Run(dir)
 		},
 	}
 
