@@ -224,6 +224,7 @@ const char* wolf_strings_upper(const char* s);
 const char* wolf_strings_split(const char* s, const char* sep);
 const char* wolf_strings_join(const char* arr, const char* sep);
 const char* wolf_json_encode(void* obj);
+int64_t     wolf_strings_charcode_at(const char* s, int64_t index);
 
 /* --- Conversions --- */
 const char* wolf_int_to_string(int64_t n);

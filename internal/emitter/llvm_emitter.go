@@ -85,7 +85,7 @@ func (e *LLVMEmitter) registerStdlib() {
 	// Strings
 	e.funcSigs["wolf_strings_length"] = &ir.Function{Name: "wolf_strings_length", ReturnTypes: []string{"i64"}, Params: []*ir.Param{{Type: "ptr"}}}
 	e.funcSigs["wolf_strings_substring"] = &ir.Function{Name: "wolf_strings_substring", ReturnTypes: []string{"ptr"}, Params: []*ir.Param{{Type: "ptr"}, {Type: "i64"}, {Type: "i64"}}}
-
+	e.funcSigs["wolf_strings_charcode_at"] = &ir.Function{Name: "wolf_strings_charcode_at", ReturnTypes: []string{"i64"}, Params: []*ir.Param{{Type: "ptr"}, {Type: "i64"}}}
 	// Database
 	e.funcSigs["wolf_db_connect"] = &ir.Function{Name: "wolf_db_connect", ReturnTypes: []string{"ptr"}, Params: []*ir.Param{{Type: "ptr"}, {Type: "ptr"}, {Type: "ptr"}, {Type: "ptr"}}}
 	e.funcSigs["wolf_db_prepare"] = &ir.Function{Name: "wolf_db_prepare", ReturnTypes: []string{"ptr"}, Params: []*ir.Param{{Type: "ptr"}, {Type: "ptr"}}}
@@ -450,6 +450,7 @@ func (e *LLVMEmitter) Emit(program *ir.Program) string {
 	e.writeln("declare double @wolf_math_pi()")
 	e.writeln("declare ptr @wolf_number_format(double, i64, ptr, ptr)")
 	e.writeln("declare i64 @wolf_strings_length(ptr)")
+	e.writeln("declare i64 @wolf_strings_charcode_at(ptr, i64)")
 	e.writeln("")
 
 	e.writeln("; --- Database (Mock) ---")
@@ -1482,6 +1483,9 @@ func (e *LLVMEmitter) inferExprType(expr ir.Expr) string {
 			return "i1"
 		default:
 			if ex.Op == "+" && (e.inferExprType(ex.Left) == "ptr" || e.inferExprType(ex.Right) == "ptr") {
+				if e.inferExprType(ex.Left) == "i64" || e.inferExprType(ex.Right) == "i64" {
+					return "i64"
+				}
 				return "ptr"
 			}
 			// Check if either side is float
@@ -1609,7 +1613,7 @@ func (e *LLVMEmitter) inferExprType(expr ir.Expr) string {
 			"math_sqrt", "math_pow", "math_log", "math_log10", "math_exp",
 			"math_round", "math_fmod", "math_pi":
 			return "double"
-		case "wolf_math_random", "math_random", "db_execute", "db_row_count", "db_last_insert_id", "wolf_array_length", "wolf_math_randomint":
+		case "wolf_math_random", "math_random", "db_execute", "db_row_count", "db_last_insert_id", "wolf_array_length", "wolf_math_randomint", "wolf_strings_charcode_at", "wolf_strings_charcodeat", "strings_charcodeat", "wolf_strings_length", "strings_length":
 			return "i64"
 		case "wolf_number_format":
 			return "ptr"
@@ -1617,7 +1621,7 @@ func (e *LLVMEmitter) inferExprType(expr ir.Expr) string {
 			return "ptr"
 		case "wolf_strings_contains", "wolf_env_has", "wolf_strings_isempty", "wolf_redis_exists":
 			return "i1"
-		case "wolf_redis_set", "wolf_http_header", "wolf_http_status":
+		case "wolf_redis_set", "wolf_http_header", "wolf_http_status", "wolf_array_push", "arrays_array_push", "wolf_arrays_array_push":
 			return "void"
 		case "db_connect", "db_prepare", "db_fetch_all", "db_fetch_one":
 			return "ptr"
@@ -2183,10 +2187,34 @@ func (e *LLVMEmitter) emitBinaryExpr(ex *ir.BinaryExpr, expectedType string) str
 	rightType := e.inferExprType(ex.Right)
 
 	if ex.Op == "+" && (leftType == "ptr" || rightType == "ptr") {
+		// If the other operand is explicitly numeric (i64 or double), we should do math, not string concat
+		if leftType == "i64" || rightType == "i64" {
+			left := e.emitExpr(ex.Left, leftType)
+			right := e.emitExpr(ex.Right, rightType)
+			
+			leftI := e.nextLocal()
+			rightI := e.nextLocal()
+			if leftType == "ptr" {
+				e.writelnIndent(fmt.Sprintf("%s = call i64 @wolf_intval(ptr %s)", leftI, left))
+			} else {
+				leftI = left
+			}
+			if rightType == "ptr" {
+				e.writelnIndent(fmt.Sprintf("%s = call i64 @wolf_intval(ptr %s)", rightI, right))
+			} else {
+				rightI = right
+			}
+			reg := e.nextLocal()
+			e.writelnIndent(fmt.Sprintf("%s = add i64 %s, %s", reg, leftI, rightI))
+			e.emittedTypes[reg] = "i64"
+			return reg
+		}
+		
 		leftVal := e.emitArgAsString(ex.Left)
 		rightVal := e.emitArgAsString(ex.Right)
 		reg := e.nextLocal()
 		e.writelnIndent(fmt.Sprintf("%s = call ptr @wolf_string_concat(ptr %s, ptr %s)", reg, leftVal, rightVal))
+		e.emittedTypes[reg] = "ptr"
 		return reg
 	}
 
@@ -2224,6 +2252,28 @@ func (e *LLVMEmitter) emitBinaryExpr(ex *ir.BinaryExpr, expectedType string) str
 	}
 
 	// Perform explicit casts if types don't match the required commonType
+	if commonType == "i1" {
+		if leftType == "ptr" {
+			casted := e.nextLocal()
+			e.writelnIndent(fmt.Sprintf("%s = call i1 @wolf_boolval(ptr %s)", casted, left))
+			left = casted
+		} else if leftType == "i64" {
+			casted := e.nextLocal()
+			e.writelnIndent(fmt.Sprintf("%s = icmp ne i64 %s, 0", casted, left))
+			left = casted
+		}
+		
+		if rightType == "ptr" {
+			casted := e.nextLocal()
+			e.writelnIndent(fmt.Sprintf("%s = call i1 @wolf_boolval(ptr %s)", casted, right))
+			right = casted
+		} else if rightType == "i64" {
+			casted := e.nextLocal()
+			e.writelnIndent(fmt.Sprintf("%s = icmp ne i64 %s, 0", casted, right))
+			right = casted
+		}
+	}
+
 	if commonType == "i64" {
 		if leftType == "ptr" {
 			casted := e.nextLocal()
@@ -4138,6 +4188,8 @@ func (e *LLVMEmitter) emitFuncLit(fl *ir.FuncLit) string {
 	return closureReg
 }
 
+
+
 func (e *LLVMEmitter) emitStaticCall(sc *ir.StaticCall) string {
 	// Standardize names: Wolf_Math::Abs or math.abs -> wolf_math_abs
 	calleeName := strings.ToLower(fmt.Sprintf("%s_%s", sc.Class, sc.Method))
@@ -4152,8 +4204,18 @@ func (e *LLVMEmitter) emitStaticCall(sc *ir.StaticCall) string {
 	case "strings", "wolf_strings":
 		if strings.ToLower(sc.Method) == "isempty" {
 			calleeName = "wolf_strings_isempty"
+		} else if strings.ToLower(sc.Method) == "charcodeat" {
+			calleeName = "wolf_strings_charcode_at"
 		} else {
 			calleeName = strings.ToLower(fmt.Sprintf("wolf_strings_%s", sc.Method))
+		}
+	case "arrays", "wolf_arrays":
+		if strings.ToLower(sc.Method) == "array_push" || strings.ToLower(sc.Method) == "push" {
+			calleeName = "wolf_array_push"
+			// Ensure it returns void by marking the method as returning void implicitly
+			// wait, static calls to array_push will expect ptr return in emitStaticCall unless handled
+		} else {
+			calleeName = strings.ToLower(fmt.Sprintf("wolf_arrays_%s", sc.Method))
 		}
 	case "json", "wolf_json":
 		calleeName = strings.ToLower(fmt.Sprintf("wolf_json_%s", sc.Method))
@@ -4169,9 +4231,26 @@ func (e *LLVMEmitter) emitStaticCall(sc *ir.StaticCall) string {
 	}
 
 	args := make([]string, len(sc.Args))
+	sig, hasSig := e.funcSigs[calleeName]
 	for i, arg := range sc.Args {
 		llType := e.inferExprType(arg)
 		val := e.emitExpr(arg, llType)
+		
+		if hasSig && i < len(sig.Params) {
+			expectedType := sig.Params[i].Type
+			if expectedType == "i64" && llType == "ptr" {
+				reg := e.nextLocal()
+				e.writelnIndent(fmt.Sprintf("%s = call i64 @wolf_intval(ptr %s)", reg, val))
+				val = reg
+				llType = "i64"
+			} else if expectedType == "double" && llType == "ptr" {
+				reg := e.nextLocal()
+				e.writelnIndent(fmt.Sprintf("%s = call double @wolf_floatval(ptr %s)", reg, val))
+				val = reg
+				llType = "double"
+			}
+		}
+		
 		args[i] = fmt.Sprintf("%s %s", llType, val)
 	}
 

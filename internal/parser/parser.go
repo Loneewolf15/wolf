@@ -1316,6 +1316,11 @@ func (p *Parser) parseCallAndAccess() Expression {
 			methodName := ""
 			if p.check(lexer.TOKEN_IDENT) {
 				methodName = p.advance().Literal
+			} else if p.isKeywordIdent() {
+				// Allow keywords as static methods or enum variants: TokenType::FUNC
+				methodName = p.advance().Literal
+			} else {
+				p.addError("expected method or variant name after '::'")
 			}
 			// Unwrap the class name
 			className := ""

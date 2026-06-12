@@ -1,0 +1,319 @@
+namespace compiler;
+
+class Lexer {
+    public $source = ""
+    public $file = ""
+    public $tokens = []
+    public $errors = []
+
+    public $start = 0
+    public $current = 0
+    public $line = 1
+    public $col = 1
+    public $startLine = 1
+    public $startCol = 1
+
+    public $sourceLen = 0
+    public $keywords = {}
+
+    public constructor($source, $file) {
+        $this->source = $source
+        $this->file = $file
+        $this->sourceLen = Strings::Length($source)
+        $this->keywords = LexerHelper::get_keywords()
+    }
+
+    public Tokenize() {
+        while (!$this->isAtEnd()) {
+            $this->start = $this->current
+            $this->startLine = $this->line
+            $this->startCol = $this->col
+            $this->scanToken()
+        }
+
+        var $eofToken = new Token()
+        $eofToken->type = TokenType::EOF
+        $eofToken->line = $this->line
+        $eofToken->col = $this->col
+        $eofToken->start = $this->current
+        $eofToken->length = 0
+        $this->tokens[] = $eofToken
+
+        return $this->tokens
+    }
+
+    public isAtEnd() {
+        return $this->current >= $this->sourceLen
+    }
+
+    public advance() {
+        if ($this->isAtEnd()) {
+            return 0
+        }
+        var $ch = Strings::CharCodeAt($this->source, $this->current)
+        $this->current = $this->current + 1
+        if ($ch == 10) { // \n
+            $this->line = $this->line + 1
+            $this->col = 1
+        } else {
+            $this->col = $this->col + 1
+        }
+        return $ch
+    }
+
+    public peek() {
+        if ($this->isAtEnd()) {
+            return 0
+        }
+        return Strings::CharCodeAt($this->source, $this->current)
+    }
+
+    public peekNext() {
+        if ($this->current + 1 >= $this->sourceLen) {
+            return 0
+        }
+        return Strings::CharCodeAt($this->source, $this->current + 1)
+    }
+
+    public match($expected) {
+        if ($this->isAtEnd()) {
+            return false
+        }
+        if (Strings::CharCodeAt($this->source, $this->current) != $expected) {
+            return false
+        }
+        $this->advance()
+        return true
+    }
+
+    public addToken($type) {
+        var $tok = new Token()
+        $tok->type = $type
+        $tok->start = $this->start
+        $tok->length = $this->current - $this->start
+        $tok->line = $this->startLine
+        $tok->col = $this->startCol
+        $this->tokens[] = $tok
+    }
+
+    public isDigit($ch) {
+        return $ch >= 48 && $ch <= 57
+    }
+
+    public isAlpha($ch) {
+        return ($ch >= 65 && $ch <= 90) || ($ch >= 97 && $ch <= 122) || $ch == 95 // _
+    }
+
+    public isAlphaNumeric($ch) {
+        return $this->isAlpha($ch) || $this->isDigit($ch)
+    }
+
+    public scanComment() {
+        while (!$this->isAtEnd() && $this->peek() != 10) {
+            $this->advance()
+        }
+    }
+
+    public scanMultiLineComment() {
+        while (!$this->isAtEnd()) {
+            if ($this->peek() == 42 && $this->peekNext() == 47) { // */
+                $this->advance() // *
+                $this->advance() // /
+                return nil
+            }
+            $this->advance()
+        }
+        $this->errors[] = "unterminated multi-line comment"
+    }
+
+    public scanString() {
+        while (!$this->isAtEnd()) {
+            var $ch = $this->peek()
+            if ($ch == 34) { // "
+                break
+            }
+            if ($ch == 92) { // \
+                $this->advance()
+                if ($this->isAtEnd()) {
+                    $this->errors[] = "unterminated string (escaped end)"
+                    return nil
+                }
+            }
+            $this->advance()
+        }
+
+        if ($this->isAtEnd()) {
+            $this->errors[] = "unterminated string"
+            return nil
+        }
+
+        $this->advance() // consume closing "
+        $this->addToken(TokenType::STRING)
+    }
+
+    public scanNumber() {
+        while (!$this->isAtEnd() && $this->isDigit($this->peek())) {
+            $this->advance()
+        }
+
+        if (!$this->isAtEnd() && $this->peek() == 46 && $this->isDigit($this->peekNext())) { // .
+            $this->advance() // consume .
+            while (!$this->isAtEnd() && $this->isDigit($this->peek())) {
+                $this->advance()
+            }
+            $this->addToken(TokenType::FLOAT)
+            return nil
+        }
+
+        $this->addToken(TokenType::INT)
+    }
+
+    public scanDollarIdent() {
+        if (!$this->isAtEnd() && $this->peek() == 123) { // ${
+            $this->advance()
+            $this->addToken(TokenType::DOLLAR_LBRACE)
+            return nil
+        }
+
+        if ($this->isAtEnd() || (!$this->isAlpha($this->peek()))) {
+            $this->errors[] = "expected identifier after $"
+            return nil
+        }
+
+        while (!$this->isAtEnd() && $this->isAlphaNumeric($this->peek())) {
+            $this->advance()
+        }
+        $this->addToken(TokenType::DOLLAR_IDENT)
+    }
+
+    public scanAtKeyword() {
+        if ($this->isAtEnd() || !$this->isAlpha($this->peek())) {
+            $this->addToken(TokenType::AT)
+            return nil
+        }
+
+        var $wordStart = $this->current
+        while (!$this->isAtEnd() && $this->isAlphaNumeric($this->peek())) {
+            $this->advance()
+        }
+        
+        var $wordLen = $this->current - $wordStart
+        var $word = Strings::Substring($this->source, $wordStart, $this->current)
+        
+        if ($word == "ml") {
+            $this->addToken(TokenType::AT_ML)
+        } else if ($word == "supervise") {
+            $this->addToken(TokenType::AT_SUPERVISE)
+        } else if ($word == "trace") {
+            $this->addToken(TokenType::AT_TRACE)
+        } else {
+            $this->addToken(TokenType::AT) 
+        }
+    }
+
+    public scanIdentifier() {
+        while (!$this->isAtEnd() && $this->isAlphaNumeric($this->peek())) {
+            $this->advance()
+        }
+
+        var $text = Strings::Substring($this->source, $this->start, $this->current)
+        if ($this->keywords[$text] != nil) {
+            $this->addToken($this->keywords[$text])
+        } else {
+            $this->addToken(TokenType::IDENT)
+        }
+    }
+
+    public scanToken() {
+        var $ch = $this->advance()
+
+        if ($ch == 40) { $this->addToken(TokenType::LPAREN) }
+        else if ($ch == 41) { $this->addToken(TokenType::RPAREN) }
+        else if ($ch == 123) { $this->addToken(TokenType::LBRACE) }
+        else if ($ch == 125) { $this->addToken(TokenType::RBRACE) }
+        else if ($ch == 91) { $this->addToken(TokenType::LBRACKET) }
+        else if ($ch == 93) { $this->addToken(TokenType::RBRACKET) }
+        else if ($ch == 44) { $this->addToken(TokenType::COMMA) }
+        else if ($ch == 59) { $this->addToken(TokenType::SEMICOLON) }
+        else if ($ch == 63) { $this->addToken(TokenType::QUESTION) }
+        else if ($ch == 37) { $this->addToken(TokenType::MODULO) }
+        else if ($ch == 43) { // +
+            if ($this->match(43)) { $this->addToken(TokenType::INCREMENT) }
+            else if ($this->match(61)) { $this->addToken(TokenType::PLUS_ASSIGN) }
+            else { $this->addToken(TokenType::PLUS) }
+        }
+        else if ($ch == 45) { // -
+            if ($this->match(45)) { $this->addToken(TokenType::DECREMENT) }
+            else if ($this->match(61)) { $this->addToken(TokenType::MINUS_ASSIGN) }
+            else if ($this->match(62)) { $this->addToken(TokenType::ARROW) }
+            else { $this->addToken(TokenType::MINUS) }
+        }
+        else if ($ch == 42) { // *
+            if ($this->match(61)) { $this->addToken(TokenType::STAR_ASSIGN) }
+            else { $this->addToken(TokenType::STAR) }
+        }
+        else if ($ch == 47) { // /
+            if ($this->match(47)) { $this->scanComment() }
+            else if ($this->match(42)) { $this->scanMultiLineComment() }
+            else if ($this->match(61)) { $this->addToken(TokenType::SLASH_ASSIGN) }
+            else { $this->addToken(TokenType::SLASH) }
+        }
+        else if ($ch == 61) { // =
+            if ($this->match(61)) { $this->addToken(TokenType::EQUAL) }
+            else if ($this->match(62)) { $this->addToken(TokenType::FAT_ARROW) }
+            else { $this->addToken(TokenType::ASSIGN) }
+        }
+        else if ($ch == 33) { // !
+            if ($this->match(61)) { $this->addToken(TokenType::NOT_EQUAL) }
+            else { $this->addToken(TokenType::NOT) }
+        }
+        else if ($ch == 60) { // <
+            if ($this->match(61)) { $this->addToken(TokenType::LESS_EQUAL) }
+            else { $this->addToken(TokenType::LESS) }
+        }
+        else if ($ch == 62) { // >
+            if ($this->match(61)) { $this->addToken(TokenType::GREATER_EQUAL) }
+            else { $this->addToken(TokenType::GREATER) }
+        }
+        else if ($ch == 38) { // &
+            if ($this->match(38)) { $this->addToken(TokenType::AND) }
+            else { $this->errors[] = "unexpected character '&'" }
+        }
+        else if ($ch == 124) { // |
+            if ($this->match(124)) { $this->addToken(TokenType::OR) }
+            else { $this->errors[] = "unexpected character '|'" }
+        }
+        else if ($ch == 58) { // :
+            if ($this->match(58)) { $this->addToken(TokenType::DOUBLE_COLON) }
+            else { $this->addToken(TokenType::COLON) }
+        }
+        else if ($ch == 46) { // .
+            if ($this->match(46)) { $this->addToken(TokenType::DOT_DOT) }
+            else { $this->addToken(TokenType::DOT) }
+        }
+        else if ($ch == 35) { // #
+            $this->scanComment()
+        }
+        else if ($ch == 34) { // "
+            $this->scanString() 
+        }
+        else if ($ch == 36) { // $
+            $this->scanDollarIdent()
+        }
+        else if ($ch == 64) { // @
+            $this->scanAtKeyword()
+        }
+        else if ($ch == 32 || $ch == 9 || $ch == 13 || $ch == 10) {
+            // ignore whitespace
+        }
+        else {
+            if ($this->isDigit($ch)) {
+                $this->scanNumber()
+            } else if ($this->isAlpha($ch)) {
+                $this->scanIdentifier()
+            } else {
+                $this->errors[] = "unexpected character"
+            }
+        }
+    }
+}

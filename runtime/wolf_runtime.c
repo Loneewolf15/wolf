@@ -2937,6 +2937,13 @@ const char* wolf_strings_substring(const char* s, int64_t start, int64_t end) {
     return wolf_substr(s, start, len);
 }
 
+int64_t wolf_strings_charcode_at(const char* s, int64_t index) {
+    if (!s) return 0;
+    int64_t len = strlen(s);
+    if (index < 0 || index >= len) return 0;
+    return (int64_t)(unsigned char)s[index];
+}
+
 const char* wolf_http_query(const char* key) {
     if (wolf_current_req_id < 0) return "";
     return wolf_http_req_query(wolf_current_req_id, key);

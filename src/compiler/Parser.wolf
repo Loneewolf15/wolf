@@ -1,0 +1,172 @@
+// Parser.wolf
+
+class Parser {
+    public $tokens = []
+    public $current = 0
+    public $errors = []
+    public $file = ""
+    public $source = ""
+    public $namespace = ""
+
+    public func __construct($tokens, $file, $source) {
+        $this->tokens = $tokens
+        $this->file = $file
+        $this->source = $source
+        $this->current = 0
+        $this->errors = []
+        $this->namespace = ""
+    }
+
+    public func Parse() {
+        var $program = new Program()
+        $program->statements = [] // explicit init
+
+        print("Starting Parse loop...")
+        while (!$this->isAtEnd()) {
+            var $stmt = $this->parseStatement()
+            var $stmtType = "nil"
+            if ($stmt != nil) {
+                $stmtType = $stmt->type
+            }
+            print("parseStatement returned: " .. $stmtType)
+            if ($stmt != nil) {
+                Arrays::array_push($program->statements, $stmt)
+                print("Appended stmt. Total statements: " .. count($program->statements))
+            }
+        }
+        return $program
+    }
+
+    public func Errors() {
+        return $this->errors
+    }
+
+    // ========== Statement Parsing ==========
+
+    public func parseStatement() {
+        var $tok = $this->peek()
+        print("parseStatement peeked token type: " .. $tok->type)
+        if ($tok->type == TokenType::VAR) {
+            return $this->parseVarDecl()
+        }
+
+        return $this->parseExpressionStmt()
+    }
+
+    public func parseVarDecl() {
+        print("parseVarDecl called")
+        $this->advance() // consume 'var'
+
+        var $nameTok = $this->expect(TokenType::IDENT, "expected variable name")
+        print("nameTok start: " .. $nameTok->start .. ", length: " .. $nameTok->length)
+        var $name = $this->getTokenText($nameTok)
+
+        var $typeName = ""
+        if ($this->check(TokenType::COLON)) {
+            $this->advance()
+            var $typeTok = $this->expect(TokenType::IDENT, "expected type name after ':'")
+            $typeName = $this->getTokenText($typeTok)
+        }
+
+        var $value = nil
+        if ($this->check(TokenType::ASSIGN)) {
+            $this->advance()
+            $value = $this->parseExpression()
+        }
+
+        $this->expect(TokenType::SEMICOLON, "expected ';' after variable declaration")
+        print("Returning new VarDecl for " .. $name)
+        return new VarDecl($name, $typeName, $value)
+    }
+
+    public func parseExpressionStmt() {
+        var $expr = $this->parseExpression()
+        $this->expect(TokenType::SEMICOLON, "expected ';' after expression")
+        return new ExpressionStmt($expr)
+    }
+
+    // ========== Expression Parsing (Stub) ==========
+
+    public func parseExpression() {
+        // Stub: for now just parse an identifier or literal
+        var $tok = $this->advance()
+        if ($tok->type == TokenType::INT) {
+            return new IntLiteral($this->getTokenText($tok))
+        }
+        if ($tok->type == TokenType::STRING) {
+            return new StringLiteral($this->getTokenText($tok))
+        }
+        if ($tok->type == TokenType::IDENT) {
+            return new Identifier($this->getTokenText($tok))
+        }
+        $this->addError("Unexpected expression token: " .. $tok->type)
+        return nil
+    }
+
+    // ========== Token Helpers ==========
+
+    public func getTokenText($tok) {
+        if ($tok->type == TokenType::EOF) { return "" }
+        var $endIdx = intval($tok->start) + intval($tok->length)
+        return Strings::Substring($this->source, $tok->start, $endIdx)
+    }
+
+    public func peek() {
+        if ($this->current >= count($this->tokens)) {
+            var $eof = new Token()
+            $eof->type = TokenType::EOF
+            return $eof
+        }
+        var $idx = intval($this->current)
+        return $this->tokens[$idx]
+    }
+
+    public func peekNext() {
+        var $next = $this->current + 1
+        if ($next >= count($this->tokens)) {
+            var $eof = new Token()
+            $eof->type = TokenType::EOF
+            return $eof
+        }
+        var $idx = intval($next)
+        return $this->tokens[$idx]
+    }
+
+    public func advance() {
+        var $tok = $this->peek()
+        if (!$this->isAtEnd()) {
+            var $idx = intval($this->current)
+            $this->current = $idx + 1
+        }
+        return $tok
+    }
+
+    public func check($t) {
+        var $tok = $this->peek()
+        return $tok->type == $t
+    }
+
+    public func expect($t, $msg) {
+        if ($this->check($t)) {
+            return $this->advance()
+        }
+        var $tok = $this->peek()
+        $this->addError($msg .. ", got " .. $tok->type .. " (" .. $this->getTokenText($tok) .. ")")
+        return $tok
+    }
+
+    public func isAtEnd() {
+        var $tok = $this->peek()
+        return $tok->type == TokenType::EOF
+    }
+
+    public func addError($msg) {
+        var $tok = $this->peek()
+        var $err = {}
+        $err["line"] = $tok->line
+        $err["col"] = $tok->col
+        $err["message"] = $msg
+        Arrays::array_push($this->errors, $err)
+        print("PARSE ERROR: " .. $msg .. " at line " .. $tok->line)
+    }
+}

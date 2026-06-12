@@ -1,0 +1,86 @@
+func test_array_push() {
+    var $a = []
+    Arrays::array_push($a, "hello")
+    if (count($a) != 1) {
+        throw("test_array_push failed: " .. count($a))
+    }
+}
+
+func test_lexer_empty() {
+    var $l = new Lexer("", "test.wolf")
+    var $tokens = $l->Tokenize()
+    
+    print("Tokens count: " .. count($tokens))
+    if (count($tokens) > 0) {
+        print("First token type: " .. $tokens[0]->type)
+    }
+
+    // We expect just EOF
+    if (count($tokens) != 1) {
+        throw("test_lexer_empty failed: expected 1 token")
+    }
+    if ($tokens[0]->type != TokenType::EOF) {
+        throw("test_lexer_empty failed: expected EOF")
+    }
+}
+
+func test_lexer_basic() {
+    var $src = "var x = 10;"
+    var $l = new Lexer($src, "test.wolf")
+    var $tokens = $l->Tokenize()
+    
+    print("Tokens count in basic: " .. count($tokens))
+    var $i = 0
+    while ($i < count($tokens)) {
+        print("Token " .. $i .. ": type=" .. $tokens[$i]->type .. ", lexeme=" .. $tokens[$i]->lexeme)
+        $i = $i + 1
+    }
+    // var, x, =, 10, ;, EOF = 6 tokens
+    if (count($tokens) != 6) {
+        throw("test_lexer_basic failed: expected 6 tokens, got " .. count($tokens))
+    }
+    
+    if ($tokens[0]->type != TokenType::VAR) { throw("expected VAR") }
+    if ($tokens[1]->type != TokenType::IDENT) { throw("expected IDENT") }
+    if ($tokens[2]->type != TokenType::ASSIGN) { throw("expected ASSIGN") }
+    if ($tokens[3]->type != TokenType::INT) { throw("expected INT") }
+    if ($tokens[4]->type != TokenType::SEMICOLON) { throw("expected SEMICOLON") }
+    if ($tokens[5]->type != TokenType::EOF) { throw("expected EOF") }
+}
+
+func test_lexer_string() {
+    var $src = "\"hello\""
+    var $l = new Lexer($src, "test.wolf")
+    var $tokens = $l->Tokenize()
+    
+    if (count($tokens) != 2) {
+        throw("test_lexer_string failed: expected 2 tokens")
+    }
+    if ($tokens[0]->type != TokenType::STRING) { throw("expected STRING") }
+}
+
+func test_lexer_math() {
+    var $src = "1 + 2 * 3"
+    var $l = new Lexer($src, "test.wolf")
+    var $tokens = $l->Tokenize()
+    
+    // 1, +, 2, *, 3, EOF = 6 tokens
+    if (count($tokens) != 6) {
+        throw("test_lexer_math failed: expected 6 tokens")
+    }
+    if ($tokens[1]->type != TokenType::PLUS) { throw("expected PLUS") }
+    if ($tokens[3]->type != TokenType::STAR) { throw("expected STAR") }
+}
+
+func test_lexer_keywords() {
+    var $src = "if else return class func"
+    var $l = new Lexer($src, "test.wolf")
+    var $tokens = $l->Tokenize()
+    
+    if (count($tokens) != 6) { throw("test_lexer_keywords failed") }
+    if ($tokens[0]->type != TokenType::IF) { throw("expected IF") }
+    if ($tokens[1]->type != TokenType::ELSE) { throw("expected ELSE") }
+    if ($tokens[2]->type != TokenType::RETURN) { throw("expected RETURN") }
+    if ($tokens[3]->type != TokenType::CLASS) { throw("expected CLASS") }
+    if ($tokens[4]->type != TokenType::FUNC) { throw("expected FUNC") }
+}

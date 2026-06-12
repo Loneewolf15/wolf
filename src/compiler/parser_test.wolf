@@ -1,0 +1,29 @@
+func test_parser_basic() {
+    var $src = "var x = 10;"
+    var $lexer = new Lexer($src, "test.wolf")
+    var $tokens = $lexer->Tokenize()
+    
+    var $parser = new Parser($tokens, "test.wolf", $src)
+    var $ast = $parser->Parse()
+
+    if (count($parser->Errors()) > 0) {
+        throw("test_parser_basic failed: parse errors found")
+    }
+
+    if ($ast->type != "Program") {
+        throw("test_parser_basic failed: expected Program AST")
+    }
+
+    if (count($ast->statements) != 1) {
+        throw("test_parser_basic failed: expected 1 statement, got " .. count($ast->statements))
+    }
+
+    var $stmt = $ast->statements[0]
+    if ($stmt->type != "VarDecl") {
+        throw("test_parser_basic failed: expected VarDecl, got " .. $stmt->type)
+    }
+
+    if ($stmt->name != "x") {
+        throw("test_parser_basic failed: expected VarDecl name 'x', got " .. $stmt->name)
+    }
+}

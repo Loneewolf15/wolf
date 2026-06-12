@@ -1,0 +1,163 @@
+namespace compiler;
+
+class TokenType {
+    public static ILLEGAL = 0
+    public static EOF = 1
+
+    public static DOLLAR_IDENT = 2
+    public static IDENT = 3
+    public static STRING = 4
+    public static INT = 5
+    public static FLOAT = 6
+    public static BOOL_TRUE = 7
+    public static BOOL_FALSE = 8
+    public static NIL = 9
+
+    public static STRING_INTERP_START = 10
+    public static STRING_INTERP_END = 11
+    public static STRING_LITERAL_PART = 12
+
+    public static FUNC = 13
+    public static CLASS = 14
+    public static NEW = 15
+    public static IF = 16
+    public static ELSE = 17
+    public static ELSE_IF = 18
+    public static FOR = 19
+    public static FOREACH = 20
+    public static WHILE = 21
+    public static MATCH = 22
+    public static RETURN = 23
+    public static ASYNC = 24
+    public static AWAIT = 25
+    public static SPAWN = 26
+    public static PARALLEL = 27
+    public static CHANNEL = 28
+    public static SEND = 29
+    public static RECEIVE = 30
+    public static TRY = 31
+    public static CATCH = 32
+    public static NAMESPACE = 33
+    public static PRINT = 34
+    public static VAR = 35
+    public static PRIVATE = 36
+    public static PUBLIC = 37
+    public static PROTECTED = 38
+    public static STATIC = 39
+    public static AS = 40
+    public static IN = 41
+    public static ERROR = 42
+    public static ENUM = 43
+    public static INTERFACE = 44
+    public static IMPLEMENTS = 45
+
+    public static AT_ML = 46
+    public static AT_MODEL = 47
+    public static AT_SUPERVISE = 48
+    public static AT_TRACE = 49
+
+    public static PLUS = 50
+    public static MINUS = 51
+    public static STAR = 52
+    public static SLASH = 53
+    public static MODULO = 54
+    public static INCREMENT = 55
+    public static DECREMENT = 56
+
+    public static EQUAL = 57
+    public static NOT_EQUAL = 58
+    public static LESS = 59
+    public static LESS_EQUAL = 60
+    public static GREATER = 61
+    public static GREATER_EQUAL = 62
+
+    public static AND = 63
+    public static OR = 64
+    public static NOT = 65
+
+    public static ASSIGN = 66
+    public static PLUS_ASSIGN = 67
+    public static MINUS_ASSIGN = 68
+    public static STAR_ASSIGN = 69
+    public static SLASH_ASSIGN = 70
+
+    public static ARROW = 71
+    public static FAT_ARROW = 72
+
+    public static DOT = 73
+    public static DOT_DOT = 74
+    public static QUESTION = 75
+    public static COLON = 76
+    public static DOUBLE_COLON = 77
+
+    public static COMMA = 78
+    public static SEMICOLON = 79
+    public static HASH = 80
+    public static AT = 81
+
+    public static LPAREN = 82
+    public static RPAREN = 83
+    public static LBRACE = 84
+    public static RBRACE = 85
+    public static LBRACKET = 86
+    public static RBRACKET = 87
+
+    public static DOLLAR_LBRACE = 88
+    public static INTERP_LBRACE = 89
+}
+
+class Token {
+    public $type = 0
+    public $start = 0
+    public $length = 0
+    public $line = 0
+    public $col = 0
+    public $literal = ""
+}
+
+class LexerHelper {
+    public static get_keywords() {
+        return {
+            "func": TokenType::FUNC,
+            "howl": TokenType::FUNC,
+            "function": TokenType::FUNC,
+            "class": TokenType::CLASS,
+            "new": TokenType::NEW,
+            "if": TokenType::IF,
+            "else": TokenType::ELSE,
+            "for": TokenType::FOR,
+            "foreach": TokenType::FOREACH,
+            "while": TokenType::WHILE,
+            "match": TokenType::MATCH,
+            "return": TokenType::RETURN,
+            "async": TokenType::ASYNC,
+            "await": TokenType::AWAIT,
+            "spawn": TokenType::SPAWN,
+            "parallel": TokenType::PARALLEL,
+            "channel": TokenType::CHANNEL,
+            "send": TokenType::SEND,
+            "receive": TokenType::RECEIVE,
+            "try": TokenType::TRY,
+            "catch": TokenType::CATCH,
+            "namespace": TokenType::NAMESPACE,
+            "print": TokenType::PRINT,
+            "var": TokenType::VAR,
+            "private": TokenType::PRIVATE,
+            "pri": TokenType::PRIVATE,
+            "public": TokenType::PUBLIC,
+            "pub": TokenType::PUBLIC,
+            "protected": TokenType::PROTECTED,
+            "pro": TokenType::PROTECTED,
+            "static": TokenType::STATIC,
+            "true": TokenType::BOOL_TRUE,
+            "false": TokenType::BOOL_FALSE,
+            "nil": TokenType::NIL,
+            "as": TokenType::AS,
+            "in": TokenType::IN,
+            "error": TokenType::ERROR,
+            "enum": TokenType::ENUM,
+            "interface": TokenType::INTERFACE,
+            "implements": TokenType::IMPLEMENTS
+        }
+    }
+}

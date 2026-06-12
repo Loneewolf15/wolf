@@ -23,7 +23,7 @@ func Run(projectRoot string) error {
 		if info.IsDir() && (info.Name() == ".git" || info.Name() == ".wolf_modules" || info.Name() == "wolf_out") {
 			return filepath.SkipDir
 		}
-		if !info.IsDir() && strings.HasSuffix(info.Name(), "_test.wolf") {
+		if !info.IsDir() && strings.HasSuffix(info.Name(), ".wolf") && !strings.HasSuffix(info.Name(), "_test_runner.wolf") {
 			testFiles = append(testFiles, path)
 		}
 		return nil
@@ -60,14 +60,16 @@ func Run(projectRoot string) error {
 			return fmt.Errorf("parse error in %s", file)
 		}
 
-		for _, stmt := range ast.Statements {
-			if fd, ok := stmt.(*parser.FuncDecl); ok {
-				if strings.HasPrefix(fd.Name, "test_") {
-					relPath, _ := filepath.Rel(projectRoot, file)
-					testFuncs = append(testFuncs, testFunc{
-						file: relPath,
-						name: fd.Name,
-					})
+		if strings.HasSuffix(file, "_test.wolf") {
+			for _, stmt := range ast.Statements {
+				if fd, ok := stmt.(*parser.FuncDecl); ok {
+					if strings.HasPrefix(fd.Name, "test_") || strings.Contains(fd.Name, "::test_") || strings.Contains(fd.Name, "_test_") {
+						relPath, _ := filepath.Rel(projectRoot, file)
+						testFuncs = append(testFuncs, testFunc{
+							file: relPath,
+							name: fd.Name,
+						})
+					}
 				}
 			}
 		}
@@ -134,7 +136,7 @@ if $failed > 0 {
 	c.Verbose = false
 	// Avoid caching issues
 	c.OutDir = filepath.Join(projectRoot, "wolf_out_test_runner")
-	defer os.RemoveAll(c.OutDir)
+	// defer os.RemoveAll(c.OutDir)
 
 	result, err := c.Build(runnerContent, runnerPath)
 	if err != nil {

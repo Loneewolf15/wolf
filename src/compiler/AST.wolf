@@ -1,0 +1,661 @@
+// AST.wolf
+// Defines the Abstract Syntax Tree node classes for the Wolf compiler.
+
+class ASTNode {
+    public $type = "ASTNode"
+    public $line = 0
+    public $col = 0
+    public $startLine = 0
+    public $startCol = 0
+    
+    public func __construct() {}
+}
+
+class Program extends ASTNode {
+    public $statements = [] // Array of Statement nodes
+
+    public func __construct() {
+        $this->type = "Program"
+    }
+}
+
+// ---------- Statements ----------
+
+class ExpressionStmt extends ASTNode {
+    public $expr = nil
+
+    public func __construct($expr) {
+        $this->type = "ExpressionStmt"
+        $this->expr = $expr
+    }
+}
+
+class VarDecl extends ASTNode {
+    public $name = ""
+    public $typeName = ""
+    public $value = nil
+
+    public func __construct($name, $typeName, $value) {
+        $this->type = "VarDecl"
+        $this->name = $name
+        $this->typeName = $typeName
+        $this->value = $value
+    }
+}
+
+class AssignStmt extends ASTNode {
+    public $target = nil
+    public $op = ""
+    public $value = nil
+
+    public func __construct($target, $op, $value) {
+        $this->type = "AssignStmt"
+        $this->target = $target
+        $this->op = $op
+        $this->value = $value
+    }
+}
+
+class ReturnStmt extends ASTNode {
+    public $values = []
+
+    public func __construct($values) {
+        $this->type = "ReturnStmt"
+        $this->values = $values
+    }
+}
+
+class IfStmt extends ASTNode {
+    public $condition = nil
+    public $body = nil
+    public $elseIfs = []
+    public $elseBody = nil
+
+    public func __construct($condition, $body) {
+        $this->type = "IfStmt"
+        $this->condition = $condition
+        $this->body = $body
+    }
+}
+
+class ElseIfClause extends ASTNode {
+    public $condition = nil
+    public $body = nil
+
+    public func __construct($condition, $body) {
+        $this->type = "ElseIfClause"
+        $this->condition = $condition
+        $this->body = $body
+    }
+}
+
+class ForStmt extends ASTNode {
+    public $init = nil
+    public $condition = nil
+    public $update = nil
+    public $body = nil
+
+    public func __construct($init, $condition, $update, $body) {
+        $this->type = "ForStmt"
+        $this->init = $init
+        $this->condition = $condition
+        $this->update = $update
+        $this->body = $body
+    }
+}
+
+class ForeachStmt extends ASTNode {
+    public $iterable = nil
+    public $valueVar = ""
+    public $keyVar = ""
+    public $body = nil
+
+    public func __construct($iterable, $valueVar, $keyVar, $body) {
+        $this->type = "ForeachStmt"
+        $this->iterable = $iterable
+        $this->valueVar = $valueVar
+        $this->keyVar = $keyVar
+        $this->body = $body
+    }
+}
+
+class WhileStmt extends ASTNode {
+    public $condition = nil
+    public $body = nil
+
+    public func __construct($condition, $body) {
+        $this->type = "WhileStmt"
+        $this->condition = $condition
+        $this->body = $body
+    }
+}
+
+class MatchStmt extends ASTNode {
+    public $subject = nil
+    public $arms = []
+
+    public func __construct($subject, $arms) {
+        $this->type = "MatchStmt"
+        $this->subject = $subject
+        $this->arms = $arms
+    }
+}
+
+class MatchArm extends ASTNode {
+    public $pattern = nil
+    public $body = []
+
+    public func __construct($pattern, $body) {
+        $this->type = "MatchArm"
+        $this->pattern = $pattern
+        $this->body = $body
+    }
+}
+
+class BlockStmt extends ASTNode {
+    public $statements = []
+
+    public func __construct($statements) {
+        $this->type = "BlockStmt"
+        $this->statements = $statements
+    }
+}
+
+class FuncDecl extends ASTNode {
+    public $name = ""
+    public $params = []
+    public $returnType = nil
+    public $typeParams = []
+    public $body = nil
+    public $arrowExpr = nil
+
+    public func __construct($name) {
+        $this->type = "FuncDecl"
+        $this->name = $name
+    }
+}
+
+class Param extends ASTNode {
+    public $name = ""
+    public $typeName = ""
+    public $defaultVal = nil
+
+    public func __construct($name, $typeName, $defaultVal) {
+        $this->type = "Param"
+        $this->name = $name
+        $this->typeName = $typeName
+        $this->defaultVal = $defaultVal
+    }
+}
+
+class ReturnTypeSpec extends ASTNode {
+    public $types = []
+
+    public func __construct($types) {
+        $this->type = "ReturnTypeSpec"
+        $this->types = $types
+    }
+}
+
+class ClassDecl extends ASTNode {
+    public $name = ""
+    public $extendsName = ""
+    public $typeParams = []
+    public $implementsNames = []
+    public $properties = []
+    public $methods = []
+
+    public func __construct($name) {
+        $this->type = "ClassDecl"
+        $this->name = $name
+    }
+}
+
+class InterfaceDecl extends ASTNode {
+    public $name = ""
+    public $methods = []
+
+    public func __construct($name) {
+        $this->type = "InterfaceDecl"
+        $this->name = $name
+    }
+}
+
+class InterfaceMethod extends ASTNode {
+    public $name = ""
+    public $params = []
+    public $returnType = nil
+
+    public func __construct($name) {
+        $this->type = "InterfaceMethod"
+        $this->name = $name
+    }
+}
+
+class EnumDecl extends ASTNode {
+    public $name = ""
+    public $variants = []
+
+    public func __construct($name) {
+        $this->type = "EnumDecl"
+        $this->name = $name
+    }
+}
+
+class PropertyDecl extends ASTNode {
+    public $name = ""
+    public $typeName = ""
+    public $defaultVal = nil
+    public $visibility = ""
+
+    public func __construct($name, $typeName, $defaultVal, $visibility) {
+        $this->type = "PropertyDecl"
+        $this->name = $name
+        $this->typeName = $typeName
+        $this->defaultVal = $defaultVal
+        $this->visibility = $visibility
+    }
+}
+
+class TryCatchStmt extends ASTNode {
+    public $tryBody = nil
+    public $catchVar = ""
+    public $catchBody = nil
+
+    public func __construct($tryBody, $catchVar, $catchBody) {
+        $this->type = "TryCatchStmt"
+        $this->tryBody = $tryBody
+        $this->catchVar = $catchVar
+        $this->catchBody = $catchBody
+    }
+}
+
+class NamespaceDecl extends ASTNode {
+    public $name = ""
+
+    public func __construct($name) {
+        $this->type = "NamespaceDecl"
+        $this->name = $name
+    }
+}
+
+class MLBlockStmt extends ASTNode {
+    public $inVars = []
+    public $outVars = []
+    public $modelName = nil
+    public $isAsync = false
+    public $bodyStr = ""
+
+    public func __construct() {
+        $this->type = "MLBlockStmt"
+    }
+}
+
+class SuperviseBlockStmt extends ASTNode {
+    public $strategy = ""
+    public $restart = ""
+    public $max = 0
+    public $body = nil
+
+    public func __construct($strategy, $restart, $max, $body) {
+        $this->type = "SuperviseBlockStmt"
+        $this->strategy = $strategy
+        $this->restart = $restart
+        $this->max = $max
+        $this->body = $body
+    }
+}
+
+class SpawnStmt extends ASTNode {
+    public $call = nil
+
+    public func __construct($call) {
+        $this->type = "SpawnStmt"
+        $this->call = $call
+    }
+}
+
+class TraceBlockStmt extends ASTNode {
+    public $spanName = nil
+    public $body = nil
+
+    public func __construct($spanName, $body) {
+        $this->type = "TraceBlockStmt"
+        $this->spanName = $spanName
+        $this->body = $body
+    }
+}
+
+class ParallelStmt extends ASTNode {
+    public $body = nil
+
+    public func __construct($body) {
+        $this->type = "ParallelStmt"
+        $this->body = $body
+    }
+}
+
+class DestructureAssign extends ASTNode {
+    public $names = []
+    public $value = nil
+
+    public func __construct($names, $value) {
+        $this->type = "DestructureAssign"
+        $this->names = $names
+        $this->value = $value
+    }
+}
+
+// ---------- Expressions ----------
+
+class DollarIdent extends ASTNode {
+    public $name = ""
+
+    public func __construct($name) {
+        $this->type = "DollarIdent"
+        $this->name = $name
+    }
+}
+
+class Identifier extends ASTNode {
+    public $name = ""
+
+    public func __construct($name) {
+        $this->type = "Identifier"
+        $this->name = $name
+    }
+}
+
+class IntLiteral extends ASTNode {
+    public $value = ""
+
+    public func __construct($value) {
+        $this->type = "IntLiteral"
+        $this->value = $value
+    }
+}
+
+class FloatLiteral extends ASTNode {
+    public $value = ""
+
+    public func __construct($value) {
+        $this->type = "FloatLiteral"
+        $this->value = $value
+    }
+}
+
+class StringLiteral extends ASTNode {
+    public $value = ""
+
+    public func __construct($value) {
+        $this->type = "StringLiteral"
+        $this->value = $value
+    }
+}
+
+class InterpolatedString extends ASTNode {
+    public $parts = []
+
+    public func __construct($parts) {
+        $this->type = "InterpolatedString"
+        $this->parts = $parts
+    }
+}
+
+class BoolLiteral extends ASTNode {
+    public $value = false
+
+    public func __construct($value) {
+        $this->type = "BoolLiteral"
+        $this->value = $value
+    }
+}
+
+class NilLiteral extends ASTNode {
+    public func __construct() {
+        $this->type = "NilLiteral"
+    }
+}
+
+class Wildcard extends ASTNode {
+    public func __construct() {
+        $this->type = "Wildcard"
+    }
+}
+
+class ArrayLiteral extends ASTNode {
+    public $elements = []
+
+    public func __construct($elements) {
+        $this->type = "ArrayLiteral"
+        $this->elements = $elements
+    }
+}
+
+class MapLiteral extends ASTNode {
+    public $keys = []
+    public $values = []
+
+    public func __construct($keys, $values) {
+        $this->type = "MapLiteral"
+        $this->keys = $keys
+        $this->values = $values
+    }
+}
+
+class BinaryExpr extends ASTNode {
+    public $left = nil
+    public $op = ""
+    public $right = nil
+
+    public func __construct($left, $op, $right) {
+        $this->type = "BinaryExpr"
+        $this->left = $left
+        $this->op = $op
+        $this->right = $right
+    }
+}
+
+class UnaryExpr extends ASTNode {
+    public $op = ""
+    public $operand = nil
+
+    public func __construct($op, $operand) {
+        $this->type = "UnaryExpr"
+        $this->op = $op
+        $this->operand = $operand
+    }
+}
+
+class PostfixExpr extends ASTNode {
+    public $operand = nil
+    public $op = ""
+
+    public func __construct($operand, $op) {
+        $this->type = "PostfixExpr"
+        $this->operand = $operand
+        $this->op = $op
+    }
+}
+
+class CallExpr extends ASTNode {
+    public $callee = nil
+    public $args = []
+    public $typeArgs = []
+    public $namedArgs = []
+
+    public func __construct($callee, $args) {
+        $this->type = "CallExpr"
+        $this->callee = $callee
+        $this->args = $args
+    }
+}
+
+class NamedArg extends ASTNode {
+    public $name = ""
+    public $value = nil
+
+    public func __construct($name, $value) {
+        $this->type = "NamedArg"
+        $this->name = $name
+        $this->value = $value
+    }
+}
+
+class PropertyAccess extends ASTNode {
+    public $object = nil
+    public $property = ""
+
+    public func __construct($object, $property) {
+        $this->type = "PropertyAccess"
+        $this->object = $object
+        $this->property = $property
+    }
+}
+
+class MethodCall extends ASTNode {
+    public $object = nil
+    public $method = ""
+    public $args = []
+
+    public func __construct($object, $method, $args) {
+        $this->type = "MethodCall"
+        $this->object = $object
+        $this->method = $method
+        $this->args = $args
+    }
+}
+
+class StaticCall extends ASTNode {
+    public $className = ""
+    public $method = ""
+    public $args = []
+
+    public func __construct($className, $method, $args) {
+        $this->type = "StaticCall"
+        $this->className = $className
+        $this->method = $method
+        $this->args = $args
+    }
+}
+
+class EnumAccess extends ASTNode {
+    public $enumName = ""
+    public $variant = ""
+
+    public func __construct($enumName, $variant) {
+        $this->type = "EnumAccess"
+        $this->enumName = $enumName
+        $this->variant = $variant
+    }
+}
+
+class IndexExpr extends ASTNode {
+    public $object = nil
+    public $index = nil
+
+    public func __construct($object, $index) {
+        $this->type = "IndexExpr"
+        $this->object = $object
+        $this->index = $index
+    }
+}
+
+class NewExpr extends ASTNode {
+    public $classExpr = nil
+    public $typeArgs = []
+    public $args = []
+
+    public func __construct($classExpr, $args) {
+        $this->type = "NewExpr"
+        $this->classExpr = $classExpr
+        $this->args = $args
+    }
+}
+
+class ClosureExpr extends ASTNode {
+    public $params = []
+    public $body = nil
+    public $arrowExpr = nil
+
+    public func __construct($params) {
+        $this->type = "ClosureExpr"
+        $this->params = $params
+    }
+}
+
+class AsyncExpr extends ASTNode {
+    public $body = nil
+
+    public func __construct($body) {
+        $this->type = "AsyncExpr"
+        $this->body = $body
+    }
+}
+
+class AwaitExpr extends ASTNode {
+    public $expr = nil
+
+    public func __construct($expr) {
+        $this->type = "AwaitExpr"
+        $this->expr = $expr
+    }
+}
+
+class ChannelExpr extends ASTNode {
+    public $elemType = ""
+
+    public func __construct($elemType) {
+        $this->type = "ChannelExpr"
+        $this->elemType = $elemType
+    }
+}
+
+class SendExpr extends ASTNode {
+    public $ch = nil
+    public $value = nil
+
+    public func __construct($ch, $value) {
+        $this->type = "SendExpr"
+        $this->ch = $ch
+        $this->value = $value
+    }
+}
+
+class ReceiveExpr extends ASTNode {
+    public $ch = nil
+
+    public func __construct($ch) {
+        $this->type = "ReceiveExpr"
+        $this->ch = $ch
+    }
+}
+
+class ErrorExpr extends ASTNode {
+    public $message = nil
+
+    public func __construct($message) {
+        $this->type = "ErrorExpr"
+        $this->message = $message
+    }
+}
+
+class StringConcat extends ASTNode {
+    public $left = nil
+    public $right = nil
+
+    public func __construct($left, $right) {
+        $this->type = "StringConcat"
+        $this->left = $left
+        $this->right = $right
+    }
+}
+
+class PrintExpr extends ASTNode {
+    public $arg = nil
+
+    public func __construct($arg) {
+        $this->type = "PrintExpr"
+        $this->arg = $arg
+    }
+}
