@@ -328,13 +328,16 @@ WolfArenaPool* wolf_arena_pool_create(int core_id) {
     pool->count   = WOLF_ARENA_POOL_SIZE;
 
     for (int i = 0; i < WOLF_ARENA_POOL_SIZE; i++) {
-        pool->arenas[i].slab          = (char*)malloc(WOLF_ARENA_SLAB_SIZE);
+        pool->arenas[i].base_slab     = (char*)malloc(WOLF_ARENA_SLAB_SIZE);
+        pool->arenas[i].base_cap      = WOLF_ARENA_SLAB_SIZE;
+        pool->arenas[i].active_slab   = pool->arenas[i].base_slab;
         pool->arenas[i].cap           = WOLF_ARENA_SLAB_SIZE;
         pool->arenas[i].pos           = 0;
-        pool->arenas[i].overflow_count = 0;
+        pool->arenas[i].total_allocated = 0;
+        pool->arenas[i].fallback_blocks = NULL;
         /* Fix #6: RELEASE store so worker threads see in_use=0 on ARM64 */
         __atomic_store_n(&pool->arenas[i].in_use, 0, __ATOMIC_RELEASE);
-        if (!pool->arenas[i].slab) {
+        if (!pool->arenas[i].base_slab) {
             fprintf(stderr, "[WOLF-ENGINE] OOM allocating arena pool for core %d\n", core_id);
             /* Continue with partial allocation */
         }
@@ -346,49 +349,76 @@ WolfArena* wolf_arena_acquire(WolfArenaPool* pool) {
     for (int i = 0; i < pool->count; i++) {
         /* Fix #6: ACQUIRE load for memory-ordering safety on ARM64 */
         if (!__atomic_load_n(&pool->arenas[i].in_use, __ATOMIC_ACQUIRE)
-            && pool->arenas[i].slab) {
+            && pool->arenas[i].base_slab) {
             __atomic_store_n(&pool->arenas[i].in_use, 1, __ATOMIC_RELEASE);
-            pool->arenas[i].pos          = 0;
-            pool->arenas[i].overflow_count = 0;
-            pool->arenas[i].is_overflow  = 0;
-            pool->arenas[i].refcount     = 1;
+            pool->arenas[i].active_slab = pool->arenas[i].base_slab;
+            pool->arenas[i].cap         = pool->arenas[i].base_cap;
+            pool->arenas[i].pos         = 0;
+            pool->arenas[i].total_allocated = 0;
+            pool->arenas[i].fallback_blocks = NULL;
+            pool->arenas[i].is_overflow = 0;
+            pool->arenas[i].refcount    = 1;
             return &pool->arenas[i];
         }
     }
     /* All arenas busy — allocate a temporary one (fallback, tagged for cleanup) */
-    WolfArena* tmp = (WolfArena*)malloc(sizeof(WolfArena));
+    WolfArena* tmp = (WolfArena*)calloc(1, sizeof(WolfArena));
     if (!tmp) return NULL;
-    tmp->slab        = (char*)malloc(WOLF_ARENA_SLAB_SIZE);
+    tmp->base_slab   = (char*)malloc(WOLF_ARENA_SLAB_SIZE);
+    tmp->base_cap    = WOLF_ARENA_SLAB_SIZE;
+    tmp->active_slab = tmp->base_slab;
     tmp->cap         = WOLF_ARENA_SLAB_SIZE;
     tmp->pos         = 0;
+    tmp->total_allocated = 0;
+    tmp->fallback_blocks = NULL;
     tmp->in_use      = 1;
     tmp->is_overflow = 1;  /* must be freed, not returned to pool */
     tmp->refcount    = 1;
-    if (!tmp->slab) { free(tmp); return NULL; }
+    if (!tmp->base_slab) { free(tmp); return NULL; }
     __atomic_fetch_add((volatile int*)&tmp->in_use, 0, __ATOMIC_RELAXED); /* fence */
     fprintf(stderr, "[WOLF-ENGINE] WARN: arena pool exhausted on core — using overflow arena\n");
     return tmp;
 }
 
 void* wolf_arena_alloc(WolfArena* arena, size_t size) {
-    /* Align to 8 bytes */
-    size = (size + 7) & ~(size_t)7;
+    /* Align to 16 bytes per spec */
+    size = (size + 15) & ~(size_t)15;
+    
     if (arena->pos + size > arena->cap) {
-        /* Single allocation too large for slab — fall back to calloc.
-         * Fix #1: record the pointer in overflow_ptrs so wolf_arena_reset
-         * can free it. Without this, every oversized alloc was a silent leak. */
-        void* p = calloc(1, size);
-        if (p && arena->overflow_count < 64) {
-            arena->overflow_ptrs[arena->overflow_count++] = p;
-        } else if (p && arena->overflow_count >= 64) {
-            /* Overflow list full — log and free immediately to avoid leak */
-            fprintf(stderr, "[WOLF-ARENA] overflow_ptrs full — freeing oversized alloc immediately\n");
-            free(p);
-            p = NULL;
+        /* Single allocation exceeds current active slab — geometric growth fallback */
+        size_t new_cap = arena->cap * 2;
+        if (size > new_cap) {
+            new_cap = size;
         }
-        return p;
+
+        if (arena->total_allocated + new_cap > WOLF_MAX_REQUEST_MEMORY) {
+            fprintf(stderr, "[WOLF-ARENA] Hard ceiling reached: request exceeded 16MB. Rejecting.\n");
+            return NULL;
+        }
+
+        WolfArenaBlock* block = (WolfArenaBlock*)malloc(sizeof(WolfArenaBlock));
+        if (!block) return NULL;
+        
+        block->slab = (char*)calloc(1, new_cap);
+        if (!block->slab) {
+            free(block);
+            return NULL;
+        }
+
+        /* Head insertion into fallback_blocks */
+        block->next = arena->fallback_blocks;
+        arena->fallback_blocks = block;
+
+        /* Update arena state */
+        arena->active_slab = block->slab;
+        arena->cap = new_cap;
+        arena->total_allocated += new_cap;
+        
+        void* ptr = arena->active_slab; /* return address FIRST */
+        arena->pos = size;              /* advance SECOND */
+        return ptr;
     }
-    void* p = arena->slab + arena->pos;
+    void* p = arena->active_slab + arena->pos;
     arena->pos += size;
     memset(p, 0, size);
     return p;
@@ -417,36 +447,46 @@ void wolf_arena_unref(WolfArena* arena) {
 void wolf_arena_reset(WolfArena* arena) {
     if (!arena) return;
 
-    /* Fix #1: free all oversized allocations tracked in the overflow list */
-    for (int i = 0; i < arena->overflow_count; i++) {
-        if (arena->overflow_ptrs[i]) {
-            free(arena->overflow_ptrs[i]);
-            arena->overflow_ptrs[i] = NULL;
-        }
+    /* Free all geometric fallback blocks */
+    WolfArenaBlock* curr = arena->fallback_blocks;
+    while (curr) {
+        WolfArenaBlock* next = curr->next;
+        free(curr->slab);
+        free(curr);
+        curr = next;
     }
-    arena->overflow_count = 0;
+    arena->fallback_blocks = NULL;
 
     if (arena->is_overflow) {
-        /* Fallback arena — free the slab and struct (both heap-allocated) */
-        free(arena->slab);
-        arena->slab   = NULL;
+        /* Fallback arena struct itself — free the base slab and struct */
+        free(arena->base_slab);
+        arena->base_slab   = NULL;
+        arena->active_slab = NULL;
         arena->in_use = 0;
         free(arena);  /* the struct itself was malloc'd in wolf_arena_acquire */
         return;
     }
-    arena->pos    = 0;  /* O(1) — just reset the pointer */
-    arena->in_use = 0;
+    
+    /* Restore to base state for O(1) reuse */
+    arena->active_slab = arena->base_slab;
+    arena->cap         = arena->base_cap;
+    arena->pos         = 0;  /* O(1) — just reset the pointer */
+    arena->total_allocated = 0;
+    arena->in_use      = 0;
 }
 
 void wolf_arena_pool_destroy(WolfArenaPool* pool) {
     if (!pool) return;
     for (int i = 0; i < pool->count; i++) {
-        /* Fix #1: free any tracked overflow ptrs before freeing the slab */
-        for (int j = 0; j < pool->arenas[i].overflow_count; j++) {
-            if (pool->arenas[i].overflow_ptrs[j])
-                free(pool->arenas[i].overflow_ptrs[j]);
+        /* Free fallback blocks if any are still lingering */
+        WolfArenaBlock* curr = pool->arenas[i].fallback_blocks;
+        while (curr) {
+            WolfArenaBlock* next = curr->next;
+            free(curr->slab);
+            free(curr);
+            curr = next;
         }
-        if (pool->arenas[i].slab) free(pool->arenas[i].slab);
+        if (pool->arenas[i].base_slab) free(pool->arenas[i].base_slab);
     }
     free(pool);
 }
@@ -823,6 +863,41 @@ static void* wolf_core_thread(void* arg) {
 
         /* Parse into arena memory */
         wolf_engine_parse_request(ctx, read_buf, bytes);
+
+        /* GET /health Observability Bypass */
+        if (ctx->method && strcmp(ctx->method, "GET") == 0 && ctx->path && strcmp(ctx->path, "/health") == 0) {
+            char health_buf[4096];
+            extern int wolf_get_active_requests(void);
+            int active = wolf_get_active_requests();
+            
+            /* Dump lock-free metrics + active requests */
+            int n = snprintf(health_buf, sizeof(health_buf), "{\"status\":\"ok\",\"active_requests\":%d,\"metrics\":{", active);
+            
+            int first = 1;
+            extern wolf_metric_t wolf_metrics_registry[];
+            for (int i = 0; i < WOLF_MAX_METRICS; i++) {
+                const char* k = atomic_load(&wolf_metrics_registry[i].key_ptr);
+                if (k) {
+                    if (!first) {
+                        if (n < sizeof(health_buf) - 1) health_buf[n++] = ',';
+                    }
+                    first = 0;
+                    n += snprintf(health_buf + n, sizeof(health_buf) - n, "\"%s\":%lld", 
+                                  wolf_metrics_registry[i].name, 
+                                  (long long)atomic_load(&wolf_metrics_registry[i].count));
+                }
+            }
+            n += snprintf(health_buf + n, sizeof(health_buf) - n, "}}");
+            
+            ctx->res_body = wolf_arena_strdup(ctx->arena, health_buf);
+            ctx->status_code = 200;
+            ctx->res_header_keys[0] = "Content-Type";
+            ctx->res_header_vals[0] = "application/json";
+            ctx->res_header_keys[1] = "Access-Control-Allow-Origin";
+            ctx->res_header_vals[1] = "*";
+            ctx->res_header_count = 2;
+            goto send_and_cleanup;
+        }
 
         /* WebSocket upgrade */
         if (ctx->is_websocket) {

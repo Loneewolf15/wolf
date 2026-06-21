@@ -63,18 +63,29 @@ void          wolf_sentinel_destroy(WolfSentinel* s);
 #  define WOLF_ARENA_SLAB_SIZE (64 * 1024)  /* 64KB per arena slab */
 #endif
 
+#ifndef WOLF_MAX_REQUEST_MEMORY
+#  define WOLF_MAX_REQUEST_MEMORY (16 * 1024 * 1024) /* 16MB per request limit */
+#endif
+
+typedef struct WolfArenaBlock {
+    char* slab;
+    struct WolfArenaBlock* next;
+} WolfArenaBlock;
+
 typedef struct WolfArena {
-    char*  slab;
+    char*  active_slab;
     size_t pos;
     size_t cap;
-    int    in_use;
-    int    is_overflow;  /* 1 = heap-allocated fallback, must be freed on reset */
+    
+    char*  base_slab;
+    size_t base_cap;
+    size_t total_allocated;
 
-    /* Fix #1: track per-allocation overflows (calloc fallbacks within a slab).
-     * When a single alloc exceeds slab capacity, we fall back to calloc and
-     * record the pointer here. wolf_arena_reset frees all of them. */
-    void*  overflow_ptrs[64];  /* up to 64 oversized allocs per request */
-    int    overflow_count;
+    int    in_use;
+    int    is_overflow;  /* 1 = heap-allocated fallback arena struct, must be freed on pool destroy/reset if applicable */
+
+    /* Linked list of geometric block-growth fallbacks */
+    WolfArenaBlock* fallback_blocks;
     
     volatile int refcount; /* W1 Fix: track detached concurrent spawn tasks */
 } WolfArena;

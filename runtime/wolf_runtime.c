@@ -2361,8 +2361,13 @@ void wolf_array_push(void* a, void* item) {
     if (!a) return;
     wolf_array_t* arr = (wolf_array_t*)a;
     if (arr->length >= arr->capacity) {
-        arr->capacity *= 2;
-        arr->items = (void**)realloc(arr->items, sizeof(void*) * arr->capacity);
+        int64_t old_cap = arr->capacity;
+        arr->capacity = (arr->capacity == 0) ? 8 : arr->capacity * 2;
+        void** new_items = (void**)wolf_req_alloc(sizeof(void*) * arr->capacity);
+        if (arr->items && old_cap > 0) {
+            memcpy(new_items, arr->items, sizeof(void*) * old_cap);
+        }
+        arr->items = new_items;
     }
     arr->items[arr->length++] = item;
 }
@@ -7736,3 +7741,4 @@ int main(int argc, char** argv) {
     return 0;
 }
 #endif
+int wolf_get_active_requests(void) { return wolf_active_requests; }
