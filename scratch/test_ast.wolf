@@ -1,0 +1,11 @@
+var $src = "for ($i = 0; $i < 10; $i++) { var $x = $i; }"
+var $lexer = new Lexer($src, "test.wolf")
+var $tokens = $lexer->Tokenize()
+var $parser = new Parser($tokens, "test.wolf", $src)
+var $ast = $parser->Parse()
+
+print($ast->statements[0]->init->type)
+print($ast->statements[0]->init->expr->type)
+print($ast->statements[0]->init->expr->op)
+print($ast->statements[0]->init->expr->left->type)
+print($ast->statements[0]->init->expr->left->name)

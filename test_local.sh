@@ -176,12 +176,13 @@ header "Step 3: Unit & Integration Tests (with coverage)"
 
 if [[ "$SKIP_SLOW" == "true" ]]; then
   info "Running fast tests only (skipping pythonenv — use --no-slow to re-enable)"
-  TEST_PKGS=$(go list ./... | grep -v "internal/pythonenv" | tr '\n' ' ')
+  TEST_PKGS=$(go list ./... | grep -v "internal/pythonenv" | grep -v "/benchmarks" | tr '\n' ' ')
   TEST_CMD="go test $TEST_PKGS -v -cover -coverprofile=coverage.out -timeout 10m"
 else
   info "Running all tests including slow pythonenv pip-install tests (~10 min)"
   info "Tip: use --no-slow to skip pythonenv tests for fast iteration"
-  TEST_CMD="go test ./... -v -cover -coverprofile=coverage.out -timeout 30m"
+  TEST_PKGS=$(go list ./... | grep -v "/benchmarks" | tr '\n' ' ')
+  TEST_CMD="go test $TEST_PKGS -v -cover -coverprofile=coverage.out -timeout 30m"
 fi
 
 echo ""

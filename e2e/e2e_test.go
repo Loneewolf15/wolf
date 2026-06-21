@@ -54,7 +54,7 @@ func TestEndToEnd(t *testing.T) {
 				tmpl, _ := os.ReadFile(filepath.Join(testdata, "wolf.mod.template"))
 				modContent := strings.ReplaceAll(string(tmpl), "{PWD}", absTestdata)
 				os.WriteFile(filepath.Join(testdata, "wolf.mod"), []byte(modContent), 0644)
-				
+
 				// Ensure dummy_pkg_repo is a git repo so clone works
 				dummyRepo := filepath.Join(testdata, "dummy_pkg_repo")
 				exec.Command("git", "-C", dummyRepo, "init", "-b", "main").Run()
@@ -77,7 +77,7 @@ func TestEndToEnd(t *testing.T) {
 				// But we need to capture stdout.
 				// Actually, e2e_test.go always compiles and runs the file. We can just let it compile the dummy file.
 				// But we want to run tester.Run(). Let's capture stdout here.
-				
+
 				// Create a temporary directory for testing
 				testDir := filepath.Join(testdata, "temp_test_dir")
 				os.MkdirAll(testDir, 0755)
@@ -105,9 +105,9 @@ func test_fail() {
 
 				var buf bytes.Buffer
 				buf.ReadFrom(r)
-				
+
 				out := buf.String()
-				
+
 				// Strip time and compiler debug output
 				lines := strings.Split(out, "\n")
 				var cleanLines []string
@@ -117,18 +117,18 @@ func test_fail() {
 					}
 				}
 				cleanOut := strings.TrimSpace(strings.Join(cleanLines, "\n"))
-				
+
 				expectedOut, _ := os.ReadFile(filepath.Join(testdata, "46_test_runner.out"))
 				expectedStr := strings.TrimSpace(string(expectedOut))
-				
+
 				if cleanOut != expectedStr {
 					t.Errorf("Test runner output mismatch.\nExpected:\n%s\nGot:\n%s", expectedStr, cleanOut)
 				}
-				
+
 				if err == nil {
 					t.Errorf("Expected tester.Run() to return an error because test_fail failed")
 				}
-				
+
 				return // skip the normal build/run phase
 			}
 

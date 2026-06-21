@@ -1,0 +1,159 @@
+✅ test_array_push
+entering constructor
+leaving constructor
+Tokens count: 1
+First token type: EOF
+✅ test_lexer_empty
+entering constructor
+leaving constructor
+Tokens count in basic: 6
+Token 0: type=VAR, lexeme=
+Token 1: type=IDENT, lexeme=
+Token 2: type=ASSIGN, lexeme=
+Token 3: type=INT, lexeme=
+Token 4: type=SEMICOLON, lexeme=
+Token 5: type=EOF, lexeme=
+✅ test_lexer_basic
+entering constructor
+leaving constructor
+✅ test_lexer_string
+entering constructor
+leaving constructor
+✅ test_lexer_math
+entering constructor
+leaving constructor
+✅ test_lexer_keywords
+entering constructor
+leaving constructor
+PASS: test_parser_basic
+✅ test_parser_basic
+entering constructor
+leaving constructor
+PASS: test_parser_binary_expr
+✅ test_parser_binary_expr
+entering constructor
+leaving constructor
+PASS: test_parser_precedence_comparison
+✅ test_parser_precedence_comparison
+entering constructor
+leaving constructor
+PASS: test_parser_unary_expr
+✅ test_parser_unary_expr
+entering constructor
+leaving constructor
+PASS: test_parser_string_concat
+✅ test_parser_string_concat
+entering constructor
+leaving constructor
+PASS: test_parser_method_call
+✅ test_parser_method_call
+entering constructor
+leaving constructor
+PASS: test_parser_chained_method_call
+✅ test_parser_chained_method_call
+entering constructor
+leaving constructor
+PASS: test_parser_static_call
+✅ test_parser_static_call
+entering constructor
+leaving constructor
+PASS: test_parser_array_index
+✅ test_parser_array_index
+entering constructor
+leaving constructor
+PASS: test_parser_new_expr
+✅ test_parser_new_expr
+entering constructor
+leaving constructor
+PASS: test_parser_array_literal
+✅ test_parser_array_literal
+entering constructor
+leaving constructor
+PASS: test_parser_map_literal
+✅ test_parser_map_literal
+entering constructor
+leaving constructor
+PASS: test_parser_if_stmt
+✅ test_parser_if_stmt
+entering constructor
+leaving constructor
+PASS: test_parser_if_elseif_else
+✅ test_parser_if_elseif_else
+entering constructor
+leaving constructor
+PASS: test_parser_for_stmt
+✅ test_parser_for_stmt
+entering constructor
+leaving constructor
+PASS: test_parser_while_stmt
+✅ test_parser_while_stmt
+entering constructor
+leaving constructor
+PASS: test_parser_class_decl
+✅ test_parser_class_decl
+entering constructor
+leaving constructor
+PASS: test_parser_return_stmt
+✅ test_parser_return_stmt
+entering constructor
+leaving constructor
+PASS: test_parser_grouped_expr
+✅ test_parser_grouped_expr
+entering constructor
+leaving constructor
+PASS: test_resolver_var_decl
+✅ test_resolver_var_decl
+entering constructor
+leaving constructor
+PASS: test_resolver_func_hoist
+✅ test_resolver_func_hoist
+entering constructor
+leaving constructor
+PASS: test_resolver_func_params
+✅ test_resolver_func_params
+entering constructor
+leaving constructor
+RESOLVE ERROR: undefined variable $z
+PASS: test_resolver_undefined_var
+✅ test_resolver_undefined_var
+entering constructor
+leaving constructor
+PASS: test_resolver_class_decl
+✅ test_resolver_class_decl
+entering constructor
+leaving constructor
+PASS: test_resolver_new_known_class
+✅ test_resolver_new_known_class
+entering constructor
+leaving constructor
+RESOLVE ERROR: unknown class 'Ghost'
+PASS: test_resolver_new_unknown_class
+✅ test_resolver_new_unknown_class
+entering constructor
+leaving constructor
+PASS: test_resolver_if_scoping
+✅ test_resolver_if_scoping
+entering constructor
+leaving constructor
+RESOLVE ERROR: undefined variable $i
+RESOLVE ERROR: undefined variable $i
+RESOLVE ERROR: undefined variable $i
+❌ test_resolver_for_scoping - FAILED: test_resolver_for_scoping: expected no resolve errors
+entering constructor
+leaving constructor
+PASS: test_resolver_method_call
+✅ test_resolver_method_call
+entering constructor
+leaving constructor
+PASS: test_resolver_func_param_count
+✅ test_resolver_func_param_count
+entering constructor
+leaving constructor
+PASS: test_resolver_string_concat
+✅ test_resolver_string_concat
+entering constructor
+leaving constructor
+PASS: test_resolver_lookup_miss
+✅ test_resolver_lookup_miss
+
+Tests: 37 passed, 1 failed

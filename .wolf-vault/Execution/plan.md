@@ -2,26 +2,25 @@
 
 > Updated every session via `/wrap-up`. Read via `/resume`.
 
-## Current Sprint: Sprint 9 — Package Registry MVP 🔄
+## Current Sprint: Sprint 10 — Ecosystem & Observability 🔄
 
 ### Active Tasks
 | Task | Status | Blocking |
 |------|--------|---------|
-| Commit BUG-080/081/082 fixes | 🔄 **Next session first commit** | — |
-| `__class` key filter in `wolf_json_encode_map` | 🔄 Warm-up (15 min) | — |
-| Design `wolf.mod` spec | 🔄 Pending | — |
-| `internal/packager/registry.go` | 🔄 Pending | wolf.mod spec |
-| `internal/packager/fetcher.go` | 🔄 Pending | registry.go |
-| `internal/cli/install.go` + `wolf install` command | 🔄 Pending | fetcher.go |
-| `wolf install` E2E fixture test | 🔄 Pending | install.go |
+| `wolf install` (Package Registry MVP) | ✅ Completed | — |
+| Geometric Block-Growth Allocator (Phase 3) | ✅ Completed | — |
+| `localhost:8081` Visual Dashboard overhaul | ✅ Completed | — |
+| `wolf docker init` | ✅ Completed | — |
+| Compiler Parser Refactoring (Pratt Parser) | 🔄 Next | — |
+| `wolf test` built-in test runner | 🔄 Pending | — |
+| `wolf explain` AI error diagnostic tool | 🔄 Pending | — |
 | Wolf LSP + VS Code foundation | ⏸ Deferred to Phase 11 | — |
 
-### Queen's Ruling — Sprint 9 Charter
-> `wolf install` (Package Manager MVP) is the sole primary track for Sprint 9.  
-> LSP is deferred. It is a multi-week build with zero user-facing value until there is a package ecosystem to navigate.  
-> `__class` JSON filter is a 15-minute pre-flight fix, not a sprint task.
+### Queen's Ruling — Sprint 10 Charter
+> Ecosystem and observability foundations are set. The next immediate focus should be Compiler Parser Refactoring to implement proper expression precedence (Pratt Parser) for robust grammar parsing.
 
 ## Completed Sprints
+- [x] **Sprint 9: Package Registry MVP** — 2026-06-21
 - [x] **Sprint 8: Language Completeness** (Phase 2) — 2026-06-09
 - [x] **Sprint 6: Native Foundations** (WebSocket, HTTP Client, Math/Stats) — 2026-03-26
 - [x] **Sprint 5: File Uploads & Metal-Ready** — 2026-03-25
@@ -56,6 +55,15 @@ graph TD
 3. Wolf LSP + VS Code foundation.
 
 ## Session History
+
+### 2026-06-12 (Session 31 — Native Wolf Parser & Zero-Copy Lexer)
+**Done:**
+- Refactored `Token` and `Lexer` to a zero-copy architecture (lazy evaluation of strings) by removing the `$literal` property.
+- Established the base structural `Parser.wolf` incorporating recursive descent helpers (`peek`, `advance`, `expect`).
+- Uncovered and fixed a native LLVM emitter bug where `ptr + ptr` object property addition defaulted to string concatenation (creating boundary shift bugs in `wolf_strings_substring`). Mitigated using explicit `intval` casts.
+- Bootstrapped native AST nodes (`VarDecl`, `ExpressionStmt`, etc.) inside `AST.wolf`.
+- Passed execution of the native `Parser` against the `test_parser_basic` validation suite in `wolf test`.
+- Fully established the parser pipeline capable of recognizing and tokenizing Wolf variables lazily.
 
 ### 2026-06-10 (Session 30 — Sprint 10: Test Runner & C Runtime Gaps)
 **Done:**

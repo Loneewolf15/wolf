@@ -144,7 +144,7 @@ if $failed > 0 {
 	}
 
 	fmt.Printf("wolf test: Running tests (compiled in %v)...\n\n", time.Since(startBuild))
-	
+
 	startRun := time.Now()
 	cmd := exec.Command(result.OutputPath)
 	var stdout, stderr bytes.Buffer

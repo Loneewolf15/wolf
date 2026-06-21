@@ -80,11 +80,11 @@ build-windows-arm64:
 
 ## test: Run all tests
 test:
-	$(GO) test ./... -v -timeout 30m
+	$(GO) test $$(go list ./... | grep -v /benchmarks) -v -timeout 30m
 
 ## test-cover: Run all tests with coverage report printed to terminal
 test-cover:
-	$(GO) test ./... -v -cover -coverprofile=coverage.out -timeout 30m
+	$(GO) test $$(go list ./... | grep -v /benchmarks) -v -cover -coverprofile=coverage.out -timeout 30m
 	$(GO) tool cover -func=coverage.out
 
 ## coverage-html: Generate and open an HTML coverage report

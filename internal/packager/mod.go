@@ -62,7 +62,7 @@ func ParseModFile(path string) (*ModFile, error) {
 
 		key := strings.TrimSpace(line[:eq])
 		val := strings.TrimSpace(line[eq+1:])
-		
+
 		// strip quotes
 		if strings.HasPrefix(key, `"`) && strings.HasSuffix(key, `"`) {
 			key = key[1 : len(key)-1]

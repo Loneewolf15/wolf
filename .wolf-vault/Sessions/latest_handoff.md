@@ -1,36 +1,30 @@
-# Handoff — 2026-06-10
+# Handoff — 2026-06-21
 
 ## Where We Left Off
-We just successfully completed Phase 1 & 2 of Sprint 10!
-The Wolf `test` runner CLI and internal execution engine are built and tested.
-Additionally, the critical C Runtime Gaps (`wolf_sys_getenv`, `wolf_os_exec`, and `wolf_file_list_dir`) required for bootstrapping have been implemented using POSIX APIs, properly mapped to the LLVM emitter, and validated via E2E test isolation.
+Successfully wrapped up the final components of Phase 3 Ecosystem & Observability. 
+- Implemented `BUG-083: Arena fallback geometric growth` to plug a DoS vulnerability / memory leak in the C runtime allocator.
+- Extracted and overhauled the `localhost:8081` `wolf dev` Dashboard, integrating premium GSAP animations, glassmorphic UI, and live polling via `//go:embed`.
+- Verified `wolf docker init` generates the correct Dockerfile and `.dockerignore`.
 
 ## Commits This Session
-*(Changes are currently locally modified and uncommitted on the main branch)*
-The following were modified:
-- `internal/tester/runner.go`
-- `cmd/wolf/main.go`
-- `e2e/e2e_test.go`
-- `runtime/wolf_runtime.h`
-- `runtime/wolf_runtime.c`
-- `internal/emitter/llvm_emitter.go`
+*No commits made yet. Need to commit the memory allocator and dashboard fixes upon resume.*
 
 ## Tests Status
-All unit tests and end-to-end tests for Sprint 10 have been verified locally.
+- Fast tests (`test_local.sh --no-slow`): Passing.
+- `go test ./e2e/...` triggers a 10m timeout solely because of LLVM compilation overhead (takes ~30s per test natively). Tests 1 through 21 run completely green before timing out on test #22. 
 
 ## Next Immediate Task
-Begin Phase 5: Self-Hosting compiler porting!
-The immediate next step is to port the `Lexer` layer into native Wolf. 
-Start by translating `src/compiler/Lexer.wolf` and writing standard Wolf unit tests against it utilizing the newly built `wolf test` harness.
+- **Commit current changes:** Commit the `wolf_http_engine.c/.h` memory allocator fixes and the `dashboard.go` / `index.html` frontend overhaul.
+- **Compiler Parser Refactoring:** Pivot to implementing the Pratt Parser logic in the compiler to handle expression precedence correctly.
 
 ## Open Issues / Watch Out For
-- The `test` runner currently concatenates target source files directly into a single `_wolf_test_runner.wolf` temp file to work around standard `require` dependencies. Ensure that `Lexer.wolf` and test files don't define conflicting global functions or globals.
-- Ensure that the uncommitted BUG-080, BUG-081, and BUG-082 fixes are pushed to git alongside the test runner code.
+- Ensure you run `./wolf docker init` using the locally built binary (`go build -o wolf ./cmd/wolf`), as the global binary may not have the recent additions.
+- The 10m test timeout on the full E2E suite is expected behavior right now; do not mistake it for a regression or infinite loop in the runtime allocator.
 
 ## Relevant Files Modified This Session
-- `runtime/wolf_runtime.c`
-- `runtime/wolf_runtime.h`
-- `internal/emitter/llvm_emitter.go`
-- `internal/tester/runner.go`
+- `runtime/wolf_http_engine.c`
+- `runtime/wolf_http_engine.h`
+- `internal/dashboard/dashboard.go`
+- `internal/dashboard/index.html` (NEW)
 - `cmd/wolf/main.go`
-- `e2e/e2e_test.go`
+- `test_local.sh`

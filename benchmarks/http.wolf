@@ -1,7 +1,0 @@
-func handler($req_id, $res_id) {
-    wolf_http_res_status($res_id, 200)
-    wolf_http_res_write($res_id, "Hello from Wolf Server!")
-}
-
-println("Wolf server initialized.")
-wolf_http_serve(8085, handler)

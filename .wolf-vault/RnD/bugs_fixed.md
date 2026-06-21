@@ -1,5 +1,13 @@
 # Wolf Bugs Fixed — Cumulative Log
 
+## Session 2026-06-21 (Sprint 10 — Ecosystem & Observability)
+
+### BUG-083: Arena fallback list geometric growth fix (DOS vulnerability)
+- **Class:** P0 🔴 Security / Runtime Crash
+- **Root cause:** The fallback for oversized arena allocations relied on a hardcoded 64-element array in `WolfArena`. Exhausting this array triggered an immediate `free()` and `NULL` return, violating LLVM's non-nullable pointer assumptions and creating a silent runtime crash DOS vector.
+- **Fix:** Refactored the memory allocator to use a geometric block-growth strategy (`std::pmr` style) with a linked list (`fallback_blocks`). Applied a hard `WOLF_MAX_REQUEST_MEMORY` (16MB) ceiling *before* `malloc` to prevent heap exhaustion. Ensured strict O(1) fast-path preservation and 16-byte alignment.
+- **File:** `runtime/wolf_http_engine.c`, `runtime/wolf_http_engine.h`
+
 ## Session 2026-06-10 (Session 29 — Go Interop Stabilization)
 
 ### BUG-080: CGO type mapping fails on `GoInt` (case-sensitivity)

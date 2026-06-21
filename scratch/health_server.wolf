@@ -1,0 +1,9 @@
+func handler($req, $res) {
+    // We just print JSON, which the runtime redirects to the HTTP response
+    print(json_encode({"hello": "world"}))
+}
+
+func main() {
+    print("Starting server on port 2006...")
+    wolf_http_serve(2006, handler)
+}

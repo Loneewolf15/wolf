@@ -35,7 +35,7 @@ func Install(projectRoot string) error {
 	changed := false
 	for pkg, req := range mod.Require {
 		lockedSHA, isLocked := lock.Locked[pkg]
-		
+
 		// If it's already locked and downloaded, we could verify the SHA, but for MVP we skip if it exists
 		pkgDir := filepath.Join(fetcher.ModulesDir, filepath.Base(pkg))
 		if isLocked {

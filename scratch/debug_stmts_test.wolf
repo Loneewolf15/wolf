@@ -1,0 +1,26 @@
+func test_debug() {
+    var $src = "var $a = 1; var $b = 2; var $c = 3;"
+    var $lexer = new Lexer($src, "test.wolf")
+    var $tokens = $lexer->Tokenize()
+    var $p = new Parser($tokens, "test.wolf", $src)
+    var $ast = $p->Parse()
+    
+    var $errs = $p->Errors()
+    print("Errors: " .. count($errs))
+    var $j = 0
+    while ($j < count($errs)) {
+        print("Err: " .. $errs[$j]["message"])
+        $j = $j + 1
+    }
+    
+    print("Statements: " .. count($ast->statements))
+    var $i = 0
+    while ($i < count($ast->statements)) {
+        var $stmt = $ast->statements[$i]
+        print("Stmt " .. $i .. ": " .. $stmt->type)
+        if ($stmt->type == "VarDecl") {
+            print("  name=" .. $stmt->name)
+        }
+        $i = $i + 1
+    }
+}

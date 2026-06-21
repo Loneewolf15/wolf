@@ -2191,7 +2191,7 @@ func (e *LLVMEmitter) emitBinaryExpr(ex *ir.BinaryExpr, expectedType string) str
 		if leftType == "i64" || rightType == "i64" {
 			left := e.emitExpr(ex.Left, leftType)
 			right := e.emitExpr(ex.Right, rightType)
-			
+
 			leftI := e.nextLocal()
 			rightI := e.nextLocal()
 			if leftType == "ptr" {
@@ -2209,7 +2209,7 @@ func (e *LLVMEmitter) emitBinaryExpr(ex *ir.BinaryExpr, expectedType string) str
 			e.emittedTypes[reg] = "i64"
 			return reg
 		}
-		
+
 		leftVal := e.emitArgAsString(ex.Left)
 		rightVal := e.emitArgAsString(ex.Right)
 		reg := e.nextLocal()
@@ -2262,7 +2262,7 @@ func (e *LLVMEmitter) emitBinaryExpr(ex *ir.BinaryExpr, expectedType string) str
 			e.writelnIndent(fmt.Sprintf("%s = icmp ne i64 %s, 0", casted, left))
 			left = casted
 		}
-		
+
 		if rightType == "ptr" {
 			casted := e.nextLocal()
 			e.writelnIndent(fmt.Sprintf("%s = call i1 @wolf_boolval(ptr %s)", casted, right))
@@ -2331,13 +2331,21 @@ func (e *LLVMEmitter) emitBinaryExpr(ex *ir.BinaryExpr, expectedType string) str
 	} else if commonType == "ptr" {
 		switch ex.Op {
 		case "==":
-			cmpReg := e.nextLocal()
-			e.writelnIndent(fmt.Sprintf("%s = call i64 @wolf_strcmp(ptr %s, ptr %s)", cmpReg, left, right))
-			e.writelnIndent(fmt.Sprintf("%s = icmp eq i64 %s, 0", reg, cmpReg))
+			if left == "null" || right == "null" {
+				e.writelnIndent(fmt.Sprintf("%s = icmp eq ptr %s, %s", reg, left, right))
+			} else {
+				cmpReg := e.nextLocal()
+				e.writelnIndent(fmt.Sprintf("%s = call i64 @wolf_strcmp(ptr %s, ptr %s)", cmpReg, left, right))
+				e.writelnIndent(fmt.Sprintf("%s = icmp eq i64 %s, 0", reg, cmpReg))
+			}
 		case "!=":
-			cmpReg := e.nextLocal()
-			e.writelnIndent(fmt.Sprintf("%s = call i64 @wolf_strcmp(ptr %s, ptr %s)", cmpReg, left, right))
-			e.writelnIndent(fmt.Sprintf("%s = icmp ne i64 %s, 0", reg, cmpReg))
+			if left == "null" || right == "null" {
+				e.writelnIndent(fmt.Sprintf("%s = icmp ne ptr %s, %s", reg, left, right))
+			} else {
+				cmpReg := e.nextLocal()
+				e.writelnIndent(fmt.Sprintf("%s = call i64 @wolf_strcmp(ptr %s, ptr %s)", cmpReg, left, right))
+				e.writelnIndent(fmt.Sprintf("%s = icmp ne i64 %s, 0", reg, cmpReg))
+			}
 		default:
 			// For numeric comparisons and math on ptr, coerce both sides to i64 via wolf_intval
 			if ex.Op == ">" || ex.Op == "<" || ex.Op == ">=" || ex.Op == "<=" || ex.Op == "-" || ex.Op == "*" || ex.Op == "/" || ex.Op == "%" {
@@ -4188,8 +4196,6 @@ func (e *LLVMEmitter) emitFuncLit(fl *ir.FuncLit) string {
 	return closureReg
 }
 
-
-
 func (e *LLVMEmitter) emitStaticCall(sc *ir.StaticCall) string {
 	// Standardize names: Wolf_Math::Abs or math.abs -> wolf_math_abs
 	calleeName := strings.ToLower(fmt.Sprintf("%s_%s", sc.Class, sc.Method))
@@ -4235,7 +4241,7 @@ func (e *LLVMEmitter) emitStaticCall(sc *ir.StaticCall) string {
 	for i, arg := range sc.Args {
 		llType := e.inferExprType(arg)
 		val := e.emitExpr(arg, llType)
-		
+
 		if hasSig && i < len(sig.Params) {
 			expectedType := sig.Params[i].Type
 			if expectedType == "i64" && llType == "ptr" {
@@ -4250,7 +4256,7 @@ func (e *LLVMEmitter) emitStaticCall(sc *ir.StaticCall) string {
 				llType = "double"
 			}
 		}
-		
+
 		args[i] = fmt.Sprintf("%s %s", llType, val)
 	}
 
