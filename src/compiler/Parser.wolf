@@ -88,6 +88,7 @@ class Parser {
         if ($tt == TokenType::RETURN)    { return $this->parseReturnStmt() }
         if ($tt == TokenType::CLASS)     { return $this->parseClassDecl() }
         if ($tt == TokenType::FUNC)      { return $this->parseFuncDecl("", false, false) }
+        if ($tt == TokenType::MATCH)     { return $this->parseMatchStmt() }
         if ($tt == TokenType::PUBLIC || $tt == TokenType::PRIVATE || $tt == TokenType::PROTECTED) {
             return $this->parseVisibilityStmt()
         }
@@ -111,6 +112,9 @@ class Parser {
         var $tok = $this->peek()
         if ($tok->type == TokenType::FUNC) {
             return $this->parseFuncDecl($vis, $isStatic, false)
+        }
+        if ($this->check(TokenType::MATCH)) {
+            return $this->parseMatchStmt()
         }
         if ($tok->type == TokenType::VAR) {
             return $this->parseVarDecl()
@@ -241,7 +245,8 @@ class Parser {
             if ($this->check(TokenType::VAR)) {
                 $init = $this->parseVarDecl()
             } else {
-                $init = $this->parseExpression(0)
+                var $expr = $this->parseExpression(0)
+                $init = new ExpressionStmt($expr)
                 $this->consumeSemicolon()
             }
         } else {
@@ -271,8 +276,7 @@ class Parser {
         $this->advance() // consume 'foreach'
         $this->expect(TokenType::LPAREN, "expected '(' after foreach")
 
-        var $iterTok = $this->expect(TokenType::DOLLAR_IDENT, "expected iterable variable")
-        var $iterName = $this->getDollarIdentName($iterTok)
+        var $iterExpr = $this->parseExpression(0)
 
         $this->expect(TokenType::AS, "expected 'as' in foreach")
 
@@ -291,18 +295,58 @@ class Parser {
         $this->expect(TokenType::RPAREN, "expected ')' after foreach")
         var $body = $this->parseBlock()
 
-        // build Identifier node for iterable
-        var $iterIdent = new Identifier($iterName)
-        return new ForeachStmt($iterIdent, $valVar, $keyVar, $body)
+        return new ForeachStmt($iterExpr, $valVar, $keyVar, $body)
     }
 
     public func parseWhileStmt() {
         $this->advance() // consume 'while'
-        $this->expect(TokenType::LPAREN, "expected '(' after while")
-        var $cond = $this->parseExpression(0)
+        $this->expect(TokenType::LPAREN, "expected '(' after 'while'")
+        var $condition = $this->parseExpression(0)
         $this->expect(TokenType::RPAREN, "expected ')' after while condition")
         var $body = $this->parseBlock()
-        return new WhileStmt($cond, $body)
+        var $node = new WhileStmt($condition, $body)
+        return $node
+    }
+
+    public func parseMatchStmt() {
+        $this->advance() // consume 'match'
+        var $subject = $this->parseExpression(0)
+        $this->expect(TokenType::LBRACE, "expected '{' after match expression")
+
+        var $arms = []
+        while (!$this->check(TokenType::RBRACE) && !$this->isAtEnd()) {
+            var $arm = $this->parseMatchArm()
+            Arrays::array_push($arms, $arm)
+        }
+
+        $this->expect(TokenType::RBRACE, "expected '}' to close match")
+
+        var $node = new MatchStmt($subject, $arms)
+        return $node
+    }
+
+    public func parseMatchArm() {
+        var $pattern = nil
+        if ($this->check(TokenType::IDENT) && $this->getTokenText($this->peek()) == "_") {
+            $this->advance()
+            $pattern = new Wildcard()
+        } else {
+            $pattern = $this->parseExpression(0)
+        }
+
+        $this->expect(TokenType::FAT_ARROW, "expected '=>' after match pattern")
+
+        var $body = []
+        if ($this->check(TokenType::LBRACE)) {
+            var $block = $this->parseBlock()
+            $body = $block->statements
+        } else {
+            var $stmt = $this->parseExpressionStmt()
+            Arrays::array_push($body, $stmt)
+        }
+
+        var $node = new MatchArm($pattern, $body)
+        return $node
     }
 
     // ========== Function Declaration ==========
@@ -553,6 +597,11 @@ class Parser {
             return $this->parseNewExpr()
         }
 
+        // func($args) => expr
+        if ($tt == TokenType::FUNC) {
+            return $this->parseClosureExpr()
+        }
+
         // $variable
         if ($tt == TokenType::DOLLAR_IDENT) {
             $this->advance()
@@ -711,6 +760,25 @@ class Parser {
         var $args = $this->parseArgList()
         $this->expect(TokenType::RPAREN, "expected ')' after new arguments")
         return new NewExpr($classIdent, $args)
+    }
+
+    public func parseClosureExpr() {
+        $this->advance() // consume 'func'
+        $this->expect(TokenType::LPAREN, "expected '(' after func")
+        var $params = $this->parseParamList()
+        $this->expect(TokenType::RPAREN, "expected ')' after parameters")
+        
+        var $closure = new ClosureExpr($params)
+        
+        // Arrow shorthand
+        if ($this->check(TokenType::FAT_ARROW)) {
+            $this->advance()
+            $closure->arrowExpr = $this->parseExpression(0)
+            return $closure
+        }
+        
+        $closure->body = $this->parseBlock()
+        return $closure
     }
 
     public func parseArgList() {
