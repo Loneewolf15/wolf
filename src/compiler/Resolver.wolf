@@ -1,0 +1,676 @@
+// Resolver.wolf — Native Wolf Symbol Resolver
+// Phase 5 self-hosting pipeline: Lexer.wolf → Parser.wolf → Resolver.wolf → ...
+//
+// Architecture:
+//   - Single linear pass over the Program AST
+//   - Scope stack: each BlockStmt / FuncDecl / ClassDecl pushes a new scope frame
+//   - Global scope holds top-level func/class/var declarations
+//   - Symbol table exposed via lookupVar, lookupFunc, lookupClass
+//   - Errors accumulate (no panic-stop) so callers see all problems at once
+
+// ─── Symbol types ────────────────────────────────────────────────────────────
+// Each "symbol" is a map with at minimum { "kind": "var"|"func"|"class", "name": ... }
+// var  symbol: { kind, name, typeName }
+// func symbol: { kind, name, paramCount, paramNames[] }
+// class symbol: { kind, name, fields{}, methods{} }
+
+// ─── Scope frame ─────────────────────────────────────────────────────────────
+// A scope frame is a map:  $frame["varName"] = symbolMap
+// The scope stack is an array of frames: [$globalFrame, $blockFrame1, ...]
+
+class Resolver {
+    public $errors = []
+    public $scopeFrames = {}     // depth (int as string) → frame map
+    public $scopeDepth = 0       // current scope depth (0 = global)
+    public $classes = {}         // class name → class symbol
+    public $functions = {}       // func name → func symbol
+    public $currentClass = ""    // set while resolving inside a class body
+    public $_parseErrorCount = 0 // set by external caller (test helper)
+    public $_symbolTable = nil   // cached SymbolTable after Resolve()
+
+    public func __construct() {
+        $this->errors = []
+        $this->scopeFrames = {}
+        $this->scopeDepth = 0
+        $this->classes = {}
+        $this->functions = {}
+        $this->currentClass = ""
+        $this->_parseErrorCount = 0
+        $this->_symbolTable = nil
+        // Push global scope at depth 0
+        $this->pushScope()
+    }
+
+    // ─── Public API ──────────────────────────────────────────────────────────
+
+    public func Resolve($program) {
+        // First pass: hoist all top-level func and class declarations
+        $this->hoistTopLevel($program)
+
+        // Second pass: resolve bodies
+        var $i = 0
+        while ($i < count($program->statements)) {
+            $this->resolveStmt($program->statements[$i])
+            $i = intval($i) + 1
+        }
+
+        var $table = $this->buildSymbolTable()
+        $this->_symbolTable = $table
+        return $table
+    }
+
+    public func Errors() {
+        return $this->errors
+    }
+
+    // ─── Symbol Table Output ─────────────────────────────────────────────────
+
+    public func buildSymbolTable() {
+        var $table = new SymbolTable()
+        // Global scope is at depth 0 — key "0" in scopeFrames
+        var $globalFrame = $this->scopeFrames["0"]
+        if ($globalFrame != nil) {
+            $table->variables = $globalFrame
+        }
+        $table->functions = $this->functions
+        $table->classes = $this->classes
+        return $table
+    }
+
+    // ─── Hoisting ────────────────────────────────────────────────────────────
+    // Register all top-level FuncDecl and ClassDecl names before resolving bodies.
+    // This is critical: Wolf (like PHP) allows calling functions defined later in the file.
+
+    public func hoistTopLevel($program) {
+        var $i = 0
+        while ($i < count($program->statements)) {
+            var $stmt = $program->statements[$i]
+            if ($stmt->type == "FuncDecl") {
+                $this->registerFunc($stmt)
+            }
+            if ($stmt->type == "ClassDecl") {
+                $this->registerClass($stmt)
+            }
+            $i = intval($i) + 1
+        }
+    }
+
+    public func registerFunc($fn) {
+        var $sym = {}
+        $sym["kind"] = "func"
+        $sym["name"] = $fn->name
+        $sym["paramCount"] = count($fn->params)
+        var $pnames = []
+        var $pi = 0
+        while ($pi < count($fn->params)) {
+            Arrays::array_push($pnames, $fn->params[$pi]->name)
+            $pi = intval($pi) + 1
+        }
+        $sym["paramNames"] = $pnames
+        $this->functions[$fn->name] = $sym
+        // Also declare in current scope so calls can resolve
+        $this->declareInScope($fn->name, $sym)
+    }
+
+    public func registerClass($cls) {
+        var $sym = {}
+        $sym["kind"] = "class"
+        $sym["name"] = $cls->name
+        // fields: name → typeName
+        var $fields = {}
+        var $fi = 0
+        while ($fi < count($cls->properties)) {
+            var $prop = $cls->properties[$fi]
+            $fields[$prop->name] = $prop->typeName
+            $fi = intval($fi) + 1
+        }
+        $sym["fields"] = $fields
+        // methods: name → paramCount
+        var $methods = {}
+        var $mi = 0
+        while ($mi < count($cls->methods)) {
+            var $m = $cls->methods[$mi]
+            $methods[$m->name] = count($m->params)
+            $mi = intval($mi) + 1
+        }
+        $sym["methods"] = $methods
+        $sym["extends"] = $cls->extendsName
+        $this->classes[$cls->name] = $sym
+    }
+
+    // ─── Statement Resolution ─────────────────────────────────────────────────
+
+    public func resolveStmt($stmt) {
+        if ($stmt == nil) { return nil }
+        var $t = $stmt->type
+
+        if ($t == "VarDecl")       { return $this->resolveVarDecl($stmt) }
+        if ($t == "ExpressionStmt"){ return $this->resolveExpr($stmt->expr) }
+        if ($t == "ReturnStmt")    { return $this->resolveReturnStmt($stmt) }
+        if ($t == "IfStmt")        { return $this->resolveIfStmt($stmt) }
+        if ($t == "ForStmt")       { return $this->resolveForStmt($stmt) }
+        if ($t == "ForeachStmt")   { return $this->resolveForeachStmt($stmt) }
+        if ($t == "WhileStmt")     { return $this->resolveWhileStmt($stmt) }
+        if ($t == "BlockStmt")     { return $this->resolveBlock($stmt->statements) }
+        if ($t == "FuncDecl")      { return $this->resolveFuncDecl($stmt) }
+        if ($t == "ClassDecl")     { return $this->resolveClassDecl($stmt) }
+        if ($t == "MatchStmt")     { return $this->resolveMatchStmt($stmt) }
+        if ($t == "AssignStmt")    { return $this->resolveAssignStmt($stmt) }
+        if ($t == "TryCatchStmt")  { return $this->resolveTryCatch($stmt) }
+        if ($t == "NamespaceDecl") { return nil } // no resolution needed
+        // Unknown statement types are skipped silently — they may be advanced nodes
+        // (SuperviseBlockStmt, MLBlockStmt, etc.) not yet supported in the resolver
+        return nil
+    }
+
+    public func resolveVarDecl($stmt) {
+        // Resolve initializer first (RHS before LHS — catches $x = $x errors)
+        if ($stmt->value != nil) {
+            $this->resolveExpr($stmt->value)
+        }
+        // Declare variable in current scope
+        var $sym = {}
+        $sym["kind"] = "var"
+        $sym["name"] = $stmt->name
+        $sym["typeName"] = $stmt->typeName
+        $this->declareInScope($stmt->name, $sym)
+        return nil
+    }
+
+    public func resolveAssignStmt($stmt) {
+        $this->resolveExpr($stmt->value)
+        $this->resolveExprLValue($stmt->target)
+        return nil
+    }
+
+    public func resolveReturnStmt($stmt) {
+        var $i = 0
+        while ($i < count($stmt->values)) {
+            $this->resolveExpr($stmt->values[$i])
+            $i = intval($i) + 1
+        }
+        return nil
+    }
+
+    public func resolveIfStmt($stmt) {
+        $this->resolveExpr($stmt->condition)
+        $this->resolveBlock($stmt->body->statements)
+
+        // else if chains
+        var $i = 0
+        while ($i < count($stmt->elseIfs)) {
+            var $clause = $stmt->elseIfs[$i]
+            $this->resolveExpr($clause->condition)
+            $this->resolveBlock($clause->body->statements)
+            $i = intval($i) + 1
+        }
+
+        // else body
+        if ($stmt->elseBody != nil) {
+            $this->resolveBlock($stmt->elseBody->statements)
+        }
+        return nil
+    }
+
+    public func resolveForStmt($stmt) {
+        $this->pushScope()
+        if ($stmt->init != nil) {
+            $this->resolveStmt($stmt->init)
+        }
+        if ($stmt->condition != nil) {
+            $this->resolveExpr($stmt->condition)
+        }
+        if ($stmt->update != nil) {
+            $this->resolveExpr($stmt->update)
+        }
+        if ($stmt->body != nil) {
+            $this->resolveBlock($stmt->body->statements)
+        }
+        $this->popScope()
+        return nil
+    }
+
+    public func resolveForeachStmt($stmt) {
+        $this->resolveExpr($stmt->iterable)
+        $this->pushScope()
+        // declare loop variables into their own scope
+        var $valSym = {}
+        $valSym["kind"] = "var"
+        $valSym["name"] = $stmt->valueVar
+        $valSym["typeName"] = ""
+        $this->declareInScope($stmt->valueVar, $valSym)
+        if ($stmt->keyVar != "") {
+            var $keySym = {}
+            $keySym["kind"] = "var"
+            $keySym["name"] = $stmt->keyVar
+            $keySym["typeName"] = ""
+            $this->declareInScope($stmt->keyVar, $keySym)
+        }
+        if ($stmt->body != nil) {
+            $this->resolveBlock($stmt->body->statements)
+        }
+        $this->popScope()
+        return nil
+    }
+
+    public func resolveWhileStmt($stmt) {
+        $this->resolveExpr($stmt->condition)
+        if ($stmt->body != nil) {
+            $this->resolveBlock($stmt->body->statements)
+        }
+        return nil
+    }
+
+    public func resolveMatchStmt($stmt) {
+        $this->resolveExpr($stmt->subject)
+        var $i = 0
+        var $len = count($stmt->arms)
+        while ($i < $len) {
+            var $arm = $stmt->arms[$i]
+            $this->pushScope()
+            if ($arm->pattern != nil && $arm->pattern->type != "Wildcard") {
+                $this->resolveExpr($arm->pattern)
+            }
+            var $j = 0
+            var $blen = count($arm->body)
+            while ($j < $blen) {
+                $this->resolveStmt($arm->body[$j])
+                $j = intval($j) + 1
+            }
+            $this->popScope()
+            $i = intval($i) + 1
+        }
+        return nil
+    }
+
+    public func resolveTryCatch($stmt) {
+        $this->resolveBlock($stmt->tryBody->statements)
+        $this->pushScope()
+        var $errSym = {}
+        $errSym["kind"] = "var"
+        $errSym["name"] = $stmt->catchVar
+        $errSym["typeName"] = "string"
+        $this->declareInScope($stmt->catchVar, $errSym)
+        $this->resolveBlock($stmt->catchBody->statements)
+        $this->popScope()
+        return nil
+    }
+
+    public func resolveFuncDecl($fn) {
+        // Already hoisted — just resolve the body
+        $this->pushScope()
+        // Declare params in function scope
+        var $i = 0
+        while ($i < count($fn->params)) {
+            var $p = $fn->params[$i]
+            var $psym = {}
+            $psym["kind"] = "var"
+            $psym["name"] = $p->name
+            $psym["typeName"] = $p->typeName
+            $this->declareInScope($p->name, $psym)
+            $i = intval($i) + 1
+        }
+        if ($fn->body != nil) {
+            $this->resolveBlock($fn->body->statements)
+        }
+        $this->popScope()
+        return nil
+    }
+
+    public func resolveClosureExpr($expr) {
+        $this->pushScope()
+        var $i = 0
+        while ($i < count($expr->params)) {
+            var $p = $expr->params[$i]
+            var $psym = {}
+            $psym["kind"] = "var"
+            $psym["name"] = $p->name
+            $psym["typeName"] = $p->typeName
+            $this->declareInScope($p->name, $psym)
+            $i = intval($i) + 1
+        }
+        if ($expr->arrowExpr != nil) {
+            $this->resolveExpr($expr->arrowExpr)
+        } else {
+            if ($expr->body != nil) {
+                $this->resolveBlock($expr->body->statements)
+            }
+        }
+        $this->popScope()
+        return nil
+    }
+
+    public func resolveClassDecl($cls) {
+        var $prevClass = $this->currentClass
+        $this->currentClass = $cls->name
+        $this->pushScope()
+
+        // Declare $this in class scope
+        var $thisSym = {}
+        $thisSym["kind"] = "var"
+        $thisSym["name"] = "this"
+        $thisSym["typeName"] = $cls->name
+        $this->declareInScope("this", $thisSym)
+
+        // Resolve property initializers
+        var $fi = 0
+        while ($fi < count($cls->properties)) {
+            var $prop = $cls->properties[$fi]
+            if ($prop->value != nil) {
+                $this->resolveExpr($prop->value)
+            }
+            $fi = intval($fi) + 1
+        }
+
+        // Resolve method bodies
+        var $mi = 0
+        while ($mi < count($cls->methods)) {
+            $this->resolveFuncDecl($cls->methods[$mi])
+            $mi = intval($mi) + 1
+        }
+
+        $this->popScope()
+        $this->currentClass = $prevClass
+        return nil
+    }
+
+    public func resolveBlock($stmts) {
+        $this->pushScope()
+        var $i = 0
+        while ($i < count($stmts)) {
+            $this->resolveStmt($stmts[$i])
+            $i = intval($i) + 1
+        }
+        $this->popScope()
+        return nil
+    }
+
+    // ─── Expression Resolution ────────────────────────────────────────────────
+
+    public func resolveExpr($expr) {
+        if ($expr == nil) { return nil }
+        var $t = $expr->type
+
+        if ($t == "DollarIdent")    { return $this->resolveDollarIdent($expr) }
+        if ($t == "Identifier")     { return $this->resolveIdentifier($expr) }
+        if ($t == "BinaryExpr")     { return $this->resolveBinaryExpr($expr) }
+        if ($t == "UnaryExpr")      { return $this->resolveExpr($expr->operand) }
+        if ($t == "PostfixExpr")    { return $this->resolveExpr($expr->operand) }
+        if ($t == "StringConcat")   {
+            $this->resolveExpr($expr->left)
+            $this->resolveExpr($expr->right)
+            return nil
+        }
+        if ($t == "MethodCall")     { return $this->resolveMethodCall($expr) }
+        if ($t == "StaticCall")     { return $this->resolveStaticCall($expr) }
+        if ($t == "CallExpr")       { return $this->resolveCallExpr($expr) }
+        if ($t == "PropertyAccess") { return $this->resolveExpr($expr->object) }
+        if ($t == "IndexExpr")      {
+            $this->resolveExpr($expr->object)
+            $this->resolveExpr($expr->index)
+            return nil
+        }
+        if ($t == "NewExpr")        { return $this->resolveNewExpr($expr) }
+        if ($t == "ArrayLiteral")   { return $this->resolveArrayLiteral($expr) }
+        if ($t == "MapLiteral")     { return $this->resolveMapLiteral($expr) }
+        if ($t == "PrintExpr")      { return $this->resolveExpr($expr->arg) }
+        if ($t == "ClosureExpr")    { return $this->resolveClosureExpr($expr) }
+        // Literals — nothing to resolve
+        if ($t == "IntLiteral")     { return nil }
+        if ($t == "FloatLiteral")   { return nil }
+        if ($t == "StringLiteral")  { return nil }
+        if ($t == "BoolLiteral")    { return nil }
+        if ($t == "NilLiteral")     { return nil }
+
+        // Unknown expression — skip silently (InterpolatedString, EnumAccess, etc.)
+        return nil
+    }
+
+    public func resolveDollarIdent($expr) {
+        var $name = $expr->name
+        if ($this->lookupVar($name) == nil) {
+            // Allow $this always — it's always in scope inside classes
+            if ($name != "this") {
+                $this->addError("undefined variable $" .. $name)
+            }
+        }
+        return nil
+    }
+
+    public func resolveIdentifier($expr) {
+        var $name = $expr->name
+        // Bare identifiers: could be a class name, function name, or enum.
+        // Only error if it's clearly not in any known namespace.
+        if ($this->lookupFunc($name) == nil && $this->lookupClass($name) == nil) {
+            // Known built-in identifiers — don't error on these
+            if ($name != "nil" && $name != "true" && $name != "false" &&
+                $name != "count" && $name != "intval" && $name != "print" &&
+                $name != "Arrays" && $name != "Strings" && $name != "Math") {
+                // Could still be an enum or stdlib — warn, don't hard error
+                // (The type checker will give a harder error once types are resolved)
+                $this->addWarning("unresolved identifier '" .. $name .. "'")
+            }
+        }
+        return nil
+    }
+
+    public func resolveBinaryExpr($expr) {
+        if ($expr->op == "=") {
+            $this->resolveExpr($expr->right)
+            $this->resolveExprLValue($expr->left)
+        } else {
+            $this->resolveExpr($expr->left)
+            $this->resolveExpr($expr->right)
+        }
+        return nil
+    }
+
+    public func resolveExprLValue($expr) {
+        if ($expr == nil) { return nil }
+        if ($expr->type == "DollarIdent") {
+            if ($this->lookupVar($expr->name) == nil) {
+                var $sym = {}
+                $sym["kind"] = "var"
+                $sym["name"] = $expr->name
+                $sym["typeName"] = ""
+                $this->declareInScope($expr->name, $sym)
+            }
+            return nil
+        }
+        return $this->resolveExpr($expr)
+    }
+
+    public func resolveMethodCall($expr) {
+        $this->resolveExpr($expr->object)
+        var $i = 0
+        while ($i < count($expr->args)) {
+            $this->resolveExpr($expr->args[$i])
+            $i = intval($i) + 1
+        }
+        return nil
+    }
+
+    public func resolveStaticCall($expr) {
+        var $i = 0
+        while ($i < count($expr->args)) {
+            $this->resolveExpr($expr->args[$i])
+            $i = intval($i) + 1
+        }
+        return nil
+    }
+
+    public func resolveCallExpr($expr) {
+        $this->resolveExpr($expr->callee)
+        var $i = 0
+        while ($i < count($expr->args)) {
+            $this->resolveExpr($expr->args[$i])
+            $i = intval($i) + 1
+        }
+        return nil
+    }
+
+    public func resolveNewExpr($expr) {
+        var $className = $expr->classExpr->name
+        if ($this->lookupClass($className) == nil) {
+            $this->addError("unknown class '" .. $className .. "'")
+        }
+        var $i = 0
+        while ($i < count($expr->args)) {
+            $this->resolveExpr($expr->args[$i])
+            $i = intval($i) + 1
+        }
+        return nil
+    }
+
+    public func resolveArrayLiteral($expr) {
+        var $i = 0
+        while ($i < count($expr->elements)) {
+            $this->resolveExpr($expr->elements[$i])
+            $i = intval($i) + 1
+        }
+        return nil
+    }
+
+    public func resolveMapLiteral($expr) {
+        var $i = 0
+        while ($i < count($expr->keys)) {
+            $this->resolveExpr($expr->keys[$i])
+            $this->resolveExpr($expr->values[$i])
+            $i = intval($i) + 1
+        }
+        return nil
+    }
+
+    // ─── Scope Management ────────────────────────────────────────────────────
+    // Uses a flat map keyed by depth (as string) instead of an array stack.
+    // This avoids Wolf arena corruption from repeated array rebuild in popScope.
+
+    public func pushScope() {
+        var $frame = {}
+        var $depthKey = intval($this->scopeDepth) .. ""
+        $this->scopeFrames[$depthKey] = $frame
+        $this->scopeDepth = intval($this->scopeDepth) + 1
+        return nil
+    }
+
+    public func popScope() {
+        if ($this->scopeDepth <= 0) { return nil }
+        $this->scopeDepth = intval($this->scopeDepth) - 1
+        return nil
+    }
+
+    public func declareInScope($name, $sym) {
+        // Write into the current (innermost) scope frame
+        var $depth = intval($this->scopeDepth) - 1
+        var $depthKey = intval($depth) .. ""
+        var $frame = $this->scopeFrames[$depthKey]
+        if ($frame == nil) {
+            var $newFrame = {}
+            $newFrame[$name] = $sym
+            $this->scopeFrames[$depthKey] = $newFrame
+        } else {
+            $frame[$name] = $sym
+            $this->scopeFrames[$depthKey] = $frame
+        }
+        return nil
+    }
+
+    // ─── Lookup ──────────────────────────────────────────────────────────────
+    // Walk scope stack from innermost (scopeDepth-1) to global (0)
+
+    public func lookupVar($name) {
+        var $depth = intval($this->scopeDepth) - 1
+        while ($depth >= 0) {
+            var $depthKey = intval($depth) .. ""
+            var $frame = $this->scopeFrames[$depthKey]
+            if ($frame != nil) {
+                var $sym = $frame[$name]
+                if ($sym != nil) {
+                    return $sym
+                }
+            }
+            $depth = intval($depth) - 1
+        }
+        return nil
+    }
+
+    public func lookupFunc($name) {
+        if ($this->functions[$name] != nil) {
+            return $this->functions[$name]
+        }
+        return nil
+    }
+
+    public func lookupClass($name) {
+        if ($this->classes[$name] != nil) {
+            return $this->classes[$name]
+        }
+        return nil
+    }
+
+    // ─── Error / Warning Accumulation ────────────────────────────────────────
+
+    public func addError($msg) {
+        var $e = {}
+        $e["level"] = "error"
+        $e["message"] = $msg
+        Arrays::array_push($this->errors, $e)
+        print("RESOLVE ERROR: " .. $msg)
+        return nil
+    }
+
+    public func addWarning($msg) {
+        var $e = {}
+        $e["level"] = "warning"
+        $e["message"] = $msg
+        Arrays::array_push($this->errors, $e)
+        return nil
+    }
+}
+
+// ─── SymbolTable ──────────────────────────────────────────────────────────────
+// The output of the Resolver — a queryable index of everything declared in the program.
+
+class SymbolTable {
+    public $variables = {}   // name → var symbol
+    public $functions = {}   // name → func symbol
+    public $classes = {}     // name → class symbol
+
+    public func __construct() {
+        $this->variables = {}
+        $this->functions = {}
+        $this->classes = {}
+    }
+
+    public func lookupVar($name) {
+        if ($this->variables[$name] != nil) {
+            return $this->variables[$name]
+        }
+        return nil
+    }
+
+    public func lookupFunc($name) {
+        if ($this->functions[$name] != nil) {
+            return $this->functions[$name]
+        }
+        return nil
+    }
+
+    public func lookupClass($name) {
+        if ($this->classes[$name] != nil) {
+            return $this->classes[$name]
+        }
+        return nil
+    }
+
+    public func hasErrors($errors) {
+        var $i = 0
+        while ($i < count($errors)) {
+            if ($errors[$i]["level"] == "error") {
+                return true
+            }
+            $i = intval($i) + 1
+        }
+        return false
+    }
+}
