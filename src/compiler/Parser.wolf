@@ -1,4 +1,7 @@
-// Parser.wolf
+// Parser.wolf — Full Pratt Expression Parser
+// Zero-copy architecture: tokens hold start/length offsets into $this->source.
+// Always use intval($tok->start) + intval($tok->length) for arithmetic.
+// Always use $this->getTokenText($tok) to extract string content.
 
 class Parser {
     public $tokens = []
@@ -19,19 +22,12 @@ class Parser {
 
     public func Parse() {
         var $program = new Program()
-        $program->statements = [] // explicit init
+        $program->statements = []
 
-        print("Starting Parse loop...")
         while (!$this->isAtEnd()) {
             var $stmt = $this->parseStatement()
-            var $stmtType = "nil"
-            if ($stmt != nil) {
-                $stmtType = $stmt->type
-            }
-            print("parseStatement returned: " .. $stmtType)
             if ($stmt != nil) {
                 Arrays::array_push($program->statements, $stmt)
-                print("Appended stmt. Total statements: " .. count($program->statements))
             }
         }
         return $program
@@ -41,25 +37,94 @@ class Parser {
         return $this->errors
     }
 
+    // ========== Precedence Levels (Pratt) ==========
+    // Returns integer binding power for a given infix token type.
+    // Higher = tighter binding. 0 = not an infix operator.
+
+    public func infixBP($tokenType) {
+        // Assignment — right-associative, lowest precedence above 0
+        if ($tokenType == TokenType::ASSIGN)        { return 1 }
+        if ($tokenType == TokenType::PLUS_ASSIGN)   { return 1 }
+        if ($tokenType == TokenType::MINUS_ASSIGN)  { return 1 }
+        if ($tokenType == TokenType::STAR_ASSIGN)   { return 1 }
+        if ($tokenType == TokenType::SLASH_ASSIGN)  { return 1 }
+        if ($tokenType == TokenType::OR)            { return 2 }
+        if ($tokenType == TokenType::AND)           { return 3 }
+        if ($tokenType == TokenType::EQUAL)         { return 4 }
+        if ($tokenType == TokenType::NOT_EQUAL)     { return 4 }
+        if ($tokenType == TokenType::LESS)          { return 5 }
+        if ($tokenType == TokenType::LESS_EQUAL)    { return 5 }
+        if ($tokenType == TokenType::GREATER)       { return 5 }
+        if ($tokenType == TokenType::GREATER_EQUAL) { return 5 }
+        if ($tokenType == TokenType::DOT_DOT)       { return 6 }  // string concat
+        if ($tokenType == TokenType::PLUS)          { return 7 }
+        if ($tokenType == TokenType::MINUS)         { return 7 }
+        if ($tokenType == TokenType::STAR)          { return 8 }
+        if ($tokenType == TokenType::SLASH)         { return 8 }
+        if ($tokenType == TokenType::MODULO)        { return 8 }
+        // Postfix ++ / -- — consume with no right operand
+        if ($tokenType == TokenType::INCREMENT)     { return 10 }
+        if ($tokenType == TokenType::DECREMENT)     { return 10 }
+        // Access / call
+        if ($tokenType == TokenType::ARROW)         { return 11 }  // ->
+        if ($tokenType == TokenType::DOUBLE_COLON)  { return 11 }  // ::
+        if ($tokenType == TokenType::DOT)           { return 11 }
+        if ($tokenType == TokenType::LBRACKET)      { return 11 }  // []
+        if ($tokenType == TokenType::LPAREN)        { return 11 }  // ()
+        return 0
+    }
+
     // ========== Statement Parsing ==========
 
     public func parseStatement() {
         var $tok = $this->peek()
-        print("parseStatement peeked token type: " .. $tok->type)
-        if ($tok->type == TokenType::VAR) {
-            return $this->parseVarDecl()
+        var $tt = $tok->type
+
+        if ($tt == TokenType::VAR)       { return $this->parseVarDecl() }
+        if ($tt == TokenType::IF)        { return $this->parseIfStmt() }
+        if ($tt == TokenType::FOR)       { return $this->parseForStmt() }
+        if ($tt == TokenType::FOREACH)   { return $this->parseForeachStmt() }
+        if ($tt == TokenType::WHILE)     { return $this->parseWhileStmt() }
+        if ($tt == TokenType::RETURN)    { return $this->parseReturnStmt() }
+        if ($tt == TokenType::CLASS)     { return $this->parseClassDecl() }
+        if ($tt == TokenType::FUNC)      { return $this->parseFuncDecl("", false, false) }
+        if ($tt == TokenType::PUBLIC || $tt == TokenType::PRIVATE || $tt == TokenType::PROTECTED) {
+            return $this->parseVisibilityStmt()
         }
+        if ($tt == TokenType::PRINT)     { return $this->parsePrintStmt() }
+        if ($tt == TokenType::NAMESPACE) { return $this->parseNamespaceDecl() }
+        if ($tt == TokenType::LBRACE)    { return $this->parseBlock() }
 
         return $this->parseExpressionStmt()
     }
 
+    public func parseVisibilityStmt() {
+        var $visTok = $this->advance()
+        var $vis = $this->getTokenText($visTok)
+
+        var $isStatic = false
+        if ($this->check(TokenType::STATIC)) {
+            $this->advance()
+            $isStatic = true
+        }
+
+        var $tok = $this->peek()
+        if ($tok->type == TokenType::FUNC) {
+            return $this->parseFuncDecl($vis, $isStatic, false)
+        }
+        if ($tok->type == TokenType::VAR) {
+            return $this->parseVarDecl()
+        }
+        // bare visibility token (e.g. inside class) — treat as expression stmt
+        $this->addError("unexpected token after visibility modifier: " .. $tok->type)
+        return nil
+    }
+
     public func parseVarDecl() {
-        print("parseVarDecl called")
         $this->advance() // consume 'var'
 
-        var $nameTok = $this->expect(TokenType::IDENT, "expected variable name")
-        print("nameTok start: " .. $nameTok->start .. ", length: " .. $nameTok->length)
-        var $name = $this->getTokenText($nameTok)
+        var $nameTok = $this->expect(TokenType::DOLLAR_IDENT, "expected variable name ($ident)")
+        var $name = $this->getDollarIdentName($nameTok)
 
         var $typeName = ""
         if ($this->check(TokenType::COLON)) {
@@ -71,44 +136,635 @@ class Parser {
         var $value = nil
         if ($this->check(TokenType::ASSIGN)) {
             $this->advance()
-            $value = $this->parseExpression()
+            $value = $this->parseExpression(0)
         }
 
-        $this->expect(TokenType::SEMICOLON, "expected ';' after variable declaration")
-        print("Returning new VarDecl for " .. $name)
+        $this->consumeSemicolon()
         return new VarDecl($name, $typeName, $value)
     }
 
     public func parseExpressionStmt() {
-        var $expr = $this->parseExpression()
-        $this->expect(TokenType::SEMICOLON, "expected ';' after expression")
+        var $expr = $this->parseExpression(0)
+        $this->consumeSemicolon()
         return new ExpressionStmt($expr)
     }
 
-    // ========== Expression Parsing (Stub) ==========
+    public func parsePrintStmt() {
+        $this->advance() // consume 'print'
+        $this->expect(TokenType::LPAREN, "expected '(' after print")
+        var $arg = $this->parseExpression(0)
+        $this->expect(TokenType::RPAREN, "expected ')' after print argument")
+        $this->consumeSemicolon()
+        return new ExpressionStmt(new PrintExpr($arg))
+    }
 
-    public func parseExpression() {
-        // Stub: for now just parse an identifier or literal
-        var $tok = $this->advance()
-        if ($tok->type == TokenType::INT) {
+    public func parseReturnStmt() {
+        $this->advance() // consume 'return'
+        var $values = []
+        if (!$this->check(TokenType::SEMICOLON) && !$this->isAtEnd()) {
+            var $val = $this->parseExpression(0)
+            Arrays::array_push($values, $val)
+            // multi-return: return $a, $b
+            while ($this->check(TokenType::COMMA)) {
+                $this->advance()
+                Arrays::array_push($values, $this->parseExpression(0))
+            }
+        }
+        $this->consumeSemicolon()
+        return new ReturnStmt($values)
+    }
+
+    public func parseNamespaceDecl() {
+        $this->advance() // consume 'namespace'
+        var $tok = $this->expect(TokenType::IDENT, "expected namespace name")
+        var $name = $this->getTokenText($tok)
+        $this->consumeSemicolon()
+        return new NamespaceDecl($name)
+    }
+
+    // ========== Block ==========
+
+    public func parseBlock() {
+        $this->expect(TokenType::LBRACE, "expected '{'")
+        var $stmts = []
+        while (!$this->check(TokenType::RBRACE) && !$this->isAtEnd()) {
+            var $s = $this->parseStatement()
+            if ($s != nil) {
+                Arrays::array_push($stmts, $s)
+            }
+        }
+        $this->expect(TokenType::RBRACE, "expected '}'")
+        return new BlockStmt($stmts)
+    }
+
+    // ========== Control Flow ==========
+
+    public func parseIfStmt() {
+        $this->advance() // consume 'if'
+        $this->expect(TokenType::LPAREN, "expected '(' after if")
+        var $cond = $this->parseExpression(0)
+        $this->expect(TokenType::RPAREN, "expected ')' after if condition")
+        var $body = $this->parseBlock()
+
+        var $node = new IfStmt($cond, $body)
+        $node->elseIfs = []
+        $node->elseBody = nil
+
+        // else if / else chains
+        while ($this->check(TokenType::ELSE)) {
+            $this->advance() // consume 'else'
+            if ($this->check(TokenType::IF)) {
+                $this->advance() // consume 'if'
+                $this->expect(TokenType::LPAREN, "expected '(' after else if")
+                var $eic = $this->parseExpression(0)
+                $this->expect(TokenType::RPAREN, "expected ')' after else if condition")
+                var $eib = $this->parseBlock()
+                Arrays::array_push($node->elseIfs, new ElseIfClause($eic, $eib))
+            } else {
+                $node->elseBody = $this->parseBlock()
+                // no more else branches after else {}
+                var $done = true
+            }
+        }
+
+        return $node
+    }
+
+    // for ($i = 0; $i < 10; $i++) { ... }
+    public func parseForStmt() {
+        $this->advance() // consume 'for'
+        $this->expect(TokenType::LPAREN, "expected '(' after for")
+
+        // init — can be var decl or expression or empty
+        var $init = nil
+        if (!$this->check(TokenType::SEMICOLON)) {
+            if ($this->check(TokenType::VAR)) {
+                $init = $this->parseVarDecl()
+            } else {
+                $init = $this->parseExpression(0)
+                $this->consumeSemicolon()
+            }
+        } else {
+            $this->advance() // consume ';'
+        }
+
+        // condition
+        var $cond = nil
+        if (!$this->check(TokenType::SEMICOLON)) {
+            $cond = $this->parseExpression(0)
+        }
+        $this->expect(TokenType::SEMICOLON, "expected ';' after for condition")
+
+        // update — expression without trailing semicolon
+        var $update = nil
+        if (!$this->check(TokenType::RPAREN)) {
+            $update = $this->parseExpression(0)
+        }
+        $this->expect(TokenType::RPAREN, "expected ')' after for update")
+
+        var $body = $this->parseBlock()
+        return new ForStmt($init, $cond, $update, $body)
+    }
+
+    // foreach ($arr as $key => $val) { ... }  OR  foreach ($arr as $val) { ... }
+    public func parseForeachStmt() {
+        $this->advance() // consume 'foreach'
+        $this->expect(TokenType::LPAREN, "expected '(' after foreach")
+
+        var $iterTok = $this->expect(TokenType::DOLLAR_IDENT, "expected iterable variable")
+        var $iterName = $this->getDollarIdentName($iterTok)
+
+        $this->expect(TokenType::AS, "expected 'as' in foreach")
+
+        var $keyVar = ""
+        var $valTok = $this->expect(TokenType::DOLLAR_IDENT, "expected loop variable")
+        var $valVar = $this->getDollarIdentName($valTok)
+
+        // optional => $val (key => value syntax)
+        if ($this->check(TokenType::FAT_ARROW)) {
+            $this->advance()
+            var $vt2 = $this->expect(TokenType::DOLLAR_IDENT, "expected value variable after =>")
+            $keyVar = $valVar
+            $valVar = $this->getDollarIdentName($vt2)
+        }
+
+        $this->expect(TokenType::RPAREN, "expected ')' after foreach")
+        var $body = $this->parseBlock()
+
+        // build Identifier node for iterable
+        var $iterIdent = new Identifier($iterName)
+        return new ForeachStmt($iterIdent, $valVar, $keyVar, $body)
+    }
+
+    public func parseWhileStmt() {
+        $this->advance() // consume 'while'
+        $this->expect(TokenType::LPAREN, "expected '(' after while")
+        var $cond = $this->parseExpression(0)
+        $this->expect(TokenType::RPAREN, "expected ')' after while condition")
+        var $body = $this->parseBlock()
+        return new WhileStmt($cond, $body)
+    }
+
+    // ========== Function Declaration ==========
+
+    public func parseFuncDecl($visibility, $isStatic, $isInsideClass) {
+        $this->advance() // consume 'func'/'howl'/'function'
+
+        var $nameTok = $this->expect(TokenType::IDENT, "expected function name")
+        var $name = $this->getTokenText($nameTok)
+
+        $this->expect(TokenType::LPAREN, "expected '(' in function declaration")
+        var $params = $this->parseParamList()
+        $this->expect(TokenType::RPAREN, "expected ')' after parameters")
+
+        var $node = new FuncDecl($name)
+        $node->params = $params
+        $node->body = $this->parseBlock()
+        return $node
+    }
+
+    public func parseParamList() {
+        var $params = []
+        while (!$this->check(TokenType::RPAREN) && !$this->isAtEnd()) {
+            var $pTok = $this->expect(TokenType::DOLLAR_IDENT, "expected parameter name")
+            var $pName = $this->getDollarIdentName($pTok)
+            var $pType = ""
+            if ($this->check(TokenType::COLON)) {
+                $this->advance()
+                var $ptTok = $this->expect(TokenType::IDENT, "expected type name")
+                $pType = $this->getTokenText($ptTok)
+            }
+            var $pDefault = nil
+            if ($this->check(TokenType::ASSIGN)) {
+                $this->advance()
+                $pDefault = $this->parseExpression(0)
+            }
+            Arrays::array_push($params, new Param($pName, $pType, $pDefault))
+            if ($this->check(TokenType::COMMA)) {
+                $this->advance()
+            }
+        }
+        return $params
+    }
+
+    // ========== Class Declaration ==========
+
+    public func parseClassDecl() {
+        $this->advance() // consume 'class'
+
+        var $nameTok = $this->expect(TokenType::IDENT, "expected class name")
+        var $name = $this->getTokenText($nameTok)
+
+        var $node = new ClassDecl($name)
+        $node->extendsName = ""
+        $node->typeParams = []
+        $node->implementsNames = []
+        $node->properties = []
+        $node->methods = []
+
+        // extends
+        if ($this->check(TokenType::IDENT)) {
+            var $extWord = $this->getTokenText($this->peek())
+            if ($extWord == "extends") {
+                $this->advance()
+                var $extTok = $this->expect(TokenType::IDENT, "expected class name after extends")
+                $node->extendsName = $this->getTokenText($extTok)
+            }
+        }
+
+        // implements
+        if ($this->check(TokenType::IMPLEMENTS)) {
+            $this->advance()
+            var $iname = $this->getTokenText($this->expect(TokenType::IDENT, "expected interface name"))
+            Arrays::array_push($node->implementsNames, $iname)
+            while ($this->check(TokenType::COMMA)) {
+                $this->advance()
+                var $iname2 = $this->getTokenText($this->expect(TokenType::IDENT, "expected interface name"))
+                Arrays::array_push($node->implementsNames, $iname2)
+            }
+        }
+
+        $this->expect(TokenType::LBRACE, "expected '{' to open class body")
+
+        while (!$this->check(TokenType::RBRACE) && !$this->isAtEnd()) {
+            $this->parseClassMember($node)
+        }
+
+        $this->expect(TokenType::RBRACE, "expected '}' to close class body")
+        return $node
+    }
+
+    public func parseClassMember($classNode) {
+        var $tok = $this->peek()
+        var $tt = $tok->type
+
+        var $vis = "public"
+        var $isStatic = false
+
+        // visibility modifier
+        if ($tt == TokenType::PUBLIC || $tt == TokenType::PRIVATE || $tt == TokenType::PROTECTED) {
+            $vis = $this->getTokenText($this->advance())
+            $tok = $this->peek()
+            $tt = $tok->type
+        }
+
+        // static modifier
+        if ($tt == TokenType::STATIC) {
+            $this->advance()
+            $isStatic = true
+            $tok = $this->peek()
+            $tt = $tok->type
+        }
+
+        // method
+        if ($tt == TokenType::FUNC) {
+            var $fn = $this->parseFuncDecl($vis, $isStatic, true)
+            Arrays::array_push($classNode->methods, $fn)
+            return nil
+        }
+
+        // property: public $name = expr;
+        if ($tt == TokenType::DOLLAR_IDENT) {
+            var $pTok = $this->advance()
+            var $pName = $this->getDollarIdentName($pTok)
+            var $pVal = nil
+            if ($this->check(TokenType::ASSIGN)) {
+                $this->advance()
+                $pVal = $this->parseExpression(0)
+            }
+            $this->consumeSemicolon()
+            var $prop = new VarDecl($pName, "", $pVal)
+            Arrays::array_push($classNode->properties, $prop)
+            return nil
+        }
+
+        // skip unexpected tokens inside class body to avoid infinite loop
+        $this->addError("unexpected token in class body: " .. $this->getTokenText($tok))
+        $this->advance()
+        return nil
+    }
+
+    // ========== Expression Parsing — Pratt ==========
+    // minBP: minimum binding power — callers pass 0 for the outermost expression.
+
+    public func parseExpression($minBP) {
+        // ---- PREFIX (nud) ----
+        var $left = $this->parsePrefix()
+        if ($left == nil) {
+            return nil
+        }
+
+        // ---- INFIX LOOP (led) ----
+        var $running = true
+        while ($running) {
+            var $tok = $this->peek()
+            var $bp = $this->infixBP($tok->type)
+
+            if ($bp <= $minBP) {
+                $running = false
+            } else {
+                $left = $this->parseInfix($left, $tok, $bp)
+            }
+        }
+
+        return $left
+    }
+
+    // Parse a prefix (nud) expression — atoms and unary ops
+    public func parsePrefix() {
+        var $tok = $this->peek()
+        var $tt = $tok->type
+
+        // Unary prefix operators
+        if ($tt == TokenType::NOT) {
+            $this->advance()
+            var $operand = $this->parseExpression(8) // tighter than any infix
+            return new UnaryExpr("!", $operand)
+        }
+        if ($tt == TokenType::MINUS) {
+            $this->advance()
+            var $operand2 = $this->parseExpression(8)
+            return new UnaryExpr("-", $operand2)
+        }
+        if ($tt == TokenType::INCREMENT) {
+            $this->advance()
+            var $operand3 = $this->parseExpression(8)
+            return new UnaryExpr("++", $operand3)
+        }
+        if ($tt == TokenType::DECREMENT) {
+            $this->advance()
+            var $operand4 = $this->parseExpression(8)
+            return new UnaryExpr("--", $operand4)
+        }
+
+        // Grouping: ( expr )
+        if ($tt == TokenType::LPAREN) {
+            $this->advance()
+            var $inner = $this->parseExpression(0)
+            $this->expect(TokenType::RPAREN, "expected ')' to close grouped expression")
+            return $inner
+        }
+
+        // Literals
+        if ($tt == TokenType::INT) {
+            $this->advance()
             return new IntLiteral($this->getTokenText($tok))
         }
-        if ($tok->type == TokenType::STRING) {
-            return new StringLiteral($this->getTokenText($tok))
+        if ($tt == TokenType::FLOAT) {
+            $this->advance()
+            return new FloatLiteral($this->getTokenText($tok))
         }
-        if ($tok->type == TokenType::IDENT) {
-            return new Identifier($this->getTokenText($tok))
+        if ($tt == TokenType::STRING) {
+            $this->advance()
+            // strip surrounding quotes from token text
+            var $raw = $this->getTokenText($tok)
+            var $rawLen = intval(Strings::Length($raw))
+            var $inner2 = ""
+            if ($rawLen > 2) {
+                $inner2 = Strings::Substring($raw, 1, $rawLen - 1)
+            }
+            return new StringLiteral($inner2)
         }
-        $this->addError("Unexpected expression token: " .. $tok->type)
+        if ($tt == TokenType::BOOL_TRUE) {
+            $this->advance()
+            return new BoolLiteral(true)
+        }
+        if ($tt == TokenType::BOOL_FALSE) {
+            $this->advance()
+            return new BoolLiteral(false)
+        }
+        if ($tt == TokenType::NIL) {
+            $this->advance()
+            return new NilLiteral()
+        }
+
+        // Array literal: [ expr, expr, ... ]
+        if ($tt == TokenType::LBRACKET) {
+            return $this->parseArrayLiteral()
+        }
+
+        // Map literal: { "key": expr, ... }
+        if ($tt == TokenType::LBRACE) {
+            return $this->parseMapLiteral()
+        }
+
+        // new ClassName(args)
+        if ($tt == TokenType::NEW) {
+            return $this->parseNewExpr()
+        }
+
+        // $variable
+        if ($tt == TokenType::DOLLAR_IDENT) {
+            $this->advance()
+            var $varName = $this->getDollarIdentName($tok)
+            return new DollarIdent($varName)
+        }
+
+        // Bare identifier — could be ClassName::method, function call, or identifier
+        if ($tt == TokenType::IDENT) {
+            $this->advance()
+            var $identName = $this->getTokenText($tok)
+            return new Identifier($identName)
+        }
+
+        // print as expression (standalone call style)
+        if ($tt == TokenType::PRINT) {
+            $this->advance()
+            $this->expect(TokenType::LPAREN, "expected '(' after print")
+            var $parg = $this->parseExpression(0)
+            $this->expect(TokenType::RPAREN, "expected ')'")
+            return new PrintExpr($parg)
+        }
+
+        $this->addError("unexpected token in expression: " .. $tok->type)
+        $this->advance() // consume to prevent infinite loop
         return nil
+    }
+
+    // Parse an infix (led) extension — we already have $left, now consume the operator
+    public func parseInfix($left, $opTok, $bp) {
+        var $tt = $opTok->type
+        $this->advance() // consume the operator token
+
+        // -> method call or property access
+        if ($tt == TokenType::ARROW) {
+            var $memberTok = $this->expect(TokenType::IDENT, "expected property/method name after ->")
+            var $memberName = $this->getTokenText($memberTok)
+            if ($this->check(TokenType::LPAREN)) {
+                $this->advance()
+                var $args = $this->parseArgList()
+                $this->expect(TokenType::RPAREN, "expected ')' after method arguments")
+                return new MethodCall($left, $memberName, $args)
+            }
+            return new PropertyAccess($left, $memberName)
+        }
+
+        // :: static call or enum access
+        if ($tt == TokenType::DOUBLE_COLON) {
+            var $memberTok2 = $this->expect(TokenType::IDENT, "expected member name after ::")
+            var $memberName2 = $this->getTokenText($memberTok2)
+            // determine if left is an Identifier (class name) or DollarIdent
+            var $className = ""
+            if ($left->type == "Identifier") {
+                $className = $left->name
+            } else {
+                $className = "unknown"
+            }
+            if ($this->check(TokenType::LPAREN)) {
+                $this->advance()
+                var $sargs = $this->parseArgList()
+                $this->expect(TokenType::RPAREN, "expected ')'")
+                return new StaticCall($className, $memberName2, $sargs)
+            }
+            return new EnumAccess($className, $memberName2)
+        }
+
+        // . dot access (e.g. object.prop — less common in Wolf but supported)
+        if ($tt == TokenType::DOT) {
+            var $dotMemberTok = $this->expect(TokenType::IDENT, "expected property name after '.'")
+            var $dotMemberName = $this->getTokenText($dotMemberTok)
+            return new PropertyAccess($left, $dotMemberName)
+        }
+
+        // Postfix ++ / -- (no right operand)
+        if ($tt == TokenType::INCREMENT) {
+            return new PostfixExpr($left, "++")
+        }
+        if ($tt == TokenType::DECREMENT) {
+            return new PostfixExpr($left, "--")
+        }
+
+        // [ index ]
+        if ($tt == TokenType::LBRACKET) {
+            var $idx = $this->parseExpression(0)
+            $this->expect(TokenType::RBRACKET, "expected ']' after index")
+            return new IndexExpr($left, $idx)
+        }
+
+        // ( call — covers bare function calls like ident(args) )
+        if ($tt == TokenType::LPAREN) {
+            var $cargs = $this->parseArgList()
+            $this->expect(TokenType::RPAREN, "expected ')'")
+            return new CallExpr($left, $cargs)
+        }
+
+        // .. string concatenation
+        if ($tt == TokenType::DOT_DOT) {
+            var $right = $this->parseExpression($bp)
+            return new StringConcat($left, $right)
+        }
+
+        // Assignment: right-associative — parse right at (bp - 1) so same-level right-assoc works
+        if ($tt == TokenType::ASSIGN || $tt == TokenType::PLUS_ASSIGN ||
+            $tt == TokenType::MINUS_ASSIGN || $tt == TokenType::STAR_ASSIGN ||
+            $tt == TokenType::SLASH_ASSIGN) {
+            var $aop = $this->tokenTypeToOp($tt)
+            var $rhs = $this->parseExpression(0) // right-associative: parse rest
+            return new BinaryExpr($left, $aop, $rhs)
+        }
+
+        // Binary arithmetic / comparison / logical
+        var $right2 = $this->parseExpression($bp)
+        var $op = $this->tokenTypeToOp($tt)
+        return new BinaryExpr($left, $op, $right2)
+    }
+
+    // ========== Sub-parsers ==========
+
+    public func parseArrayLiteral() {
+        $this->advance() // consume '['
+        var $elements = []
+        while (!$this->check(TokenType::RBRACKET) && !$this->isAtEnd()) {
+            Arrays::array_push($elements, $this->parseExpression(0))
+            if ($this->check(TokenType::COMMA)) {
+                $this->advance()
+            }
+        }
+        $this->expect(TokenType::RBRACKET, "expected ']' to close array literal")
+        return new ArrayLiteral($elements)
+    }
+
+    public func parseMapLiteral() {
+        $this->advance() // consume '{'
+        var $keys = []
+        var $values = []
+        while (!$this->check(TokenType::RBRACE) && !$this->isAtEnd()) {
+            var $k = $this->parseExpression(0)
+            $this->expect(TokenType::COLON, "expected ':' in map literal")
+            var $v = $this->parseExpression(0)
+            Arrays::array_push($keys, $k)
+            Arrays::array_push($values, $v)
+            if ($this->check(TokenType::COMMA)) {
+                $this->advance()
+            }
+        }
+        $this->expect(TokenType::RBRACE, "expected '}' to close map literal")
+        return new MapLiteral($keys, $values)
+    }
+
+    public func parseNewExpr() {
+        $this->advance() // consume 'new'
+        var $classTok = $this->expect(TokenType::IDENT, "expected class name after new")
+        var $className = $this->getTokenText($classTok)
+        var $classIdent = new Identifier($className)
+        $this->expect(TokenType::LPAREN, "expected '(' after class name in new expression")
+        var $args = $this->parseArgList()
+        $this->expect(TokenType::RPAREN, "expected ')' after new arguments")
+        return new NewExpr($classIdent, $args)
+    }
+
+    public func parseArgList() {
+        var $args = []
+        while (!$this->check(TokenType::RPAREN) && !$this->isAtEnd()) {
+            Arrays::array_push($args, $this->parseExpression(0))
+            if ($this->check(TokenType::COMMA)) {
+                $this->advance()
+            }
+        }
+        return $args
+    }
+
+    // ========== Operator String Mapping ==========
+
+    public func tokenTypeToOp($tt) {
+        if ($tt == TokenType::PLUS)          { return "+" }
+        if ($tt == TokenType::MINUS)         { return "-" }
+        if ($tt == TokenType::STAR)          { return "*" }
+        if ($tt == TokenType::SLASH)         { return "/" }
+        if ($tt == TokenType::MODULO)        { return "%" }
+        if ($tt == TokenType::EQUAL)         { return "==" }
+        if ($tt == TokenType::NOT_EQUAL)     { return "!=" }
+        if ($tt == TokenType::LESS)          { return "<" }
+        if ($tt == TokenType::LESS_EQUAL)    { return "<=" }
+        if ($tt == TokenType::GREATER)       { return ">" }
+        if ($tt == TokenType::GREATER_EQUAL) { return ">=" }
+        if ($tt == TokenType::AND)           { return "&&" }
+        if ($tt == TokenType::OR)            { return "||" }
+        if ($tt == TokenType::ASSIGN)        { return "=" }
+        if ($tt == TokenType::PLUS_ASSIGN)   { return "+=" }
+        if ($tt == TokenType::MINUS_ASSIGN)  { return "-=" }
+        if ($tt == TokenType::STAR_ASSIGN)   { return "*=" }
+        if ($tt == TokenType::SLASH_ASSIGN)  { return "/=" }
+        return "?"
     }
 
     // ========== Token Helpers ==========
 
+    // Extract raw text for a token (zero-copy: offsets into $this->source)
     public func getTokenText($tok) {
         if ($tok->type == TokenType::EOF) { return "" }
         var $endIdx = intval($tok->start) + intval($tok->length)
         return Strings::Substring($this->source, $tok->start, $endIdx)
+    }
+
+    // DOLLAR_IDENT tokens include the leading '$'; strip it for the name
+    public func getDollarIdentName($tok) {
+        var $raw = $this->getTokenText($tok)
+        var $rawLen = intval(Strings::Length($raw))
+        if ($rawLen > 1) {
+            return Strings::Substring($raw, 1, $rawLen)
+        }
+        return $raw
     }
 
     public func peek() {
@@ -122,28 +778,25 @@ class Parser {
     }
 
     public func peekNext() {
-        var $next = $this->current + 1
+        var $next = intval($this->current) + 1
         if ($next >= count($this->tokens)) {
             var $eof = new Token()
             $eof->type = TokenType::EOF
             return $eof
         }
-        var $idx = intval($next)
-        return $this->tokens[$idx]
+        return $this->tokens[$next]
     }
 
     public func advance() {
         var $tok = $this->peek()
         if (!$this->isAtEnd()) {
-            var $idx = intval($this->current)
-            $this->current = $idx + 1
+            $this->current = intval($this->current) + 1
         }
         return $tok
     }
 
     public func check($t) {
-        var $tok = $this->peek()
-        return $tok->type == $t
+        return $this->peek()->type == $t
     }
 
     public func expect($t, $msg) {
@@ -151,13 +804,20 @@ class Parser {
             return $this->advance()
         }
         var $tok = $this->peek()
-        $this->addError($msg .. ", got " .. $tok->type .. " (" .. $this->getTokenText($tok) .. ")")
+        $this->addError($msg .. ", got '" .. $this->getTokenText($tok) .. "' (" .. $tok->type .. ")")
         return $tok
     }
 
+    // Semicolons are optional in some positions (after blocks, etc.)
+    // For now, consume if present, don't error if absent.
+    public func consumeSemicolon() {
+        if ($this->check(TokenType::SEMICOLON)) {
+            $this->advance()
+        }
+    }
+
     public func isAtEnd() {
-        var $tok = $this->peek()
-        return $tok->type == TokenType::EOF
+        return $this->peek()->type == TokenType::EOF
     }
 
     public func addError($msg) {

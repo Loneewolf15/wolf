@@ -1,29 +1,455 @@
+// parser_test.wolf — Comprehensive Pratt Parser Tests
+
 func test_parser_basic() {
-    var $src = "var x = 10;"
+    var $src = "var $x = 10;"
     var $lexer = new Lexer($src, "test.wolf")
     var $tokens = $lexer->Tokenize()
-    
     var $parser = new Parser($tokens, "test.wolf", $src)
     var $ast = $parser->Parse()
 
     if (count($parser->Errors()) > 0) {
         throw("test_parser_basic failed: parse errors found")
     }
-
     if ($ast->type != "Program") {
         throw("test_parser_basic failed: expected Program AST")
     }
-
     if (count($ast->statements) != 1) {
         throw("test_parser_basic failed: expected 1 statement, got " .. count($ast->statements))
     }
-
     var $stmt = $ast->statements[0]
     if ($stmt->type != "VarDecl") {
         throw("test_parser_basic failed: expected VarDecl, got " .. $stmt->type)
     }
-
     if ($stmt->name != "x") {
-        throw("test_parser_basic failed: expected VarDecl name 'x', got " .. $stmt->name)
+        throw("test_parser_basic failed: expected name 'x', got " .. $stmt->name)
     }
+    print("PASS: test_parser_basic")
+}
+
+func test_parser_binary_expr() {
+    var $src = "var $result = 1 + 2 * 3;"
+    var $lexer = new Lexer($src, "test.wolf")
+    var $tokens = $lexer->Tokenize()
+    var $parser = new Parser($tokens, "test.wolf", $src)
+    var $ast = $parser->Parse()
+
+    if (count($parser->Errors()) > 0) {
+        throw("test_parser_binary_expr failed: parse errors found")
+    }
+    var $stmt = $ast->statements[0]
+    if ($stmt->type != "VarDecl") {
+        throw("test_parser_binary_expr failed: expected VarDecl")
+    }
+    // RHS should be BinaryExpr (1 + (2 * 3)) — + at top, * nested on right
+    var $val = $stmt->value
+    if ($val->type != "BinaryExpr") {
+        throw("test_parser_binary_expr failed: expected BinaryExpr at root, got " .. $val->type)
+    }
+    if ($val->op != "+") {
+        throw("test_parser_binary_expr failed: expected '+' as root op, got " .. $val->op)
+    }
+    var $right = $val->right
+    if ($right->type != "BinaryExpr") {
+        throw("test_parser_binary_expr failed: expected nested BinaryExpr on right")
+    }
+    if ($right->op != "*") {
+        throw("test_parser_binary_expr failed: expected '*' in nested expr, got " .. $right->op)
+    }
+    print("PASS: test_parser_binary_expr")
+}
+
+func test_parser_precedence_comparison() {
+    // a == b && c != d  →  (a == b) && (c != d)
+    var $src = "var $x = $a == $b && $c != $d;"
+    var $lexer = new Lexer($src, "test.wolf")
+    var $tokens = $lexer->Tokenize()
+    var $parser = new Parser($tokens, "test.wolf", $src)
+    var $ast = $parser->Parse()
+
+    if (count($parser->Errors()) > 0) {
+        throw("test_parser_precedence_comparison failed: " .. count($parser->Errors()) .. " errors")
+    }
+    var $val = $ast->statements[0]->value
+    if ($val->type != "BinaryExpr") {
+        throw("test_parser_precedence_comparison failed: expected BinaryExpr at root")
+    }
+    if ($val->op != "&&") {
+        throw("test_parser_precedence_comparison failed: expected '&&' at root, got " .. $val->op)
+    }
+    if ($val->left->op != "==") {
+        throw("test_parser_precedence_comparison failed: expected '==' on left")
+    }
+    if ($val->right->op != "!=") {
+        throw("test_parser_precedence_comparison failed: expected '!=' on right")
+    }
+    print("PASS: test_parser_precedence_comparison")
+}
+
+func test_parser_unary_expr() {
+    var $src = "var $x = !$flag;"
+    var $lexer = new Lexer($src, "test.wolf")
+    var $tokens = $lexer->Tokenize()
+    var $parser = new Parser($tokens, "test.wolf", $src)
+    var $ast = $parser->Parse()
+
+    if (count($parser->Errors()) > 0) {
+        throw("test_parser_unary_expr failed: errors found")
+    }
+    var $val = $ast->statements[0]->value
+    if ($val->type != "UnaryExpr") {
+        throw("test_parser_unary_expr failed: expected UnaryExpr, got " .. $val->type)
+    }
+    if ($val->op != "!") {
+        throw("test_parser_unary_expr failed: expected '!' op, got " .. $val->op)
+    }
+    print("PASS: test_parser_unary_expr")
+}
+
+func test_parser_string_concat() {
+    var $src = "var $s = \"hello\" .. \" \" .. \"world\";"
+    var $lexer = new Lexer($src, "test.wolf")
+    var $tokens = $lexer->Tokenize()
+    var $parser = new Parser($tokens, "test.wolf", $src)
+    var $ast = $parser->Parse()
+
+    if (count($parser->Errors()) > 0) {
+        throw("test_parser_string_concat failed: errors found")
+    }
+    var $val = $ast->statements[0]->value
+    if ($val->type != "StringConcat") {
+        throw("test_parser_string_concat failed: expected StringConcat at root, got " .. $val->type)
+    }
+    // left should also be StringConcat ("hello" .. " ")
+    if ($val->left->type != "StringConcat") {
+        throw("test_parser_string_concat failed: expected nested StringConcat on left")
+    }
+    print("PASS: test_parser_string_concat")
+}
+
+func test_parser_method_call() {
+    var $src = "var $n = $obj->getName();"
+    var $lexer = new Lexer($src, "test.wolf")
+    var $tokens = $lexer->Tokenize()
+    var $parser = new Parser($tokens, "test.wolf", $src)
+    var $ast = $parser->Parse()
+
+    if (count($parser->Errors()) > 0) {
+        throw("test_parser_method_call failed: errors found")
+    }
+    var $val = $ast->statements[0]->value
+    if ($val->type != "MethodCall") {
+        throw("test_parser_method_call failed: expected MethodCall, got " .. $val->type)
+    }
+    if ($val->method != "getName") {
+        throw("test_parser_method_call failed: expected method 'getName', got " .. $val->method)
+    }
+    print("PASS: test_parser_method_call")
+}
+
+func test_parser_chained_method_call() {
+    var $src = "var $v = $arr->filter($fn)->count();"
+    var $lexer = new Lexer($src, "test.wolf")
+    var $tokens = $lexer->Tokenize()
+    var $parser = new Parser($tokens, "test.wolf", $src)
+    var $ast = $parser->Parse()
+
+    if (count($parser->Errors()) > 0) {
+        throw("test_parser_chained_method_call failed: errors found")
+    }
+    var $val = $ast->statements[0]->value
+    if ($val->type != "MethodCall") {
+        throw("test_parser_chained_method_call failed: outer should be MethodCall, got " .. $val->type)
+    }
+    if ($val->method != "count") {
+        throw("test_parser_chained_method_call failed: outer method should be 'count'")
+    }
+    if ($val->object->type != "MethodCall") {
+        throw("test_parser_chained_method_call failed: inner should be MethodCall")
+    }
+    if ($val->object->method != "filter") {
+        throw("test_parser_chained_method_call failed: inner method should be 'filter'")
+    }
+    print("PASS: test_parser_chained_method_call")
+}
+
+func test_parser_static_call() {
+    var $src = "var $sub = Strings::Substring($s, 0, 5);"
+    var $lexer = new Lexer($src, "test.wolf")
+    var $tokens = $lexer->Tokenize()
+    var $parser = new Parser($tokens, "test.wolf", $src)
+    var $ast = $parser->Parse()
+
+    if (count($parser->Errors()) > 0) {
+        throw("test_parser_static_call failed: errors found")
+    }
+    var $val = $ast->statements[0]->value
+    if ($val->type != "StaticCall") {
+        throw("test_parser_static_call failed: expected StaticCall, got " .. $val->type)
+    }
+    if ($val->className != "Strings") {
+        throw("test_parser_static_call failed: expected className 'Strings', got " .. $val->className)
+    }
+    if ($val->method != "Substring") {
+        throw("test_parser_static_call failed: expected method 'Substring', got " .. $val->method)
+    }
+    if (count($val->args) != 3) {
+        throw("test_parser_static_call failed: expected 3 args, got " .. count($val->args))
+    }
+    print("PASS: test_parser_static_call")
+}
+
+func test_parser_array_index() {
+    var $src = "var $v = $arr[0];"
+    var $lexer = new Lexer($src, "test.wolf")
+    var $tokens = $lexer->Tokenize()
+    var $parser = new Parser($tokens, "test.wolf", $src)
+    var $ast = $parser->Parse()
+
+    if (count($parser->Errors()) > 0) {
+        throw("test_parser_array_index failed: errors found")
+    }
+    var $val = $ast->statements[0]->value
+    if ($val->type != "IndexExpr") {
+        throw("test_parser_array_index failed: expected IndexExpr, got " .. $val->type)
+    }
+    print("PASS: test_parser_array_index")
+}
+
+func test_parser_new_expr() {
+    var $src = "var $p = new Parser($tokens, $file, $src);"
+    var $lexer = new Lexer($src, "test.wolf")
+    var $tokens = $lexer->Tokenize()
+    var $parser = new Parser($tokens, "test.wolf", $src)
+    var $ast = $parser->Parse()
+
+    if (count($parser->Errors()) > 0) {
+        throw("test_parser_new_expr failed: errors found")
+    }
+    var $val = $ast->statements[0]->value
+    if ($val->type != "NewExpr") {
+        throw("test_parser_new_expr failed: expected NewExpr, got " .. $val->type)
+    }
+    if ($val->classExpr->name != "Parser") {
+        throw("test_parser_new_expr failed: expected class 'Parser', got " .. $val->classExpr->name)
+    }
+    if (count($val->args) != 3) {
+        throw("test_parser_new_expr failed: expected 3 args, got " .. count($val->args))
+    }
+    print("PASS: test_parser_new_expr")
+}
+
+func test_parser_array_literal() {
+    var $src = "var $a = [1, 2, 3];"
+    var $lexer = new Lexer($src, "test.wolf")
+    var $tokens = $lexer->Tokenize()
+    var $parser = new Parser($tokens, "test.wolf", $src)
+    var $ast = $parser->Parse()
+
+    if (count($parser->Errors()) > 0) {
+        throw("test_parser_array_literal failed: errors found")
+    }
+    var $val = $ast->statements[0]->value
+    if ($val->type != "ArrayLiteral") {
+        throw("test_parser_array_literal failed: expected ArrayLiteral, got " .. $val->type)
+    }
+    if (count($val->elements) != 3) {
+        throw("test_parser_array_literal failed: expected 3 elements, got " .. count($val->elements))
+    }
+    print("PASS: test_parser_array_literal")
+}
+
+func test_parser_map_literal() {
+    var $src = "var $m = {\"name\": \"wolf\", \"version\": 1};"
+    var $lexer = new Lexer($src, "test.wolf")
+    var $tokens = $lexer->Tokenize()
+    var $parser = new Parser($tokens, "test.wolf", $src)
+    var $ast = $parser->Parse()
+
+    if (count($parser->Errors()) > 0) {
+        throw("test_parser_map_literal failed: errors found")
+    }
+    var $val = $ast->statements[0]->value
+    if ($val->type != "MapLiteral") {
+        throw("test_parser_map_literal failed: expected MapLiteral, got " .. $val->type)
+    }
+    if (count($val->keys) != 2) {
+        throw("test_parser_map_literal failed: expected 2 keys, got " .. count($val->keys))
+    }
+    print("PASS: test_parser_map_literal")
+}
+
+func test_parser_if_stmt() {
+    var $src = "if ($x > 0) { var $y = 1; } else { var $y = 0; }"
+    var $lexer = new Lexer($src, "test.wolf")
+    var $tokens = $lexer->Tokenize()
+    var $parser = new Parser($tokens, "test.wolf", $src)
+    var $ast = $parser->Parse()
+
+    if (count($parser->Errors()) > 0) {
+        throw("test_parser_if_stmt failed: errors found")
+    }
+    var $stmt = $ast->statements[0]
+    if ($stmt->type != "IfStmt") {
+        throw("test_parser_if_stmt failed: expected IfStmt, got " .. $stmt->type)
+    }
+    if ($stmt->condition->type != "BinaryExpr") {
+        throw("test_parser_if_stmt failed: expected BinaryExpr condition")
+    }
+    if ($stmt->condition->op != ">") {
+        throw("test_parser_if_stmt failed: expected '>' condition op")
+    }
+    if ($stmt->elseBody == nil) {
+        throw("test_parser_if_stmt failed: expected else body to be parsed")
+    }
+    print("PASS: test_parser_if_stmt")
+}
+
+func test_parser_if_elseif_else() {
+    var $src = "if ($x == 1) { var $a = 1; } else if ($x == 2) { var $a = 2; } else { var $a = 0; }"
+    var $lexer = new Lexer($src, "test.wolf")
+    var $tokens = $lexer->Tokenize()
+    var $parser = new Parser($tokens, "test.wolf", $src)
+    var $ast = $parser->Parse()
+
+    if (count($parser->Errors()) > 0) {
+        throw("test_parser_if_elseif_else failed: errors found")
+    }
+    var $stmt = $ast->statements[0]
+    if ($stmt->type != "IfStmt") {
+        throw("test_parser_if_elseif_else failed: expected IfStmt")
+    }
+    if (count($stmt->elseIfs) != 1) {
+        throw("test_parser_if_elseif_else failed: expected 1 elseif, got " .. count($stmt->elseIfs))
+    }
+    if ($stmt->elseBody == nil) {
+        throw("test_parser_if_elseif_else failed: expected else body")
+    }
+    print("PASS: test_parser_if_elseif_else")
+}
+
+func test_parser_for_stmt() {
+    var $src = "for ($i = 0; $i < 10; $i++) { var $x = $i; }"
+    var $lexer = new Lexer($src, "test.wolf")
+    var $tokens = $lexer->Tokenize()
+    var $parser = new Parser($tokens, "test.wolf", $src)
+    var $ast = $parser->Parse()
+
+    if (count($parser->Errors()) > 0) {
+        throw("test_parser_for_stmt failed: " .. count($parser->Errors()) .. " errors")
+    }
+    var $stmt = $ast->statements[0]
+    if ($stmt->type != "ForStmt") {
+        throw("test_parser_for_stmt failed: expected ForStmt, got " .. $stmt->type)
+    }
+    if ($stmt->condition == nil) {
+        throw("test_parser_for_stmt failed: expected non-nil condition")
+    }
+    if ($stmt->body == nil) {
+        throw("test_parser_for_stmt failed: expected non-nil body")
+    }
+    print("PASS: test_parser_for_stmt")
+}
+
+func test_parser_while_stmt() {
+    var $src = "while ($running) { var $x = 1; }"
+    var $lexer = new Lexer($src, "test.wolf")
+    var $tokens = $lexer->Tokenize()
+    var $parser = new Parser($tokens, "test.wolf", $src)
+    var $ast = $parser->Parse()
+
+    if (count($parser->Errors()) > 0) {
+        throw("test_parser_while_stmt failed: errors found")
+    }
+    var $stmt = $ast->statements[0]
+    if ($stmt->type != "WhileStmt") {
+        throw("test_parser_while_stmt failed: expected WhileStmt, got " .. $stmt->type)
+    }
+    print("PASS: test_parser_while_stmt")
+}
+
+func test_parser_class_decl() {
+    var $src = "class Dog { public $name = \"rex\"; public func bark() { print(\"woof\"); } }"
+    var $lexer = new Lexer($src, "test.wolf")
+    var $tokens = $lexer->Tokenize()
+    var $parser = new Parser($tokens, "test.wolf", $src)
+    var $ast = $parser->Parse()
+
+    if (count($parser->Errors()) > 0) {
+        throw("test_parser_class_decl failed: " .. count($parser->Errors()) .. " errors")
+    }
+    var $stmt = $ast->statements[0]
+    if ($stmt->type != "ClassDecl") {
+        throw("test_parser_class_decl failed: expected ClassDecl, got " .. $stmt->type)
+    }
+    if ($stmt->name != "Dog") {
+        throw("test_parser_class_decl failed: expected name 'Dog', got " .. $stmt->name)
+    }
+    if (count($stmt->properties) != 1) {
+        throw("test_parser_class_decl failed: expected 1 property, got " .. count($stmt->properties))
+    }
+    if (count($stmt->methods) != 1) {
+        throw("test_parser_class_decl failed: expected 1 method, got " .. count($stmt->methods))
+    }
+    if ($stmt->methods[0]->name != "bark") {
+        throw("test_parser_class_decl failed: expected method 'bark'")
+    }
+    print("PASS: test_parser_class_decl")
+}
+
+func test_parser_return_stmt() {
+    var $src = "func add($a, $b) { return $a + $b; }"
+    var $lexer = new Lexer($src, "test.wolf")
+    var $tokens = $lexer->Tokenize()
+    var $parser = new Parser($tokens, "test.wolf", $src)
+    var $ast = $parser->Parse()
+
+    if (count($parser->Errors()) > 0) {
+        throw("test_parser_return_stmt failed: errors found")
+    }
+    var $fn = $ast->statements[0]
+    if ($fn->type != "FuncDecl") {
+        throw("test_parser_return_stmt failed: expected FuncDecl, got " .. $fn->type)
+    }
+    if (count($fn->params) != 2) {
+        throw("test_parser_return_stmt failed: expected 2 params, got " .. count($fn->params))
+    }
+    var $body = $fn->body
+    if ($body->type != "BlockStmt") {
+        throw("test_parser_return_stmt failed: expected BlockStmt body")
+    }
+    var $ret = $body->statements[0]
+    if ($ret->type != "ReturnStmt") {
+        throw("test_parser_return_stmt failed: expected ReturnStmt, got " .. $ret->type)
+    }
+    if (count($ret->values) != 1) {
+        throw("test_parser_return_stmt failed: expected 1 return value")
+    }
+    if ($ret->values[0]->op != "+") {
+        throw("test_parser_return_stmt failed: expected '+' in return expression")
+    }
+    print("PASS: test_parser_return_stmt")
+}
+
+func test_parser_grouped_expr() {
+    // (1 + 2) * 3  →  * at root, + nested on left
+    var $src = "var $v = (1 + 2) * 3;"
+    var $lexer = new Lexer($src, "test.wolf")
+    var $tokens = $lexer->Tokenize()
+    var $parser = new Parser($tokens, "test.wolf", $src)
+    var $ast = $parser->Parse()
+
+    if (count($parser->Errors()) > 0) {
+        throw("test_parser_grouped_expr failed: errors found")
+    }
+    var $val = $ast->statements[0]->value
+    if ($val->type != "BinaryExpr") {
+        throw("test_parser_grouped_expr failed: expected BinaryExpr")
+    }
+    if ($val->op != "*") {
+        throw("test_parser_grouped_expr failed: expected '*' at root due to grouping, got " .. $val->op)
+    }
+    if ($val->left->op != "+") {
+        throw("test_parser_grouped_expr failed: expected '+' on left from grouping")
+    }
+    print("PASS: test_parser_grouped_expr")
 }
