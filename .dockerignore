@@ -1,0 +1,6 @@
+wolf_out/
+.wolf-venv/
+__pycache__/
+.git/
+.env
+*.log

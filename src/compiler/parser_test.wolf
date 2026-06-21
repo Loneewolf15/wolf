@@ -453,3 +453,134 @@ func test_parser_grouped_expr() {
     }
     print("PASS: test_parser_grouped_expr")
 }
+
+// ─── Test: Foreach Statement ──────────────────────────────────────────────────
+
+func test_parser_foreach_stmt() {
+    var $src = "foreach ($arr as $k => $v) { print($v); }"
+    var $lexer = new Lexer($src, "test.wolf")
+    var $tokens = $lexer->Tokenize()
+    var $parser = new Parser($tokens, "test.wolf", $src)
+    var $ast = $parser->Parse()
+
+    if ($parser->Errors() != nil) {
+        if (count($parser->Errors()) > 0) {
+            print("❌ test_parser_foreach_stmt - FAILED: expected no errors")
+            return nil
+        }
+    }
+
+    var $stmt = $ast->statements[0]
+    if ($stmt->type != "ForeachStmt") {
+        print("❌ test_parser_foreach_stmt - FAILED: expected ForeachStmt, got " .. $stmt->type)
+        return nil
+    }
+
+    if ($stmt->iterable->type != "DollarIdent") {
+        print("❌ test_parser_foreach_stmt - FAILED: expected DollarIdent iterable")
+        return nil
+    }
+
+    if ($stmt->keyVar != "k") {
+        print("❌ test_parser_foreach_stmt - FAILED: expected keyVar 'k', got " .. $stmt->keyVar)
+        return nil
+    }
+
+    if ($stmt->valueVar != "v") {
+        print("❌ test_parser_foreach_stmt - FAILED: expected valueVar 'v', got " .. $stmt->valueVar)
+        return nil
+    }
+
+    print("PASS: test_parser_foreach_stmt")
+    return nil
+}
+
+func test_parser_closure_arrow() {
+    var $src = "var $add = func($a, $b) => $a + $b;"
+    var $lexer = new Lexer($src, "test.wolf")
+    var $tokens = $lexer->Tokenize()
+    var $parser = new Parser($tokens, "test.wolf", $src)
+    var $ast = $parser->Parse()
+
+    if (count($parser->Errors()) > 0) {
+        throw("test_parser_closure_arrow failed: expected no errors")
+    }
+
+    var $stmt = $ast->statements[0]
+    var $closure = $stmt->value
+    
+    if ($closure->type != "ClosureExpr") {
+        throw("test_parser_closure_arrow failed: expected ClosureExpr")
+    }
+    
+    if (count($closure->params) != 2) {
+        throw("test_parser_closure_arrow failed: expected 2 params")
+    }
+    
+    if ($closure->arrowExpr->type != "BinaryExpr") {
+        throw("test_parser_closure_arrow failed: expected BinaryExpr in arrow")
+    }
+    
+    print("PASS: test_parser_closure_arrow")
+    return nil
+}
+
+func test_parser_closure_block() {
+    var $src = "var $print = func($msg) { print($msg); };"
+    var $lexer = new Lexer($src, "test.wolf")
+    var $tokens = $lexer->Tokenize()
+    var $parser = new Parser($tokens, "test.wolf", $src)
+    var $ast = $parser->Parse()
+
+    if (count($parser->Errors()) > 0) {
+        throw("test_parser_closure_block failed: expected no errors")
+    }
+
+    var $stmt = $ast->statements[0]
+    var $closure = $stmt->value
+    
+    if ($closure->type != "ClosureExpr") {
+        throw("test_parser_closure_block failed: expected ClosureExpr")
+    }
+    
+    if ($closure->body->type != "BlockStmt") {
+        throw("test_parser_closure_block failed: expected BlockStmt body")
+    }
+    
+    print("PASS: test_parser_closure_block")
+    return nil
+}
+
+func test_parser_match_stmt() {
+    var $src = "match $x { 1 => print(\"1\"); _ => { print(\"other\"); } }"
+    var $lexer = new Lexer($src, "test.wolf")
+    var $tokens = $lexer->Tokenize()
+    var $parser = new Parser($tokens, "test.wolf", $src)
+    var $ast = $parser->Parse()
+
+    if (count($parser->Errors()) > 0) {
+        throw("test_parser_match_stmt failed: expected no errors")
+    }
+
+    var $stmt = $ast->statements[0]
+    if ($stmt->type != "MatchStmt") {
+        throw("test_parser_match_stmt failed: expected MatchStmt")
+    }
+
+    if (count($stmt->arms) != 2) {
+        throw("test_parser_match_stmt failed: expected 2 arms")
+    }
+
+    var $arm1 = $stmt->arms[0]
+    if ($arm1->pattern->type != "IntLiteral") {
+        throw("test_parser_match_stmt failed: expected IntLiteral pattern in arm 1")
+    }
+
+    var $arm2 = $stmt->arms[1]
+    if ($arm2->pattern->type != "Wildcard") {
+        throw("test_parser_match_stmt failed: expected Wildcard pattern in arm 2")
+    }
+
+    print("PASS: test_parser_match_stmt")
+    return nil
+}

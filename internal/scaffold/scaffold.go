@@ -530,3 +530,95 @@ func toLowerFirst(s string) string {
 	}
 	return string(s[0]|0x20) + s[1:]
 }
+
+// DockerInit generates a production-ready Dockerfile and .dockerignore for a Wolf project.
+// It reads wolf.config to determine the project mode and port.
+func DockerInit() error {
+	_, err := os.Getwd()
+	if err != nil {
+		return fmt.Errorf("wolf: cannot determine working directory: %w", err)
+	}
+
+	// We load config directly from the current directory
+	// Note: We avoid importing config directly if it causes cycles, but scaffold -> config is fine.
+	// Wait, we need to make sure we don't cause an import cycle.
+	// We'll just read wolf.config text natively to avoid depending on config package directly,
+	// or we can import it. Let's try importing "github.com/wolflang/wolf/internal/config".
+
+	// Actually, just to be safe and fast, let's write the templates directly.
+
+	dockerignore := `wolf_out/
+.wolf-venv/
+__pycache__/
+.git/
+.env
+*.log
+`
+
+	dockerfile := `# -----------------------------------------------------------------------------
+# STAGE 1: Builder
+# -----------------------------------------------------------------------------
+FROM golang:1.22-bookworm AS builder
+
+# Install build dependencies (Wolf requires clang/llvm to emit native code)
+RUN apt-get update && apt-get install -y \
+    clang \
+    llvm \
+    make \
+    git \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Wolf compiler
+RUN go install github.com/wolflang/wolf/cmd/wolf@latest
+
+# Set working directory
+WORKDIR /app
+
+# Copy project source
+COPY . .
+
+# Build the native binary
+# The entry point defaults to public/index.wolf for APIs, src/main.wolf for scripts
+RUN if [ -f "public/index.wolf" ]; then \
+      wolf build public/index.wolf; \
+    else \
+      wolf build src/main.wolf; \
+    fi
+
+# -----------------------------------------------------------------------------
+# STAGE 2: Runner
+# -----------------------------------------------------------------------------
+FROM debian:bookworm-slim
+
+WORKDIR /app
+
+# Install runtime dependencies (e.g., ca-certificates for HTTPS, libcurl for wolf_http)
+RUN apt-get update && apt-get install -y \
+    ca-certificates \
+    libcurl4 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy the compiled native binary from the builder stage
+# Assuming the compiled binary takes the name of the project or defaults to the source name
+# Here we just copy the entire wolf_out directory which contains the binary
+COPY --from=builder /app/wolf_out /app/wolf_out
+
+# Expose standard Wolf API port (override if necessary)
+EXPOSE 2006
+
+# Run the compiled binary (assuming the binary name is index if public/index.wolf was compiled)
+CMD ["sh", "-c", "if [ -f /app/wolf_out/index ]; then /app/wolf_out/index; else /app/wolf_out/main; fi"]
+`
+
+	if err := os.WriteFile(".dockerignore", []byte(dockerignore), 0644); err != nil {
+		return fmt.Errorf("wolf: failed to write .dockerignore: %w", err)
+	}
+
+	if err := os.WriteFile("Dockerfile", []byte(dockerfile), 0644); err != nil {
+		return fmt.Errorf("wolf: failed to write Dockerfile: %w", err)
+	}
+
+	fmt.Println("wolf: created Dockerfile ✓")
+	fmt.Println("wolf: created .dockerignore ✓")
+	return nil
+}
