@@ -11,6 +11,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/wolflang/wolf/internal/compiler"
 	"github.com/wolflang/wolf/internal/config"
+	"github.com/wolflang/wolf/internal/dashboard"
 	"github.com/wolflang/wolf/internal/migrate"
 	"github.com/wolflang/wolf/internal/packager"
 	"github.com/wolflang/wolf/internal/pythonenv"
@@ -181,6 +182,20 @@ database layer, and embeds CPython for native ML library access.`,
 			return nil
 		},
 	}
+
+	dockerCmd := &cobra.Command{
+		Use:   "docker",
+		Short: "Manage Wolf Docker integration",
+	}
+
+	dockerInitCmd := &cobra.Command{
+		Use:   "init",
+		Short: "Generate a multi-stage Dockerfile and .dockerignore",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return scaffold.DockerInit()
+		},
+	}
+	dockerCmd.AddCommand(dockerInitCmd)
 
 	pythonAddCmd := &cobra.Command{
 		Use:   "add [package] [version]",
@@ -517,7 +532,19 @@ database layer, and embeds CPython for native ML library access.`,
 		},
 	}
 
-	rootCmd.AddCommand(buildCmd, runCmd, fmtCmd, testCmd, pythonCmd, newCmd, generateCmd, migrateCmd, tokensCmd, skillsCmd, devCmd, installCmd)
+	devCmd := &cobra.Command{
+		Use:   "dev",
+		Short: "Start the Wolf development server and observability dashboard",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			fmt.Println("wolf dev: starting observability dashboard on port 8081")
+			dashboard.Start(8080)
+
+			// For now, just block forever
+			select {}
+		},
+	}
+
+	rootCmd.AddCommand(buildCmd, runCmd, fmtCmd, testCmd, pythonCmd, newCmd, generateCmd, migrateCmd, tokensCmd, skillsCmd, devCmd, installCmd, dockerCmd)
 
 	if err := rootCmd.Execute(); err != nil {
 		os.Exit(1)

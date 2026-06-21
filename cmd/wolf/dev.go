@@ -13,6 +13,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/wolflang/wolf/internal/compiler"
 	"github.com/wolflang/wolf/internal/config"
+	"github.com/wolflang/wolf/internal/dashboard"
 )
 
 var devCmd = &cobra.Command{
@@ -69,6 +70,13 @@ var devCmd = &cobra.Command{
 
 		// Force Shared mode for HMR
 		cfg.Target.Shared = true
+
+		// Start Observability Dashboard in background
+		targetPort := 2006
+		if cfg.Server.Port != 0 {
+			targetPort = cfg.Server.Port
+		}
+		dashboard.Start(targetPort)
 
 		// Initial compile
 		fmt.Printf("wolf: compiling for HMR...\n")

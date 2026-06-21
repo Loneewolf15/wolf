@@ -1,0 +1,594 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wolf Observability Dashboard</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-base: #050505;
+            --bg-surface: #0a0a0a;
+            --bg-card: rgba(255, 255, 255, 0.02);
+            --border: rgba(255, 255, 255, 0.06);
+            --text-primary: #EDEDED;
+            --text-secondary: #888888;
+            --accent-cyan: #00F0FF;
+            --accent-purple: #B258FF;
+            --accent-red: #FF3366;
+            --accent-green: #00E676;
+            --card-radius: 16px;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-base);
+            color: var(--text-primary);
+            overflow: hidden;
+            display: flex;
+            height: 100vh;
+            /* Subtle background glow */
+            background-image: radial-gradient(circle at 50% 0%, rgba(178, 88, 255, 0.05) 0%, transparent 50%),
+                              radial-gradient(circle at 100% 100%, rgba(0, 240, 255, 0.05) 0%, transparent 50%);
+        }
+
+        /* Sidebar */
+        .sidebar {
+            width: 260px;
+            background-color: transparent;
+            border-right: 1px solid var(--border);
+            padding: 32px 24px;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            z-index: 10;
+        }
+
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-weight: 700;
+            font-size: 18px;
+            margin-bottom: 56px;
+            letter-spacing: -0.5px;
+            color: #FFFFFF;
+        }
+
+        .brand-icon {
+            width: 28px;
+            height: 28px;
+            background: linear-gradient(135deg, var(--accent-purple), var(--accent-cyan));
+            border-radius: 8px;
+            display: grid;
+            place-items: center;
+            box-shadow: 0 0 20px rgba(178, 88, 255, 0.3);
+        }
+
+        .nav-item {
+            padding: 12px 16px;
+            border-radius: 8px;
+            color: var(--text-secondary);
+            font-weight: 500;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .nav-item:hover {
+            color: var(--text-primary);
+            background: rgba(255, 255, 255, 0.03);
+        }
+
+        .nav-item.active {
+            background: rgba(0, 240, 255, 0.08);
+            color: var(--accent-cyan);
+            border-left: 2px solid var(--accent-cyan);
+        }
+
+        /* Main Content */
+        .main {
+            flex: 1;
+            padding: 48px 64px;
+            overflow-y: auto;
+            position: relative;
+        }
+
+        .header {
+            margin-bottom: 48px;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+        }
+
+        .header h1 {
+            font-size: 32px;
+            font-weight: 600;
+            letter-spacing: -1px;
+            background: linear-gradient(to right, #FFF, #AAA);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .connection-status {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 13px;
+            font-weight: 500;
+            padding: 6px 12px;
+            border-radius: 100px;
+            background: rgba(255, 255, 255, 0.05);
+            color: var(--text-secondary);
+            transition: all 0.3s ease;
+        }
+
+        .status-dot {
+            width: 8px; height: 8px;
+            border-radius: 50%;
+            background: var(--text-secondary);
+            transition: all 0.3s ease;
+        }
+
+        .connection-status.online {
+            background: rgba(0, 230, 118, 0.1);
+            color: var(--accent-green);
+        }
+        
+        .connection-status.online .status-dot {
+            background: var(--accent-green);
+            box-shadow: 0 0 10px var(--accent-green);
+        }
+
+        .connection-status.offline {
+            background: rgba(255, 51, 102, 0.1);
+            color: var(--accent-red);
+        }
+        
+        .connection-status.offline .status-dot {
+            background: var(--accent-red);
+            box-shadow: 0 0 10px var(--accent-red);
+        }
+
+        /* Bento Grid */
+        .bento-grid {
+            display: grid;
+            grid-template-columns: repeat(12, 1fr);
+            gap: 24px;
+            grid-auto-rows: minmax(180px, auto);
+        }
+
+        .card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--card-radius);
+            padding: 28px;
+            position: relative;
+            overflow: hidden;
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            display: flex;
+            flex-direction: column;
+            transition: transform 0.3s ease, border-color 0.3s ease;
+        }
+
+        .card:hover {
+            border-color: rgba(255, 255, 255, 0.15);
+            transform: translateY(-2px);
+        }
+
+        /* Interactive glow effect tied to mouse position */
+        .card::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: radial-gradient(800px circle at var(--mouse-x) var(--mouse-y), rgba(255,255,255,0.04), transparent 40%);
+            z-index: 0;
+            opacity: 0;
+            transition: opacity 0.5s;
+            pointer-events: none;
+        }
+        .card:hover::before { opacity: 1; }
+
+        .card-content {
+            position: relative;
+            z-index: 1;
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+        }
+
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            color: var(--text-secondary);
+            font-size: 14px;
+            font-weight: 500;
+            margin-bottom: 24px;
+        }
+
+        /* Grid Placements */
+        .card-active-reqs { grid-column: span 6; }
+        .card-db-pool { grid-column: span 3; }
+        .card-memory { grid-column: span 3; }
+        .card-latency { grid-column: span 8; grid-row: span 2; }
+        .card-errors { grid-column: span 4; }
+
+        .value-large {
+            font-size: 72px;
+            font-weight: 600;
+            letter-spacing: -2px;
+            background: linear-gradient(180deg, #FFFFFF 0%, #A0A0A0 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-top: auto;
+            line-height: 1;
+            font-variant-numeric: tabular-nums;
+            text-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+        }
+
+        .value-medium {
+            font-size: 40px;
+            font-weight: 600;
+            margin-top: auto;
+            line-height: 1;
+            font-variant-numeric: tabular-nums;
+            letter-spacing: -1px;
+            color: #E0E0E0;
+        }
+
+        .label-sub {
+            color: var(--text-secondary);
+            font-size: 13px;
+            margin-top: 8px;
+            font-weight: 400;
+        }
+
+        /* Sparkline simple CSS */
+        .sparkline {
+            display: flex;
+            align-items: flex-end;
+            gap: 4px;
+            height: 60px;
+            margin-top: auto;
+        }
+        
+        .bar {
+            flex: 1;
+            background: linear-gradient(180deg, var(--accent-purple) 0%, rgba(178, 88, 255, 0.1) 100%);
+            border-radius: 2px 2px 0 0;
+            transform-origin: bottom;
+            will-change: transform;
+        }
+
+        .error-value {
+            color: var(--accent-red);
+            text-shadow: 0 0 20px rgba(255, 51, 102, 0.2);
+        }
+
+        .metrics-list {
+            margin-top: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            overflow-y: auto;
+            padding-right: 8px;
+        }
+        
+        /* Custom scrollbar for metrics */
+        .metrics-list::-webkit-scrollbar { width: 4px; }
+        .metrics-list::-webkit-scrollbar-track { background: transparent; }
+        .metrics-list::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 4px; }
+
+        .metric-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 13px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid rgba(255,255,255,0.03);
+        }
+        
+        .metric-row:last-child {
+            border-bottom: none;
+            padding-bottom: 0;
+        }
+        
+        .metric-key { 
+            color: var(--text-secondary); 
+            font-weight: 500;
+        }
+        
+        .metric-val { 
+            font-family: 'Inter', monospace; 
+            font-size: 14px; 
+            font-weight: 600;
+            color: #FFFFFF;
+            background: rgba(255,255,255,0.05);
+            padding: 4px 8px;
+            border-radius: 6px;
+        }
+
+        /* Live indicator pulse */
+        .pulse-ring {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--accent-cyan);
+            box-shadow: 0 0 10px var(--accent-cyan);
+            position: relative;
+        }
+        
+        .pulse-ring::after {
+            content: '';
+            position: absolute;
+            top: -4px; left: -4px; right: -4px; bottom: -4px;
+            border-radius: 50%;
+            border: 1px solid var(--accent-cyan);
+            animation: pulse 2s infinite cubic-bezier(0.2, 0.8, 0.2, 1);
+        }
+        
+        @keyframes pulse {
+            0% { transform: scale(0.5); opacity: 1; }
+            100% { transform: scale(2); opacity: 0; }
+        }
+
+    </style>
+</head>
+<body>
+
+    <aside class="sidebar gs-slide-in">
+        <div class="brand">
+            <div class="brand-icon gs-pop">🐺</div>
+            Wolf Runtime
+        </div>
+        <div class="nav-item active">Overview</div>
+        <div class="nav-item">Telemetry</div>
+        <div class="nav-item">Memory Arena</div>
+        <div class="nav-item">Logs</div>
+        <div style="margin-top: auto;" class="nav-item">Settings</div>
+    </aside>
+
+    <main class="main">
+        <div class="header gs-slide-up">
+            <h1>System Health</h1>
+            <div class="connection-status" id="conn-status">
+                <div class="status-dot"></div>
+                <span>Polling</span>
+            </div>
+        </div>
+
+        <div class="bento-grid">
+            <!-- Active Requests -->
+            <div class="card card-active-reqs gs-reveal">
+                <div class="card-content">
+                    <div class="card-header">
+                        <span>Active Connections</span>
+                        <div class="pulse-ring" style="display: none;" id="live-pulse"></div>
+                    </div>
+                    <div class="value-large" id="active-reqs">0</div>
+                </div>
+            </div>
+
+            <!-- QPS -->
+            <div class="card card-db-pool gs-reveal">
+                <div class="card-content">
+                    <div class="card-header">
+                        <span>Queries / Sec</span>
+                    </div>
+                    <div class="value-medium" id="qps-val">0</div>
+                    <div class="label-sub">Real-time throughput</div>
+                </div>
+            </div>
+
+            <!-- Total Requests -->
+            <div class="card card-memory gs-reveal">
+                <div class="card-content">
+                    <div class="card-header">
+                        <span>Total Processed</span>
+                    </div>
+                    <div class="value-medium" id="total-reqs">0</div>
+                </div>
+            </div>
+
+            <!-- Telemetry Registry -->
+            <div class="card card-latency gs-reveal">
+                <div class="card-content">
+                    <div class="card-header" style="margin-bottom: 16px;">
+                        <span>Internal Telemetry Registry</span>
+                        <span style="font-size: 11px; padding: 2px 8px; background: rgba(255,255,255,0.05); border-radius: 4px;">_Atomic Lock-Free</span>
+                    </div>
+                    <div class="metrics-list" id="metrics-container">
+                        <div class="metric-row"><span class="metric-key" style="opacity: 0.5;">Waiting for data stream...</span></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Simulated Error Rate -->
+            <div class="card card-errors gs-reveal">
+                <div class="card-content">
+                    <div class="card-header">
+                        <span>Simulated Error Rate</span>
+                    </div>
+                    <div class="value-medium error-value" id="error-rate">0.00%</div>
+                    <div class="sparkline" id="error-spark">
+                        <!-- Bars injected by JS -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        const TARGET_PORT = {{TARGET_PORT}};
+        
+        // --- Animations ---
+        // Sidebar entrance
+        gsap.from(".gs-slide-in", { x: -30, opacity: 0, duration: 0.8, ease: "power3.out" });
+        gsap.from(".gs-pop", { scale: 0, rotation: -45, opacity: 0, duration: 0.8, ease: "back.out(1.7)", delay: 0.2 });
+        
+        // Header entrance
+        gsap.from(".gs-slide-up", { y: 20, opacity: 0, duration: 0.8, ease: "power3.out", delay: 0.1 });
+        
+        // Cards stagger entrance
+        gsap.from(".gs-reveal", {
+            y: 40,
+            opacity: 0,
+            duration: 0.8,
+            stagger: 0.1,
+            ease: "power3.out",
+            delay: 0.2
+        });
+
+        // Interactive card hover tracking
+        document.querySelectorAll('.card').forEach(card => {
+            card.addEventListener('mousemove', e => {
+                const rect = card.getBoundingClientRect();
+                const x = e.clientX - rect.left;
+                const y = e.clientY - rect.top;
+                card.style.setProperty('--mouse-x', x + 'px');
+                card.style.setProperty('--mouse-y', y + 'px');
+            });
+        });
+
+        // --- Data Logic ---
+        const activeReqsEl = document.getElementById('active-reqs');
+        const totalReqsEl = document.getElementById('total-reqs');
+        const metricsContainer = document.getElementById('metrics-container');
+        const connStatus = document.getElementById('conn-status');
+        const livePulse = document.getElementById('live-pulse');
+        const statusText = connStatus.querySelector('span');
+
+        let lastTotal = 0;
+        let isFirstLoad = true;
+
+        function updateMetrics(data) {
+            // Update connection state
+            if (!connStatus.classList.contains('online')) {
+                connStatus.className = 'connection-status online';
+                statusText.innerText = 'Online';
+                livePulse.style.display = 'block';
+            }
+
+            // Animate Active Requests if changed
+            if (activeReqsEl.innerText !== String(data.active_requests)) {
+                gsap.to(activeReqsEl, {
+                    innerHTML: data.active_requests,
+                    duration: 0.6,
+                    snap: { innerHTML: 1 },
+                    ease: "power2.out"
+                });
+            }
+
+            const m = data.metrics || {};
+            
+            // Render metrics list
+            if (Object.keys(m).length > 0) {
+                metricsContainer.innerHTML = '';
+                let tReqs = 0;
+                
+                for (const [key, val] of Object.entries(m)) {
+                    if (key === "http_requests_total") tReqs = val;
+                    
+                    const row = document.createElement('div');
+                    row.className = 'metric-row';
+                    row.innerHTML = `<span class="metric-key">${key}</span><span class="metric-val">${val}</span>`;
+                    metricsContainer.appendChild(row);
+                }
+
+                // Calculate QPS and animate total
+                if (tReqs !== lastTotal) {
+                    const diff = tReqs - lastTotal;
+                    
+                    // Don't show a huge spike on first load for QPS
+                    if (!isFirstLoad) {
+                        gsap.to(document.getElementById('qps-val'), {
+                            innerHTML: diff,
+                            duration: 0.4,
+                            snap: { innerHTML: 1 },
+                            ease: "power1.out"
+                        });
+                    }
+                    
+                    lastTotal = tReqs;
+                    
+                    gsap.to(totalReqsEl, {
+                        innerHTML: tReqs,
+                        duration: 0.6,
+                        snap: { innerHTML: 1 },
+                        ease: "power2.out"
+                    });
+                }
+            }
+            
+            isFirstLoad = false;
+        }
+
+        // Generate dynamic sparkline bars
+        function generateSparkline() {
+            const spark = document.getElementById('error-spark');
+            const barsCount = 16;
+            
+            if (spark.children.length === 0) {
+                // Initialize bars
+                for(let i=0; i<barsCount; i++) {
+                    const bar = document.createElement('div');
+                    bar.className = 'bar';
+                    spark.appendChild(bar);
+                }
+            }
+            
+            // Animate existing bars to new random heights
+            const bars = spark.querySelectorAll('.bar');
+            bars.forEach((bar, index) => {
+                const h = 5 + Math.random() * 95; // 5% to 100%
+                gsap.to(bar, { 
+                    height: h + '%', 
+                    duration: 0.8 + Math.random() * 0.4, 
+                    ease: "sine.inOut" 
+                });
+            });
+            
+            // Update error rate text slightly for realism
+            const errorRate = (0.01 + Math.random() * 0.05).toFixed(2);
+            document.getElementById('error-rate').innerText = errorRate + '%';
+        }
+        
+        // Initial sparkline setup
+        generateSparkline();
+        setInterval(generateSparkline, 2500);
+
+        // API Polling Loop
+        async function poll() {
+            try {
+                const res = await fetch(`http://127.0.0.1:${TARGET_PORT}/health`);
+                if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+                const data = await res.json();
+                updateMetrics(data);
+            } catch (err) {
+                console.error("Dashboard polling error:", err);
+                if (connStatus.classList.contains('online')) {
+                    connStatus.className = 'connection-status offline';
+                    statusText.innerText = 'Offline';
+                    livePulse.style.display = 'none';
+                    document.getElementById('qps-val').innerText = '0';
+                }
+            }
+            setTimeout(poll, 1000);
+        }
+
+        // Start polling after entrance animations
+        setTimeout(poll, 800);
+        
+    </script>
+</body>
+</html>
