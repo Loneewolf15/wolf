@@ -1,5 +1,19 @@
 # Wolf Bugs Fixed — Cumulative Log
 
+## Session 2026-06-22 (Session 33 — CLI UX & Project Mode Planning)
+
+### BUG-086: `wolf build` panics with Cobra usage text on missing arguments
+- **Class:** P2 🟡 Developer Experience
+- **Root cause:** The Cobra command for `wolf build` was set to `ExactArgs(1)`. If called without arguments, Cobra intercepted the error before the CLI could emit its standard JSON structured error, breaking toolchain compatibility.
+- **Fix:** Changed `Args` to `MaximumNArgs(1)` in `cmd/wolf/main.go` and `cmd/wolf/dev.go`. Added logic to gracefully default to `src/main.wolf` or `main.wolf`, and explicitly return the expected JSON error if neither exists.
+- **File:** `cmd/wolf/main.go`, `cmd/wolf/dev.go`
+
+### BUG-087: `TestFileUpload` E2E test hangs for 10 minutes locally
+- **Class:** P2 🟡 Testing / CI
+- **Root cause:** The Go test `TestFileUpload` uses a blocking `bufio.Scanner` to wait for `"Wolf HTTP Server running"` on stdout before sending the POST request. However, `_server_upload.wolf` did not contain a `print()` statement, causing the test to hang indefinitely until hitting the global 10-minute Go test timeout.
+- **Fix:** Added `print("Wolf HTTP Server running")` to `e2e/testdata/_server_upload.wolf`. The test now correctly initiates the request (although it currently hits a 400 Bad Request error due to pointer mismatch in the C-runtime `wolf_http_req_file` signature, but it fails fast in ~20s instead of 10m).
+- **File:** `e2e/testdata/_server_upload.wolf`
+
 ## Session 2026-06-22 (Session 32 — Self-Hosting Compiler Milestone)
 
 ### BUG-084: Parser `namespace` keyword collision on property access

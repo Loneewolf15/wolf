@@ -19,9 +19,21 @@ import (
 var devCmd = &cobra.Command{
 	Use:   "dev [file]",
 	Short: "Start the developer server with Hot Module Replacement (HMR)",
-	Args:  cobra.ExactArgs(1),
+	Args:  cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		filename := args[0]
+		filename := ""
+		if len(args) > 0 {
+			filename = args[0]
+		} else {
+			if _, err := os.Stat("src/main.wolf"); err == nil {
+				filename = "src/main.wolf"
+			} else if _, err := os.Stat("main.wolf"); err == nil {
+				filename = "main.wolf"
+			} else {
+				return fmt.Errorf("no input file specified. Please provide a file or create src/main.wolf")
+			}
+		}
+
 		if !filepath.IsAbs(filename) {
 			cwd, _ := os.Getwd()
 			filename = filepath.Join(cwd, filename)
@@ -99,7 +111,7 @@ var devCmd = &cobra.Command{
 		// Start Host Shell
 		baseName := strings.TrimSuffix(filepath.Base(filename), filepath.Ext(filename))
 		appSoPath := filepath.Join(outDir, baseName+".so")
-		hostCmd := exec.Command(hostPath, args[0])
+		hostCmd := exec.Command(hostPath, filename)
 		hostCmd.Stdout = os.Stdout
 		hostCmd.Stderr = os.Stderr
 		hostCmd.Env = append(os.Environ(), "WOLF_APP_SO_PATH="+appSoPath)

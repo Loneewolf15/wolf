@@ -1,27 +1,27 @@
-# Handoff — 2026-06-22
+# Handoff — 2026-06-22 (Session 33)
 
 ## Where We Left Off
-We successfully reached the **Partial Self-Hosting Milestone (v0.self-hosting-alpha)**. `main.wolf` natively runs `Lexer`, `Parser`, `Resolver`, and `TypeChecker` natively within Wolf itself without Go compilation! We completed the Pratt Parser expression precedence logic inside `Parser.wolf` and cleared all bugs related to LLVM IR's representation of string concatenated maps.
+We successfully updated `wolf build` and `wolf dev` to support zero-argument invocations (defaulting to `src/main.wolf` or `main.wolf`). We also resolved a localized 10-minute timeout hang in `upload_test.go` by properly adding the necessary server startup print statement in `_server_upload.wolf`. Crucially, we drafted the **implementation plan** for Native Project AutoDiscovery in `wolf-self`, which is fully outlined in the artifacts directory.
 
 ## Commits This Session
-b12e4cf (HEAD -> main, tag: v0.self-hosting-alpha) Milestone: Wolf partial self-hosting alpha
-c2cd873 (origin/main) fix(parser): Parser.wolf accumulated fixes from self-hosted test run
-01f28a6 chore: vault updates, e2e fixes, emitter improvements, benchmark cleanup
-82dbd53 feat(compiler): self-hosted TypeChecker, resolver/typechecker/parser tests; wolf docker init
-8697ff7 feat(dashboard): premium wolf dev dashboard with GSAP + glassmorphic UI
+*(Pending execution: standard commit will wrap up the CLI updates and bug log.)*
 
 ## Tests Status
-*Running...* (Last full verification passed all `internal` and `e2e` tests).
+- `/internal/...`: Pass
+- `/e2e/...`: Fail (1 known E2E failure: `TestFileUpload`)
+  - `TestFileUpload` fails with a 400 Bad Request because `wolf_http_req_file` C runtime expects a `const char*` but receives a `ptr` (Wolf Map structure) from the LLVM emitter. It is now failing fast (~20s) instead of hanging.
 
 ## Next Immediate Task
-The self-hosted compiler currently runs in "single file mode". The next unblocked task is `wolf-self --project <dir>`. We need to build out the project mode logic natively inside `src/compiler/main.wolf` allowing `WolfCompiler` to natively walk the file tree and `AutoDiscover` its sibling `Token.wolf`, `AST.wolf` before proceeding to compilation.
+1. Review and approve the `implementation_plan.md` artifact to build out `--project <dir>` support natively inside `src/compiler/main.wolf`.
+2. Once approved, execute the plan to upgrade the self-hosted compiler from single-file isolation to full directory resolution.
 
 ## Open Issues / Watch Out For
-- Ensure you read `ADR-026` inside `architecture.md`. `AutoDiscovery.go` excludes `./src/compiler` active compilation scopes intentionally from global namespace definition to avoid infinite redefinition bugs.
-- LLVM Phase 5 Emission is NOT in Wolf yet. The milestone only covers up to WIR TypeChecking! 
+- **`wolf_http_req_file` Signature Mismatch:** The native compiler's LLVM emitter correctly types the `wolf_http_req_file` arguments as `(i64, ptr)`, but the C runtime expects a raw `const char*`. A string coercion extraction helper (like `wolf_req_strdup` extraction from maps) or an LLVM fix will be required before file uploads work natively.
+- **Go Test Timeouts:** When a C runtime server component hangs or fails to emit expected stdout markers, tests will block until the 10m Go limit. Always ensure C runtime / Wolf scripts explicitly output expected synchronization markers.
 
 ## Relevant Files Modified This Session
-- `src/compiler/Parser.wolf`
-- `src/compiler/main.wolf`
-- `internal/compiler/autodiscovery.go`
-- `README.md`
+- `cmd/wolf/main.go`
+- `cmd/wolf/dev.go`
+- `e2e/upload_test.go`
+- `e2e/testdata/_server_upload.wolf`
+- `artifacts/implementation_plan.md`

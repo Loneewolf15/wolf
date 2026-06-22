@@ -39,9 +39,27 @@ database layer, and embeds CPython for native ML library access.`,
 	buildCmd := &cobra.Command{
 		Use:   "build [file]",
 		Short: "Compile a Wolf source file to a native binary",
-		Args:  cobra.ExactArgs(1),
+		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			source, err := os.ReadFile(args[0])
+			filename := ""
+			if len(args) > 0 {
+				filename = args[0]
+			} else {
+				if _, err := os.Stat("src/main.wolf"); err == nil {
+					filename = "src/main.wolf"
+				} else if _, err := os.Stat("main.wolf"); err == nil {
+					filename = "main.wolf"
+				} else {
+					if jsonOutput {
+						b, _ := json.Marshal(map[string]interface{}{"success": false, "errors": []string{"no input file specified. Please provide a file or create src/main.wolf"}})
+						fmt.Println(string(b))
+						return nil
+					}
+					return fmt.Errorf("no input file specified. Please provide a file or create src/main.wolf")
+				}
+			}
+
+			source, err := os.ReadFile(filename)
 			if err != nil {
 				if jsonOutput {
 					b, _ := json.Marshal(map[string]interface{}{"success": false, "errors": []string{err.Error()}})
@@ -79,7 +97,7 @@ database layer, and embeds CPython for native ML library access.`,
 			c.Verbose = verbose
 			c.StrictMode = strict
 
-			result, err := c.Build(string(source), args[0])
+			result, err := c.Build(string(source), filename)
 			if err != nil {
 				if jsonOutput {
 					b, _ := json.Marshal(map[string]interface{}{"success": false, "errors": result.Errors})

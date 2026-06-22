@@ -58,10 +58,14 @@ graph TD
 
 ## Session History
 
-### 2026-06-22 (Session 32 — Self-Hosting Compiler Milestone)
+### 2026-06-22 (Session 33 — CLI UX & Project Mode Planning)
 **Done:**
-- Refactored `Parser.wolf` completely into a robust Pratt expression parser capable of handling `namespace`, infix and prefix operations with proper binding powers.
-- Re-architected AutoDiscovery traversal logic in Go bootstrap to avoid redefining AST scopes (`invalid redefinition`) during the internal compilation of `src/compiler/` nodes.
+- Updated `wolf build` and `wolf dev` to support zero-argument invocation, defaulting to `src/main.wolf` or `main.wolf`.
+- Fixed the Go CLI failing with unformatted Cobra usage text when args are missing; it now properly outputs a structured JSON error `--json` format is used.
+- Added a `print` statement to `_server_upload.wolf` to fix a 10-minute timeout hang in `TestFileUpload` (the test still fails with a 400 Bad Request, but fails fast).
+- Created the implementation plan for `wolf-self --project <dir>`, the next unblocked task for Sprint 10's project-mode native AutoDiscovery logic.
+
+### 2026-06-22 (Session 32 — Self-Hosting Compiler Milestone)
 - Resolved garbled memory issues during self-hosted string array output (`wolf: parse error: \`21qlU`) by appropriately tracking map retrieval `e["message"]` over array pointer concatenation.
 - Executed native `main.wolf` against `Lexer.wolf`, `Parser.wolf` and `main.wolf`.
 - Verified native phases 1-4 successfully: Wolf lexes, parses, resolves scopes, and type checks its own logic natively via `WolfCompiler`.

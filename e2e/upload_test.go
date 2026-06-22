@@ -42,6 +42,8 @@ func TestFileUpload(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to get stdout: %v", err)
 	}
+	var stderrBuf bytes.Buffer
+	cmd.Stderr = &stderrBuf
 	if err := cmd.Start(); err != nil {
 		t.Fatalf("Failed to start server: %v", err)
 	}
@@ -55,9 +57,12 @@ func TestFileUpload(t *testing.T) {
 	go func() {
 		scanner := bufio.NewScanner(stdout)
 		for scanner.Scan() {
-			if strings.Contains(scanner.Text(), "Wolf HTTP Server running") {
+			text := scanner.Text()
+			// log the server output directly so we can see it
+			t.Logf("Server stdout: %s", text)
+			if strings.Contains(text, "Wolf HTTP Server running") {
 				ready <- true
-				return
+				// Do not return! Keep scanning to drain the pipe and see output
 			}
 		}
 	}()
@@ -95,7 +100,7 @@ func TestFileUpload(t *testing.T) {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("Expected 200 OK, got %d", resp.StatusCode)
+		t.Fatalf("Expected 200 OK, got %d\nServer stderr:\n%s", resp.StatusCode, stderrBuf.String())
 	}
 
 	respBody, _ := io.ReadAll(resp.Body)
