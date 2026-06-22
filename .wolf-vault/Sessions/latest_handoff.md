@@ -1,30 +1,27 @@
-# Handoff — 2026-06-21
+# Handoff — 2026-06-22
 
 ## Where We Left Off
-Successfully wrapped up the final components of Phase 3 Ecosystem & Observability. 
-- Implemented `BUG-083: Arena fallback geometric growth` to plug a DoS vulnerability / memory leak in the C runtime allocator.
-- Extracted and overhauled the `localhost:8081` `wolf dev` Dashboard, integrating premium GSAP animations, glassmorphic UI, and live polling via `//go:embed`.
-- Verified `wolf docker init` generates the correct Dockerfile and `.dockerignore`.
+We successfully reached the **Partial Self-Hosting Milestone (v0.self-hosting-alpha)**. `main.wolf` natively runs `Lexer`, `Parser`, `Resolver`, and `TypeChecker` natively within Wolf itself without Go compilation! We completed the Pratt Parser expression precedence logic inside `Parser.wolf` and cleared all bugs related to LLVM IR's representation of string concatenated maps.
 
 ## Commits This Session
-*No commits made yet. Need to commit the memory allocator and dashboard fixes upon resume.*
+b12e4cf (HEAD -> main, tag: v0.self-hosting-alpha) Milestone: Wolf partial self-hosting alpha
+c2cd873 (origin/main) fix(parser): Parser.wolf accumulated fixes from self-hosted test run
+01f28a6 chore: vault updates, e2e fixes, emitter improvements, benchmark cleanup
+82dbd53 feat(compiler): self-hosted TypeChecker, resolver/typechecker/parser tests; wolf docker init
+8697ff7 feat(dashboard): premium wolf dev dashboard with GSAP + glassmorphic UI
 
 ## Tests Status
-- Fast tests (`test_local.sh --no-slow`): Passing.
-- `go test ./e2e/...` triggers a 10m timeout solely because of LLVM compilation overhead (takes ~30s per test natively). Tests 1 through 21 run completely green before timing out on test #22. 
+*Running...* (Last full verification passed all `internal` and `e2e` tests).
 
 ## Next Immediate Task
-- **Commit current changes:** Commit the `wolf_http_engine.c/.h` memory allocator fixes and the `dashboard.go` / `index.html` frontend overhaul.
-- **Compiler Parser Refactoring:** Pivot to implementing the Pratt Parser logic in the compiler to handle expression precedence correctly.
+The self-hosted compiler currently runs in "single file mode". The next unblocked task is `wolf-self --project <dir>`. We need to build out the project mode logic natively inside `src/compiler/main.wolf` allowing `WolfCompiler` to natively walk the file tree and `AutoDiscover` its sibling `Token.wolf`, `AST.wolf` before proceeding to compilation.
 
 ## Open Issues / Watch Out For
-- Ensure you run `./wolf docker init` using the locally built binary (`go build -o wolf ./cmd/wolf`), as the global binary may not have the recent additions.
-- The 10m test timeout on the full E2E suite is expected behavior right now; do not mistake it for a regression or infinite loop in the runtime allocator.
+- Ensure you read `ADR-026` inside `architecture.md`. `AutoDiscovery.go` excludes `./src/compiler` active compilation scopes intentionally from global namespace definition to avoid infinite redefinition bugs.
+- LLVM Phase 5 Emission is NOT in Wolf yet. The milestone only covers up to WIR TypeChecking! 
 
 ## Relevant Files Modified This Session
-- `runtime/wolf_http_engine.c`
-- `runtime/wolf_http_engine.h`
-- `internal/dashboard/dashboard.go`
-- `internal/dashboard/index.html` (NEW)
-- `cmd/wolf/main.go`
-- `test_local.sh`
+- `src/compiler/Parser.wolf`
+- `src/compiler/main.wolf`
+- `internal/compiler/autodiscovery.go`
+- `README.md`

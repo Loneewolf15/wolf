@@ -1,5 +1,19 @@
 # Wolf Bugs Fixed — Cumulative Log
 
+## Session 2026-06-22 (Session 32 — Self-Hosting Compiler Milestone)
+
+### BUG-084: Parser `namespace` keyword collision on property access
+- **Class:** P1 🟠 Language / Parser Correctness
+- **Root cause:** The lexer correctly identifies `namespace` as a keyword token (`TokenType::NAMESPACE`). However, `Parser.wolf` itself used `$this->namespace = ""` and `->namespace` as property access. The parser's Pratt infix operator for `->` expected a raw identifier (`TokenType::IDENT`), causing a parse error when it encountered the `NAMESPACE` token.
+- **Fix:** Renamed the internal property `$this->namespace` to `$this->currentNamespace` in `Parser.wolf` to sidestep the collision elegantly without modifying the lexer rules.
+- **File:** `src/compiler/Parser.wolf`
+
+### BUG-085: LLVM string array garbage on `print` concatenation
+- **Class:** P2 🟡 Display / Demo Hygiene
+- **Root cause:** The `print("wolf: parse error: " .. $errs[$i])` in `main.wolf` attempted to concatenate a string with `$errs[$i]`, which returned a Map object (from `Parser.wolf`'s `addError` method). The LLVM emitter did not gracefully coerce Map to String, resulting in garbled pointer representation outputs like `wolf: parse error: \`21qlU`.
+- **Fix:** Properly indexed into the map within `main.wolf` to extract explicit string values (`$errs[$i]["message"]` and `$errs[$i]["line"]`), resolving the garbage output.
+- **File:** `src/compiler/main.wolf`
+
 ## Session 2026-06-21 (Sprint 10 — Ecosystem & Observability)
 
 ### BUG-083: Arena fallback list geometric growth fix (DOS vulnerability)
@@ -341,7 +355,7 @@
 
 ## Status Ledger
 
-- Total bugs fixed: **58** (BUG-001 through BUG-074, including N-series omissions)
+- Total bugs fixed: **60** (BUG-001 through BUG-085, including N-series omissions)
 - E2E tests: **10/10 Phase 2 tests passing** (`01_hello`, `14_classes`, `36_closures`, `39_interfaces`, `41_enums`, `42_try_catch`, `43_visibility`, `44_package_system`, `52_supervise`, `54_cpu_preempt`)
 - Open: **None** (BUG-052 closed ✅)
 - Next Bloodhound Sweep: Monitor for `libcurl` multi-handle leakage if we move from synchronous `easy` interface to asynchronous.

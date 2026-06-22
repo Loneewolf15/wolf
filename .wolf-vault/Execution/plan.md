@@ -11,7 +11,8 @@
 | Geometric Block-Growth Allocator (Phase 3) | ✅ Completed | — |
 | `localhost:8081` Visual Dashboard overhaul | ✅ Completed | — |
 | `wolf docker init` | ✅ Completed | — |
-| Compiler Parser Refactoring (Pratt Parser) | 🔄 Next | — |
+| Compiler Parser Refactoring (Pratt Parser) | ✅ Completed | — |
+| Partial Self-Hosting Milestone | ✅ Completed | — |
 | `wolf test` built-in test runner | 🔄 Pending | — |
 | `wolf explain` AI error diagnostic tool | 🔄 Pending | — |
 | Wolf LSP + VS Code foundation | ⏸ Deferred to Phase 11 | — |
@@ -50,11 +51,21 @@ graph TD
 ```
 
 ### Next Unblocked Tasks
-1. `__class` key filtering in `wolf_json_encode_map`.
-2. `wolf install` package registry specs.
-3. Wolf LSP + VS Code foundation.
+1. `wolf-self --project <dir>` Project mode for self-hosted compiler.
+2. `__class` key filtering in `wolf_json_encode_map`.
+3. `wolf install` package registry specs.
+4. Wolf LSP + VS Code foundation.
 
 ## Session History
+
+### 2026-06-22 (Session 32 — Self-Hosting Compiler Milestone)
+**Done:**
+- Refactored `Parser.wolf` completely into a robust Pratt expression parser capable of handling `namespace`, infix and prefix operations with proper binding powers.
+- Re-architected AutoDiscovery traversal logic in Go bootstrap to avoid redefining AST scopes (`invalid redefinition`) during the internal compilation of `src/compiler/` nodes.
+- Resolved garbled memory issues during self-hosted string array output (`wolf: parse error: \`21qlU`) by appropriately tracking map retrieval `e["message"]` over array pointer concatenation.
+- Executed native `main.wolf` against `Lexer.wolf`, `Parser.wolf` and `main.wolf`.
+- Verified native phases 1-4 successfully: Wolf lexes, parses, resolves scopes, and type checks its own logic natively via `WolfCompiler`.
+- **Milestone Tagged:** `v0.self-hosting-alpha` successfully cut to main!
 
 ### 2026-06-12 (Session 31 — Native Wolf Parser & Zero-Copy Lexer)
 **Done:**
