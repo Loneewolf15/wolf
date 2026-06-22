@@ -1,0 +1,8 @@
+class User {
+    func findUserById($id) {
+        return nil
+    }
+    func getuserbyid($id) {
+        return nil
+    }
+}

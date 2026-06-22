@@ -12,10 +12,18 @@ import (
 
 // AutoDiscover scans the project for classes in models/, controllers/, and libraries/.
 // It parses them into ASTs to be injected into the main program before compilation.
-func (c *Compiler) AutoDiscover(projectRoot string) ([]*parser.Program, error) {
+func (c *Compiler) AutoDiscover(projectRoot string, filename string) ([]*parser.Program, error) {
 	var asts []*parser.Program
 
-	dirsToScan := []string{"packages", "config", "libraries", "models", "controllers", "services", "helpers", ".wolf_modules"}
+	// Option A: Clean separation. If compiling compiler internals, don't auto-discover application models/controllers.
+	isCompilerInternal := strings.Contains(filepath.ToSlash(filename), "src/compiler")
+	var dirsToScan []string
+	if !isCompilerInternal {
+		dirsToScan = []string{"packages", "config", "libraries", "models", "controllers", "services", "helpers", ".wolf_modules"}
+	} else {
+		// Scan src/compiler when building the compiler
+		dirsToScan = []string{"src/compiler"}
+	}
 
 	// Determine WOLF_ROOT for standard library discovery
 	wolfRoot := os.Getenv("WOLF_ROOT")
@@ -44,6 +52,15 @@ func (c *Compiler) AutoDiscover(projectRoot string) ([]*parser.Program, error) {
 			}
 			if !info.IsDir() {
 				if strings.HasSuffix(info.Name(), ".wolf") {
+					absPath, _ := filepath.Abs(path)
+					absFilename, _ := filepath.Abs(filename)
+					if absPath == absFilename {
+						return nil // Skip the file being compiled to avoid redefinition
+					}
+					if strings.HasSuffix(info.Name(), "_test.wolf") {
+						return nil // Skip test files
+					}
+
 					if c.Verbose {
 						fmt.Printf("wolf: auto-discovered %s\n", path)
 					}

@@ -1,0 +1,11 @@
+--- examples/surge-demo/surge.wolf
++++ examples/surge-demo/surge.wolf
+@@ -82,7 +82,8 @@
+ 
+ class CrashMaker {
++    public $val = 42
+     func doCrash() {
+-        return 1
++        return $this->val
+     }
+ }

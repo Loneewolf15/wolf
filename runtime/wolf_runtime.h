@@ -54,6 +54,8 @@ void* wolf_req_alloc(size_t sz);
 char* wolf_req_strdup(const char* s);
 void  wolf_req_arena_flush(void);
 /* Fix #9: OOM flag API — use instead of pthread_exit in alloc failure path */
+void wolf_panic_oom(void);
+
 void wolf_req_oom_clear(void);
 int  wolf_req_oom_check(void);
 

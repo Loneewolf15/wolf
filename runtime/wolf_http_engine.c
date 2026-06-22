@@ -22,6 +22,8 @@
 #include "wolf_runtime.h"
 #include "wolf_uring.h"
 #include <openssl/evp.h>
+#include <setjmp.h>
+#include <stdatomic.h>
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -380,6 +382,50 @@ WolfArena* wolf_arena_acquire(WolfArenaPool* pool) {
     return tmp;
 }
 
+typedef struct {
+    int     active;
+    int     client_fd;
+    int     core_id;
+
+    /* Request */
+    char*   method;
+    char*   path;
+    char*   query;
+    char*   body;
+    char*   header_keys[32];
+    char*   header_vals[32];
+    int     header_count;
+
+    /* Response */
+    int     status_code;
+    char*   res_header_keys[32];
+    char*   res_header_vals[32];
+    int     res_header_count;
+    char*   res_body;
+
+    /* WebSocket */
+    int     is_websocket;
+    char*   ws_key;
+
+    /* Uploads / Client Info */
+    char    client_ip[46];
+    int     upload_count;
+    wolf_upload_t uploads[WOLF_MAX_UPLOADS];
+
+    /* Arena for this request */
+    WolfArena* arena;
+
+    /* Timing */
+    struct timespec started_at;
+    jmp_buf oom_jump;
+    int oom_triggered;
+    int64_t request_id;
+    int64_t arena_used;
+    int64_t arena_cap;
+} WolfConnCtx;
+
+extern __thread void* wolf_active_ctx;
+
 void* wolf_arena_alloc(WolfArena* arena, size_t size) {
     /* Align to 16 bytes per spec */
     size = (size + 15) & ~(size_t)15;
@@ -392,15 +438,17 @@ void* wolf_arena_alloc(WolfArena* arena, size_t size) {
         }
 
         if (arena->total_allocated + new_cap > WOLF_MAX_REQUEST_MEMORY) {
+            wolf_panic_oom();
             fprintf(stderr, "[WOLF-ARENA] Hard ceiling reached: request exceeded 16MB. Rejecting.\n");
             return NULL;
         }
 
         WolfArenaBlock* block = (WolfArenaBlock*)malloc(sizeof(WolfArenaBlock));
-        if (!block) return NULL;
+        if (!block) wolf_panic_oom();
         
         block->slab = (char*)calloc(1, new_cap);
         if (!block->slab) {
+            wolf_panic_oom();
             free(block);
             return NULL;
         }
@@ -416,10 +464,18 @@ void* wolf_arena_alloc(WolfArena* arena, size_t size) {
         
         void* ptr = arena->active_slab; /* return address FIRST */
         arena->pos = size;              /* advance SECOND */
+
+        WolfConnCtx* c = __atomic_load_n(&wolf_active_ctx, __ATOMIC_ACQUIRE);
+        if (c) c->arena_used = arena->total_allocated + arena->pos;
+
         return ptr;
     }
     void* p = arena->active_slab + arena->pos;
     arena->pos += size;
+    
+    WolfConnCtx* c = __atomic_load_n(&wolf_active_ctx, __ATOMIC_ACQUIRE);
+    if (c) c->arena_used = arena->total_allocated + arena->pos;
+
     memset(p, 0, size);
     return p;
 }
@@ -495,42 +551,7 @@ void wolf_arena_pool_destroy(WolfArenaPool* pool) {
  * HTTP Connection State — per-core, no mutex needed
  * ================================================================ */
 
-typedef struct {
-    int     active;
-    int     client_fd;
-    int     core_id;
 
-    /* Request */
-    char*   method;
-    char*   path;
-    char*   query;
-    char*   body;
-    char*   header_keys[32];
-    char*   header_vals[32];
-    int     header_count;
-
-    /* Response */
-    int     status_code;
-    char*   res_header_keys[32];
-    char*   res_header_vals[32];
-    int     res_header_count;
-    char*   res_body;
-
-    /* WebSocket */
-    int     is_websocket;
-    char*   ws_key;
-
-    /* Uploads / Client Info */
-    char    client_ip[46];
-    int     upload_count;
-    wolf_upload_t uploads[WOLF_MAX_UPLOADS];
-
-    /* Arena for this request */
-    WolfArena* arena;
-
-    /* Timing */
-    struct timespec started_at;
-} WolfConnCtx;
 
 #define WOLF_CORE_CTX_MAX 128
 
@@ -711,7 +732,7 @@ typedef struct {
 __thread WolfConnCtx wolf_core_ctxs[WOLF_CORE_CTX_MAX];
 
 /* Watchdog pointer for signal-safe timeout enforcement */
-static __thread WolfConnCtx* wolf_active_ctx = NULL;
+__thread void* wolf_active_ctx = NULL;
 
 /* Free-list index stack for O(1) alloc/free of context slots (Fix 3) */
 __thread int wolf_ctx_free_stack[WOLF_CORE_CTX_MAX];
@@ -735,6 +756,7 @@ static WolfConnCtx* wolf_core_alloc_ctx(WolfCore* core, int client_fd, WolfArena
     ctx->core_id     = core->core_id;
     ctx->status_code = 200;
     ctx->arena       = arena;
+    ctx->arena_cap   = WOLF_MAX_REQUEST_MEMORY;
     clock_gettime(CLOCK_MONOTONIC, &ctx->started_at);
     return ctx;
 }
@@ -785,6 +807,15 @@ static void* wolf_core_thread(void* arg) {
 
     /* Initialize O(1) context free-list for this thread (Fix 3) */
     wolf_ctx_freelist_init();
+
+    /* Set up sigaltstack for this specific thread */
+    stack_t altstack;
+    altstack.ss_sp = malloc(SIGSTKSZ);
+    if (altstack.ss_sp) {
+        altstack.ss_size = SIGSTKSZ;
+        altstack.ss_flags = 0;
+        sigaltstack(&altstack, NULL);
+    }
 
     /* Pin to core */
     wolf_pin_to_core(core->core_id);
@@ -899,6 +930,8 @@ static void* wolf_core_thread(void* arg) {
             goto send_and_cleanup;
         }
 
+
+
         /* WebSocket upgrade */
         if (ctx->is_websocket) {
             wolf_engine_ws_handshake(ctx);
@@ -921,7 +954,19 @@ static void* wolf_core_thread(void* arg) {
 
         /* Set thread-local request context (legacy API compatibility) */
         int64_t ctx_id = (int64_t)(ctx - wolf_core_ctxs);
+        ctx->request_id = ctx_id;
+        ctx->oom_triggered = 0;
+        ctx->arena_used = ctx->arena ? ctx->arena->total_allocated + ctx->arena->pos : 0;
+        ctx->arena_cap = WOLF_MAX_REQUEST_MEMORY;
         wolf_set_current_context((void*)(intptr_t)ctx_id, (void*)(intptr_t)ctx_id);
+
+        /* Test crash endpoint for SIGSEGV handling */
+        if (ctx->method && strcmp(ctx->method, "GET") == 0 && ctx->path && strcmp(ctx->path, "/crash") == 0) {
+            __atomic_store_n(&wolf_active_ctx, ctx, __ATOMIC_RELEASE);
+            fprintf(stderr, "Triggering deliberate crash on core %d for test...\n", core->core_id);
+            int* ptr = NULL;
+            *ptr = 42;
+        }
 
         /* Call Wolf HTTP handler */
         __atomic_fetch_add(&core->requests_active, 1, __ATOMIC_RELAXED);
@@ -985,10 +1030,71 @@ send_and_cleanup:
 }
 
 /* ================================================================
- * Engine Lifecycle
+ * Engine Lifecycle & Crash Handler
  * ================================================================ */
 
+/* Async-signal-safe string write */
+static void wolf_safe_print(const char* msg) {
+    if (msg) write(STDERR_FILENO, msg, strlen(msg));
+}
+
+/* Async-signal-safe integer write */
+static void wolf_safe_print_int(long long val) {
+    char buf[32];
+    int pos = sizeof(buf) - 1;
+    buf[pos] = '\0';
+    if (val == 0) {
+        buf[--pos] = '0';
+    } else {
+        int neg = 0;
+        if (val < 0) { neg = 1; val = -val; }
+        while (val > 0) {
+            buf[--pos] = '0' + (val % 10);
+            val /= 10;
+        }
+        if (neg) buf[--pos] = '-';
+    }
+    write(STDERR_FILENO, &buf[pos], sizeof(buf) - 1 - pos);
+}
+
+static void wolf_crash_handler(int sig, siginfo_t* info, void* ucontext) {
+    (void)info;
+    (void)ucontext;
+
+    wolf_safe_print("\n[WOLF-CRASH] Caught SIGSEGV (Segmentation Fault)\n");
+
+    /* Read thread-local context safely */
+    WolfConnCtx* ctx = __atomic_load_n(&wolf_active_ctx, __ATOMIC_ACQUIRE);
+    if (ctx) {
+        wolf_safe_print("  -> Request ID:   ");
+        wolf_safe_print_int((long long)ctx->request_id);
+        wolf_safe_print("\n  -> Endpoint:     ");
+        wolf_safe_print(ctx->path ? ctx->path : "unknown");
+        wolf_safe_print("\n  -> Arena Usage:  ");
+        wolf_safe_print_int((long long)ctx->arena_used);
+        wolf_safe_print(" bytes (cap: ");
+        wolf_safe_print_int((long long)ctx->arena_cap);
+        wolf_safe_print(")\n  -> OOM Triggered: ");
+        wolf_safe_print(ctx->oom_triggered ? "true\n" : "false\n");
+    } else {
+        wolf_safe_print("  -> Context:      No active request context\n");
+    }
+
+    wolf_safe_print("[WOLF-CRASH] Re-raising signal to supervisor...\n");
+
+    /* Re-raise to ensure proper exit status and core dump */
+    signal(SIGSEGV, SIG_DFL);
+    raise(SIGSEGV);
+}
+
 WolfEngine* wolf_engine_create(int port, int core_count) {
+    /* Install Layer 2 Crash Handler process-wide */
+    struct sigaction sa;
+    memset(&sa, 0, sizeof(sa));
+    sa.sa_flags = SA_SIGINFO | SA_ONSTACK;
+    sa.sa_sigaction = wolf_crash_handler;
+    sigemptyset(&sa.sa_mask);
+    sigaction(SIGSEGV, &sa, NULL);
     int hw_cores = wolf_detect_nproc();
     int max_recommended = hw_cores * 4;
 
@@ -1238,4 +1344,13 @@ void wtask_complete(WTask* task) {
     if (!task) return;
     if (task->arena) wolf_arena_reset(task->arena);
     task->state = WTASK_STATE_COMPLETE;
+}
+
+/* Helper to execute longjmp for OOM panics */
+void wolf_engine_longjmp_oom(void) {
+    WolfConnCtx* ctx = __atomic_load_n(&wolf_active_ctx, __ATOMIC_ACQUIRE);
+    if (ctx) {
+        ctx->oom_triggered = 1;
+        longjmp(ctx->oom_jump, 1);
+    }
 }

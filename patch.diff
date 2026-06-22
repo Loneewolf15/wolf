@@ -1,0 +1,58 @@
+--- internal/emitter/llvm_emitter.go
++++ internal/emitter/llvm_emitter.go
+@@ -3850,33 +3850,29 @@
+ 	fmt.Printf("; DEBUG directName=%s, foundInSigs=%v\n", directName, found)
+ 
+ 	if !found {
+-		return "" // caller falls through to dynamic dispatch
+-	}
+-
+-	emitName := "wolf_" + fnSig.Name
+-	
+-	argStrs := []string{fmt.Sprintf("ptr %s", objVal)}
+-	for i, arg := range args {
+-		var expectedType string
+-		if i < len(fnSig.Params) {
+-			expectedType = fnSig.Params[i].Type
+-		} else {
+-			expectedType = "ptr"
+-		}
+-		val := e.emitExpr(arg, expectedType)
+-		argStrs = append(argStrs, fmt.Sprintf("%s %s", expectedType, val))
+-	}
+-
+-	retType := "ptr"
+-	if len(fnSig.ReturnTypes) > 0 {
+-		retType = fnSig.ReturnTypes[0]
+-	}
+-
+-	if retType == "void" {
+-		e.writelnIndent(fmt.Sprintf("call void @%s(%s)", emitName, strings.Join(argStrs, ", ")))
+-		return "null"
++		emitName := "wolf_" + directName
++		argStrs := []string{fmt.Sprintf("ptr %s", objVal)}
++		for _, arg := range args {
++			val := e.emitArgAsString(arg)
++			argStrs = append(argStrs, fmt.Sprintf("ptr %s", val))
++		}
++		reg := e.nextLocal()
++		e.writelnIndent(fmt.Sprintf("%s = call ptr @%s(%s)", reg, emitName, strings.Join(argStrs, ", ")))
++		return reg
+ 	}
+ 
++	emitName := "wolf_" + fnSig.Name
++	argStrs := []string{fmt.Sprintf("ptr %s", objVal)}
++	for i, arg := range args {
++		expectedType := "ptr"
++		if i < len(fnSig.Params) { expectedType = fnSig.Params[i].Type }
++		argStrs = append(argStrs, fmt.Sprintf("%s %s", expectedType, e.emitExpr(arg, expectedType)))
++	}
++	retType := "ptr"
++	if len(fnSig.ReturnTypes) > 0 { retType = fnSig.ReturnTypes[0] }
++	if retType == "void" {
++		e.writelnIndent(fmt.Sprintf("call void @%s(%s)", emitName, strings.Join(argStrs, ", ")))
++		return "null"
++	}
+ 	reg := e.nextLocal()
+ 	e.writelnIndent(fmt.Sprintf("%s = call %s @%s(%s)", reg, retType, emitName, strings.Join(argStrs, ", ")))
+ 	return reg

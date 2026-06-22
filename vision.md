@@ -405,6 +405,7 @@ never need to write `#ifdef _WIN32` or `#ifdef STM32F4`.
 | Package system | ✅ Complete |
 | LLVM optimizer passes (`opt -O3`) | 🔄 Phase 3 |
 | `io_uring` zero-copy HTTP | 🔄 Phase 3 |
+| Option A vtable (Static Dispatch Fallback) | ⬜ Planned (Phase 3) |
 | **MCU** — ARM Cortex-M / RISC-V bare-metal target | ⬜ Planned (Phase 4) |
 | `@bare` annotation + HAL stdlib | ⬜ Planned (Phase 4) |
 | `wolf install` / package registry | ⬜ Planned (Phase 3) |

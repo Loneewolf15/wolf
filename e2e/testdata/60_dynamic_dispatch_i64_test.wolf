@@ -1,0 +1,21 @@
+class AModel {
+    func doMath($id: int) -> int { return $id * 2 }
+}
+
+class BModel {
+    func doMath($id: int) -> int { return $id + 10 }
+}
+
+func generic_call($obj, $val: int) {
+    print($obj->doMath($val))
+}
+
+func main() {
+    $a = new AModel()
+    $b = new BModel()
+
+    generic_call($a, 21)
+    generic_call($b, 32)
+}
+
+main()

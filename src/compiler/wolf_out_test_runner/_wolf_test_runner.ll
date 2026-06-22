@@ -4,781 +4,781 @@
 target triple = "x86_64-pc-linux-gnu"
 
 ; --- String Constants ---
-@.str.220 = private unnamed_addr constant [60 x i8] c"test_parser_array_literal failed: expected 3 elements, got \00"
-@.str.243 = private unnamed_addr constant [8 x i8] c"elseIfs\00"
-@.str.284 = private unnamed_addr constant [56 x i8] c"test_parser_return_stmt failed: expected 1 return value\00"
-@.str.354 = private unnamed_addr constant [8 x i8] c"message\00"
-@.str.581 = private unnamed_addr constant [20 x i8] c"expected class name\00"
-@.str.15 = private unnamed_addr constant [8 x i8] c"foreach\00"
-@.str.90 = private unnamed_addr constant [10 x i8] c", lexeme=\00"
-@.str.95 = private unnamed_addr constant [15 x i8] c"expected IDENT\00"
-@.str.152 = private unnamed_addr constant [5 x i8] c"left\00"
-@.str.420 = private unnamed_addr constant [15 x i8] c"ExpressionStmt\00"
-@.str.526 = private unnamed_addr constant [10 x i8] c"DECREMENT\00"
-@.str.566 = private unnamed_addr constant [25 x i8] c"expected 'as' in foreach\00"
-@.str.692 = private unnamed_addr constant [39 x i8] c"\E2\9D\8C test_parser_binary_expr - FAILED: \00"
-@.str.702 = private unnamed_addr constant [47 x i8] c"\E2\9D\8C test_parser_chained_method_call - FAILED: \00"
-@.str.45 = private unnamed_addr constant [4 x i8] c"var\00"
-@.str.158 = private unnamed_addr constant [17 x i8] c"var $x = !$flag;\00"
-@.str.200 = private unnamed_addr constant [30 x i8] c"PASS: test_parser_static_call\00"
-@.str.299 = private unnamed_addr constant [69 x i8] c"\E2\9D\8C test_parser_foreach_stmt - FAILED: expected DollarIdent iterable\00"
-@.str.445 = private unnamed_addr constant [9 x i8] c"CallExpr\00"
-@.str.555 = private unnamed_addr constant [24 x i8] c"expected namespace name\00"
-@.str.758 = private unnamed_addr constant [43 x i8] c"\E2\9D\8C test_resolver_string_concat - FAILED: \00"
-@.str.757 = private unnamed_addr constant [32 x i8] c"\E2\9C\85 test_resolver_string_concat\00"
-@.str.75 = private unnamed_addr constant [11 x i8] c"IMPLEMENTS\00"
-@.str.131 = private unnamed_addr constant [24 x i8] c"PASS: test_parser_basic\00"
-@.str.338 = private unnamed_addr constant [5 x i8] c"kind\00"
-@.str.495 = private unnamed_addr constant [6 x i8] c"start\00"
-@.str.564 = private unnamed_addr constant [30 x i8] c"expected ')' after for update\00"
-@.str.583 = private unnamed_addr constant [11 x i8] c"typeParams\00"
-@.str.737 = private unnamed_addr constant [29 x i8] c"\E2\9C\85 test_resolver_func_hoist\00"
-@.str.184 = private unnamed_addr constant [7 x i8] c"object\00"
-@.str.218 = private unnamed_addr constant [62 x i8] c"test_parser_array_literal failed: expected ArrayLiteral, got \00"
-@.str.273 = private unnamed_addr constant [37 x i8] c"func add($a, $b) { return $a + $b; }\00"
-@.str.557 = private unnamed_addr constant [13 x i8] c"expected '}'\00"
-@.str.739 = private unnamed_addr constant [30 x i8] c"\E2\9C\85 test_resolver_func_params\00"
-@.str.501 = private unnamed_addr constant [32 x i8] c"unterminated multi-line comment\00"
-@.str.9 = private unnamed_addr constant [3 x i8] c"if\00"
-@.str.145 = private unnamed_addr constant [30 x i8] c"PASS: test_parser_binary_expr\00"
-@.str.187 = private unnamed_addr constant [72 x i8] c"test_parser_chained_method_call failed: inner method should be 'filter'\00"
-@.str.229 = private unnamed_addr constant [49 x i8] c"if ($x > 0) { var $y = 1; } else { var $y = 0; }\00"
-@.str.401 = private unnamed_addr constant [50 x i8] c"test_resolver_closure_scoping: expected no errors\00"
-@.str.406 = private unnamed_addr constant [24 x i8] c"var $x : int = \22hello\22;\00"
-@.str.439 = private unnamed_addr constant [13 x i8] c"FloatLiteral\00"
-@.str.556 = private unnamed_addr constant [13 x i8] c"expected '{'\00"
-@.str.707 = private unnamed_addr constant [25 x i8] c"\E2\9C\85 test_parser_new_expr\00"
-@.str.4 = private unnamed_addr constant [9 x i8] c"function\00"
-@.str.61 = private unnamed_addr constant [11 x i8] c"BOOL_FALSE\00"
-@.str.366 = private unnamed_addr constant [33 x i8] c"class Cat {} var $c = new Cat();\00"
-@.str.710 = private unnamed_addr constant [41 x i8] c"\E2\9D\8C test_parser_array_literal - FAILED: \00"
-@.str.749 = private unnamed_addr constant [29 x i8] c"\E2\9C\85 test_resolver_if_scoping\00"
-@.str.678 = private unnamed_addr constant [31 x i8] c"\E2\9D\8C test_array_push - FAILED: \00"
-@.str.10 = private unnamed_addr constant [3 x i8] c"IF\00"
-@.str.213 = private unnamed_addr constant [51 x i8] c"test_parser_new_expr failed: expected 3 args, got \00"
-@.str.355 = private unnamed_addr constant [62 x i8] c"test_resolver_undefined_var: expected at least 1 error for $z\00"
-@.str.503 = private unnamed_addr constant [20 x i8] c"unterminated string\00"
-@.str.590 = private unnamed_addr constant [33 x i8] c"unexpected token in class body: \00"
-@.str.613 = private unnamed_addr constant [3 x i8] c"<=\00"
-@.str.639 = private unnamed_addr constant [7 x i8] c"intval\00"
-@.str.180 = private unnamed_addr constant [53 x i8] c"test_parser_chained_method_call failed: errors found\00"
-@.str.289 = private unnamed_addr constant [53 x i8] c"test_parser_grouped_expr failed: expected BinaryExpr\00"
-@.str.330 = private unnamed_addr constant [66 x i8] c"test_parser_match_stmt failed: expected Wildcard pattern in arm 2\00"
-@.str.469 = private unnamed_addr constant [9 x i8] c"catchVar\00"
-@.str.518 = private unnamed_addr constant [7 x i8] c"RBRACE\00"
-@.str.527 = private unnamed_addr constant [13 x i8] c"MINUS_ASSIGN\00"
-@.str.571 = private unnamed_addr constant [35 x i8] c"expected ')' after while condition\00"
-@.str.395 = private unnamed_addr constant [32 x i8] c"PASS: test_resolver_lookup_miss\00"
-@.str.2 = private unnamed_addr constant [5 x i8] c"FUNC\00"
-@.str.36 = private unnamed_addr constant [8 x i8] c"RECEIVE\00"
-@.str.93 = private unnamed_addr constant [13 x i8] c"expected VAR\00"
-@.str.181 = private unnamed_addr constant [73 x i8] c"test_parser_chained_method_call failed: outer should be MethodCall, got \00"
-@.str.232 = private unnamed_addr constant [50 x i8] c"test_parser_if_stmt failed: expected IfStmt, got \00"
-@.str.352 = private unnamed_addr constant [32 x i8] c"PASS: test_resolver_func_params\00"
-@.str.385 = private unnamed_addr constant [49 x i8] c"test_resolver_func_param_count: expected 3, got \00"
-@.str.551 = private unnamed_addr constant [32 x i8] c"expected variable name ($ident)\00"
-@.str.669 = private unnamed_addr constant [9 x i8] c"qb_first\00"
-@.str.188 = private unnamed_addr constant [38 x i8] c"PASS: test_parser_chained_method_call\00"
-@.str.508 = private unnamed_addr constant [3 x i8] c"AT\00"
-@.str.708 = private unnamed_addr constant [36 x i8] c"\E2\9D\8C test_parser_new_expr - FAILED: \00"
-@.str.722 = private unnamed_addr constant [38 x i8] c"\E2\9D\8C test_parser_class_decl - FAILED: \00"
-@.str.746 = private unnamed_addr constant [45 x i8] c"\E2\9D\8C test_resolver_new_known_class - FAILED: \00"
-@.str.27 = private unnamed_addr constant [6 x i8] c"spawn\00"
-@.str.91 = private unnamed_addr constant [7 x i8] c"lexeme\00"
-@.str.435 = private unnamed_addr constant [15 x i8] c"TraceBlockStmt\00"
-@.str.468 = private unnamed_addr constant [8 x i8] c"tryBody\00"
-@.str.493 = private unnamed_addr constant [20 x i8] c"leaving constructor\00"
-@.str.546 = private unnamed_addr constant [6 x i8] c"COLON\00"
-@.str.576 = private unnamed_addr constant [23 x i8] c"expected function name\00"
-@.str.132 = private unnamed_addr constant [25 x i8] c"var $result = 1 + 2 * 3;\00"
-@.str.370 = private unnamed_addr constant [74 x i8] c"test_resolver_new_unknown_class: expected error for unknown class 'Ghost'\00"
-@.str.389 = private unnamed_addr constant [34 x i8] c"PASS: test_resolver_string_concat\00"
-@.str.415 = private unnamed_addr constant [31 x i8] c"PASS: test_typechecker_n1_loop\00"
-@.str.433 = private unnamed_addr constant [19 x i8] c"SuperviseBlockStmt\00"
-@.str.688 = private unnamed_addr constant [35 x i8] c"\E2\9D\8C test_lexer_keywords - FAILED: \00"
-@.str.507 = private unnamed_addr constant [13 x i8] c"DOLLAR_IDENT\00"
-@.str.97 = private unnamed_addr constant [16 x i8] c"expected ASSIGN\00"
-@.str.224 = private unnamed_addr constant [11 x i8] c"MapLiteral\00"
-@.str.235 = private unnamed_addr constant [2 x i8] c">\00"
-@.str.248 = private unnamed_addr constant [30 x i8] c"test_parser_for_stmt failed: \00"
-@.str.402 = private unnamed_addr constant [36 x i8] c"PASS: test_resolver_closure_scoping\00"
-@.str.418 = private unnamed_addr constant [39 x i8] c"PASS: test_typechecker_n1_eager_bypass\00"
-@.str.454 = private unnamed_addr constant [10 x i8] c"ErrorExpr\00"
-@.str.549 = private unnamed_addr constant [21 x i8] c"unexpected character\00"
-@.str.720 = private unnamed_addr constant [38 x i8] c"\E2\9D\8C test_parser_while_stmt - FAILED: \00"
-@.str.212 = private unnamed_addr constant [59 x i8] c"test_parser_new_expr failed: expected class 'Parser', got \00"
-@.str.290 = private unnamed_addr constant [76 x i8] c"test_parser_grouped_expr failed: expected '*' at root due to grouping, got \00"
-@.str.313 = private unnamed_addr constant [63 x i8] c"test_parser_closure_arrow failed: expected BinaryExpr in arrow\00"
-@.str.452 = private unnamed_addr constant [9 x i8] c"SendExpr\00"
-@.str.587 = private unnamed_addr constant [24 x i8] c"expected interface name\00"
-@.str.717 = private unnamed_addr constant [25 x i8] c"\E2\9C\85 test_parser_for_stmt\00"
-@.str.144 = private unnamed_addr constant [66 x i8] c"test_parser_binary_expr failed: expected '*' in nested expr, got \00"
-@.str.341 = private unnamed_addr constant [6 x i8] c"level\00"
-@.str.285 = private unnamed_addr constant [66 x i8] c"test_parser_return_stmt failed: expected '+' in return expression\00"
-@.str.315 = private unnamed_addr constant [42 x i8] c"var $print = func($msg) { print($msg); };\00"
-@.str.516 = private unnamed_addr constant [7 x i8] c"RPAREN\00"
-@.str.582 = private unnamed_addr constant [12 x i8] c"extendsName\00"
-@.str.47 = private unnamed_addr constant [8 x i8] c"private\00"
-@.str.115 = private unnamed_addr constant [12 x i8] c"expected IF\00"
-@.str.225 = private unnamed_addr constant [58 x i8] c"test_parser_map_literal failed: expected MapLiteral, got \00"
-@.str.240 = private unnamed_addr constant [84 x i8] c"if ($x == 1) { var $a = 1; } else if ($x == 2) { var $a = 2; } else { var $a = 0; }\00"
-@.str.308 = private unnamed_addr constant [53 x i8] c"test_parser_closure_arrow failed: expected no errors\00"
-@.str.312 = private unnamed_addr constant [10 x i8] c"arrowExpr\00"
-@.str.107 = private unnamed_addr constant [10 x i8] c"1 + 2 * 3\00"
-@.str.208 = private unnamed_addr constant [8 x i8] c"NewExpr\00"
-@.str.595 = private unnamed_addr constant [13 x i8] c"expected ')'\00"
-@.str.770 = private unnamed_addr constant [40 x i8] c"\E2\9D\8C test_typechecker_n1_loop - FAILED: \00"
-@.str.102 = private unnamed_addr constant [13 x i8] c"expected EOF\00"
-@.str.226 = private unnamed_addr constant [5 x i8] c"keys\00"
-@.str.434 = private unnamed_addr constant [10 x i8] c"SpawnStmt\00"
-@.str.443 = private unnamed_addr constant [11 x i8] c"NilLiteral\00"
-@.str.521 = private unnamed_addr constant [6 x i8] c"COMMA\00"
-@.str.126 = private unnamed_addr constant [8 x i8] c"VarDecl\00"
-@.str.170 = private unnamed_addr constant [32 x i8] c"PASS: test_parser_string_concat\00"
-@.str.171 = private unnamed_addr constant [26 x i8] c"var $n = $obj->getName();\00"
-@.str.679 = private unnamed_addr constant [21 x i8] c"\E2\9C\85 test_lexer_empty\00"
-@.str.23 = private unnamed_addr constant [6 x i8] c"async\00"
-@.str.267 = private unnamed_addr constant [57 x i8] c"test_parser_class_decl failed: expected 1 property, got \00"
-@.str.334 = private unnamed_addr constant [8 x i8] c"__class\00"
-@.str.506 = private unnamed_addr constant [28 x i8] c"expected identifier after $\00"
-@.str.525 = private unnamed_addr constant [12 x i8] c"PLUS_ASSIGN\00"
-@.str.541 = private unnamed_addr constant [4 x i8] c"AND\00"
-@.str.693 = private unnamed_addr constant [38 x i8] c"\E2\9C\85 test_parser_precedence_comparison\00"
-@.str.242 = private unnamed_addr constant [51 x i8] c"test_parser_if_elseif_else failed: expected IfStmt\00"
-@.str.436 = private unnamed_addr constant [13 x i8] c"ParallelStmt\00"
-@.str.457 = private unnamed_addr constant [6 x i8] c"Token\00"
-@.str.492 = private unnamed_addr constant [9 x i8] c"keywords\00"
-@.str.603 = private unnamed_addr constant [36 x i8] c"expected ']' to close array literal\00"
-@.str.365 = private unnamed_addr constant [31 x i8] c"PASS: test_resolver_class_decl\00"
-@.str.174 = private unnamed_addr constant [58 x i8] c"test_parser_method_call failed: expected MethodCall, got \00"
-@.str.209 = private unnamed_addr constant [52 x i8] c"test_parser_new_expr failed: expected NewExpr, got \00"
-@.str.241 = private unnamed_addr constant [48 x i8] c"test_parser_if_elseif_else failed: errors found\00"
-@.str.252 = private unnamed_addr constant [5 x i8] c"body\00"
-@.str.271 = private unnamed_addr constant [54 x i8] c"test_parser_class_decl failed: expected method 'bark'\00"
-@.str.272 = private unnamed_addr constant [29 x i8] c"PASS: test_parser_class_decl\00"
-@.str.325 = private unnamed_addr constant [47 x i8] c"test_parser_match_stmt failed: expected 2 arms\00"
-@.str.515 = private unnamed_addr constant [7 x i8] c"LPAREN\00"
-@.str.586 = private unnamed_addr constant [34 x i8] c"expected class name after extends\00"
-@.str.687 = private unnamed_addr constant [24 x i8] c"\E2\9C\85 test_lexer_keywords\00"
-@.str.449 = private unnamed_addr constant [10 x i8] c"AsyncExpr\00"
-@.str.510 = private unnamed_addr constant [6 x i8] c"AT_ML\00"
-@.str.711 = private unnamed_addr constant [28 x i8] c"\E2\9C\85 test_parser_map_literal\00"
-@.str.598 = private unnamed_addr constant [36 x i8] c"expected ')' after method arguments\00"
-@.str.53 = private unnamed_addr constant [10 x i8] c"protected\00"
-@.str.92 = private unnamed_addr constant [49 x i8] c"test_lexer_basic failed: expected 6 tokens, got \00"
-@.str.147 = private unnamed_addr constant [43 x i8] c"test_parser_precedence_comparison failed: \00"
-@.str.446 = private unnamed_addr constant [9 x i8] c"NamedArg\00"
-@.str.463 = private unnamed_addr constant [7 x i8] c"update\00"
-@.str.578 = private unnamed_addr constant [30 x i8] c"expected ')' after parameters\00"
-@.str.579 = private unnamed_addr constant [24 x i8] c"expected parameter name\00"
-@.str.264 = private unnamed_addr constant [4 x i8] c"Dog\00"
-@.str.416 = private unnamed_addr constant [67 x i8] c"foreach ($users as $u) { $db->with(); var $profile = $db->get(); }\00"
-@.str.659 = private unnamed_addr constant [4 x i8] c"int\00"
-@.str.85 = private unnamed_addr constant [38 x i8] c"test_lexer_empty failed: expected EOF\00"
-@.str.116 = private unnamed_addr constant [14 x i8] c"expected ELSE\00"
-@.str.543 = private unnamed_addr constant [3 x i8] c"OR\00"
-@.str.594 = private unnamed_addr constant [41 x i8] c"expected ')' to close grouped expression\00"
-@.str.744 = private unnamed_addr constant [40 x i8] c"\E2\9D\8C test_resolver_class_decl - FAILED: \00"
-@.str.663 = private unnamed_addr constant [6 x i8] c"array\00"
-@.str.156 = private unnamed_addr constant [65 x i8] c"test_parser_precedence_comparison failed: expected '!=' on right\00"
-@.str.191 = private unnamed_addr constant [11 x i8] c"StaticCall\00"
-@.str.261 = private unnamed_addr constant [32 x i8] c"test_parser_class_decl failed: \00"
-@.str.295 = private unnamed_addr constant [12 x i8] c"ForeachStmt\00"
-@.str.432 = private unnamed_addr constant [12 x i8] c"MLBlockStmt\00"
-@.str.553 = private unnamed_addr constant [25 x i8] c"expected '(' after print\00"
-@.str.610 = private unnamed_addr constant [2 x i8] c"/\00"
-@.str.16 = private unnamed_addr constant [8 x i8] c"FOREACH\00"
-@.str.280 = private unnamed_addr constant [56 x i8] c"test_parser_return_stmt failed: expected BlockStmt body\00"
-@.str.388 = private unnamed_addr constant [55 x i8] c"test_resolver_string_concat: unexpected resolve errors\00"
-@.str.538 = private unnamed_addr constant [5 x i8] c"LESS\00"
-@.str.608 = private unnamed_addr constant [33 x i8] c"expected ')' after new arguments\00"
-@.str.657 = private unnamed_addr constant [10 x i8] c"modelName\00"
-@.str.715 = private unnamed_addr constant [31 x i8] c"\E2\9C\85 test_parser_if_elseif_else\00"
-@.str.774 = private unnamed_addr constant [10 x i8] c" passed, \00"
-@.str.122 = private unnamed_addr constant [8 x i8] c"Program\00"
-@.str.173 = private unnamed_addr constant [11 x i8] c"MethodCall\00"
-@.str.259 = private unnamed_addr constant [29 x i8] c"PASS: test_parser_while_stmt\00"
-@.str.263 = private unnamed_addr constant [56 x i8] c"test_parser_class_decl failed: expected ClassDecl, got \00"
-@.str.491 = private unnamed_addr constant [10 x i8] c"sourceLen\00"
-@.str.604 = private unnamed_addr constant [28 x i8] c"expected ':' in map literal\00"
-@.str.756 = private unnamed_addr constant [46 x i8] c"\E2\9D\8C test_resolver_func_param_count - FAILED: \00"
-@.str.3 = private unnamed_addr constant [5 x i8] c"howl\00"
-@.str.473 = private unnamed_addr constant [4 x i8] c"max\00"
-@.str.476 = private unnamed_addr constant [6 x i8] c"names\00"
-@.str.765 = private unnamed_addr constant [32 x i8] c"\E2\9C\85 test_resolver_match_scoping\00"
-@.str.619 = private unnamed_addr constant [3 x i8] c"*=\00"
-@.str.28 = private unnamed_addr constant [6 x i8] c"SPAWN\00"
-@.str.293 = private unnamed_addr constant [42 x i8] c"foreach ($arr as $k => $v) { print($v); }\00"
-@.str.393 = private unnamed_addr constant [57 x i8] c"test_resolver_lookup_miss: expected nil for unknown func\00"
-@.str.405 = private unnamed_addr constant [34 x i8] c"PASS: test_resolver_match_scoping\00"
-@.str.453 = private unnamed_addr constant [12 x i8] c"ReceiveExpr\00"
-@.str.498 = private unnamed_addr constant [4 x i8] c"col\00"
-@.str.618 = private unnamed_addr constant [3 x i8] c"-=\00"
-@.str.636 = private unnamed_addr constant [7 x i8] c"string\00"
-@.str.35 = private unnamed_addr constant [8 x i8] c"receive\00"
-@.str.106 = private unnamed_addr constant [16 x i8] c"expected STRING\00"
-@.str.135 = private unnamed_addr constant [6 x i8] c"value\00"
-@.str.160 = private unnamed_addr constant [10 x i8] c"UnaryExpr\00"
-@.str.166 = private unnamed_addr constant [47 x i8] c"test_parser_string_concat failed: errors found\00"
-@.str.396 = private unnamed_addr constant [54 x i8] c"foreach ([1, 2, 3] as $k => $v) { var $x = $v + $k; }\00"
-@.str.512 = private unnamed_addr constant [13 x i8] c"AT_SUPERVISE\00"
-@.str.704 = private unnamed_addr constant [39 x i8] c"\E2\9D\8C test_parser_static_call - FAILED: \00"
-@.str.727 = private unnamed_addr constant [29 x i8] c"\E2\9C\85 test_parser_foreach_stmt\00"
-@.str.728 = private unnamed_addr constant [40 x i8] c"\E2\9D\8C test_parser_foreach_stmt - FAILED: \00"
-@.str.743 = private unnamed_addr constant [29 x i8] c"\E2\9C\85 test_resolver_class_decl\00"
-@.str.751 = private unnamed_addr constant [30 x i8] c"\E2\9C\85 test_resolver_for_scoping\00"
-@.str.123 = private unnamed_addr constant [47 x i8] c"test_parser_basic failed: expected Program AST\00"
-@.str.253 = private unnamed_addr constant [51 x i8] c"test_parser_for_stmt failed: expected non-nil body\00"
-@.str.185 = private unnamed_addr constant [67 x i8] c"test_parser_chained_method_call failed: inner should be MethodCall\00"
-@.str.351 = private unnamed_addr constant [75 x i8] c"test_resolver_func_params: unexpected errors \E2\80\94 params should be in scope\00"
-@.str.528 = private unnamed_addr constant [6 x i8] c"ARROW\00"
-@.str.22 = private unnamed_addr constant [7 x i8] c"RETURN\00"
-@.str.83 = private unnamed_addr constant [42 x i8] c"test_lexer_empty failed: expected 1 token\00"
-@.str.302 = private unnamed_addr constant [65 x i8] c"\E2\9D\8C test_parser_foreach_stmt - FAILED: expected keyVar 'k', got \00"
-@.str.606 = private unnamed_addr constant [30 x i8] c"expected class name after new\00"
-@.str.363 = private unnamed_addr constant [60 x i8] c"test_resolver_class_decl: expected method 'bark' registered\00"
-@.str.419 = private unnamed_addr constant [8 x i8] c"ASTNode\00"
-@.str.464 = private unnamed_addr constant [8 x i8] c"subject\00"
-@.str.530 = private unnamed_addr constant [12 x i8] c"STAR_ASSIGN\00"
-@.str.60 = private unnamed_addr constant [6 x i8] c"false\00"
-@.str.70 = private unnamed_addr constant [5 x i8] c"enum\00"
-@.str.87 = private unnamed_addr constant [24 x i8] c"Tokens count in basic: \00"
-@.str.110 = private unnamed_addr constant [14 x i8] c"expected PLUS\00"
-@.str.137 = private unnamed_addr constant [66 x i8] c"test_parser_binary_expr failed: expected BinaryExpr at root, got \00"
-@.str.411 = private unnamed_addr constant [64 x i8] c"\E2\9D\8C test_typechecker_n1_loop - FAILED: expected 1 warning, got \00"
-@.str.437 = private unnamed_addr constant [18 x i8] c"DestructureAssign\00"
-@.str.622 = private unnamed_addr constant [8 x i8] c", got '\00"
-@.str.638 = private unnamed_addr constant [21 x i8] c"undefined variable $\00"
-@.str.57 = private unnamed_addr constant [7 x i8] c"STATIC\00"
-@.str.69 = private unnamed_addr constant [6 x i8] c"ERROR\00"
-@.str.331 = private unnamed_addr constant [29 x i8] c"PASS: test_parser_match_stmt\00"
-@.str.455 = private unnamed_addr constant [10 x i8] c"PrintExpr\00"
-@.str.482 = private unnamed_addr constant [8 x i8] c"variant\00"
-@.str.600 = private unnamed_addr constant [8 x i8] c"unknown\00"
-@.str.631 = private unnamed_addr constant [13 x i8] c"currentClass\00"
-@.str.37 = private unnamed_addr constant [4 x i8] c"try\00"
-@.str.71 = private unnamed_addr constant [5 x i8] c"ENUM\00"
-@.str.78 = private unnamed_addr constant [1 x i8] c"\00"
-@.str.172 = private unnamed_addr constant [45 x i8] c"test_parser_method_call failed: errors found\00"
-@.str.183 = private unnamed_addr constant [71 x i8] c"test_parser_chained_method_call failed: outer method should be 'count'\00"
-@.str.574 = private unnamed_addr constant [2 x i8] c"_\00"
-@.str.652 = private unnamed_addr constant [62 x i8] c"non-exhaustive match statement: missing wildcard '_' fallback\00"
-@.str.34 = private unnamed_addr constant [5 x i8] c"SEND\00"
-@.str.231 = private unnamed_addr constant [7 x i8] c"IfStmt\00"
-@.str.349 = private unnamed_addr constant [31 x i8] c"PASS: test_resolver_func_hoist\00"
-@.str.382 = private unnamed_addr constant [9 x i8] c"multiply\00"
-@.str.442 = private unnamed_addr constant [12 x i8] c"BoolLiteral\00"
-@.str.712 = private unnamed_addr constant [39 x i8] c"\E2\9D\8C test_parser_map_literal - FAILED: \00"
-@.str.761 = private unnamed_addr constant [34 x i8] c"\E2\9C\85 test_resolver_foreach_scoping\00"
-@.str.358 = private unnamed_addr constant [74 x i8] c"class Dog { public $name = \22rex\22; public func bark() { return \22woof\22; } }\00"
-@.str.86 = private unnamed_addr constant [12 x i8] c"var x = 10;\00"
-@.str.88 = private unnamed_addr constant [7 x i8] c"Token \00"
-@.str.162 = private unnamed_addr constant [2 x i8] c"!\00"
-@.str.201 = private unnamed_addr constant [18 x i8] c"var $v = $arr[0];\00"
-@.str.204 = private unnamed_addr constant [57 x i8] c"test_parser_array_index failed: expected IndexExpr, got \00"
-@.str.303 = private unnamed_addr constant [9 x i8] c"valueVar\00"
-@.str.353 = private unnamed_addr constant [17 x i8] c"var $y = $z + 1;\00"
-@.str.451 = private unnamed_addr constant [12 x i8] c"ChannelExpr\00"
-@.str.656 = private unnamed_addr constant [17 x i8] c"' but assigned '\00"
-@.str.700 = private unnamed_addr constant [39 x i8] c"\E2\9D\8C test_parser_method_call - FAILED: \00"
-@.str.32 = private unnamed_addr constant [8 x i8] c"CHANNEL\00"
-@.str.43 = private unnamed_addr constant [6 x i8] c"print\00"
-@.str.68 = private unnamed_addr constant [6 x i8] c"error\00"
-@.str.169 = private unnamed_addr constant [71 x i8] c"test_parser_string_concat failed: expected nested StringConcat on left\00"
-@.str.371 = private unnamed_addr constant [62 x i8] c"test_resolver_new_unknown_class: error should mention 'Ghost'\00"
-@.str.536 = private unnamed_addr constant [4 x i8] c"NOT\00"
-@.str.745 = private unnamed_addr constant [34 x i8] c"\E2\9C\85 test_resolver_new_known_class\00"
-@.str.14 = private unnamed_addr constant [4 x i8] c"FOR\00"
-@.str.121 = private unnamed_addr constant [45 x i8] c"test_parser_basic failed: parse errors found\00"
-@.str.197 = private unnamed_addr constant [66 x i8] c"test_parser_static_call failed: expected method 'Substring', got \00"
-@.str.496 = private unnamed_addr constant [5 x i8] c"line\00"
-@.str.612 = private unnamed_addr constant [2 x i8] c"<\00"
-@.str.672 = private unnamed_addr constant [8 x i8] c"qb_with\00"
-@.str.494 = private unnamed_addr constant [8 x i8] c"current\00"
-@.str.64 = private unnamed_addr constant [3 x i8] c"as\00"
-@.str.124 = private unnamed_addr constant [11 x i8] c"statements\00"
-@.str.305 = private unnamed_addr constant [67 x i8] c"\E2\9D\8C test_parser_foreach_stmt - FAILED: expected valueVar 'v', got \00"
-@.str.335 = private unnamed_addr constant [9 x i8] c"Resolver\00"
+@.str.326 = private unnamed_addr constant [8 x i8] c"pattern\00"
 @.str.387 = private unnamed_addr constant [43 x i8] c"var $a = \22hello\22; var $b = $a .. \22 world\22;\00"
-@.str.391 = private unnamed_addr constant [12 x i8] c"nonexistent\00"
-@.str.474 = private unnamed_addr constant [5 x i8] c"call\00"
-@.str.544 = private unnamed_addr constant [25 x i8] c"unexpected character '|'\00"
-@.str.705 = private unnamed_addr constant [28 x i8] c"\E2\9C\85 test_parser_array_index\00"
-@.str.7 = private unnamed_addr constant [4 x i8] c"new\00"
-@.str.161 = private unnamed_addr constant [56 x i8] c"test_parser_unary_expr failed: expected UnaryExpr, got \00"
-@.str.344 = private unnamed_addr constant [50 x i8] c"var $msg = \22hi\22; func greet() { return \22hello\22; }\00"
-@.str.533 = private unnamed_addr constant [6 x i8] c"EQUAL\00"
-@.str.649 = private unnamed_addr constant [12 x i8] c"typechecker\00"
-@.str.605 = private unnamed_addr constant [34 x i8] c"expected '}' to close map literal\00"
-@.str.12 = private unnamed_addr constant [5 x i8] c"ELSE\00"
-@.str.98 = private unnamed_addr constant [4 x i8] c"INT\00"
-@.str.265 = private unnamed_addr constant [57 x i8] c"test_parser_class_decl failed: expected name 'Dog', got \00"
-@.str.323 = private unnamed_addr constant [50 x i8] c"test_parser_match_stmt failed: expected MatchStmt\00"
-@.str.328 = private unnamed_addr constant [68 x i8] c"test_parser_match_stmt failed: expected IntLiteral pattern in arm 1\00"
-@.str.403 = private unnamed_addr constant [69 x i8] c"var $x = 10; match $x { 10 => { var $y = 1; } _ => { var $y = 2; } }\00"
-@.str.535 = private unnamed_addr constant [10 x i8] c"NOT_EQUAL\00"
-@.str.236 = private unnamed_addr constant [54 x i8] c"test_parser_if_stmt failed: expected '>' condition op\00"
-@.str.481 = private unnamed_addr constant [9 x i8] c"enumName\00"
-@.str.534 = private unnamed_addr constant [10 x i8] c"FAT_ARROW\00"
-@.str.668 = private unnamed_addr constant [7 x i8] c"qb_get\00"
-@.str.726 = private unnamed_addr constant [40 x i8] c"\E2\9D\8C test_parser_grouped_expr - FAILED: \00"
-@.str.753 = private unnamed_addr constant [30 x i8] c"\E2\9C\85 test_resolver_method_call\00"
-@.str.760 = private unnamed_addr constant [41 x i8] c"\E2\9D\8C test_resolver_lookup_miss - FAILED: \00"
-@.str.129 = private unnamed_addr constant [2 x i8] c"x\00"
-@.str.205 = private unnamed_addr constant [30 x i8] c"PASS: test_parser_array_index\00"
-@.str.329 = private unnamed_addr constant [9 x i8] c"Wildcard\00"
-@.str.410 = private unnamed_addr constant [54 x i8] c"foreach ($users as $u) { var $profile = $db->get(); }\00"
-@.str.456 = private unnamed_addr constant [6 x i8] c"Lexer\00"
-@.str.686 = private unnamed_addr constant [31 x i8] c"\E2\9D\8C test_lexer_math - FAILED: \00"
-@.str.747 = private unnamed_addr constant [36 x i8] c"\E2\9C\85 test_resolver_new_unknown_class\00"
-@.str.39 = private unnamed_addr constant [6 x i8] c"catch\00"
-@.str.505 = private unnamed_addr constant [14 x i8] c"DOLLAR_LBRACE\00"
-@.str.665 = private unnamed_addr constant [4 x i8] c"get\00"
-@.str.467 = private unnamed_addr constant [11 x i8] c"visibility\00"
-@.str.11 = private unnamed_addr constant [5 x i8] c"else\00"
-@.str.48 = private unnamed_addr constant [8 x i8] c"PRIVATE\00"
-@.str.179 = private unnamed_addr constant [37 x i8] c"var $v = $arr->filter($fn)->count();\00"
-@.str.195 = private unnamed_addr constant [67 x i8] c"test_parser_static_call failed: expected className 'Strings', got \00"
-@.str.255 = private unnamed_addr constant [33 x i8] c"while ($running) { var $x = 1; }\00"
-@.str.333 = private unnamed_addr constant [13 x i8] c"_symbolTable\00"
-@.str.466 = private unnamed_addr constant [6 x i8] c"types\00"
-@.str.499 = private unnamed_addr constant [9 x i8] c"startCol\00"
-@.str.522 = private unnamed_addr constant [9 x i8] c"QUESTION\00"
-@.str.620 = private unnamed_addr constant [3 x i8] c"/=\00"
-@.str.628 = private unnamed_addr constant [11 x i8] c"scopeDepth\00"
-@.str.635 = private unnamed_addr constant [11 x i8] c"paramNames\00"
-@.str.67 = private unnamed_addr constant [3 x i8] c"IN\00"
-@.str.130 = private unnamed_addr constant [50 x i8] c"test_parser_basic failed: expected name 'x', got \00"
-@.str.153 = private unnamed_addr constant [3 x i8] c"==\00"
-@.str.430 = private unnamed_addr constant [13 x i8] c"TryCatchStmt\00"
-@.str.488 = private unnamed_addr constant [7 x i8] c"source\00"
-@.str.673 = private unnamed_addr constant [4 x i8] c"yes\00"
-@.str.759 = private unnamed_addr constant [30 x i8] c"\E2\9C\85 test_resolver_lookup_miss\00"
-@.str.31 = private unnamed_addr constant [8 x i8] c"channel\00"
-@.str.244 = private unnamed_addr constant [59 x i8] c"test_parser_if_elseif_else failed: expected 1 elseif, got \00"
-@.str.319 = private unnamed_addr constant [32 x i8] c"PASS: test_parser_closure_block\00"
-@.str.465 = private unnamed_addr constant [11 x i8] c"defaultVal\00"
-@.str.588 = private unnamed_addr constant [32 x i8] c"expected '{' to open class body\00"
-@.str.55 = private unnamed_addr constant [4 x i8] c"pro\00"
-@.str.448 = private unnamed_addr constant [11 x i8] c"EnumAccess\00"
-@.str.480 = private unnamed_addr constant [9 x i8] c"property\00"
-@.str.614 = private unnamed_addr constant [3 x i8] c">=\00"
-@.str.718 = private unnamed_addr constant [36 x i8] c"\E2\9D\8C test_parser_for_stmt - FAILED: \00"
-@.str.767 = private unnamed_addr constant [37 x i8] c"\E2\9C\85 test_typechecker_strict_mismatch\00"
-@.str.58 = private unnamed_addr constant [5 x i8] c"true\00"
-@.str.517 = private unnamed_addr constant [7 x i8] c"LBRACE\00"
-@.str.729 = private unnamed_addr constant [30 x i8] c"\E2\9C\85 test_parser_closure_arrow\00"
-@.str.46 = private unnamed_addr constant [4 x i8] c"VAR\00"
-@.str.417 = private unnamed_addr constant [88 x i8] c"\E2\9D\8C test_typechecker_n1_eager_bypass - FAILED: expected 0 warnings due to eager loading\00"
-@.str.617 = private unnamed_addr constant [3 x i8] c"+=\00"
-@.str.732 = private unnamed_addr constant [41 x i8] c"\E2\9D\8C test_parser_closure_block - FAILED: \00"
-@.str.66 = private unnamed_addr constant [3 x i8] c"in\00"
-@.str.219 = private unnamed_addr constant [9 x i8] c"elements\00"
-@.str.362 = private unnamed_addr constant [59 x i8] c"test_resolver_class_decl: expected field 'name' registered\00"
-@.str.367 = private unnamed_addr constant [66 x i8] c"test_resolver_new_known_class: expected no errors for known class\00"
-@.str.523 = private unnamed_addr constant [7 x i8] c"MODULO\00"
-@.str.119 = private unnamed_addr constant [14 x i8] c"expected FUNC\00"
-@.str.577 = private unnamed_addr constant [37 x i8] c"expected '(' in function declaration\00"
-@.str.709 = private unnamed_addr constant [30 x i8] c"\E2\9C\85 test_parser_array_literal\00"
-@.str.741 = private unnamed_addr constant [32 x i8] c"\E2\9C\85 test_resolver_undefined_var\00"
-@.str.42 = private unnamed_addr constant [10 x i8] c"NAMESPACE\00"
-@.str.50 = private unnamed_addr constant [7 x i8] c"public\00"
-@.str.134 = private unnamed_addr constant [49 x i8] c"test_parser_binary_expr failed: expected VarDecl\00"
-@.str.139 = private unnamed_addr constant [2 x i8] c"+\00"
-@.str.637 = private unnamed_addr constant [5 x i8] c"this\00"
-@.str.681 = private unnamed_addr constant [21 x i8] c"\E2\9C\85 test_lexer_basic\00"
-@.str.1 = private unnamed_addr constant [5 x i8] c"func\00"
-@.str.230 = private unnamed_addr constant [41 x i8] c"test_parser_if_stmt failed: errors found\00"
-@.str.372 = private unnamed_addr constant [38 x i8] c"PASS: test_resolver_new_unknown_class\00"
-@.str.414 = private unnamed_addr constant [68 x i8] c"\E2\9D\8C test_typechecker_n1_loop - FAILED: expected N+1 warning message\00"
-@.str.478 = private unnamed_addr constant [8 x i8] c"operand\00"
-@.str.626 = private unnamed_addr constant [10 x i8] c" at line \00"
-@.str.677 = private unnamed_addr constant [20 x i8] c"\E2\9C\85 test_array_push\00"
-@.str.703 = private unnamed_addr constant [28 x i8] c"\E2\9C\85 test_parser_static_call\00"
-@.str.733 = private unnamed_addr constant [27 x i8] c"\E2\9C\85 test_parser_match_stmt\00"
-@.str.615 = private unnamed_addr constant [3 x i8] c"||\00"
-@.str.211 = private unnamed_addr constant [7 x i8] c"Parser\00"
-@.str.297 = private unnamed_addr constant [9 x i8] c"iterable\00"
-@.str.304 = private unnamed_addr constant [2 x i8] c"v\00"
-@.str.310 = private unnamed_addr constant [55 x i8] c"test_parser_closure_arrow failed: expected ClosureExpr\00"
-@.str.336 = private unnamed_addr constant [12 x i8] c"SymbolTable\00"
-@.str.426 = private unnamed_addr constant [14 x i8] c"InterfaceDecl\00"
-@.str.562 = private unnamed_addr constant [23 x i8] c"expected '(' after for\00"
-@.str.731 = private unnamed_addr constant [30 x i8] c"\E2\9C\85 test_parser_closure_block\00"
-@.str.207 = private unnamed_addr constant [42 x i8] c"test_parser_new_expr failed: errors found\00"
-@.str.294 = private unnamed_addr constant [58 x i8] c"\E2\9D\8C test_parser_foreach_stmt - FAILED: expected no errors\00"
-@.str.332 = private unnamed_addr constant [13 x i8] c"var $x = 42;\00"
-@.str.368 = private unnamed_addr constant [36 x i8] c"PASS: test_resolver_new_known_class\00"
-@.str.440 = private unnamed_addr constant [14 x i8] c"StringLiteral\00"
-@.str.511 = private unnamed_addr constant [10 x i8] c"supervise\00"
-@.str.616 = private unnamed_addr constant [2 x i8] c"=\00"
-@.str.772 = private unnamed_addr constant [48 x i8] c"\E2\9D\8C test_typechecker_n1_eager_bypass - FAILED: \00"
-@.str.321 = private unnamed_addr constant [50 x i8] c"test_parser_match_stmt failed: expected no errors\00"
-@.str.381 = private unnamed_addr constant [51 x i8] c"func multiply($a, $b, $c) { return $a * $b * $c; }\00"
-@.str.568 = private unnamed_addr constant [33 x i8] c"expected value variable after =>\00"
-@.str.585 = private unnamed_addr constant [8 x i8] c"extends\00"
-@.str.589 = private unnamed_addr constant [33 x i8] c"expected '}' to close class body\00"
-@.str.629 = private unnamed_addr constant [8 x i8] c"classes\00"
-@.str.698 = private unnamed_addr constant [41 x i8] c"\E2\9D\8C test_parser_string_concat - FAILED: \00"
-@.str.409 = private unnamed_addr constant [39 x i8] c"PASS: test_typechecker_strict_mismatch\00"
-@.str.450 = private unnamed_addr constant [10 x i8] c"AwaitExpr\00"
-@.str.602 = private unnamed_addr constant [25 x i8] c"expected ']' after index\00"
+@.str.454 = private unnamed_addr constant [10 x i8] c"ErrorExpr\00"
 @.str.755 = private unnamed_addr constant [35 x i8] c"\E2\9C\85 test_resolver_func_param_count\00"
-@.str.80 = private unnamed_addr constant [15 x i8] c"Tokens count: \00"
-@.str.380 = private unnamed_addr constant [32 x i8] c"PASS: test_resolver_method_call\00"
-@.str.475 = private unnamed_addr constant [9 x i8] c"spanName\00"
-@.str.623 = private unnamed_addr constant [4 x i8] c"' (\00"
-@.str.422 = private unnamed_addr constant [13 x i8] c"ElseIfClause\00"
-@.str.500 = private unnamed_addr constant [7 x i8] c"length\00"
-@.str.714 = private unnamed_addr constant [35 x i8] c"\E2\9D\8C test_parser_if_stmt - FAILED: \00"
-@.str.738 = private unnamed_addr constant [40 x i8] c"\E2\9D\8C test_resolver_func_hoist - FAILED: \00"
-@.str.167 = private unnamed_addr constant [13 x i8] c"StringConcat\00"
-@.str.223 = private unnamed_addr constant [45 x i8] c"test_parser_map_literal failed: errors found\00"
-@.str.357 = private unnamed_addr constant [34 x i8] c"PASS: test_resolver_undefined_var\00"
-@.str.40 = private unnamed_addr constant [6 x i8] c"CATCH\00"
-@.str.548 = private unnamed_addr constant [4 x i8] c"DOT\00"
-@.str.671 = private unnamed_addr constant [5 x i8] c"with\00"
-@.str.697 = private unnamed_addr constant [30 x i8] c"\E2\9C\85 test_parser_string_concat\00"
-@.str.155 = private unnamed_addr constant [3 x i8] c"!=\00"
-@.str.199 = private unnamed_addr constant [54 x i8] c"test_parser_static_call failed: expected 3 args, got \00"
-@.str.309 = private unnamed_addr constant [12 x i8] c"ClosureExpr\00"
-@.str.318 = private unnamed_addr constant [58 x i8] c"test_parser_closure_block failed: expected BlockStmt body\00"
-@.str.460 = private unnamed_addr constant [9 x i8] c"typeName\00"
-@.str.561 = private unnamed_addr constant [37 x i8] c"expected ')' after else if condition\00"
-@.str.655 = private unnamed_addr constant [16 x i8] c"' declared as '\00"
-@.str.203 = private unnamed_addr constant [10 x i8] c"IndexExpr\00"
-@.str.18 = private unnamed_addr constant [6 x i8] c"WHILE\00"
-@.str.24 = private unnamed_addr constant [6 x i8] c"ASYNC\00"
-@.str.51 = private unnamed_addr constant [7 x i8] c"PUBLIC\00"
-@.str.146 = private unnamed_addr constant [31 x i8] c"var $x = $a == $b && $c != $d;\00"
-@.str.159 = private unnamed_addr constant [44 x i8] c"test_parser_unary_expr failed: errors found\00"
-@.str.178 = private unnamed_addr constant [30 x i8] c"PASS: test_parser_method_call\00"
-@.str.193 = private unnamed_addr constant [10 x i8] c"className\00"
-@.str.356 = private unnamed_addr constant [54 x i8] c"test_resolver_undefined_var: error should mention 'z'\00"
-@.str.438 = private unnamed_addr constant [11 x i8] c"Identifier\00"
-@.str.489 = private unnamed_addr constant [5 x i8] c"file\00"
-@.str.695 = private unnamed_addr constant [27 x i8] c"\E2\9C\85 test_parser_unary_expr\00"
-@.str.25 = private unnamed_addr constant [6 x i8] c"await\00"
-@.str.413 = private unnamed_addr constant [62 x i8] c"\E2\9D\8C test_typechecker_n1_loop - FAILED: expected warning level\00"
-@.str.484 = private unnamed_addr constant [9 x i8] c"elemType\00"
+@.str.188 = private unnamed_addr constant [38 x i8] c"PASS: test_parser_chained_method_call\00"
+@.str.206 = private unnamed_addr constant [43 x i8] c"var $p = new Parser($tokens, $file, $src);\00"
+@.str.492 = private unnamed_addr constant [9 x i8] c"keywords\00"
+@.str.505 = private unnamed_addr constant [14 x i8] c"DOLLAR_LBRACE\00"
+@.str.601 = private unnamed_addr constant [33 x i8] c"expected property name after '.'\00"
 @.str.560 = private unnamed_addr constant [27 x i8] c"expected '(' after else if\00"
-@.str.597 = private unnamed_addr constant [39 x i8] c"expected property/method name after ->\00"
-@.str.730 = private unnamed_addr constant [41 x i8] c"\E2\9D\8C test_parser_closure_arrow - FAILED: \00"
-@.str.769 = private unnamed_addr constant [29 x i8] c"\E2\9C\85 test_typechecker_n1_loop\00"
-@.str.569 = private unnamed_addr constant [27 x i8] c"expected ')' after foreach\00"
-@.str.111 = private unnamed_addr constant [5 x i8] c"STAR\00"
-@.str.196 = private unnamed_addr constant [10 x i8] c"Substring\00"
-@.str.202 = private unnamed_addr constant [45 x i8] c"test_parser_array_index failed: errors found\00"
-@.str.324 = private unnamed_addr constant [5 x i8] c"arms\00"
+@.str.644 = private unnamed_addr constant [16 x i8] c"unknown class '\00"
+@.str.659 = private unnamed_addr constant [4 x i8] c"int\00"
+@.str.115 = private unnamed_addr constant [12 x i8] c"expected IF\00"
+@.str.152 = private unnamed_addr constant [5 x i8] c"left\00"
+@.str.398 = private unnamed_addr constant [102 x i8] c"\E2\9D\8C test_resolver_foreach_scoping - FAILED: test_resolver_foreach_scoping: expected no resolve errors\00"
+@.str.429 = private unnamed_addr constant [13 x i8] c"PropertyDecl\00"
+@.str.531 = private unnamed_addr constant [13 x i8] c"SLASH_ASSIGN\00"
+@.str.402 = private unnamed_addr constant [36 x i8] c"PASS: test_resolver_closure_scoping\00"
+@.str.405 = private unnamed_addr constant [34 x i8] c"PASS: test_resolver_match_scoping\00"
+@.str.588 = private unnamed_addr constant [32 x i8] c"expected '{' to open class body\00"
+@.str.5 = private unnamed_addr constant [6 x i8] c"class\00"
+@.str.198 = private unnamed_addr constant [5 x i8] c"args\00"
+@.str.507 = private unnamed_addr constant [13 x i8] c"DOLLAR_IDENT\00"
+@.str.197 = private unnamed_addr constant [66 x i8] c"test_parser_static_call failed: expected method 'Substring', got \00"
+@.str.309 = private unnamed_addr constant [12 x i8] c"ClosureExpr\00"
+@.str.357 = private unnamed_addr constant [34 x i8] c"PASS: test_resolver_undefined_var\00"
+@.str.415 = private unnamed_addr constant [31 x i8] c"PASS: test_typechecker_n1_loop\00"
+@.str.288 = private unnamed_addr constant [46 x i8] c"test_parser_grouped_expr failed: errors found\00"
+@.str.311 = private unnamed_addr constant [52 x i8] c"test_parser_closure_arrow failed: expected 2 params\00"
+@.str.564 = private unnamed_addr constant [30 x i8] c"expected ')' after for update\00"
+@.str.414 = private unnamed_addr constant [68 x i8] c"\E2\9D\8C test_typechecker_n1_loop - FAILED: expected N+1 warning message\00"
+@.str.22 = private unnamed_addr constant [7 x i8] c"RETURN\00"
+@.str.143 = private unnamed_addr constant [2 x i8] c"*\00"
+@.str.332 = private unnamed_addr constant [13 x i8] c"var $x = 42;\00"
 @.str.379 = private unnamed_addr constant [53 x i8] c"test_resolver_method_call: unexpected resolve errors\00"
-@.str.462 = private unnamed_addr constant [5 x i8] c"init\00"
-@.str.520 = private unnamed_addr constant [9 x i8] c"RBRACKET\00"
-@.str.624 = private unnamed_addr constant [2 x i8] c")\00"
-@.str.654 = private unnamed_addr constant [26 x i8] c"type mismatch: variable '\00"
-@.str.675 = private unnamed_addr constant [55 x i8] c"()' inside a loop without eager loading \E2\80\94 consider $\00"
-@.str.721 = private unnamed_addr constant [27 x i8] c"\E2\9C\85 test_parser_class_decl\00"
-@.str.41 = private unnamed_addr constant [10 x i8] c"namespace\00"
-@.str.327 = private unnamed_addr constant [11 x i8] c"IntLiteral\00"
-@.str.648 = private unnamed_addr constant [6 x i8] c"phase\00"
-@.str.113 = private unnamed_addr constant [26 x i8] c"if else return class func\00"
-@.str.359 = private unnamed_addr constant [56 x i8] c"test_resolver_class_decl: expected 'Dog' in class table\00"
-@.str.412 = private unnamed_addr constant [8 x i8] c"warning\00"
-@.str.519 = private unnamed_addr constant [9 x i8] c"LBRACKET\00"
-@.str.643 = private unnamed_addr constant [2 x i8] c"'\00"
-@.str.699 = private unnamed_addr constant [28 x i8] c"\E2\9C\85 test_parser_method_call\00"
-@.str.163 = private unnamed_addr constant [53 x i8] c"test_parser_unary_expr failed: expected '!' op, got \00"
-@.str.283 = private unnamed_addr constant [7 x i8] c"values\00"
-@.str.662 = private unnamed_addr constant [5 x i8] c"bool\00"
-@.str.81 = private unnamed_addr constant [19 x i8] c"First token type: \00"
-@.str.268 = private unnamed_addr constant [8 x i8] c"methods\00"
-@.str.322 = private unnamed_addr constant [10 x i8] c"MatchStmt\00"
-@.str.374 = private unnamed_addr constant [53 x i8] c"test_resolver_if_scoping: expected no resolve errors\00"
-@.str.459 = private unnamed_addr constant [5 x i8] c"expr\00"
-@.str.509 = private unnamed_addr constant [3 x i8] c"ml\00"
-@.str.632 = private unnamed_addr constant [17 x i8] c"_parseErrorCount\00"
-@.str.109 = private unnamed_addr constant [5 x i8] c"PLUS\00"
-@.str.217 = private unnamed_addr constant [13 x i8] c"ArrayLiteral\00"
+@.str.388 = private unnamed_addr constant [55 x i8] c"test_resolver_string_concat: unexpected resolve errors\00"
+@.str.33 = private unnamed_addr constant [5 x i8] c"send\00"
+@.str.316 = private unnamed_addr constant [53 x i8] c"test_parser_closure_block failed: expected no errors\00"
+@.str.428 = private unnamed_addr constant [9 x i8] c"EnumDecl\00"
+@.str.456 = private unnamed_addr constant [6 x i8] c"Lexer\00"
+@.str.725 = private unnamed_addr constant [29 x i8] c"\E2\9C\85 test_parser_grouped_expr\00"
+@.str.330 = private unnamed_addr constant [66 x i8] c"test_parser_match_stmt failed: expected Wildcard pattern in arm 2\00"
+@.str.438 = private unnamed_addr constant [11 x i8] c"Identifier\00"
+@.str.496 = private unnamed_addr constant [5 x i8] c"line\00"
+@.str.92 = private unnamed_addr constant [49 x i8] c"test_lexer_basic failed: expected 6 tokens, got \00"
+@.str.96 = private unnamed_addr constant [7 x i8] c"ASSIGN\00"
+@.str.214 = private unnamed_addr constant [27 x i8] c"PASS: test_parser_new_expr\00"
+@.str.218 = private unnamed_addr constant [62 x i8] c"test_parser_array_literal failed: expected ArrayLiteral, got \00"
+@.str.319 = private unnamed_addr constant [32 x i8] c"PASS: test_parser_closure_block\00"
+@.str.548 = private unnamed_addr constant [4 x i8] c"DOT\00"
+@.str.441 = private unnamed_addr constant [19 x i8] c"InterpolatedString\00"
+@.str.567 = private unnamed_addr constant [23 x i8] c"expected loop variable\00"
+@.str.661 = private unnamed_addr constant [8 x i8] c"float64\00"
+@.str.723 = private unnamed_addr constant [28 x i8] c"\E2\9C\85 test_parser_return_stmt\00"
+@.str.518 = private unnamed_addr constant [7 x i8] c"RBRACE\00"
+@.str.770 = private unnamed_addr constant [40 x i8] c"\E2\9D\8C test_typechecker_n1_loop - FAILED: \00"
+@.str.28 = private unnamed_addr constant [6 x i8] c"SPAWN\00"
+@.str.205 = private unnamed_addr constant [30 x i8] c"PASS: test_parser_array_index\00"
+@.str.434 = private unnamed_addr constant [10 x i8] c"SpawnStmt\00"
+@.str.480 = private unnamed_addr constant [9 x i8] c"property\00"
+@.str.491 = private unnamed_addr constant [10 x i8] c"sourceLen\00"
 @.str.292 = private unnamed_addr constant [31 x i8] c"PASS: test_parser_grouped_expr\00"
-@.str.342 = private unnamed_addr constant [50 x i8] c"test_resolver_var_decl: unexpected resolve errors\00"
-@.str.483 = private unnamed_addr constant [6 x i8] c"index\00"
-@.str.771 = private unnamed_addr constant [37 x i8] c"\E2\9C\85 test_typechecker_n1_eager_bypass\00"
-@.str.6 = private unnamed_addr constant [6 x i8] c"CLASS\00"
+@.str.353 = private unnamed_addr constant [17 x i8] c"var $y = $z + 1;\00"
+@.str.15 = private unnamed_addr constant [8 x i8] c"foreach\00"
+@.str.88 = private unnamed_addr constant [7 x i8] c"Token \00"
+@.str.103 = private unnamed_addr constant [8 x i8] c"\22hello\22\00"
+@.str.176 = private unnamed_addr constant [8 x i8] c"getName\00"
+@.str.242 = private unnamed_addr constant [51 x i8] c"test_parser_if_elseif_else failed: expected IfStmt\00"
+@.str.168 = private unnamed_addr constant [70 x i8] c"test_parser_string_concat failed: expected StringConcat at root, got \00"
+@.str.655 = private unnamed_addr constant [16 x i8] c"' declared as '\00"
+@.str.666 = private unnamed_addr constant [6 x i8] c"first\00"
+@.str.534 = private unnamed_addr constant [10 x i8] c"FAT_ARROW\00"
+@.str.141 = private unnamed_addr constant [6 x i8] c"right\00"
+@.str.181 = private unnamed_addr constant [73 x i8] c"test_parser_chained_method_call failed: outer should be MethodCall, got \00"
+@.str.286 = private unnamed_addr constant [30 x i8] c"PASS: test_parser_return_stmt\00"
+@.str.290 = private unnamed_addr constant [76 x i8] c"test_parser_grouped_expr failed: expected '*' at root due to grouping, got \00"
+@.str.705 = private unnamed_addr constant [28 x i8] c"\E2\9C\85 test_parser_array_index\00"
+@.str.656 = private unnamed_addr constant [17 x i8] c"' but assigned '\00"
+@.str.695 = private unnamed_addr constant [27 x i8] c"\E2\9C\85 test_parser_unary_expr\00"
+@.str.31 = private unnamed_addr constant [8 x i8] c"channel\00"
+@.str.212 = private unnamed_addr constant [59 x i8] c"test_parser_new_expr failed: expected class 'Parser', got \00"
+@.str.499 = private unnamed_addr constant [9 x i8] c"startCol\00"
+@.str.506 = private unnamed_addr constant [28 x i8] c"expected identifier after $\00"
+@.str.532 = private unnamed_addr constant [6 x i8] c"SLASH\00"
+@.str.417 = private unnamed_addr constant [88 x i8] c"\E2\9D\8C test_typechecker_n1_eager_bypass - FAILED: expected 0 warnings due to eager loading\00"
+@.str.431 = private unnamed_addr constant [14 x i8] c"NamespaceDecl\00"
+@.str.510 = private unnamed_addr constant [6 x i8] c"AT_ML\00"
+@.str.2 = private unnamed_addr constant [5 x i8] c"FUNC\00"
+@.str.4 = private unnamed_addr constant [9 x i8] c"function\00"
+@.str.192 = private unnamed_addr constant [58 x i8] c"test_parser_static_call failed: expected StaticCall, got \00"
+@.str.252 = private unnamed_addr constant [5 x i8] c"body\00"
+@.str.272 = private unnamed_addr constant [29 x i8] c"PASS: test_parser_class_decl\00"
+@.str.552 = private unnamed_addr constant [29 x i8] c"expected type name after ':'\00"
+@.str.558 = private unnamed_addr constant [22 x i8] c"expected '(' after if\00"
+@.str.587 = private unnamed_addr constant [24 x i8] c"expected interface name\00"
+@.str.616 = private unnamed_addr constant [2 x i8] c"=\00"
+@.str.674 = private unnamed_addr constant [17 x i8] c"[N+1] DB query '\00"
+@.str.762 = private unnamed_addr constant [45 x i8] c"\E2\9D\8C test_resolver_foreach_scoping - FAILED: \00"
+@.str.163 = private unnamed_addr constant [53 x i8] c"test_parser_unary_expr failed: expected '!' op, got \00"
+@.str.213 = private unnamed_addr constant [51 x i8] c"test_parser_new_expr failed: expected 3 args, got \00"
+@.str.216 = private unnamed_addr constant [47 x i8] c"test_parser_array_literal failed: errors found\00"
+@.str.359 = private unnamed_addr constant [56 x i8] c"test_resolver_class_decl: expected 'Dog' in class table\00"
+@.str.460 = private unnamed_addr constant [9 x i8] c"typeName\00"
+@.str.681 = private unnamed_addr constant [21 x i8] c"\E2\9C\85 test_lexer_basic\00"
+@.str.716 = private unnamed_addr constant [42 x i8] c"\E2\9D\8C test_parser_if_elseif_else - FAILED: \00"
+@.str.729 = private unnamed_addr constant [30 x i8] c"\E2\9C\85 test_parser_closure_arrow\00"
 @.str.140 = private unnamed_addr constant [62 x i8] c"test_parser_binary_expr failed: expected '+' as root op, got \00"
-@.str.497 = private unnamed_addr constant [10 x i8] c"startLine\00"
-@.str.754 = private unnamed_addr constant [41 x i8] c"\E2\9D\8C test_resolver_method_call - FAILED: \00"
-@.str.62 = private unnamed_addr constant [4 x i8] c"nil\00"
+@.str.253 = private unnamed_addr constant [51 x i8] c"test_parser_for_stmt failed: expected non-nil body\00"
+@.str.577 = private unnamed_addr constant [37 x i8] c"expected '(' in function declaration\00"
+@.str.604 = private unnamed_addr constant [28 x i8] c"expected ':' in map literal\00"
+@.str.627 = private unnamed_addr constant [12 x i8] c"scopeFrames\00"
+@.str.355 = private unnamed_addr constant [62 x i8] c"test_resolver_undefined_var: expected at least 1 error for $z\00"
+@.str.459 = private unnamed_addr constant [5 x i8] c"expr\00"
+@.str.494 = private unnamed_addr constant [8 x i8] c"current\00"
+@.str.59 = private unnamed_addr constant [10 x i8] c"BOOL_TRUE\00"
+@.str.77 = private unnamed_addr constant [25 x i8] c"test_array_push failed: \00"
+@.str.125 = private unnamed_addr constant [53 x i8] c"test_parser_basic failed: expected 1 statement, got \00"
+@.str.162 = private unnamed_addr constant [2 x i8] c"!\00"
+@.str.314 = private unnamed_addr constant [32 x i8] c"PASS: test_parser_closure_arrow\00"
+@.str.727 = private unnamed_addr constant [29 x i8] c"\E2\9C\85 test_parser_foreach_stmt\00"
+@.str.745 = private unnamed_addr constant [34 x i8] c"\E2\9C\85 test_resolver_new_known_class\00"
+@.str.752 = private unnamed_addr constant [41 x i8] c"\E2\9D\8C test_resolver_for_scoping - FAILED: \00"
+@.str.391 = private unnamed_addr constant [12 x i8] c"nonexistent\00"
+@.str.512 = private unnamed_addr constant [13 x i8] c"AT_SUPERVISE\00"
+@.str.759 = private unnamed_addr constant [30 x i8] c"\E2\9C\85 test_resolver_lookup_miss\00"
+@.str.178 = private unnamed_addr constant [30 x i8] c"PASS: test_parser_method_call\00"
+@.str.247 = private unnamed_addr constant [45 x i8] c"for ($i = 0; $i < 10; $i++) { var $x = $i; }\00"
+@.str.251 = private unnamed_addr constant [56 x i8] c"test_parser_for_stmt failed: expected non-nil condition\00"
+@.str.255 = private unnamed_addr constant [33 x i8] c"while ($running) { var $x = 1; }\00"
+@.str.308 = private unnamed_addr constant [53 x i8] c"test_parser_closure_arrow failed: expected no errors\00"
+@.str.11 = private unnamed_addr constant [5 x i8] c"else\00"
+@.str.128 = private unnamed_addr constant [5 x i8] c"name\00"
+@.str.130 = private unnamed_addr constant [50 x i8] c"test_parser_basic failed: expected name 'x', got \00"
+@.str.366 = private unnamed_addr constant [33 x i8] c"class Cat {} var $c = new Cat();\00"
+@.str.406 = private unnamed_addr constant [24 x i8] c"var $x : int = \22hello\22;\00"
+@.str.503 = private unnamed_addr constant [20 x i8] c"unterminated string\00"
+@.str.603 = private unnamed_addr constant [36 x i8] c"expected ']' to close array literal\00"
+@.str.650 = private unnamed_addr constant [13 x i8] c"TYPE ERROR: \00"
+@.str.108 = private unnamed_addr constant [42 x i8] c"test_lexer_math failed: expected 6 tokens\00"
+@.str.234 = private unnamed_addr constant [58 x i8] c"test_parser_if_stmt failed: expected BinaryExpr condition\00"
+@.str.297 = private unnamed_addr constant [9 x i8] c"iterable\00"
+@.str.303 = private unnamed_addr constant [9 x i8] c"valueVar\00"
+@.str.367 = private unnamed_addr constant [66 x i8] c"test_resolver_new_known_class: expected no errors for known class\00"
+@.str.715 = private unnamed_addr constant [31 x i8] c"\E2\9C\85 test_parser_if_elseif_else\00"
+@.str.70 = private unnamed_addr constant [5 x i8] c"enum\00"
 @.str.258 = private unnamed_addr constant [56 x i8] c"test_parser_while_stmt failed: expected WhileStmt, got \00"
+@.str.329 = private unnamed_addr constant [9 x i8] c"Wildcard\00"
+@.str.736 = private unnamed_addr constant [38 x i8] c"\E2\9D\8C test_resolver_var_decl - FAILED: \00"
+@.str.337 = private unnamed_addr constant [62 x i8] c"test_resolver_var_decl: expected 'x' in symbol table, got nil\00"
+@.str.371 = private unnamed_addr constant [62 x i8] c"test_resolver_new_unknown_class: error should mention 'Ghost'\00"
+@.str.396 = private unnamed_addr constant [54 x i8] c"foreach ([1, 2, 3] as $k => $v) { var $x = $v + $k; }\00"
+@.str.10 = private unnamed_addr constant [3 x i8] c"IF\00"
+@.str.80 = private unnamed_addr constant [15 x i8] c"Tokens count: \00"
+@.str.179 = private unnamed_addr constant [37 x i8] c"var $v = $arr->filter($fn)->count();\00"
+@.str.241 = private unnamed_addr constant [48 x i8] c"test_parser_if_elseif_else failed: errors found\00"
+@.str.267 = private unnamed_addr constant [57 x i8] c"test_parser_class_decl failed: expected 1 property, got \00"
+@.str.420 = private unnamed_addr constant [15 x i8] c"ExpressionStmt\00"
+@.str.629 = private unnamed_addr constant [8 x i8] c"classes\00"
+@.str.283 = private unnamed_addr constant [7 x i8] c"values\00"
+@.str.498 = private unnamed_addr constant [4 x i8] c"col\00"
+@.str.569 = private unnamed_addr constant [27 x i8] c"expected ')' after foreach\00"
+@.str.72 = private unnamed_addr constant [10 x i8] c"interface\00"
+@.str.97 = private unnamed_addr constant [16 x i8] c"expected ASSIGN\00"
+@.str.105 = private unnamed_addr constant [7 x i8] c"STRING\00"
+@.str.170 = private unnamed_addr constant [32 x i8] c"PASS: test_parser_string_concat\00"
+@.str.187 = private unnamed_addr constant [72 x i8] c"test_parser_chained_method_call failed: inner method should be 'filter'\00"
+@.str.578 = private unnamed_addr constant [30 x i8] c"expected ')' after parameters\00"
+@.str.626 = private unnamed_addr constant [10 x i8] c" at line \00"
+@.str.643 = private unnamed_addr constant [2 x i8] c"'\00"
+@.str.421 = private unnamed_addr constant [11 x i8] c"AssignStmt\00"
+@.str.609 = private unnamed_addr constant [24 x i8] c"expected '(' after func\00"
+@.str.640 = private unnamed_addr constant [7 x i8] c"Arrays\00"
+@.str.7 = private unnamed_addr constant [4 x i8] c"new\00"
+@.str.27 = private unnamed_addr constant [6 x i8] c"spawn\00"
+@.str.64 = private unnamed_addr constant [3 x i8] c"as\00"
+@.str.269 = private unnamed_addr constant [55 x i8] c"test_parser_class_decl failed: expected 1 method, got \00"
+@.str.284 = private unnamed_addr constant [56 x i8] c"test_parser_return_stmt failed: expected 1 return value\00"
 @.str.706 = private unnamed_addr constant [39 x i8] c"\E2\9D\8C test_parser_array_index - FAILED: \00"
+@.str.720 = private unnamed_addr constant [38 x i8] c"\E2\9D\8C test_parser_while_stmt - FAILED: \00"
+@.str.527 = private unnamed_addr constant [13 x i8] c"MINUS_ASSIGN\00"
+@.str.551 = private unnamed_addr constant [32 x i8] c"expected variable name ($ident)\00"
+@.str.733 = private unnamed_addr constant [27 x i8] c"\E2\9C\85 test_parser_match_stmt\00"
+@.str.113 = private unnamed_addr constant [26 x i8] c"if else return class func\00"
+@.str.132 = private unnamed_addr constant [25 x i8] c"var $result = 1 + 2 * 3;\00"
+@.str.191 = private unnamed_addr constant [11 x i8] c"StaticCall\00"
+@.str.259 = private unnamed_addr constant [29 x i8] c"PASS: test_parser_while_stmt\00"
+@.str.361 = private unnamed_addr constant [7 x i8] c"fields\00"
+@.str.523 = private unnamed_addr constant [7 x i8] c"MODULO\00"
+@.str.718 = private unnamed_addr constant [36 x i8] c"\E2\9D\8C test_parser_for_stmt - FAILED: \00"
+@.str.47 = private unnamed_addr constant [8 x i8] c"private\00"
+@.str.159 = private unnamed_addr constant [44 x i8] c"test_parser_unary_expr failed: errors found\00"
+@.str.335 = private unnamed_addr constant [9 x i8] c"Resolver\00"
+@.str.423 = private unnamed_addr constant [9 x i8] c"MatchArm\00"
+@.str.483 = private unnamed_addr constant [6 x i8] c"index\00"
+@.str.657 = private unnamed_addr constant [10 x i8] c"modelName\00"
+@.str.32 = private unnamed_addr constant [8 x i8] c"CHANNEL\00"
+@.str.135 = private unnamed_addr constant [6 x i8] c"value\00"
+@.str.448 = private unnamed_addr constant [11 x i8] c"EnumAccess\00"
+@.str.529 = private unnamed_addr constant [6 x i8] c"MINUS\00"
+@.str.611 = private unnamed_addr constant [2 x i8] c"%\00"
+@.str.647 = private unnamed_addr constant [13 x i8] c"dbConfigKeys\00"
+@.str.658 = private unnamed_addr constant [10 x i8] c"namedArgs\00"
+@.str.769 = private unnamed_addr constant [29 x i8] c"\E2\9C\85 test_typechecker_n1_loop\00"
+@.str.52 = private unnamed_addr constant [4 x i8] c"pub\00"
+@.str.150 = private unnamed_addr constant [3 x i8] c"&&\00"
+@.str.199 = private unnamed_addr constant [54 x i8] c"test_parser_static_call failed: expected 3 args, got \00"
+@.str.377 = private unnamed_addr constant [32 x i8] c"PASS: test_resolver_for_scoping\00"
+@.str.624 = private unnamed_addr constant [2 x i8] c")\00"
+@.str.18 = private unnamed_addr constant [6 x i8] c"WHILE\00"
+@.str.583 = private unnamed_addr constant [11 x i8] c"typeParams\00"
+@.str.646 = private unnamed_addr constant [11 x i8] c"strictMode\00"
+@.str.742 = private unnamed_addr constant [43 x i8] c"\E2\9D\8C test_resolver_undefined_var - FAILED: \00"
+@.str.702 = private unnamed_addr constant [47 x i8] c"\E2\9D\8C test_parser_chained_method_call - FAILED: \00"
+@.str.748 = private unnamed_addr constant [47 x i8] c"\E2\9D\8C test_resolver_new_unknown_class - FAILED: \00"
+@.str.775 = private unnamed_addr constant [8 x i8] c" failed\00"
+@.str.8 = private unnamed_addr constant [4 x i8] c"NEW\00"
+@.str.287 = private unnamed_addr constant [22 x i8] c"var $v = (1 + 2) * 3;\00"
+@.str.562 = private unnamed_addr constant [23 x i8] c"expected '(' after for\00"
+@.str.620 = private unnamed_addr constant [3 x i8] c"/=\00"
+@.str.673 = private unnamed_addr constant [4 x i8] c"yes\00"
+@.str.383 = private unnamed_addr constant [53 x i8] c"test_resolver_func_param_count: 'multiply' not found\00"
+@.str.489 = private unnamed_addr constant [5 x i8] c"file\00"
+@.str.501 = private unnamed_addr constant [32 x i8] c"unterminated multi-line comment\00"
+@.str.20 = private unnamed_addr constant [6 x i8] c"MATCH\00"
+@.str.101 = private unnamed_addr constant [19 x i8] c"expected SEMICOLON\00"
+@.str.133 = private unnamed_addr constant [51 x i8] c"test_parser_binary_expr failed: parse errors found\00"
+@.str.148 = private unnamed_addr constant [8 x i8] c" errors\00"
+@.str.245 = private unnamed_addr constant [54 x i8] c"test_parser_if_elseif_else failed: expected else body\00"
+@.str.686 = private unnamed_addr constant [31 x i8] c"\E2\9D\8C test_lexer_math - FAILED: \00"
+@.str.737 = private unnamed_addr constant [29 x i8] c"\E2\9C\85 test_resolver_func_hoist\00"
+@.str.51 = private unnamed_addr constant [7 x i8] c"PUBLIC\00"
+@.str.94 = private unnamed_addr constant [6 x i8] c"IDENT\00"
+@.str.233 = private unnamed_addr constant [10 x i8] c"condition\00"
+@.str.433 = private unnamed_addr constant [19 x i8] c"SuperviseBlockStmt\00"
+@.str.744 = private unnamed_addr constant [40 x i8] c"\E2\9D\8C test_resolver_class_decl - FAILED: \00"
+@.str.39 = private unnamed_addr constant [6 x i8] c"catch\00"
+@.str.84 = private unnamed_addr constant [4 x i8] c"EOF\00"
+@.str.183 = private unnamed_addr constant [71 x i8] c"test_parser_chained_method_call failed: outer method should be 'count'\00"
+@.str.649 = private unnamed_addr constant [12 x i8] c"typechecker\00"
+@.str.671 = private unnamed_addr constant [5 x i8] c"with\00"
+@.str.693 = private unnamed_addr constant [38 x i8] c"\E2\9C\85 test_parser_precedence_comparison\00"
+@.str.85 = private unnamed_addr constant [38 x i8] c"test_lexer_empty failed: expected EOF\00"
+@.str.296 = private unnamed_addr constant [66 x i8] c"\E2\9D\8C test_parser_foreach_stmt - FAILED: expected ForeachStmt, got \00"
+@.str.299 = private unnamed_addr constant [69 x i8] c"\E2\9D\8C test_parser_foreach_stmt - FAILED: expected DollarIdent iterable\00"
+@.str.497 = private unnamed_addr constant [10 x i8] c"startLine\00"
+@.str.530 = private unnamed_addr constant [12 x i8] c"STAR_ASSIGN\00"
+@.str.713 = private unnamed_addr constant [24 x i8] c"\E2\9C\85 test_parser_if_stmt\00"
+@.str.675 = private unnamed_addr constant [55 x i8] c"()' inside a loop without eager loading \E2\80\94 consider $\00"
+@.str.196 = private unnamed_addr constant [10 x i8] c"Substring\00"
+@.str.318 = private unnamed_addr constant [58 x i8] c"test_parser_closure_block failed: expected BlockStmt body\00"
+@.str.427 = private unnamed_addr constant [16 x i8] c"InterfaceMethod\00"
+@.str.481 = private unnamed_addr constant [9 x i8] c"enumName\00"
+@.str.526 = private unnamed_addr constant [10 x i8] c"DECREMENT\00"
+@.str.116 = private unnamed_addr constant [14 x i8] c"expected ELSE\00"
+@.str.239 = private unnamed_addr constant [26 x i8] c"PASS: test_parser_if_stmt\00"
+@.str.289 = private unnamed_addr constant [53 x i8] c"test_parser_grouped_expr failed: expected BinaryExpr\00"
+@.str.561 = private unnamed_addr constant [37 x i8] c"expected ')' after else if condition\00"
+@.str.732 = private unnamed_addr constant [41 x i8] c"\E2\9D\8C test_parser_closure_block - FAILED: \00"
+@.str.642 = private unnamed_addr constant [24 x i8] c"unresolved identifier '\00"
+@.str.758 = private unnamed_addr constant [43 x i8] c"\E2\9D\8C test_resolver_string_concat - FAILED: \00"
+@.str.161 = private unnamed_addr constant [56 x i8] c"test_parser_unary_expr failed: expected UnaryExpr, got \00"
+@.str.260 = private unnamed_addr constant [74 x i8] c"class Dog { public $name = \22rex\22; public func bark() { print(\22woof\22); } }\00"
+@.str.418 = private unnamed_addr constant [39 x i8] c"PASS: test_typechecker_n1_eager_bypass\00"
+@.str.493 = private unnamed_addr constant [20 x i8] c"leaving constructor\00"
+@.str.600 = private unnamed_addr constant [8 x i8] c"unknown\00"
+@.str.270 = private unnamed_addr constant [5 x i8] c"bark\00"
+@.str.277 = private unnamed_addr constant [7 x i8] c"params\00"
+@.str.376 = private unnamed_addr constant [54 x i8] c"test_resolver_for_scoping: expected no resolve errors\00"
+@.str.393 = private unnamed_addr constant [57 x i8] c"test_resolver_lookup_miss: expected nil for unknown func\00"
+@.str.144 = private unnamed_addr constant [66 x i8] c"test_parser_binary_expr failed: expected '*' in nested expr, got \00"
+@.str.189 = private unnamed_addr constant [41 x i8] c"var $sub = Strings::Substring($s, 0, 5);\00"
+@.str.279 = private unnamed_addr constant [10 x i8] c"BlockStmt\00"
+@.str.351 = private unnamed_addr constant [75 x i8] c"test_resolver_func_params: unexpected errors \E2\80\94 params should be in scope\00"
+@.str.453 = private unnamed_addr constant [12 x i8] c"ReceiveExpr\00"
+@.str.610 = private unnamed_addr constant [2 x i8] c"/\00"
+@.str.455 = private unnamed_addr constant [10 x i8] c"PrintExpr\00"
+@.str.463 = private unnamed_addr constant [7 x i8] c"update\00"
+@.str.484 = private unnamed_addr constant [9 x i8] c"elemType\00"
+@.str.136 = private unnamed_addr constant [11 x i8] c"BinaryExpr\00"
+@.str.202 = private unnamed_addr constant [45 x i8] c"test_parser_array_index failed: errors found\00"
+@.str.235 = private unnamed_addr constant [2 x i8] c">\00"
+@.str.317 = private unnamed_addr constant [55 x i8] c"test_parser_closure_block failed: expected ClosureExpr\00"
+@.str.369 = private unnamed_addr constant [22 x i8] c"var $x = new Ghost();\00"
+@.str.81 = private unnamed_addr constant [19 x i8] c"First token type: \00"
+@.str.385 = private unnamed_addr constant [49 x i8] c"test_resolver_func_param_count: expected 3, got \00"
+@.str.621 = private unnamed_addr constant [2 x i8] c"?\00"
+@.str.692 = private unnamed_addr constant [39 x i8] c"\E2\9D\8C test_parser_binary_expr - FAILED: \00"
+@.str.753 = private unnamed_addr constant [30 x i8] c"\E2\9C\85 test_resolver_method_call\00"
+@.str.630 = private unnamed_addr constant [10 x i8] c"functions\00"
+@.str.679 = private unnamed_addr constant [21 x i8] c"\E2\9C\85 test_lexer_empty\00"
+@.str.707 = private unnamed_addr constant [25 x i8] c"\E2\9C\85 test_parser_new_expr\00"
+@.str.75 = private unnamed_addr constant [11 x i8] c"IMPLEMENTS\00"
+@.str.209 = private unnamed_addr constant [52 x i8] c"test_parser_new_expr failed: expected NewExpr, got \00"
+@.str.519 = private unnamed_addr constant [9 x i8] c"LBRACKET\00"
+@.str.605 = private unnamed_addr constant [34 x i8] c"expected '}' to close map literal\00"
+@.str.628 = private unnamed_addr constant [11 x i8] c"scopeDepth\00"
+@.str.699 = private unnamed_addr constant [28 x i8] c"\E2\9C\85 test_parser_method_call\00"
+@.str.722 = private unnamed_addr constant [38 x i8] c"\E2\9D\8C test_parser_class_decl - FAILED: \00"
+@.str.766 = private unnamed_addr constant [43 x i8] c"\E2\9D\8C test_resolver_match_scoping - FAILED: \00"
+@.str.34 = private unnamed_addr constant [5 x i8] c"SEND\00"
+@.str.310 = private unnamed_addr constant [55 x i8] c"test_parser_closure_arrow failed: expected ClosureExpr\00"
+@.str.364 = private unnamed_addr constant [52 x i8] c"test_resolver_class_decl: unexpected resolve errors\00"
+@.str.500 = private unnamed_addr constant [7 x i8] c"length\00"
+@.str.565 = private unnamed_addr constant [27 x i8] c"expected '(' after foreach\00"
+@.str.149 = private unnamed_addr constant [70 x i8] c"test_parser_precedence_comparison failed: expected BinaryExpr at root\00"
+@.str.221 = private unnamed_addr constant [32 x i8] c"PASS: test_parser_array_literal\00"
+@.str.278 = private unnamed_addr constant [56 x i8] c"test_parser_return_stmt failed: expected 2 params, got \00"
+@.str.464 = private unnamed_addr constant [8 x i8] c"subject\00"
+@.str.677 = private unnamed_addr constant [20 x i8] c"\E2\9C\85 test_array_push\00"
+@.str.749 = private unnamed_addr constant [29 x i8] c"\E2\9C\85 test_resolver_if_scoping\00"
+@.str.95 = private unnamed_addr constant [15 x i8] c"expected IDENT\00"
+@.str.382 = private unnamed_addr constant [9 x i8] c"multiply\00"
+@.str.419 = private unnamed_addr constant [8 x i8] c"ASTNode\00"
+@.str.635 = private unnamed_addr constant [11 x i8] c"paramNames\00"
+@.str.645 = private unnamed_addr constant [9 x i8] c"resolver\00"
+@.str.547 = private unnamed_addr constant [8 x i8] c"DOT_DOT\00"
+@.str.622 = private unnamed_addr constant [8 x i8] c", got '\00"
+@.str.634 = private unnamed_addr constant [10 x i8] c"variables\00"
+@.str.12 = private unnamed_addr constant [5 x i8] c"ELSE\00"
+@.str.358 = private unnamed_addr constant [74 x i8] c"class Dog { public $name = \22rex\22; public func bark() { return \22woof\22; } }\00"
+@.str.362 = private unnamed_addr constant [59 x i8] c"test_resolver_class_decl: expected field 'name' registered\00"
+@.str.363 = private unnamed_addr constant [60 x i8] c"test_resolver_class_decl: expected method 'bark' registered\00"
+@.str.425 = private unnamed_addr constant [15 x i8] c"ReturnTypeSpec\00"
+@.str.697 = private unnamed_addr constant [30 x i8] c"\E2\9C\85 test_parser_string_concat\00"
+@.str.763 = private unnamed_addr constant [34 x i8] c"\E2\9C\85 test_resolver_closure_scoping\00"
+@.str.520 = private unnamed_addr constant [9 x i8] c"RBRACKET\00"
+@.str.586 = private unnamed_addr constant [34 x i8] c"expected class name after extends\00"
+@.str.739 = private unnamed_addr constant [30 x i8] c"\E2\9C\85 test_resolver_func_params\00"
+@.str.306 = private unnamed_addr constant [31 x i8] c"PASS: test_parser_foreach_stmt\00"
 @.str.320 = private unnamed_addr constant [55 x i8] c"match $x { 1 => print(\221\22); _ => { print(\22other\22); } }\00"
+@.str.321 = private unnamed_addr constant [50 x i8] c"test_parser_match_stmt failed: expected no errors\00"
+@.str.327 = private unnamed_addr constant [11 x i8] c"IntLiteral\00"
+@.str.486 = private unnamed_addr constant [4 x i8] c"arg\00"
+@.str.743 = private unnamed_addr constant [29 x i8] c"\E2\9C\85 test_resolver_class_decl\00"
+@.str.571 = private unnamed_addr constant [35 x i8] c"expected ')' after while condition\00"
+@.str.581 = private unnamed_addr constant [20 x i8] c"expected class name\00"
+@.str.597 = private unnamed_addr constant [39 x i8] c"expected property/method name after ->\00"
+@.str.618 = private unnamed_addr constant [3 x i8] c"-=\00"
+@.str.684 = private unnamed_addr constant [33 x i8] c"\E2\9D\8C test_lexer_string - FAILED: \00"
+@.str.62 = private unnamed_addr constant [4 x i8] c"nil\00"
+@.str.142 = private unnamed_addr constant [68 x i8] c"test_parser_binary_expr failed: expected nested BinaryExpr on right\00"
+@.str.378 = private unnamed_addr constant [88 x i8] c"class Box { public func open() { return 1; } } var $b = new Box(); var $v = $b->open();\00"
+@.str.413 = private unnamed_addr constant [62 x i8] c"\E2\9D\8C test_typechecker_n1_loop - FAILED: expected warning level\00"
+@.str.726 = private unnamed_addr constant [40 x i8] c"\E2\9D\8C test_parser_grouped_expr - FAILED: \00"
+@.str.17 = private unnamed_addr constant [6 x i8] c"while\00"
+@.str.244 = private unnamed_addr constant [59 x i8] c"test_parser_if_elseif_else failed: expected 1 elseif, got \00"
+@.str.342 = private unnamed_addr constant [50 x i8] c"test_resolver_var_decl: unexpected resolve errors\00"
+@.str.461 = private unnamed_addr constant [7 x i8] c"target\00"
+@.str.556 = private unnamed_addr constant [13 x i8] c"expected '{'\00"
+@.str.6 = private unnamed_addr constant [6 x i8] c"CLASS\00"
+@.str.210 = private unnamed_addr constant [10 x i8] c"classExpr\00"
+@.str.473 = private unnamed_addr constant [4 x i8] c"max\00"
+@.str.676 = private unnamed_addr constant [25 x i8] c"->with() before the loop\00"
+@.str.660 = private unnamed_addr constant [6 x i8] c"float\00"
+@.str.691 = private unnamed_addr constant [28 x i8] c"\E2\9C\85 test_parser_binary_expr\00"
+@.str.263 = private unnamed_addr constant [56 x i8] c"test_parser_class_decl failed: expected ClassDecl, got \00"
+@.str.477 = private unnamed_addr constant [6 x i8] c"parts\00"
+@.str.478 = private unnamed_addr constant [8 x i8] c"operand\00"
+@.str.502 = private unnamed_addr constant [34 x i8] c"unterminated string (escaped end)\00"
+@.str.653 = private unnamed_addr constant [4 x i8] c"any\00"
+@.str.298 = private unnamed_addr constant [12 x i8] c"DollarIdent\00"
+@.str.690 = private unnamed_addr constant [33 x i8] c"\E2\9D\8C test_parser_basic - FAILED: \00"
+@.str.712 = private unnamed_addr constant [39 x i8] c"\E2\9D\8C test_parser_map_literal - FAILED: \00"
+@.str.73 = private unnamed_addr constant [10 x i8] c"INTERFACE\00"
+@.str.257 = private unnamed_addr constant [10 x i8] c"WhileStmt\00"
+@.str.536 = private unnamed_addr constant [4 x i8] c"NOT\00"
+@.str.590 = private unnamed_addr constant [33 x i8] c"unexpected token in class body: \00"
+@.str.602 = private unnamed_addr constant [25 x i8] c"expected ']' after index\00"
+@.str.637 = private unnamed_addr constant [5 x i8] c"this\00"
+@.str.708 = private unnamed_addr constant [36 x i8] c"\E2\9D\8C test_parser_new_expr - FAILED: \00"
+@.str.195 = private unnamed_addr constant [67 x i8] c"test_parser_static_call failed: expected className 'Strings', got \00"
+@.str.348 = private unnamed_addr constant [52 x i8] c"test_resolver_func_hoist: unexpected resolve errors\00"
+@.str.528 = private unnamed_addr constant [6 x i8] c"ARROW\00"
+@.str.549 = private unnamed_addr constant [21 x i8] c"unexpected character\00"
+@.str.574 = private unnamed_addr constant [2 x i8] c"_\00"
+@.str.488 = private unnamed_addr constant [7 x i8] c"source\00"
+@.str.545 = private unnamed_addr constant [13 x i8] c"DOUBLE_COLON\00"
+@.str.768 = private unnamed_addr constant [48 x i8] c"\E2\9D\8C test_typechecker_strict_mismatch - FAILED: \00"
+@.str.86 = private unnamed_addr constant [12 x i8] c"var x = 10;\00"
+@.str.153 = private unnamed_addr constant [3 x i8] c"==\00"
+@.str.224 = private unnamed_addr constant [11 x i8] c"MapLiteral\00"
+@.str.240 = private unnamed_addr constant [84 x i8] c"if ($x == 1) { var $a = 1; } else if ($x == 2) { var $a = 2; } else { var $a = 0; }\00"
+@.str.401 = private unnamed_addr constant [50 x i8] c"test_resolver_closure_scoping: expected no errors\00"
+@.str.16 = private unnamed_addr constant [8 x i8] c"FOREACH\00"
+@.str.256 = private unnamed_addr constant [44 x i8] c"test_parser_while_stmt failed: errors found\00"
+@.str.305 = private unnamed_addr constant [67 x i8] c"\E2\9D\8C test_parser_foreach_stmt - FAILED: expected valueVar 'v', got \00"
+@.str.525 = private unnamed_addr constant [12 x i8] c"PLUS_ASSIGN\00"
+@.str.312 = private unnamed_addr constant [10 x i8] c"arrowExpr\00"
+@.str.542 = private unnamed_addr constant [25 x i8] c"unexpected character '&'\00"
+@.str.696 = private unnamed_addr constant [38 x i8] c"\E2\9D\8C test_parser_unary_expr - FAILED: \00"
+@.str.48 = private unnamed_addr constant [8 x i8] c"PRIVATE\00"
+@.str.91 = private unnamed_addr constant [7 x i8] c"lexeme\00"
+@.str.107 = private unnamed_addr constant [10 x i8] c"1 + 2 * 3\00"
+@.str.167 = private unnamed_addr constant [13 x i8] c"StringConcat\00"
+@.str.254 = private unnamed_addr constant [27 x i8] c"PASS: test_parser_for_stmt\00"
+@.str.709 = private unnamed_addr constant [30 x i8] c"\E2\9C\85 test_parser_array_literal\00"
+@.str.683 = private unnamed_addr constant [22 x i8] c"\E2\9C\85 test_lexer_string\00"
+@.str.747 = private unnamed_addr constant [36 x i8] c"\E2\9C\85 test_resolver_new_unknown_class\00"
+@.str.83 = private unnamed_addr constant [42 x i8] c"test_lexer_empty failed: expected 1 token\00"
+@.str.471 = private unnamed_addr constant [9 x i8] c"strategy\00"
+@.str.533 = private unnamed_addr constant [6 x i8] c"EQUAL\00"
+@.str.554 = private unnamed_addr constant [34 x i8] c"expected ')' after print argument\00"
+@.str.639 = private unnamed_addr constant [7 x i8] c"intval\00"
+@.str.300 = private unnamed_addr constant [7 x i8] c"keyVar\00"
+@.str.607 = private unnamed_addr constant [48 x i8] c"expected '(' after class name in new expression\00"
+@.str.664 = private unnamed_addr constant [4 x i8] c"map\00"
+@.str.689 = private unnamed_addr constant [22 x i8] c"\E2\9C\85 test_parser_basic\00"
+@.str.774 = private unnamed_addr constant [10 x i8] c" passed, \00"
+@.str.49 = private unnamed_addr constant [4 x i8] c"pri\00"
+@.str.57 = private unnamed_addr constant [7 x i8] c"STATIC\00"
+@.str.282 = private unnamed_addr constant [58 x i8] c"test_parser_return_stmt failed: expected ReturnStmt, got \00"
+@.str.457 = private unnamed_addr constant [6 x i8] c"Token\00"
+@.str.614 = private unnamed_addr constant [3 x i8] c">=\00"
+@.str.145 = private unnamed_addr constant [30 x i8] c"PASS: test_parser_binary_expr\00"
+@.str.368 = private unnamed_addr constant [36 x i8] c"PASS: test_resolver_new_known_class\00"
+@.str.546 = private unnamed_addr constant [6 x i8] c"COLON\00"
+@.str.662 = private unnamed_addr constant [5 x i8] c"bool\00"
+@.str.606 = private unnamed_addr constant [30 x i8] c"expected class name after new\00"
+@.str.721 = private unnamed_addr constant [27 x i8] c"\E2\9C\85 test_parser_class_decl\00"
+@.str.754 = private unnamed_addr constant [41 x i8] c"\E2\9D\8C test_resolver_method_call - FAILED: \00"
+@.str.264 = private unnamed_addr constant [4 x i8] c"Dog\00"
+@.str.458 = private unnamed_addr constant [12 x i8] c"TypeChecker\00"
+@.str.470 = private unnamed_addr constant [10 x i8] c"catchBody\00"
+@.str.544 = private unnamed_addr constant [25 x i8] c"unexpected character '|'\00"
+@.str.572 = private unnamed_addr constant [36 x i8] c"expected '{' after match expression\00"
+@.str.446 = private unnamed_addr constant [9 x i8] c"NamedArg\00"
+@.str.479 = private unnamed_addr constant [7 x i8] c"callee\00"
+@.str.9 = private unnamed_addr constant [3 x i8] c"if\00"
+@.str.21 = private unnamed_addr constant [7 x i8] c"return\00"
+@.str.53 = private unnamed_addr constant [10 x i8] c"protected\00"
+@.str.435 = private unnamed_addr constant [15 x i8] c"TraceBlockStmt\00"
+@.str.717 = private unnamed_addr constant [25 x i8] c"\E2\9C\85 test_parser_for_stmt\00"
+@.str.389 = private unnamed_addr constant [34 x i8] c"PASS: test_resolver_string_concat\00"
+@.str.394 = private unnamed_addr constant [58 x i8] c"test_resolver_lookup_miss: expected nil for unknown class\00"
 @.str.118 = private unnamed_addr constant [15 x i8] c"expected CLASS\00"
+@.str.138 = private unnamed_addr constant [3 x i8] c"op\00"
+@.str.151 = private unnamed_addr constant [70 x i8] c"test_parser_precedence_comparison failed: expected '&&' at root, got \00"
+@.str.186 = private unnamed_addr constant [7 x i8] c"filter\00"
+@.str.370 = private unnamed_addr constant [74 x i8] c"test_resolver_new_unknown_class: expected error for unknown class 'Ghost'\00"
+@.str.82 = private unnamed_addr constant [5 x i8] c"type\00"
+@.str.352 = private unnamed_addr constant [32 x i8] c"PASS: test_resolver_func_params\00"
+@.str.539 = private unnamed_addr constant [14 x i8] c"GREATER_EQUAL\00"
+@.str.568 = private unnamed_addr constant [33 x i8] c"expected value variable after =>\00"
+@.str.591 = private unnamed_addr constant [2 x i8] c"-\00"
+@.str.42 = private unnamed_addr constant [10 x i8] c"NAMESPACE\00"
+@.str.123 = private unnamed_addr constant [47 x i8] c"test_parser_basic failed: expected Program AST\00"
+@.str.124 = private unnamed_addr constant [11 x i8] c"statements\00"
+@.str.291 = private unnamed_addr constant [68 x i8] c"test_parser_grouped_expr failed: expected '+' on left from grouping\00"
+@.str.573 = private unnamed_addr constant [28 x i8] c"expected '}' to close match\00"
+@.str.304 = private unnamed_addr constant [2 x i8] c"v\00"
+@.str.440 = private unnamed_addr constant [14 x i8] c"StringLiteral\00"
+@.str.476 = private unnamed_addr constant [6 x i8] c"names\00"
+@.str.40 = private unnamed_addr constant [6 x i8] c"CATCH\00"
+@.str.41 = private unnamed_addr constant [10 x i8] c"namespace\00"
+@.str.127 = private unnamed_addr constant [49 x i8] c"test_parser_basic failed: expected VarDecl, got \00"
+@.str.207 = private unnamed_addr constant [42 x i8] c"test_parser_new_expr failed: errors found\00"
+@.str.281 = private unnamed_addr constant [11 x i8] c"ReturnStmt\00"
+@.str.524 = private unnamed_addr constant [10 x i8] c"INCREMENT\00"
+@.str.651 = private unnamed_addr constant [15 x i8] c"TYPE WARNING: \00"
+@.str.719 = private unnamed_addr constant [27 x i8] c"\E2\9C\85 test_parser_while_stmt\00"
+@.str.772 = private unnamed_addr constant [48 x i8] c"\E2\9D\8C test_typechecker_n1_eager_bypass - FAILED: \00"
+@.str.449 = private unnamed_addr constant [10 x i8] c"AsyncExpr\00"
+@.str.517 = private unnamed_addr constant [7 x i8] c"LBRACE\00"
+@.str.576 = private unnamed_addr constant [23 x i8] c"expected function name\00"
+@.str.111 = private unnamed_addr constant [5 x i8] c"STAR\00"
+@.str.200 = private unnamed_addr constant [30 x i8] c"PASS: test_parser_static_call\00"
+@.str.336 = private unnamed_addr constant [12 x i8] c"SymbolTable\00"
+@.str.356 = private unnamed_addr constant [54 x i8] c"test_resolver_undefined_var: error should mention 'z'\00"
+@.str.407 = private unnamed_addr constant [70 x i8] c"\E2\9D\8C test_typechecker_strict_mismatch - FAILED: expected 1 error, got \00"
+@.str.575 = private unnamed_addr constant [34 x i8] c"expected '=>' after match pattern\00"
+@.str.612 = private unnamed_addr constant [2 x i8] c"<\00"
+@.str.615 = private unnamed_addr constant [3 x i8] c"||\00"
+@.str.60 = private unnamed_addr constant [6 x i8] c"false\00"
+@.str.146 = private unnamed_addr constant [31 x i8] c"var $x = $a == $b && $c != $d;\00"
+@.str.243 = private unnamed_addr constant [8 x i8] c"elseIfs\00"
+@.str.273 = private unnamed_addr constant [37 x i8] c"func add($a, $b) { return $a + $b; }\00"
+@.str.424 = private unnamed_addr constant [6 x i8] c"Param\00"
+@.str.623 = private unnamed_addr constant [4 x i8] c"' (\00"
+@.str.678 = private unnamed_addr constant [31 x i8] c"\E2\9D\8C test_array_push - FAILED: \00"
+@.str.746 = private unnamed_addr constant [45 x i8] c"\E2\9D\8C test_resolver_new_known_class - FAILED: \00"
+@.str.99 = private unnamed_addr constant [13 x i8] c"expected INT\00"
+@.str.275 = private unnamed_addr constant [9 x i8] c"FuncDecl\00"
+@.str.238 = private unnamed_addr constant [60 x i8] c"test_parser_if_stmt failed: expected else body to be parsed\00"
+@.str.444 = private unnamed_addr constant [12 x i8] c"PostfixExpr\00"
+@.str.617 = private unnamed_addr constant [3 x i8] c"+=\00"
+@.str.714 = private unnamed_addr constant [35 x i8] c"\E2\9D\8C test_parser_if_stmt - FAILED: \00"
+@.str.204 = private unnamed_addr constant [57 x i8] c"test_parser_array_index failed: expected IndexExpr, got \00"
+@.str.669 = private unnamed_addr constant [9 x i8] c"qb_first\00"
+@.str.700 = private unnamed_addr constant [39 x i8] c"\E2\9D\8C test_parser_method_call - FAILED: \00"
+@.str.89 = private unnamed_addr constant [8 x i8] c": type=\00"
+@.str.248 = private unnamed_addr constant [30 x i8] c"test_parser_for_stmt failed: \00"
+@.str.360 = private unnamed_addr constant [54 x i8] c"test_resolver_class_decl: expected kind 'class', got \00"
+@.str.410 = private unnamed_addr constant [54 x i8] c"foreach ($users as $u) { var $profile = $db->get(); }\00"
+@.str.504 = private unnamed_addr constant [6 x i8] c"FLOAT\00"
+@.str.482 = private unnamed_addr constant [8 x i8] c"variant\00"
+@.str.704 = private unnamed_addr constant [39 x i8] c"\E2\9D\8C test_parser_static_call - FAILED: \00"
+@.str.30 = private unnamed_addr constant [9 x i8] c"PARALLEL\00"
+@.str.36 = private unnamed_addr constant [8 x i8] c"RECEIVE\00"
+@.str.104 = private unnamed_addr constant [44 x i8] c"test_lexer_string failed: expected 2 tokens\00"
+@.str.171 = private unnamed_addr constant [26 x i8] c"var $n = $obj->getName();\00"
+@.str.450 = private unnamed_addr constant [10 x i8] c"AwaitExpr\00"
+@.str.71 = private unnamed_addr constant [5 x i8] c"ENUM\00"
+@.str.301 = private unnamed_addr constant [2 x i8] c"k\00"
+@.str.537 = private unnamed_addr constant [11 x i8] c"LESS_EQUAL\00"
+@.str.553 = private unnamed_addr constant [25 x i8] c"expected '(' after print\00"
+@.str.61 = private unnamed_addr constant [11 x i8] c"BOOL_FALSE\00"
+@.str.100 = private unnamed_addr constant [10 x i8] c"SEMICOLON\00"
+@.str.346 = private unnamed_addr constant [56 x i8] c"test_resolver_func_hoist: 'greet' not in function table\00"
+@.str.397 = private unnamed_addr constant [16 x i8] c"RESOLVE ERROR: \00"
+@.str.399 = private unnamed_addr constant [36 x i8] c"PASS: test_resolver_foreach_scoping\00"
+@.str.541 = private unnamed_addr constant [4 x i8] c"AND\00"
+@.str.23 = private unnamed_addr constant [6 x i8] c"async\00"
+@.str.54 = private unnamed_addr constant [10 x i8] c"PROTECTED\00"
+@.str.79 = private unnamed_addr constant [10 x i8] c"test.wolf\00"
+@.str.395 = private unnamed_addr constant [32 x i8] c"PASS: test_resolver_lookup_miss\00"
+@.str.513 = private unnamed_addr constant [6 x i8] c"trace\00"
+@.str.13 = private unnamed_addr constant [4 x i8] c"for\00"
+@.str.201 = private unnamed_addr constant [18 x i8] c"var $v = $arr[0];\00"
+@.str.25 = private unnamed_addr constant [6 x i8] c"await\00"
+@.str.45 = private unnamed_addr constant [4 x i8] c"var\00"
+@.str.555 = private unnamed_addr constant [24 x i8] c"expected namespace name\00"
+@.str.765 = private unnamed_addr constant [32 x i8] c"\E2\9C\85 test_resolver_match_scoping\00"
+@.str.14 = private unnamed_addr constant [4 x i8] c"FOR\00"
+@.str.50 = private unnamed_addr constant [7 x i8] c"public\00"
+@.str.93 = private unnamed_addr constant [13 x i8] c"expected VAR\00"
+@.str.582 = private unnamed_addr constant [12 x i8] c"extendsName\00"
+@.str.102 = private unnamed_addr constant [13 x i8] c"expected EOF\00"
+@.str.164 = private unnamed_addr constant [29 x i8] c"PASS: test_parser_unary_expr\00"
+@.str.185 = private unnamed_addr constant [67 x i8] c"test_parser_chained_method_call failed: inner should be MethodCall\00"
+@.str.237 = private unnamed_addr constant [9 x i8] c"elseBody\00"
+@.str.403 = private unnamed_addr constant [69 x i8] c"var $x = 10; match $x { 10 => { var $y = 1; } _ => { var $y = 2; } }\00"
+@.str.430 = private unnamed_addr constant [13 x i8] c"TryCatchStmt\00"
+@.str.445 = private unnamed_addr constant [9 x i8] c"CallExpr\00"
+@.str.465 = private unnamed_addr constant [11 x i8] c"defaultVal\00"
+@.str.66 = private unnamed_addr constant [3 x i8] c"in\00"
+@.str.121 = private unnamed_addr constant [45 x i8] c"test_parser_basic failed: parse errors found\00"
+@.str.219 = private unnamed_addr constant [9 x i8] c"elements\00"
+@.str.354 = private unnamed_addr constant [8 x i8] c"message\00"
+@.str.390 = private unnamed_addr constant [12 x i8] c"var $x = 1;\00"
+@.str.514 = private unnamed_addr constant [9 x i8] c"AT_TRACE\00"
+@.str.680 = private unnamed_addr constant [32 x i8] c"\E2\9D\8C test_lexer_empty - FAILED: \00"
+@.str.760 = private unnamed_addr constant [41 x i8] c"\E2\9D\8C test_resolver_lookup_miss - FAILED: \00"
+@.str.217 = private unnamed_addr constant [13 x i8] c"ArrayLiteral\00"
+@.str.442 = private unnamed_addr constant [12 x i8] c"BoolLiteral\00"
+@.str.538 = private unnamed_addr constant [5 x i8] c"LESS\00"
+@.str.589 = private unnamed_addr constant [33 x i8] c"expected '}' to close class body\00"
+@.str.613 = private unnamed_addr constant [3 x i8] c"<=\00"
+@.str.672 = private unnamed_addr constant [8 x i8] c"qb_with\00"
+@.str.114 = private unnamed_addr constant [27 x i8] c"test_lexer_keywords failed\00"
+@.str.426 = private unnamed_addr constant [14 x i8] c"InterfaceDecl\00"
+@.str.447 = private unnamed_addr constant [15 x i8] c"PropertyAccess\00"
+@.str.521 = private unnamed_addr constant [6 x i8] c"COMMA\00"
+@.str.585 = private unnamed_addr constant [8 x i8] c"extends\00"
+@.str.271 = private unnamed_addr constant [54 x i8] c"test_parser_class_decl failed: expected method 'bark'\00"
+@.str.338 = private unnamed_addr constant [5 x i8] c"kind\00"
+@.str.350 = private unnamed_addr constant [60 x i8] c"func add($a, $b) { var $result = $a + $b; return $result; }\00"
+@.str.584 = private unnamed_addr constant [16 x i8] c"implementsNames\00"
+@.str.724 = private unnamed_addr constant [39 x i8] c"\E2\9D\8C test_parser_return_stmt - FAILED: \00"
+@.str.69 = private unnamed_addr constant [6 x i8] c"ERROR\00"
+@.str.228 = private unnamed_addr constant [30 x i8] c"PASS: test_parser_map_literal\00"
+@.str.345 = private unnamed_addr constant [6 x i8] c"greet\00"
+@.str.663 = private unnamed_addr constant [6 x i8] c"array\00"
+@.str.668 = private unnamed_addr constant [7 x i8] c"qb_get\00"
+@.str.328 = private unnamed_addr constant [68 x i8] c"test_parser_match_stmt failed: expected IntLiteral pattern in arm 1\00"
+@.str.408 = private unnamed_addr constant [76 x i8] c"\E2\9D\8C test_typechecker_strict_mismatch - FAILED: expected type mismatch error\00"
+@.str.570 = private unnamed_addr constant [27 x i8] c"expected '(' after 'while'\00"
+@.str.58 = private unnamed_addr constant [5 x i8] c"true\00"
+@.str.155 = private unnamed_addr constant [3 x i8] c"!=\00"
+@.str.225 = private unnamed_addr constant [58 x i8] c"test_parser_map_literal failed: expected MapLiteral, got \00"
+@.str.285 = private unnamed_addr constant [66 x i8] c"test_parser_return_stmt failed: expected '+' in return expression\00"
+@.str.313 = private unnamed_addr constant [63 x i8] c"test_parser_closure_arrow failed: expected BinaryExpr in arrow\00"
+@.str.596 = private unnamed_addr constant [33 x i8] c"unexpected token in expression: \00"
+@.str.698 = private unnamed_addr constant [41 x i8] c"\E2\9D\8C test_parser_string_concat - FAILED: \00"
+@.str.43 = private unnamed_addr constant [6 x i8] c"print\00"
+@.str.78 = private unnamed_addr constant [1 x i8] c"\00"
+@.str.173 = private unnamed_addr constant [11 x i8] c"MethodCall\00"
+@.str.222 = private unnamed_addr constant [41 x i8] c"var $m = {\22name\22: \22wolf\22, \22version\22: 1};\00"
+@.str.566 = private unnamed_addr constant [25 x i8] c"expected 'as' in foreach\00"
+@.str.764 = private unnamed_addr constant [45 x i8] c"\E2\9D\8C test_resolver_closure_scoping - FAILED: \00"
+@.str.139 = private unnamed_addr constant [2 x i8] c"+\00"
+@.str.211 = private unnamed_addr constant [7 x i8] c"Parser\00"
+@.str.274 = private unnamed_addr constant [45 x i8] c"test_parser_return_stmt failed: errors found\00"
+@.str.474 = private unnamed_addr constant [5 x i8] c"call\00"
+@.str.731 = private unnamed_addr constant [30 x i8] c"\E2\9C\85 test_parser_closure_block\00"
+@.str.147 = private unnamed_addr constant [43 x i8] c"test_parser_precedence_comparison failed: \00"
+@.str.231 = private unnamed_addr constant [7 x i8] c"IfStmt\00"
+@.str.594 = private unnamed_addr constant [41 x i8] c"expected ')' to close grouped expression\00"
+@.str.771 = private unnamed_addr constant [37 x i8] c"\E2\9C\85 test_typechecker_n1_eager_bypass\00"
+@.str.740 = private unnamed_addr constant [41 x i8] c"\E2\9D\8C test_resolver_func_params - FAILED: \00"
+@.str.757 = private unnamed_addr constant [32 x i8] c"\E2\9C\85 test_resolver_string_concat\00"
+@.str.68 = private unnamed_addr constant [6 x i8] c"error\00"
+@.str.129 = private unnamed_addr constant [2 x i8] c"x\00"
+@.str.452 = private unnamed_addr constant [9 x i8] c"SendExpr\00"
+@.str.580 = private unnamed_addr constant [19 x i8] c"expected type name\00"
+@.str.735 = private unnamed_addr constant [27 x i8] c"\E2\9C\85 test_resolver_var_decl\00"
+@.str.158 = private unnamed_addr constant [17 x i8] c"var $x = !$flag;\00"
+@.str.324 = private unnamed_addr constant [5 x i8] c"arms\00"
+@.str.682 = private unnamed_addr constant [32 x i8] c"\E2\9D\8C test_lexer_basic - FAILED: \00"
+@.str.439 = private unnamed_addr constant [13 x i8] c"FloatLiteral\00"
+@.str.469 = private unnamed_addr constant [9 x i8] c"catchVar\00"
+@.str.516 = private unnamed_addr constant [7 x i8] c"RPAREN\00"
+@.str.3 = private unnamed_addr constant [5 x i8] c"howl\00"
+@.str.90 = private unnamed_addr constant [10 x i8] c", lexeme=\00"
+@.str.117 = private unnamed_addr constant [16 x i8] c"expected RETURN\00"
+@.str.374 = private unnamed_addr constant [53 x i8] c"test_resolver_if_scoping: expected no resolve errors\00"
+@.str.386 = private unnamed_addr constant [37 x i8] c"PASS: test_resolver_func_param_count\00"
+@.str.625 = private unnamed_addr constant [14 x i8] c"PARSE ERROR: \00"
+@.str.632 = private unnamed_addr constant [17 x i8] c"_parseErrorCount\00"
+@.str.633 = private unnamed_addr constant [2 x i8] c"0\00"
+@.str.654 = private unnamed_addr constant [26 x i8] c"type mismatch: variable '\00"
+@.str.74 = private unnamed_addr constant [11 x i8] c"implements\00"
+@.str.323 = private unnamed_addr constant [50 x i8] c"test_parser_match_stmt failed: expected MatchStmt\00"
+@.str.411 = private unnamed_addr constant [64 x i8] c"\E2\9D\8C test_typechecker_n1_loop - FAILED: expected 1 warning, got \00"
+@.str.767 = private unnamed_addr constant [37 x i8] c"\E2\9C\85 test_typechecker_strict_mismatch\00"
+@.str.1 = private unnamed_addr constant [5 x i8] c"func\00"
+@.str.56 = private unnamed_addr constant [7 x i8] c"static\00"
+@.str.169 = private unnamed_addr constant [71 x i8] c"test_parser_string_concat failed: expected nested StringConcat on left\00"
+@.str.174 = private unnamed_addr constant [58 x i8] c"test_parser_method_call failed: expected MethodCall, got \00"
+@.str.268 = private unnamed_addr constant [8 x i8] c"methods\00"
+@.str.250 = private unnamed_addr constant [52 x i8] c"test_parser_for_stmt failed: expected ForStmt, got \00"
+@.str.302 = private unnamed_addr constant [65 x i8] c"\E2\9D\8C test_parser_foreach_stmt - FAILED: expected keyVar 'k', got \00"
+@.str.334 = private unnamed_addr constant [8 x i8] c"__class\00"
+@.str.112 = private unnamed_addr constant [14 x i8] c"expected STAR\00"
+@.str.119 = private unnamed_addr constant [14 x i8] c"expected FUNC\00"
+@.str.122 = private unnamed_addr constant [8 x i8] c"Program\00"
+@.str.172 = private unnamed_addr constant [45 x i8] c"test_parser_method_call failed: errors found\00"
+@.str.190 = private unnamed_addr constant [45 x i8] c"test_parser_static_call failed: errors found\00"
+@.str.400 = private unnamed_addr constant [67 x i8] c"var $x = 10; var $add = func($a) { var $y = $a + $x; return $y; };\00"
+@.str.543 = private unnamed_addr constant [3 x i8] c"OR\00"
+@.str.728 = private unnamed_addr constant [40 x i8] c"\E2\9D\8C test_parser_foreach_stmt - FAILED: \00"
+@.str.738 = private unnamed_addr constant [40 x i8] c"\E2\9D\8C test_resolver_func_hoist - FAILED: \00"
+@.str.384 = private unnamed_addr constant [11 x i8] c"paramCount\00"
+@.str.392 = private unnamed_addr constant [56 x i8] c"test_resolver_lookup_miss: expected nil for unknown var\00"
+@.str.508 = private unnamed_addr constant [3 x i8] c"AT\00"
 @.str.175 = private unnamed_addr constant [7 x i8] c"method\00"
 @.str.182 = private unnamed_addr constant [6 x i8] c"count\00"
+@.str.262 = private unnamed_addr constant [10 x i8] c"ClassDecl\00"
+@.str.315 = private unnamed_addr constant [42 x i8] c"var $print = func($msg) { print($msg); };\00"
+@.str.347 = private unnamed_addr constant [53 x i8] c"test_resolver_func_hoist: expected kind 'func', got \00"
+@.str.773 = private unnamed_addr constant [9 x i8] c"\0ATests: \00"
+@.str.734 = private unnamed_addr constant [38 x i8] c"\E2\9D\8C test_parser_match_stmt - FAILED: \00"
+@.str.37 = private unnamed_addr constant [4 x i8] c"try\00"
+@.str.67 = private unnamed_addr constant [3 x i8] c"IN\00"
+@.str.160 = private unnamed_addr constant [10 x i8] c"UnaryExpr\00"
+@.str.404 = private unnamed_addr constant [48 x i8] c"test_resolver_match_scoping: expected no errors\00"
+@.str.557 = private unnamed_addr constant [13 x i8] c"expected '}'\00"
+@.str.340 = private unnamed_addr constant [7 x i8] c"errors\00"
+@.str.126 = private unnamed_addr constant [8 x i8] c"VarDecl\00"
+@.str.184 = private unnamed_addr constant [7 x i8] c"object\00"
+@.str.229 = private unnamed_addr constant [49 x i8] c"if ($x > 0) { var $y = 1; } else { var $y = 0; }\00"
+@.str.249 = private unnamed_addr constant [8 x i8] c"ForStmt\00"
+@.str.293 = private unnamed_addr constant [42 x i8] c"foreach ($arr as $k => $v) { print($v); }\00"
+@.str.509 = private unnamed_addr constant [3 x i8] c"ml\00"
+@.str.641 = private unnamed_addr constant [5 x i8] c"Math\00"
+@.str.648 = private unnamed_addr constant [6 x i8] c"phase\00"
+@.str.667 = private unnamed_addr constant [5 x i8] c"find\00"
+@.str.46 = private unnamed_addr constant [4 x i8] c"VAR\00"
+@.str.236 = private unnamed_addr constant [54 x i8] c"test_parser_if_stmt failed: expected '>' condition op\00"
+@.str.343 = private unnamed_addr constant [29 x i8] c"PASS: test_resolver_var_decl\00"
+@.str.451 = private unnamed_addr constant [12 x i8] c"ChannelExpr\00"
+@.str.593 = private unnamed_addr constant [3 x i8] c"--\00"
+@.str.619 = private unnamed_addr constant [3 x i8] c"*=\00"
+@.str.631 = private unnamed_addr constant [13 x i8] c"currentClass\00"
+@.str.652 = private unnamed_addr constant [62 x i8] c"non-exhaustive match statement: missing wildcard '_' fallback\00"
+@.str.26 = private unnamed_addr constant [6 x i8] c"AWAIT\00"
+@.str.35 = private unnamed_addr constant [8 x i8] c"receive\00"
+@.str.349 = private unnamed_addr constant [31 x i8] c"PASS: test_resolver_func_hoist\00"
+@.str.375 = private unnamed_addr constant [31 x i8] c"PASS: test_resolver_if_scoping\00"
+@.str.466 = private unnamed_addr constant [6 x i8] c"types\00"
+@.str.670 = private unnamed_addr constant [4 x i8] c"all\00"
+@.str.339 = private unnamed_addr constant [50 x i8] c"test_resolver_var_decl: expected kind 'var', got \00"
+@.str.550 = private unnamed_addr constant [45 x i8] c"unexpected token after visibility modifier: \00"
+@.str.592 = private unnamed_addr constant [3 x i8] c"++\00"
+@.str.595 = private unnamed_addr constant [13 x i8] c"expected ')'\00"
+@.str.751 = private unnamed_addr constant [30 x i8] c"\E2\9C\85 test_resolver_for_scoping\00"
+@.str.215 = private unnamed_addr constant [20 x i8] c"var $a = [1, 2, 3];\00"
+@.str.322 = private unnamed_addr constant [10 x i8] c"MatchStmt\00"
+@.str.333 = private unnamed_addr constant [13 x i8] c"_symbolTable\00"
+@.str.63 = private unnamed_addr constant [4 x i8] c"NIL\00"
+@.str.134 = private unnamed_addr constant [49 x i8] c"test_parser_binary_expr failed: expected VarDecl\00"
+@.str.154 = private unnamed_addr constant [64 x i8] c"test_parser_precedence_comparison failed: expected '==' on left\00"
+@.str.157 = private unnamed_addr constant [40 x i8] c"PASS: test_parser_precedence_comparison\00"
 @.str.194 = private unnamed_addr constant [8 x i8] c"Strings\00"
+@.str.468 = private unnamed_addr constant [8 x i8] c"tryBody\00"
+@.str.540 = private unnamed_addr constant [8 x i8] c"GREATER\00"
+@.str.711 = private unnamed_addr constant [28 x i8] c"\E2\9C\85 test_parser_map_literal\00"
+@.str.535 = private unnamed_addr constant [10 x i8] c"NOT_EQUAL\00"
+@.str.559 = private unnamed_addr constant [32 x i8] c"expected ')' after if condition\00"
+@.str.665 = private unnamed_addr constant [4 x i8] c"get\00"
+@.str.137 = private unnamed_addr constant [66 x i8] c"test_parser_binary_expr failed: expected BinaryExpr at root, got \00"
+@.str.230 = private unnamed_addr constant [41 x i8] c"test_parser_if_stmt failed: errors found\00"
+@.str.265 = private unnamed_addr constant [57 x i8] c"test_parser_class_decl failed: expected name 'Dog', got \00"
+@.str.276 = private unnamed_addr constant [56 x i8] c"test_parser_return_stmt failed: expected FuncDecl, got \00"
+@.str.467 = private unnamed_addr constant [11 x i8] c"visibility\00"
+@.str.730 = private unnamed_addr constant [41 x i8] c"\E2\9D\8C test_parser_closure_arrow - FAILED: \00"
+@.str.344 = private unnamed_addr constant [50 x i8] c"var $msg = \22hi\22; func greet() { return \22hello\22; }\00"
+@.str.365 = private unnamed_addr constant [31 x i8] c"PASS: test_resolver_class_decl\00"
+@.str.701 = private unnamed_addr constant [36 x i8] c"\E2\9C\85 test_parser_chained_method_call\00"
+@.str.98 = private unnamed_addr constant [4 x i8] c"INT\00"
+@.str.156 = private unnamed_addr constant [65 x i8] c"test_parser_precedence_comparison failed: expected '!=' on right\00"
+@.str.180 = private unnamed_addr constant [53 x i8] c"test_parser_chained_method_call failed: errors found\00"
+@.str.203 = private unnamed_addr constant [10 x i8] c"IndexExpr\00"
+@.str.226 = private unnamed_addr constant [5 x i8] c"keys\00"
+@.str.741 = private unnamed_addr constant [32 x i8] c"\E2\9C\85 test_resolver_undefined_var\00"
+@.str.511 = private unnamed_addr constant [10 x i8] c"supervise\00"
+@.str.636 = private unnamed_addr constant [7 x i8] c"string\00"
+@.str.688 = private unnamed_addr constant [35 x i8] c"\E2\9D\8C test_lexer_keywords - FAILED: \00"
+@.str.120 = private unnamed_addr constant [13 x i8] c"var $x = 10;\00"
+@.str.261 = private unnamed_addr constant [32 x i8] c"test_parser_class_decl failed: \00"
+@.str.307 = private unnamed_addr constant [36 x i8] c"var $add = func($a, $b) => $a + $b;\00"
+@.str.443 = private unnamed_addr constant [11 x i8] c"NilLiteral\00"
+@.str.487 = private unnamed_addr constant [21 x i8] c"entering constructor\00"
+@.str.756 = private unnamed_addr constant [46 x i8] c"\E2\9D\8C test_resolver_func_param_count - FAILED: \00"
+@.str.110 = private unnamed_addr constant [14 x i8] c"expected PLUS\00"
+@.str.437 = private unnamed_addr constant [18 x i8] c"DestructureAssign\00"
+@.str.462 = private unnamed_addr constant [5 x i8] c"init\00"
+@.str.579 = private unnamed_addr constant [24 x i8] c"expected parameter name\00"
+@.str.694 = private unnamed_addr constant [49 x i8] c"\E2\9D\8C test_parser_precedence_comparison - FAILED: \00"
+@.str.598 = private unnamed_addr constant [36 x i8] c"expected ')' after method arguments\00"
+@.str.608 = private unnamed_addr constant [33 x i8] c"expected ')' after new arguments\00"
+@.str.29 = private unnamed_addr constant [9 x i8] c"parallel\00"
+@.str.109 = private unnamed_addr constant [5 x i8] c"PLUS\00"
+@.str.166 = private unnamed_addr constant [47 x i8] c"test_parser_string_concat failed: errors found\00"
+@.str.177 = private unnamed_addr constant [64 x i8] c"test_parser_method_call failed: expected method 'getName', got \00"
+@.str.232 = private unnamed_addr constant [50 x i8] c"test_parser_if_stmt failed: expected IfStmt, got \00"
+@.str.409 = private unnamed_addr constant [39 x i8] c"PASS: test_typechecker_strict_mismatch\00"
+@.str.485 = private unnamed_addr constant [3 x i8] c"ch\00"
+@.str.685 = private unnamed_addr constant [20 x i8] c"\E2\9C\85 test_lexer_math\00"
+@.str.38 = private unnamed_addr constant [4 x i8] c"TRY\00"
+@.str.76 = private unnamed_addr constant [6 x i8] c"hello\00"
+@.str.165 = private unnamed_addr constant [36 x i8] c"var $s = \22hello\22 .. \22 \22 .. \22world\22;\00"
+@.str.325 = private unnamed_addr constant [47 x i8] c"test_parser_match_stmt failed: expected 2 arms\00"
+@.str.380 = private unnamed_addr constant [32 x i8] c"PASS: test_resolver_method_call\00"
+@.str.687 = private unnamed_addr constant [24 x i8] c"\E2\9C\85 test_lexer_keywords\00"
+@.str.208 = private unnamed_addr constant [8 x i8] c"NewExpr\00"
+@.str.220 = private unnamed_addr constant [60 x i8] c"test_parser_array_literal failed: expected 3 elements, got \00"
+@.str.246 = private unnamed_addr constant [33 x i8] c"PASS: test_parser_if_elseif_else\00"
+@.str.372 = private unnamed_addr constant [38 x i8] c"PASS: test_resolver_new_unknown_class\00"
+@.str.416 = private unnamed_addr constant [67 x i8] c"foreach ($users as $u) { $db->with(); var $profile = $db->get(); }\00"
+@.str.432 = private unnamed_addr constant [12 x i8] c"MLBlockStmt\00"
+@.str.490 = private unnamed_addr constant [7 x i8] c"tokens\00"
+@.str.599 = private unnamed_addr constant [30 x i8] c"expected member name after ::\00"
+@.str.475 = private unnamed_addr constant [9 x i8] c"spanName\00"
+@.str.703 = private unnamed_addr constant [28 x i8] c"\E2\9C\85 test_parser_static_call\00"
+@.str.710 = private unnamed_addr constant [41 x i8] c"\E2\9D\8C test_parser_array_literal - FAILED: \00"
+@.str.19 = private unnamed_addr constant [6 x i8] c"match\00"
+@.str.193 = private unnamed_addr constant [10 x i8] c"className\00"
+@.str.341 = private unnamed_addr constant [6 x i8] c"level\00"
+@.str.381 = private unnamed_addr constant [51 x i8] c"func multiply($a, $b, $c) { return $a * $b * $c; }\00"
+@.str.436 = private unnamed_addr constant [13 x i8] c"ParallelStmt\00"
+@.str.761 = private unnamed_addr constant [34 x i8] c"\E2\9C\85 test_resolver_foreach_scoping\00"
+@.str.280 = private unnamed_addr constant [56 x i8] c"test_parser_return_stmt failed: expected BlockStmt body\00"
+@.str.295 = private unnamed_addr constant [12 x i8] c"ForeachStmt\00"
+@.str.331 = private unnamed_addr constant [29 x i8] c"PASS: test_parser_match_stmt\00"
+@.str.44 = private unnamed_addr constant [6 x i8] c"PRINT\00"
+@.str.87 = private unnamed_addr constant [24 x i8] c"Tokens count in basic: \00"
+@.str.106 = private unnamed_addr constant [16 x i8] c"expected STRING\00"
+@.str.131 = private unnamed_addr constant [24 x i8] c"PASS: test_parser_basic\00"
+@.str.223 = private unnamed_addr constant [45 x i8] c"test_parser_map_literal failed: errors found\00"
+@.str.472 = private unnamed_addr constant [8 x i8] c"restart\00"
+@.str.522 = private unnamed_addr constant [9 x i8] c"QUESTION\00"
+@.str.563 = private unnamed_addr constant [33 x i8] c"expected ';' after for condition\00"
+@.str.638 = private unnamed_addr constant [21 x i8] c"undefined variable $\00"
+@.str.294 = private unnamed_addr constant [58 x i8] c"\E2\9D\8C test_parser_foreach_stmt - FAILED: expected no errors\00"
+@.str.515 = private unnamed_addr constant [7 x i8] c"LPAREN\00"
+@.str.750 = private unnamed_addr constant [40 x i8] c"\E2\9D\8C test_resolver_if_scoping - FAILED: \00"
+@.str.495 = private unnamed_addr constant [6 x i8] c"start\00"
+@.str.24 = private unnamed_addr constant [6 x i8] c"ASYNC\00"
+@.str.55 = private unnamed_addr constant [4 x i8] c"pro\00"
 @.str.227 = private unnamed_addr constant [54 x i8] c"test_parser_map_literal failed: expected 2 keys, got \00"
 @.str.266 = private unnamed_addr constant [11 x i8] c"properties\00"
-@.str.317 = private unnamed_addr constant [55 x i8] c"test_parser_closure_block failed: expected ClosureExpr\00"
-@.str.397 = private unnamed_addr constant [16 x i8] c"RESOLVE ERROR: \00"
-@.str.621 = private unnamed_addr constant [2 x i8] c"?\00"
-@.str.674 = private unnamed_addr constant [17 x i8] c"[N+1] DB query '\00"
-@.str.192 = private unnamed_addr constant [58 x i8] c"test_parser_static_call failed: expected StaticCall, got \00"
-@.str.198 = private unnamed_addr constant [5 x i8] c"args\00"
-@.str.239 = private unnamed_addr constant [26 x i8] c"PASS: test_parser_if_stmt\00"
-@.str.611 = private unnamed_addr constant [2 x i8] c"%\00"
-@.str.642 = private unnamed_addr constant [24 x i8] c"unresolved identifier '\00"
-@.str.651 = private unnamed_addr constant [15 x i8] c"TYPE WARNING: \00"
-@.str.99 = private unnamed_addr constant [13 x i8] c"expected INT\00"
-@.str.133 = private unnamed_addr constant [51 x i8] c"test_parser_binary_expr failed: parse errors found\00"
-@.str.286 = private unnamed_addr constant [30 x i8] c"PASS: test_parser_return_stmt\00"
-@.str.287 = private unnamed_addr constant [22 x i8] c"var $v = (1 + 2) * 3;\00"
-@.str.364 = private unnamed_addr constant [52 x i8] c"test_resolver_class_decl: unexpected resolve errors\00"
-@.str.431 = private unnamed_addr constant [14 x i8] c"NamespaceDecl\00"
-@.str.573 = private unnamed_addr constant [28 x i8] c"expected '}' to close match\00"
-@.str.238 = private unnamed_addr constant [60 x i8] c"test_parser_if_stmt failed: expected else body to be parsed\00"
-@.str.377 = private unnamed_addr constant [32 x i8] c"PASS: test_resolver_for_scoping\00"
-@.str.552 = private unnamed_addr constant [29 x i8] c"expected type name after ':'\00"
-@.str.650 = private unnamed_addr constant [13 x i8] c"TYPE ERROR: \00"
-@.str.404 = private unnamed_addr constant [48 x i8] c"test_resolver_match_scoping: expected no errors\00"
-@.str.33 = private unnamed_addr constant [5 x i8] c"send\00"
-@.str.96 = private unnamed_addr constant [7 x i8] c"ASSIGN\00"
-@.str.251 = private unnamed_addr constant [56 x i8] c"test_parser_for_stmt failed: expected non-nil condition\00"
-@.str.274 = private unnamed_addr constant [45 x i8] c"test_parser_return_stmt failed: errors found\00"
-@.str.298 = private unnamed_addr constant [12 x i8] c"DollarIdent\00"
-@.str.306 = private unnamed_addr constant [31 x i8] c"PASS: test_parser_foreach_stmt\00"
-@.str.376 = private unnamed_addr constant [54 x i8] c"test_resolver_for_scoping: expected no resolve errors\00"
-@.str.634 = private unnamed_addr constant [10 x i8] c"variables\00"
-@.str.658 = private unnamed_addr constant [10 x i8] c"namedArgs\00"
-@.str.670 = private unnamed_addr constant [4 x i8] c"all\00"
-@.str.748 = private unnamed_addr constant [47 x i8] c"\E2\9D\8C test_resolver_new_unknown_class - FAILED: \00"
-@.str.461 = private unnamed_addr constant [7 x i8] c"target\00"
-@.str.59 = private unnamed_addr constant [10 x i8] c"BOOL_TRUE\00"
-@.str.142 = private unnamed_addr constant [68 x i8] c"test_parser_binary_expr failed: expected nested BinaryExpr on right\00"
-@.str.143 = private unnamed_addr constant [2 x i8] c"*\00"
-@.str.177 = private unnamed_addr constant [64 x i8] c"test_parser_method_call failed: expected method 'getName', got \00"
-@.str.214 = private unnamed_addr constant [27 x i8] c"PASS: test_parser_new_expr\00"
-@.str.369 = private unnamed_addr constant [22 x i8] c"var $x = new Ghost();\00"
-@.str.441 = private unnamed_addr constant [19 x i8] c"InterpolatedString\00"
-@.str.682 = private unnamed_addr constant [32 x i8] c"\E2\9D\8C test_lexer_basic - FAILED: \00"
-@.str.752 = private unnamed_addr constant [41 x i8] c"\E2\9D\8C test_resolver_for_scoping - FAILED: \00"
-@.str.101 = private unnamed_addr constant [19 x i8] c"expected SEMICOLON\00"
-@.str.120 = private unnamed_addr constant [13 x i8] c"var $x = 10;\00"
-@.str.300 = private unnamed_addr constant [7 x i8] c"keyVar\00"
-@.str.326 = private unnamed_addr constant [8 x i8] c"pattern\00"
-@.str.348 = private unnamed_addr constant [52 x i8] c"test_resolver_func_hoist: unexpected resolve errors\00"
-@.str.694 = private unnamed_addr constant [49 x i8] c"\E2\9D\8C test_parser_precedence_comparison - FAILED: \00"
-@.str.29 = private unnamed_addr constant [9 x i8] c"parallel\00"
-@.str.100 = private unnamed_addr constant [10 x i8] c"SEMICOLON\00"
-@.str.254 = private unnamed_addr constant [27 x i8] c"PASS: test_parser_for_stmt\00"
-@.str.383 = private unnamed_addr constant [53 x i8] c"test_resolver_func_param_count: 'multiply' not found\00"
-@.str.563 = private unnamed_addr constant [33 x i8] c"expected ';' after for condition\00"
-@.str.592 = private unnamed_addr constant [3 x i8] c"++\00"
+@.str.412 = private unnamed_addr constant [8 x i8] c"warning\00"
 @.str.65 = private unnamed_addr constant [3 x i8] c"AS\00"
-@.str.89 = private unnamed_addr constant [8 x i8] c": type=\00"
-@.str.487 = private unnamed_addr constant [21 x i8] c"entering constructor\00"
-@.str.684 = private unnamed_addr constant [33 x i8] c"\E2\9D\8C test_lexer_string - FAILED: \00"
-@.str.701 = private unnamed_addr constant [36 x i8] c"\E2\9C\85 test_parser_chained_method_call\00"
-@.str.186 = private unnamed_addr constant [7 x i8] c"filter\00"
-@.str.233 = private unnamed_addr constant [10 x i8] c"condition\00"
-@.str.444 = private unnamed_addr constant [12 x i8] c"PostfixExpr\00"
-@.str.485 = private unnamed_addr constant [3 x i8] c"ch\00"
-@.str.689 = private unnamed_addr constant [22 x i8] c"\E2\9C\85 test_parser_basic\00"
-@.str.282 = private unnamed_addr constant [58 x i8] c"test_parser_return_stmt failed: expected ReturnStmt, got \00"
-@.str.314 = private unnamed_addr constant [32 x i8] c"PASS: test_parser_closure_arrow\00"
-@.str.337 = private unnamed_addr constant [62 x i8] c"test_resolver_var_decl: expected 'x' in symbol table, got nil\00"
-@.str.514 = private unnamed_addr constant [9 x i8] c"AT_TRACE\00"
-@.str.630 = private unnamed_addr constant [10 x i8] c"functions\00"
-@.str.763 = private unnamed_addr constant [34 x i8] c"\E2\9C\85 test_resolver_closure_scoping\00"
-@.str.77 = private unnamed_addr constant [25 x i8] c"test_array_push failed: \00"
-@.str.157 = private unnamed_addr constant [40 x i8] c"PASS: test_parser_precedence_comparison\00"
-@.str.278 = private unnamed_addr constant [56 x i8] c"test_parser_return_stmt failed: expected 2 params, got \00"
-@.str.375 = private unnamed_addr constant [31 x i8] c"PASS: test_resolver_if_scoping\00"
-@.str.390 = private unnamed_addr constant [12 x i8] c"var $x = 1;\00"
-@.str.664 = private unnamed_addr constant [4 x i8] c"map\00"
-@.str.716 = private unnamed_addr constant [42 x i8] c"\E2\9D\8C test_parser_if_elseif_else - FAILED: \00"
-@.str.228 = private unnamed_addr constant [30 x i8] c"PASS: test_parser_map_literal\00"
-@.str.504 = private unnamed_addr constant [6 x i8] c"FLOAT\00"
-@.str.542 = private unnamed_addr constant [25 x i8] c"unexpected character '&'\00"
-@.str.641 = private unnamed_addr constant [5 x i8] c"Math\00"
-@.str.301 = private unnamed_addr constant [2 x i8] c"k\00"
-@.str.470 = private unnamed_addr constant [10 x i8] c"catchBody\00"
-@.str.56 = private unnamed_addr constant [7 x i8] c"static\00"
-@.str.72 = private unnamed_addr constant [10 x i8] c"interface\00"
-@.str.269 = private unnamed_addr constant [55 x i8] c"test_parser_class_decl failed: expected 1 method, got \00"
-@.str.725 = private unnamed_addr constant [29 x i8] c"\E2\9C\85 test_parser_grouped_expr\00"
-@.str.764 = private unnamed_addr constant [45 x i8] c"\E2\9D\8C test_resolver_closure_scoping - FAILED: \00"
-@.str.17 = private unnamed_addr constant [6 x i8] c"while\00"
-@.str.343 = private unnamed_addr constant [29 x i8] c"PASS: test_resolver_var_decl\00"
-@.str.384 = private unnamed_addr constant [11 x i8] c"paramCount\00"
-@.str.529 = private unnamed_addr constant [6 x i8] c"MINUS\00"
-@.str.49 = private unnamed_addr constant [4 x i8] c"pri\00"
-@.str.136 = private unnamed_addr constant [11 x i8] c"BinaryExpr\00"
-@.str.190 = private unnamed_addr constant [45 x i8] c"test_parser_static_call failed: errors found\00"
-@.str.247 = private unnamed_addr constant [45 x i8] c"for ($i = 0; $i < 10; $i++) { var $x = $i; }\00"
-@.str.311 = private unnamed_addr constant [52 x i8] c"test_parser_closure_arrow failed: expected 2 params\00"
-@.str.575 = private unnamed_addr constant [34 x i8] c"expected '=>' after match pattern\00"
-@.str.19 = private unnamed_addr constant [6 x i8] c"match\00"
-@.str.79 = private unnamed_addr constant [10 x i8] c"test.wolf\00"
-@.str.210 = private unnamed_addr constant [10 x i8] c"classExpr\00"
-@.str.559 = private unnamed_addr constant [32 x i8] c"expected ')' after if condition\00"
-@.str.633 = private unnamed_addr constant [2 x i8] c"0\00"
-@.str.713 = private unnamed_addr constant [24 x i8] c"\E2\9C\85 test_parser_if_stmt\00"
-@.str.773 = private unnamed_addr constant [9 x i8] c"\0ATests: \00"
-@.str.44 = private unnamed_addr constant [6 x i8] c"PRINT\00"
-@.str.117 = private unnamed_addr constant [16 x i8] c"expected RETURN\00"
 @.str.373 = private unnamed_addr constant [40 x i8] c"var $x = 1; if ($x > 0) { var $y = 2; }\00"
-@.str.429 = private unnamed_addr constant [13 x i8] c"PropertyDecl\00"
-@.str.572 = private unnamed_addr constant [36 x i8] c"expected '{' after match expression\00"
-@.str.660 = private unnamed_addr constant [6 x i8] c"float\00"
-@.str.683 = private unnamed_addr constant [22 x i8] c"\E2\9C\85 test_lexer_string\00"
-@.str.719 = private unnamed_addr constant [27 x i8] c"\E2\9C\85 test_parser_while_stmt\00"
-@.str.125 = private unnamed_addr constant [53 x i8] c"test_parser_basic failed: expected 1 statement, got \00"
-@.str.288 = private unnamed_addr constant [46 x i8] c"test_parser_grouped_expr failed: errors found\00"
-@.str.607 = private unnamed_addr constant [48 x i8] c"expected '(' after class name in new expression\00"
-@.str.108 = private unnamed_addr constant [42 x i8] c"test_lexer_math failed: expected 6 tokens\00"
-@.str.260 = private unnamed_addr constant [74 x i8] c"class Dog { public $name = \22rex\22; public func bark() { print(\22woof\22); } }\00"
-@.str.392 = private unnamed_addr constant [56 x i8] c"test_resolver_lookup_miss: expected nil for unknown var\00"
-@.str.398 = private unnamed_addr constant [102 x i8] c"\E2\9D\8C test_resolver_foreach_scoping - FAILED: test_resolver_foreach_scoping: expected no resolve errors\00"
-@.str.222 = private unnamed_addr constant [41 x i8] c"var $m = {\22name\22: \22wolf\22, \22version\22: 1};\00"
-@.str.281 = private unnamed_addr constant [11 x i8] c"ReturnStmt\00"
-@.str.350 = private unnamed_addr constant [60 x i8] c"func add($a, $b) { var $result = $a + $b; return $result; }\00"
-@.str.458 = private unnamed_addr constant [12 x i8] c"TypeChecker\00"
-@.str.653 = private unnamed_addr constant [4 x i8] c"any\00"
-@.str.30 = private unnamed_addr constant [9 x i8] c"PARALLEL\00"
-@.str.206 = private unnamed_addr constant [43 x i8] c"var $p = new Parser($tokens, $file, $src);\00"
-@.str.250 = private unnamed_addr constant [52 x i8] c"test_parser_for_stmt failed: expected ForStmt, got \00"
-@.str.276 = private unnamed_addr constant [56 x i8] c"test_parser_return_stmt failed: expected FuncDecl, got \00"
-@.str.691 = private unnamed_addr constant [28 x i8] c"\E2\9C\85 test_parser_binary_expr\00"
-@.str.768 = private unnamed_addr constant [48 x i8] c"\E2\9D\8C test_typechecker_strict_mismatch - FAILED: \00"
-@.str.94 = private unnamed_addr constant [6 x i8] c"IDENT\00"
-@.str.346 = private unnamed_addr constant [56 x i8] c"test_resolver_func_hoist: 'greet' not in function table\00"
-@.str.394 = private unnamed_addr constant [58 x i8] c"test_resolver_lookup_miss: expected nil for unknown class\00"
-@.str.400 = private unnamed_addr constant [67 x i8] c"var $x = 10; var $add = func($a) { var $y = $a + $x; return $y; };\00"
-@.str.531 = private unnamed_addr constant [13 x i8] c"SLASH_ASSIGN\00"
-@.str.554 = private unnamed_addr constant [34 x i8] c"expected ')' after print argument\00"
-@.str.734 = private unnamed_addr constant [38 x i8] c"\E2\9D\8C test_parser_match_stmt - FAILED: \00"
-@.str.82 = private unnamed_addr constant [5 x i8] c"type\00"
-@.str.339 = private unnamed_addr constant [50 x i8] c"test_resolver_var_decl: expected kind 'var', got \00"
-@.str.547 = private unnamed_addr constant [8 x i8] c"DOT_DOT\00"
-@.str.565 = private unnamed_addr constant [27 x i8] c"expected '(' after foreach\00"
-@.str.625 = private unnamed_addr constant [14 x i8] c"PARSE ERROR: \00"
-@.str.724 = private unnamed_addr constant [39 x i8] c"\E2\9D\8C test_parser_return_stmt - FAILED: \00"
-@.str.750 = private unnamed_addr constant [40 x i8] c"\E2\9D\8C test_resolver_if_scoping - FAILED: \00"
-@.str.5 = private unnamed_addr constant [6 x i8] c"class\00"
-@.str.141 = private unnamed_addr constant [6 x i8] c"right\00"
-@.str.154 = private unnamed_addr constant [64 x i8] c"test_parser_precedence_comparison failed: expected '==' on left\00"
-@.str.237 = private unnamed_addr constant [9 x i8] c"elseBody\00"
-@.str.246 = private unnamed_addr constant [33 x i8] c"PASS: test_parser_if_elseif_else\00"
-@.str.524 = private unnamed_addr constant [10 x i8] c"INCREMENT\00"
-@.str.593 = private unnamed_addr constant [3 x i8] c"--\00"
-@.str.21 = private unnamed_addr constant [7 x i8] c"return\00"
-@.str.103 = private unnamed_addr constant [8 x i8] c"\22hello\22\00"
-@.str.386 = private unnamed_addr constant [37 x i8] c"PASS: test_resolver_func_param_count\00"
-@.str.423 = private unnamed_addr constant [9 x i8] c"MatchArm\00"
-@.str.609 = private unnamed_addr constant [24 x i8] c"expected '(' after func\00"
-@.str.221 = private unnamed_addr constant [32 x i8] c"PASS: test_parser_array_literal\00"
-@.str.262 = private unnamed_addr constant [10 x i8] c"ClassDecl\00"
-@.str.661 = private unnamed_addr constant [8 x i8] c"float64\00"
-@.str.666 = private unnamed_addr constant [6 x i8] c"first\00"
-@.str.742 = private unnamed_addr constant [43 x i8] c"\E2\9D\8C test_resolver_undefined_var - FAILED: \00"
-@.str.428 = private unnamed_addr constant [9 x i8] c"EnumDecl\00"
-@.str.680 = private unnamed_addr constant [32 x i8] c"\E2\9D\8C test_lexer_empty - FAILED: \00"
-@.str.74 = private unnamed_addr constant [11 x i8] c"implements\00"
-@.str.165 = private unnamed_addr constant [36 x i8] c"var $s = \22hello\22 .. \22 \22 .. \22world\22;\00"
-@.str.471 = private unnamed_addr constant [9 x i8] c"strategy\00"
-@.str.685 = private unnamed_addr constant [20 x i8] c"\E2\9C\85 test_lexer_math\00"
-@.str.723 = private unnamed_addr constant [28 x i8] c"\E2\9C\85 test_parser_return_stmt\00"
-@.str.189 = private unnamed_addr constant [41 x i8] c"var $sub = Strings::Substring($s, 0, 5);\00"
-@.str.477 = private unnamed_addr constant [6 x i8] c"parts\00"
-@.str.490 = private unnamed_addr constant [7 x i8] c"tokens\00"
-@.str.545 = private unnamed_addr constant [13 x i8] c"DOUBLE_COLON\00"
-@.str.105 = private unnamed_addr constant [7 x i8] c"STRING\00"
-@.str.168 = private unnamed_addr constant [70 x i8] c"test_parser_string_concat failed: expected StringConcat at root, got \00"
-@.str.570 = private unnamed_addr constant [27 x i8] c"expected '(' after 'while'\00"
-@.str.596 = private unnamed_addr constant [33 x i8] c"unexpected token in expression: \00"
-@.str.52 = private unnamed_addr constant [4 x i8] c"pub\00"
-@.str.73 = private unnamed_addr constant [10 x i8] c"INTERFACE\00"
-@.str.149 = private unnamed_addr constant [70 x i8] c"test_parser_precedence_comparison failed: expected BinaryExpr at root\00"
-@.str.234 = private unnamed_addr constant [58 x i8] c"test_parser_if_stmt failed: expected BinaryExpr condition\00"
-@.str.249 = private unnamed_addr constant [8 x i8] c"ForStmt\00"
-@.str.479 = private unnamed_addr constant [7 x i8] c"callee\00"
-@.str.690 = private unnamed_addr constant [33 x i8] c"\E2\9D\8C test_parser_basic - FAILED: \00"
-@.str.216 = private unnamed_addr constant [47 x i8] c"test_parser_array_literal failed: errors found\00"
-@.str.256 = private unnamed_addr constant [44 x i8] c"test_parser_while_stmt failed: errors found\00"
-@.str.270 = private unnamed_addr constant [5 x i8] c"bark\00"
-@.str.502 = private unnamed_addr constant [34 x i8] c"unterminated string (escaped end)\00"
-@.str.644 = private unnamed_addr constant [16 x i8] c"unknown class '\00"
-@.str.740 = private unnamed_addr constant [41 x i8] c"\E2\9D\8C test_resolver_func_params - FAILED: \00"
-@.str.20 = private unnamed_addr constant [6 x i8] c"MATCH\00"
-@.str.84 = private unnamed_addr constant [4 x i8] c"EOF\00"
-@.str.275 = private unnamed_addr constant [9 x i8] c"FuncDecl\00"
-@.str.696 = private unnamed_addr constant [38 x i8] c"\E2\9D\8C test_parser_unary_expr - FAILED: \00"
-@.str.104 = private unnamed_addr constant [44 x i8] c"test_lexer_string failed: expected 2 tokens\00"
-@.str.128 = private unnamed_addr constant [5 x i8] c"name\00"
-@.str.296 = private unnamed_addr constant [66 x i8] c"\E2\9D\8C test_parser_foreach_stmt - FAILED: expected ForeachStmt, got \00"
-@.str.347 = private unnamed_addr constant [53 x i8] c"test_resolver_func_hoist: expected kind 'func', got \00"
-@.str.378 = private unnamed_addr constant [88 x i8] c"class Box { public func open() { return 1; } } var $b = new Box(); var $v = $b->open();\00"
-@.str.567 = private unnamed_addr constant [23 x i8] c"expected loop variable\00"
-@.str.647 = private unnamed_addr constant [13 x i8] c"dbConfigKeys\00"
-@.str.127 = private unnamed_addr constant [49 x i8] c"test_parser_basic failed: expected VarDecl, got \00"
-@.str.425 = private unnamed_addr constant [15 x i8] c"ReturnTypeSpec\00"
-@.str.427 = private unnamed_addr constant [16 x i8] c"InterfaceMethod\00"
-@.str.667 = private unnamed_addr constant [5 x i8] c"find\00"
-@.str.735 = private unnamed_addr constant [27 x i8] c"\E2\9C\85 test_resolver_var_decl\00"
-@.str.762 = private unnamed_addr constant [45 x i8] c"\E2\9D\8C test_resolver_foreach_scoping - FAILED: \00"
-@.str.38 = private unnamed_addr constant [4 x i8] c"TRY\00"
-@.str.150 = private unnamed_addr constant [3 x i8] c"&&\00"
-@.str.245 = private unnamed_addr constant [54 x i8] c"test_parser_if_elseif_else failed: expected else body\00"
-@.str.316 = private unnamed_addr constant [53 x i8] c"test_parser_closure_block failed: expected no errors\00"
-@.str.472 = private unnamed_addr constant [8 x i8] c"restart\00"
-@.str.537 = private unnamed_addr constant [11 x i8] c"LESS_EQUAL\00"
-@.str.584 = private unnamed_addr constant [16 x i8] c"implementsNames\00"
-@.str.775 = private unnamed_addr constant [8 x i8] c" failed\00"
-@.str.646 = private unnamed_addr constant [11 x i8] c"strictMode\00"
-@.str.307 = private unnamed_addr constant [36 x i8] c"var $add = func($a, $b) => $a + $b;\00"
-@.str.424 = private unnamed_addr constant [6 x i8] c"Param\00"
-@.str.447 = private unnamed_addr constant [15 x i8] c"PropertyAccess\00"
-@.str.486 = private unnamed_addr constant [4 x i8] c"arg\00"
-@.str.539 = private unnamed_addr constant [14 x i8] c"GREATER_EQUAL\00"
-@.str.599 = private unnamed_addr constant [30 x i8] c"expected member name after ::\00"
-@.str.640 = private unnamed_addr constant [7 x i8] c"Arrays\00"
-@.str.26 = private unnamed_addr constant [6 x i8] c"AWAIT\00"
-@.str.176 = private unnamed_addr constant [8 x i8] c"getName\00"
-@.str.257 = private unnamed_addr constant [10 x i8] c"WhileStmt\00"
-@.str.399 = private unnamed_addr constant [36 x i8] c"PASS: test_resolver_foreach_scoping\00"
-@.str.550 = private unnamed_addr constant [45 x i8] c"unexpected token after visibility modifier: \00"
-@.str.591 = private unnamed_addr constant [2 x i8] c"-\00"
-@.str.766 = private unnamed_addr constant [43 x i8] c"\E2\9D\8C test_resolver_match_scoping - FAILED: \00"
-@.str.8 = private unnamed_addr constant [4 x i8] c"NEW\00"
-@.str.63 = private unnamed_addr constant [4 x i8] c"NIL\00"
-@.str.164 = private unnamed_addr constant [29 x i8] c"PASS: test_parser_unary_expr\00"
-@.str.277 = private unnamed_addr constant [7 x i8] c"params\00"
-@.str.360 = private unnamed_addr constant [54 x i8] c"test_resolver_class_decl: expected kind 'class', got \00"
-@.str.601 = private unnamed_addr constant [33 x i8] c"expected property name after '.'\00"
-@.str.54 = private unnamed_addr constant [10 x i8] c"PROTECTED\00"
-@.str.138 = private unnamed_addr constant [3 x i8] c"op\00"
-@.str.148 = private unnamed_addr constant [8 x i8] c" errors\00"
-@.str.279 = private unnamed_addr constant [10 x i8] c"BlockStmt\00"
-@.str.345 = private unnamed_addr constant [6 x i8] c"greet\00"
-@.str.76 = private unnamed_addr constant [6 x i8] c"hello\00"
-@.str.114 = private unnamed_addr constant [27 x i8] c"test_lexer_keywords failed\00"
-@.str.532 = private unnamed_addr constant [6 x i8] c"SLASH\00"
-@.str.540 = private unnamed_addr constant [8 x i8] c"GREATER\00"
-@.str.645 = private unnamed_addr constant [9 x i8] c"resolver\00"
-@.str.13 = private unnamed_addr constant [4 x i8] c"for\00"
-@.str.408 = private unnamed_addr constant [76 x i8] c"\E2\9D\8C test_typechecker_strict_mismatch - FAILED: expected type mismatch error\00"
-@.str.558 = private unnamed_addr constant [22 x i8] c"expected '(' after if\00"
-@.str.676 = private unnamed_addr constant [25 x i8] c"->with() before the loop\00"
-@.str.421 = private unnamed_addr constant [11 x i8] c"AssignStmt\00"
-@.str.112 = private unnamed_addr constant [14 x i8] c"expected STAR\00"
-@.str.151 = private unnamed_addr constant [70 x i8] c"test_parser_precedence_comparison failed: expected '&&' at root, got \00"
-@.str.215 = private unnamed_addr constant [20 x i8] c"var $a = [1, 2, 3];\00"
-@.str.291 = private unnamed_addr constant [68 x i8] c"test_parser_grouped_expr failed: expected '+' on left from grouping\00"
-@.str.340 = private unnamed_addr constant [7 x i8] c"errors\00"
-@.str.361 = private unnamed_addr constant [7 x i8] c"fields\00"
-@.str.407 = private unnamed_addr constant [70 x i8] c"\E2\9D\8C test_typechecker_strict_mismatch - FAILED: expected 1 error, got \00"
-@.str.513 = private unnamed_addr constant [6 x i8] c"trace\00"
-@.str.580 = private unnamed_addr constant [19 x i8] c"expected type name\00"
-@.str.627 = private unnamed_addr constant [12 x i8] c"scopeFrames\00"
-@.str.736 = private unnamed_addr constant [38 x i8] c"\E2\9D\8C test_resolver_var_decl - FAILED: \00"
+@.str.422 = private unnamed_addr constant [13 x i8] c"ElseIfClause\00"
 
 ; --- External Runtime Functions ---
 declare void @wolf_print_str(ptr)
@@ -1231,8 +1231,8 @@ declare void @wolf_socket_close(i64)
 
 define void @wolf_assert(i1 %cond.arg, ptr %msg.arg) {
 entry:
-  %msg = alloca ptr
   %cond = alloca i1
+  %msg = alloca ptr
   store i1 %cond.arg, ptr %cond
   store ptr %msg.arg, ptr %msg
   %t1 = load i1, ptr %cond
@@ -1617,6 +1617,7 @@ for.body.40:
   %t179 = call ptr @wolf_string_concat(ptr %t173, ptr %t178)
   call void @wolf_print_str(ptr %t179)
   call void @wolf_println()
+  ; DEBUG AssignStmt target type: *ir.Ident
   %t180 = load i64, ptr %i
   %t181 = add i64 %t180, 1
   store i64 %t181, ptr %i
@@ -1955,9 +1956,9 @@ if.end.106:
 
 define void @wolf_test_lexer_keywords() {
 entry:
+  %tokens = alloca ptr
   %src = alloca ptr
   %l = alloca ptr
-  %tokens = alloca ptr
   %t314 = getelementptr [26 x i8], ptr @.str.113, i64 0, i64 0
   store ptr %t314, ptr %src
   %t315 = load ptr, ptr %src
@@ -2315,14 +2316,14 @@ if.end.172:
 
 define void @wolf_test_parser_binary_expr() {
 entry:
-  %ast = alloca ptr
-  %stmt = alloca ptr
-  %val = alloca ptr
-  %right = alloca ptr
   %src = alloca ptr
   %lexer = alloca ptr
   %tokens = alloca ptr
   %parser = alloca ptr
+  %ast = alloca ptr
+  %stmt = alloca ptr
+  %val = alloca ptr
+  %right = alloca ptr
   %t460 = getelementptr [25 x i8], ptr @.str.132, i64 0, i64 0
   store ptr %t460, ptr %src
   %t461 = load ptr, ptr %src
@@ -2892,12 +2893,12 @@ if.end.268:
 
 define void @wolf_test_parser_string_concat() {
 entry:
-  %ast = alloca ptr
   %val = alloca ptr
   %src = alloca ptr
   %lexer = alloca ptr
   %tokens = alloca ptr
   %parser = alloca ptr
+  %ast = alloca ptr
   %t696 = getelementptr [36 x i8], ptr @.str.165, i64 0, i64 0
   store ptr %t696, ptr %src
   %t697 = load ptr, ptr %src
@@ -3188,12 +3189,12 @@ if.end.316:
 
 define void @wolf_test_parser_chained_method_call() {
 entry:
-  %lexer = alloca ptr
   %tokens = alloca ptr
   %parser = alloca ptr
   %ast = alloca ptr
   %val = alloca ptr
   %src = alloca ptr
+  %lexer = alloca ptr
   %t810 = getelementptr [37 x i8], ptr @.str.179, i64 0, i64 0
   store ptr %t810, ptr %src
   %t811 = load ptr, ptr %src
@@ -3375,12 +3376,12 @@ if.end.348:
 
 define void @wolf_test_parser_static_call() {
 entry:
-  %ast = alloca ptr
-  %val = alloca ptr
-  %src = alloca ptr
   %lexer = alloca ptr
   %tokens = alloca ptr
   %parser = alloca ptr
+  %ast = alloca ptr
+  %val = alloca ptr
+  %src = alloca ptr
   %t886 = getelementptr [41 x i8], ptr @.str.189, i64 0, i64 0
   store ptr %t886, ptr %src
   %t887 = load ptr, ptr %src
@@ -3585,12 +3586,12 @@ if.end.382:
 
 define void @wolf_test_parser_array_index() {
 entry:
-  %lexer = alloca ptr
   %tokens = alloca ptr
   %parser = alloca ptr
   %ast = alloca ptr
   %val = alloca ptr
   %src = alloca ptr
+  %lexer = alloca ptr
   %t973 = getelementptr [18 x i8], ptr @.str.201, i64 0, i64 0
   store ptr %t973, ptr %src
   %t974 = load ptr, ptr %src
@@ -3711,12 +3712,12 @@ if.end.404:
 
 define void @wolf_test_parser_new_expr() {
 entry:
-  %src = alloca ptr
-  %lexer = alloca ptr
-  %tokens = alloca ptr
   %parser = alloca ptr
   %ast = alloca ptr
   %val = alloca ptr
+  %src = alloca ptr
+  %lexer = alloca ptr
+  %tokens = alloca ptr
   %t1018 = getelementptr [43 x i8], ptr @.str.206, i64 0, i64 0
   store ptr %t1018, ptr %src
   %t1019 = load ptr, ptr %src
@@ -3902,12 +3903,12 @@ if.end.434:
 
 define void @wolf_test_parser_array_literal() {
 entry:
-  %src = alloca ptr
   %lexer = alloca ptr
   %tokens = alloca ptr
   %parser = alloca ptr
   %ast = alloca ptr
   %val = alloca ptr
+  %src = alloca ptr
   %t1096 = getelementptr [20 x i8], ptr @.str.215, i64 0, i64 0
   store ptr %t1096, ptr %src
   %t1097 = load ptr, ptr %src
@@ -4066,12 +4067,12 @@ if.end.462:
 
 define void @wolf_test_parser_map_literal() {
 entry:
-  %val = alloca ptr
   %src = alloca ptr
   %lexer = alloca ptr
   %tokens = alloca ptr
   %parser = alloca ptr
   %ast = alloca ptr
+  %val = alloca ptr
   %t1157 = getelementptr [41 x i8], ptr @.str.222, i64 0, i64 0
   store ptr %t1157, ptr %src
   %t1158 = load ptr, ptr %src
@@ -4230,12 +4231,12 @@ if.end.490:
 
 define void @wolf_test_parser_if_stmt() {
 entry:
+  %ast = alloca ptr
   %stmt = alloca ptr
   %src = alloca ptr
   %lexer = alloca ptr
   %tokens = alloca ptr
   %parser = alloca ptr
-  %ast = alloca ptr
   %t1218 = getelementptr [49 x i8], ptr @.str.229, i64 0, i64 0
   store ptr %t1218, ptr %src
   %t1219 = load ptr, ptr %src
@@ -4413,12 +4414,12 @@ if.end.524:
 
 define void @wolf_test_parser_if_elseif_else() {
 entry:
+  %stmt = alloca ptr
   %src = alloca ptr
   %lexer = alloca ptr
   %tokens = alloca ptr
   %parser = alloca ptr
   %ast = alloca ptr
-  %stmt = alloca ptr
   %t1290 = getelementptr [84 x i8], ptr @.str.240, i64 0, i64 0
   store ptr %t1290, ptr %src
   %t1291 = load ptr, ptr %src
@@ -4588,12 +4589,12 @@ if.end.556:
 
 define void @wolf_test_parser_for_stmt() {
 entry:
-  %stmt = alloca ptr
   %src = alloca ptr
   %lexer = alloca ptr
   %tokens = alloca ptr
   %parser = alloca ptr
   %ast = alloca ptr
+  %stmt = alloca ptr
   %t1352 = getelementptr [45 x i8], ptr @.str.247, i64 0, i64 0
   store ptr %t1352, ptr %src
   %t1353 = load ptr, ptr %src
@@ -4769,12 +4770,12 @@ if.end.588:
 
 define void @wolf_test_parser_while_stmt() {
 entry:
+  %src = alloca ptr
   %lexer = alloca ptr
   %tokens = alloca ptr
   %parser = alloca ptr
   %ast = alloca ptr
   %stmt = alloca ptr
-  %src = alloca ptr
   %t1418 = getelementptr [33 x i8], ptr @.str.255, i64 0, i64 0
   store ptr %t1418, ptr %src
   %t1419 = load ptr, ptr %src
@@ -4893,12 +4894,12 @@ if.end.608:
 
 define void @wolf_test_parser_class_decl() {
 entry:
-  %parser = alloca ptr
-  %ast = alloca ptr
   %stmt = alloca ptr
   %src = alloca ptr
   %lexer = alloca ptr
   %tokens = alloca ptr
+  %parser = alloca ptr
+  %ast = alloca ptr
   %t1461 = getelementptr [74 x i8], ptr @.str.260, i64 0, i64 0
   store ptr %t1461, ptr %src
   %t1462 = load ptr, ptr %src
@@ -5161,14 +5162,14 @@ if.end.656:
 
 define void @wolf_test_parser_return_stmt() {
 entry:
-  %tokens = alloca ptr
-  %parser = alloca ptr
-  %ast = alloca ptr
-  %fn = alloca ptr
   %body = alloca ptr
   %ret = alloca ptr
   %src = alloca ptr
   %lexer = alloca ptr
+  %tokens = alloca ptr
+  %parser = alloca ptr
+  %ast = alloca ptr
+  %fn = alloca ptr
   %t1570 = getelementptr [37 x i8], ptr @.str.273, i64 0, i64 0
   store ptr %t1570, ptr %src
   %t1571 = load ptr, ptr %src
@@ -5423,12 +5424,12 @@ if.end.702:
 
 define void @wolf_test_parser_grouped_expr() {
 entry:
+  %src = alloca ptr
+  %lexer = alloca ptr
   %tokens = alloca ptr
   %parser = alloca ptr
   %ast = alloca ptr
   %val = alloca ptr
-  %src = alloca ptr
-  %lexer = alloca ptr
   %t1679 = getelementptr [22 x i8], ptr @.str.287, i64 0, i64 0
   store ptr %t1679, ptr %src
   %t1680 = load ptr, ptr %src
@@ -5589,12 +5590,12 @@ if.end.730:
 
 define ptr @wolf_test_parser_foreach_stmt() {
 entry:
-  %stmt = alloca ptr
-  %src = alloca ptr
   %lexer = alloca ptr
   %tokens = alloca ptr
   %parser = alloca ptr
   %ast = alloca ptr
+  %stmt = alloca ptr
+  %src = alloca ptr
   %t1744 = getelementptr [42 x i8], ptr @.str.293, i64 0, i64 0
   store ptr %t1744, ptr %src
   %t1745 = load ptr, ptr %src
@@ -5771,13 +5772,13 @@ if.end.758:
 
 define ptr @wolf_test_parser_closure_arrow() {
 entry:
-  %stmt = alloca ptr
-  %closure = alloca ptr
   %src = alloca ptr
   %lexer = alloca ptr
   %tokens = alloca ptr
   %parser = alloca ptr
   %ast = alloca ptr
+  %stmt = alloca ptr
+  %closure = alloca ptr
   %t1818 = getelementptr [36 x i8], ptr @.str.307, i64 0, i64 0
   store ptr %t1818, ptr %src
   %t1819 = load ptr, ptr %src
@@ -5942,13 +5943,13 @@ if.end.786:
 
 define ptr @wolf_test_parser_closure_block() {
 entry:
-  %tokens = alloca ptr
-  %parser = alloca ptr
   %ast = alloca ptr
   %stmt = alloca ptr
   %closure = alloca ptr
   %src = alloca ptr
   %lexer = alloca ptr
+  %tokens = alloca ptr
+  %parser = alloca ptr
   %t1880 = getelementptr [42 x i8], ptr @.str.315, i64 0, i64 0
   store ptr %t1880, ptr %src
   %t1881 = load ptr, ptr %src
@@ -6088,7 +6089,6 @@ if.end.810:
 
 define ptr @wolf_test_parser_match_stmt() {
 entry:
-  %arm1 = alloca ptr
   %arm2 = alloca ptr
   %src = alloca ptr
   %lexer = alloca ptr
@@ -6096,6 +6096,7 @@ entry:
   %parser = alloca ptr
   %ast = alloca ptr
   %stmt = alloca ptr
+  %arm1 = alloca ptr
   %t1933 = getelementptr [55 x i8], ptr @.str.320, i64 0, i64 0
   store ptr %t1933, ptr %src
   %t1934 = load ptr, ptr %src
@@ -6287,17 +6288,17 @@ if.end.844:
 
 define void @wolf_test_resolver_var_decl() {
 entry:
-  %src = alloca ptr
-  %errCount = alloca i64
-  %r = alloca ptr
-  %table = alloca ptr
-  %sym = alloca ptr
   %errs = alloca ptr
   %lexer = alloca ptr
-  %tokens = alloca ptr
   %parser = alloca ptr
-  %ast = alloca ptr
+  %table = alloca ptr
+  %r = alloca ptr
+  %sym = alloca ptr
+  %errCount = alloca i64
   %i = alloca i64
+  %src = alloca ptr
+  %tokens = alloca ptr
+  %ast = alloca ptr
   %t2011 = getelementptr [13 x i8], ptr @.str.332, i64 0, i64 0
   store ptr %t2011, ptr %src
   %t2012 = load ptr, ptr %src
@@ -6473,6 +6474,7 @@ for.body.869:
   %t2082 = icmp eq i64 %t2083, 0
   br i1 %t2082, label %if.then.874, label %if.end.875
 if.then.874:
+  ; DEBUG AssignStmt target type: *ir.Ident
   %t2084 = load i64, ptr %errCount
   %t2085 = call ptr @wolf_int_to_string(i64 %t2084)
   %t2086 = call i64 @wolf_intval(ptr %t2085)
@@ -6487,6 +6489,7 @@ err.false.877:
   store i64 %t2088, ptr %errCount
   br label %if.end.875
 if.end.875:
+  ; DEBUG AssignStmt target type: *ir.Ident
   %t2089 = load i64, ptr %i
   %t2090 = call ptr @wolf_int_to_string(i64 %t2089)
   %t2091 = call i64 @wolf_intval(ptr %t2090)
@@ -6526,17 +6529,17 @@ if.end.881:
 
 define void @wolf_test_resolver_func_hoist() {
 entry:
-  %table = alloca ptr
-  %sym = alloca ptr
+  %lexer = alloca ptr
   %errs = alloca ptr
-  %errCount = alloca i64
-  %i = alloca i64
   %parser = alloca ptr
   %ast = alloca ptr
   %r = alloca ptr
+  %table = alloca ptr
+  %sym = alloca ptr
+  %errCount = alloca i64
   %src = alloca ptr
-  %lexer = alloca ptr
   %tokens = alloca ptr
+  %i = alloca i64
   %t2100 = getelementptr [50 x i8], ptr @.str.344, i64 0, i64 0
   store ptr %t2100, ptr %src
   %t2101 = load ptr, ptr %src
@@ -6712,6 +6715,7 @@ for.body.906:
   %t2171 = icmp eq i64 %t2172, 0
   br i1 %t2171, label %if.then.911, label %if.end.912
 if.then.911:
+  ; DEBUG AssignStmt target type: *ir.Ident
   %t2173 = load i64, ptr %errCount
   %t2174 = call ptr @wolf_int_to_string(i64 %t2173)
   %t2175 = call i64 @wolf_intval(ptr %t2174)
@@ -6726,6 +6730,7 @@ err.false.914:
   store i64 %t2177, ptr %errCount
   br label %if.end.912
 if.end.912:
+  ; DEBUG AssignStmt target type: *ir.Ident
   %t2178 = load i64, ptr %i
   %t2179 = call ptr @wolf_int_to_string(i64 %t2178)
   %t2180 = call i64 @wolf_intval(ptr %t2179)
@@ -6765,12 +6770,12 @@ if.end.918:
 
 define void @wolf_test_resolver_func_params() {
 entry:
-  %r = alloca ptr
+  %tokens = alloca ptr
+  %parser = alloca ptr
+  %ast = alloca ptr
   %src = alloca ptr
   %lexer = alloca ptr
-  %tokens = alloca ptr
-  %ast = alloca ptr
-  %parser = alloca ptr
+  %r = alloca ptr
   %errs = alloca ptr
   %errCount = alloca i64
   %i = alloca i64
@@ -6876,6 +6881,7 @@ for.body.934:
   %t2225 = icmp eq i64 %t2226, 0
   br i1 %t2225, label %if.then.939, label %if.end.940
 if.then.939:
+  ; DEBUG AssignStmt target type: *ir.Ident
   %t2227 = load i64, ptr %errCount
   %t2228 = call ptr @wolf_int_to_string(i64 %t2227)
   %t2229 = call i64 @wolf_intval(ptr %t2228)
@@ -6890,6 +6896,7 @@ err.false.942:
   store i64 %t2231, ptr %errCount
   br label %if.end.940
 if.end.940:
+  ; DEBUG AssignStmt target type: *ir.Ident
   %t2232 = load i64, ptr %i
   %t2233 = call ptr @wolf_int_to_string(i64 %t2232)
   %t2234 = call i64 @wolf_intval(ptr %t2233)
@@ -6929,20 +6936,20 @@ if.end.946:
 
 define void @wolf_test_resolver_undefined_var() {
 entry:
-  %lexer = alloca ptr
-  %errs = alloca ptr
-  %errCount = alloca i64
+  %ast = alloca ptr
   %found = alloca i1
-  %errItem = alloca ptr
-  %lvl = alloca ptr
-  %parser = alloca ptr
+  %lexer = alloca ptr
   %r = alloca ptr
   %i = alloca i64
-  %errLen = alloca i64
-  %msg = alloca ptr
   %src = alloca ptr
   %tokens = alloca ptr
-  %ast = alloca ptr
+  %errCount = alloca i64
+  %errLen = alloca i64
+  %errItem = alloca ptr
+  %msg = alloca ptr
+  %parser = alloca ptr
+  %errs = alloca ptr
+  %lvl = alloca ptr
   %t2243 = getelementptr [17 x i8], ptr @.str.353, i64 0, i64 0
   store ptr %t2243, ptr %src
   %t2244 = load ptr, ptr %src
@@ -7056,6 +7063,7 @@ for.body.964:
   %t2285 = icmp eq i64 %t2286, 0
   br i1 %t2285, label %if.then.967, label %if.end.968
 if.then.967:
+  ; DEBUG AssignStmt target type: *ir.Ident
   %t2287 = load i64, ptr %errCount
   %t2288 = call ptr @wolf_int_to_string(i64 %t2287)
   %t2289 = call i64 @wolf_intval(ptr %t2288)
@@ -7068,9 +7076,11 @@ err.true.969:
 err.false.970:
   %t2291 = add i64 %t2289, 1
   store i64 %t2291, ptr %errCount
+  ; DEBUG AssignStmt target type: *ir.Ident
   store i1 1, ptr %found
   br label %if.end.968
 if.end.968:
+  ; DEBUG AssignStmt target type: *ir.Ident
   %t2292 = load i64, ptr %i
   %t2293 = call ptr @wolf_int_to_string(i64 %t2292)
   %t2294 = call i64 @wolf_intval(ptr %t2293)
@@ -7125,18 +7135,18 @@ if.end.978:
 
 define void @wolf_test_resolver_class_decl() {
 entry:
+  %src = alloca ptr
+  %lexer = alloca ptr
+  %ast = alloca ptr
+  %table = alloca ptr
+  %cls = alloca ptr
   %fields = alloca ptr
   %methods = alloca ptr
   %errs = alloca ptr
-  %src = alloca ptr
+  %errCount = alloca i64
   %tokens = alloca ptr
   %parser = alloca ptr
   %r = alloca ptr
-  %table = alloca ptr
-  %errCount = alloca i64
-  %lexer = alloca ptr
-  %ast = alloca ptr
-  %cls = alloca ptr
   %i = alloca i64
   %t2308 = getelementptr [74 x i8], ptr @.str.358, i64 0, i64 0
   store ptr %t2308, ptr %src
@@ -7222,22 +7232,22 @@ err.false.992:
   store ptr null, ptr %t2337
   br label %dyn_check_993_0
 dyn_check_993_0:
-  %t2338 = getelementptr [12 x i8], ptr @.str.336, i64 0, i64 0
+  %t2338 = getelementptr [9 x i8], ptr @.str.335, i64 0, i64 0
   %t2339 = call i32 @strcmp(ptr %t2335, ptr %t2338)
   %t2340 = icmp eq i32 %t2339, 0
   br i1 %t2340, label %dyn_match_993_0, label %dyn_check_993_1
 dyn_match_993_0:
-  %t2341 = call ptr @wolf_SymbolTable_lookupClass(ptr %t2333, ptr %t2336)
+  %t2341 = call ptr @wolf_Resolver_lookupClass(ptr %t2333, ptr %t2336)
   store ptr %t2341, ptr %t2337
   br label %dyn_end_992
   br label %dyn_check_993_1
 dyn_check_993_1:
-  %t2342 = getelementptr [9 x i8], ptr @.str.335, i64 0, i64 0
+  %t2342 = getelementptr [12 x i8], ptr @.str.336, i64 0, i64 0
   %t2343 = call i32 @strcmp(ptr %t2335, ptr %t2342)
   %t2344 = icmp eq i32 %t2343, 0
   br i1 %t2344, label %dyn_match_993_1, label %dyn_end_992
 dyn_match_993_1:
-  %t2345 = call ptr @wolf_Resolver_lookupClass(ptr %t2333, ptr %t2336)
+  %t2345 = call ptr @wolf_SymbolTable_lookupClass(ptr %t2333, ptr %t2336)
   store ptr %t2345, ptr %t2337
   br label %dyn_end_992
 dyn_end_992:
@@ -7355,6 +7365,7 @@ for.body.1011:
   %t2399 = icmp eq i64 %t2400, 0
   br i1 %t2399, label %if.then.1016, label %if.end.1017
 if.then.1016:
+  ; DEBUG AssignStmt target type: *ir.Ident
   %t2401 = load i64, ptr %errCount
   %t2402 = call ptr @wolf_int_to_string(i64 %t2401)
   %t2403 = call i64 @wolf_intval(ptr %t2402)
@@ -7369,6 +7380,7 @@ err.false.1019:
   store i64 %t2405, ptr %errCount
   br label %if.end.1017
 if.end.1017:
+  ; DEBUG AssignStmt target type: *ir.Ident
   %t2406 = load i64, ptr %i
   %t2407 = call ptr @wolf_int_to_string(i64 %t2406)
   %t2408 = call i64 @wolf_intval(ptr %t2407)
@@ -7409,12 +7421,12 @@ if.end.1023:
 define void @wolf_test_resolver_new_known_class() {
 entry:
   %src = alloca ptr
-  %tokens = alloca ptr
-  %parser = alloca ptr
-  %errs = alloca ptr
   %lexer = alloca ptr
+  %parser = alloca ptr
   %ast = alloca ptr
   %r = alloca ptr
+  %tokens = alloca ptr
+  %errs = alloca ptr
   %errCount = alloca i64
   %i = alloca i64
   %t2417 = getelementptr [33 x i8], ptr @.str.366, i64 0, i64 0
@@ -7519,6 +7531,7 @@ for.body.1039:
   %t2453 = icmp eq i64 %t2454, 0
   br i1 %t2453, label %if.then.1044, label %if.end.1045
 if.then.1044:
+  ; DEBUG AssignStmt target type: *ir.Ident
   %t2455 = load i64, ptr %errCount
   %t2456 = call ptr @wolf_int_to_string(i64 %t2455)
   %t2457 = call i64 @wolf_intval(ptr %t2456)
@@ -7533,6 +7546,7 @@ err.false.1047:
   store i64 %t2459, ptr %errCount
   br label %if.end.1045
 if.end.1045:
+  ; DEBUG AssignStmt target type: *ir.Ident
   %t2460 = load i64, ptr %i
   %t2461 = call ptr @wolf_int_to_string(i64 %t2460)
   %t2462 = call i64 @wolf_intval(ptr %t2461)
@@ -7572,19 +7586,19 @@ if.end.1051:
 
 define void @wolf_test_resolver_new_unknown_class() {
 entry:
-  %i = alloca i64
-  %errItem2 = alloca ptr
-  %lvl2 = alloca ptr
-  %src = alloca ptr
-  %parser = alloca ptr
-  %r = alloca ptr
-  %errs = alloca ptr
-  %found = alloca i1
-  %lexer = alloca ptr
-  %tokens = alloca ptr
-  %ast = alloca ptr
   %errCount = alloca i64
+  %i = alloca i64
+  %lvl2 = alloca ptr
+  %lexer = alloca ptr
+  %parser = alloca ptr
+  %ast = alloca ptr
+  %errs = alloca ptr
+  %errItem2 = alloca ptr
   %msg2 = alloca ptr
+  %src = alloca ptr
+  %tokens = alloca ptr
+  %r = alloca ptr
+  %found = alloca i1
   %t2471 = getelementptr [22 x i8], ptr @.str.369, i64 0, i64 0
   store ptr %t2471, ptr %src
   %t2472 = load ptr, ptr %src
@@ -7696,6 +7710,7 @@ for.body.1067:
   %t2512 = icmp eq i64 %t2513, 0
   br i1 %t2512, label %if.then.1072, label %if.end.1073
 if.then.1072:
+  ; DEBUG AssignStmt target type: *ir.Ident
   %t2514 = load i64, ptr %errCount
   %t2515 = call ptr @wolf_int_to_string(i64 %t2514)
   %t2516 = call i64 @wolf_intval(ptr %t2515)
@@ -7708,9 +7723,11 @@ err.true.1074:
 err.false.1075:
   %t2518 = add i64 %t2516, 1
   store i64 %t2518, ptr %errCount
+  ; DEBUG AssignStmt target type: *ir.Ident
   store i1 1, ptr %found
   br label %if.end.1073
 if.end.1073:
+  ; DEBUG AssignStmt target type: *ir.Ident
   %t2519 = load i64, ptr %i
   %t2520 = call ptr @wolf_int_to_string(i64 %t2519)
   %t2521 = call i64 @wolf_intval(ptr %t2520)
@@ -7765,15 +7782,15 @@ if.end.1083:
 
 define void @wolf_test_resolver_if_scoping() {
 entry:
+  %tokens = alloca ptr
+  %ast = alloca ptr
   %errs = alloca ptr
+  %i = alloca i64
   %src = alloca ptr
   %lexer = alloca ptr
+  %parser = alloca ptr
   %r = alloca ptr
   %errCount = alloca i64
-  %i = alloca i64
-  %tokens = alloca ptr
-  %parser = alloca ptr
-  %ast = alloca ptr
   %t2535 = getelementptr [40 x i8], ptr @.str.373, i64 0, i64 0
   store ptr %t2535, ptr %src
   %t2536 = load ptr, ptr %src
@@ -7876,6 +7893,7 @@ for.body.1099:
   %t2571 = icmp eq i64 %t2572, 0
   br i1 %t2571, label %if.then.1104, label %if.end.1105
 if.then.1104:
+  ; DEBUG AssignStmt target type: *ir.Ident
   %t2573 = load i64, ptr %errCount
   %t2574 = call ptr @wolf_int_to_string(i64 %t2573)
   %t2575 = call i64 @wolf_intval(ptr %t2574)
@@ -7890,6 +7908,7 @@ err.false.1107:
   store i64 %t2577, ptr %errCount
   br label %if.end.1105
 if.end.1105:
+  ; DEBUG AssignStmt target type: *ir.Ident
   %t2578 = load i64, ptr %i
   %t2579 = call ptr @wolf_int_to_string(i64 %t2578)
   %t2580 = call i64 @wolf_intval(ptr %t2579)
@@ -7930,14 +7949,14 @@ if.end.1111:
 define void @wolf_test_resolver_for_scoping() {
 entry:
   %parser = alloca ptr
-  %ast = alloca ptr
   %errs = alloca ptr
-  %src = alloca ptr
-  %lexer = alloca ptr
   %errCount = alloca i64
   %i = alloca i64
+  %src = alloca ptr
   %tokens = alloca ptr
+  %ast = alloca ptr
   %r = alloca ptr
+  %lexer = alloca ptr
   %t2589 = getelementptr [45 x i8], ptr @.str.247, i64 0, i64 0
   store ptr %t2589, ptr %src
   %t2590 = load ptr, ptr %src
@@ -8040,6 +8059,7 @@ for.body.1127:
   %t2625 = icmp eq i64 %t2626, 0
   br i1 %t2625, label %if.then.1132, label %if.end.1133
 if.then.1132:
+  ; DEBUG AssignStmt target type: *ir.Ident
   %t2627 = load i64, ptr %errCount
   %t2628 = call ptr @wolf_int_to_string(i64 %t2627)
   %t2629 = call i64 @wolf_intval(ptr %t2628)
@@ -8054,6 +8074,7 @@ err.false.1135:
   store i64 %t2631, ptr %errCount
   br label %if.end.1133
 if.end.1133:
+  ; DEBUG AssignStmt target type: *ir.Ident
   %t2632 = load i64, ptr %i
   %t2633 = call ptr @wolf_int_to_string(i64 %t2632)
   %t2634 = call i64 @wolf_intval(ptr %t2633)
@@ -8095,13 +8116,13 @@ define void @wolf_test_resolver_method_call() {
 entry:
   %parser = alloca ptr
   %ast = alloca ptr
-  %src = alloca ptr
-  %lexer = alloca ptr
+  %r = alloca ptr
   %errs = alloca ptr
-  %errCount = alloca i64
   %i = alloca i64
   %tokens = alloca ptr
-  %r = alloca ptr
+  %lexer = alloca ptr
+  %errCount = alloca i64
+  %src = alloca ptr
   %t2643 = getelementptr [88 x i8], ptr @.str.378, i64 0, i64 0
   store ptr %t2643, ptr %src
   %t2644 = load ptr, ptr %src
@@ -8204,6 +8225,7 @@ for.body.1155:
   %t2679 = icmp eq i64 %t2680, 0
   br i1 %t2679, label %if.then.1160, label %if.end.1161
 if.then.1160:
+  ; DEBUG AssignStmt target type: *ir.Ident
   %t2681 = load i64, ptr %errCount
   %t2682 = call ptr @wolf_int_to_string(i64 %t2681)
   %t2683 = call i64 @wolf_intval(ptr %t2682)
@@ -8218,6 +8240,7 @@ err.false.1163:
   store i64 %t2685, ptr %errCount
   br label %if.end.1161
 if.end.1161:
+  ; DEBUG AssignStmt target type: *ir.Ident
   %t2686 = load i64, ptr %i
   %t2687 = call ptr @wolf_int_to_string(i64 %t2686)
   %t2688 = call i64 @wolf_intval(ptr %t2687)
@@ -8257,14 +8280,14 @@ if.end.1167:
 
 define void @wolf_test_resolver_func_param_count() {
 entry:
+  %ast = alloca ptr
+  %r = alloca ptr
   %table = alloca ptr
   %sym = alloca ptr
   %src = alloca ptr
   %lexer = alloca ptr
   %tokens = alloca ptr
   %parser = alloca ptr
-  %ast = alloca ptr
-  %r = alloca ptr
   %t2697 = getelementptr [51 x i8], ptr @.str.381, i64 0, i64 0
   store ptr %t2697, ptr %src
   %t2698 = load ptr, ptr %src
@@ -8349,22 +8372,22 @@ err.false.1181:
   store ptr null, ptr %t2726
   br label %dyn_check_1182_0
 dyn_check_1182_0:
-  %t2727 = getelementptr [12 x i8], ptr @.str.336, i64 0, i64 0
+  %t2727 = getelementptr [9 x i8], ptr @.str.335, i64 0, i64 0
   %t2728 = call i32 @strcmp(ptr %t2724, ptr %t2727)
   %t2729 = icmp eq i32 %t2728, 0
   br i1 %t2729, label %dyn_match_1182_0, label %dyn_check_1182_1
 dyn_match_1182_0:
-  %t2730 = call ptr @wolf_SymbolTable_lookupFunc(ptr %t2722, ptr %t2725)
+  %t2730 = call ptr @wolf_Resolver_lookupFunc(ptr %t2722, ptr %t2725)
   store ptr %t2730, ptr %t2726
   br label %dyn_end_1181
   br label %dyn_check_1182_1
 dyn_check_1182_1:
-  %t2731 = getelementptr [9 x i8], ptr @.str.335, i64 0, i64 0
+  %t2731 = getelementptr [12 x i8], ptr @.str.336, i64 0, i64 0
   %t2732 = call i32 @strcmp(ptr %t2724, ptr %t2731)
   %t2733 = icmp eq i32 %t2732, 0
   br i1 %t2733, label %dyn_match_1182_1, label %dyn_end_1181
 dyn_match_1182_1:
-  %t2734 = call ptr @wolf_Resolver_lookupFunc(ptr %t2722, ptr %t2725)
+  %t2734 = call ptr @wolf_SymbolTable_lookupFunc(ptr %t2722, ptr %t2725)
   store ptr %t2734, ptr %t2726
   br label %dyn_end_1181
 dyn_end_1181:
@@ -8416,14 +8439,14 @@ if.end.1188:
 define void @wolf_test_resolver_string_concat() {
 entry:
   %lexer = alloca ptr
-  %parser = alloca ptr
-  %i = alloca i64
-  %errs = alloca ptr
+  %r = alloca ptr
   %errCount = alloca i64
+  %i = alloca i64
   %src = alloca ptr
   %tokens = alloca ptr
+  %parser = alloca ptr
   %ast = alloca ptr
-  %r = alloca ptr
+  %errs = alloca ptr
   %t2754 = getelementptr [43 x i8], ptr @.str.387, i64 0, i64 0
   store ptr %t2754, ptr %src
   %t2755 = load ptr, ptr %src
@@ -8526,6 +8549,7 @@ for.body.1204:
   %t2790 = icmp eq i64 %t2791, 0
   br i1 %t2790, label %if.then.1209, label %if.end.1210
 if.then.1209:
+  ; DEBUG AssignStmt target type: *ir.Ident
   %t2792 = load i64, ptr %errCount
   %t2793 = call ptr @wolf_int_to_string(i64 %t2792)
   %t2794 = call i64 @wolf_intval(ptr %t2793)
@@ -8540,6 +8564,7 @@ err.false.1212:
   store i64 %t2796, ptr %errCount
   br label %if.end.1210
 if.end.1210:
+  ; DEBUG AssignStmt target type: *ir.Ident
   %t2797 = load i64, ptr %i
   %t2798 = call ptr @wolf_int_to_string(i64 %t2797)
   %t2799 = call i64 @wolf_intval(ptr %t2798)
@@ -8579,13 +8604,13 @@ if.end.1216:
 
 define void @wolf_test_resolver_lookup_miss() {
 entry:
+  %ast = alloca ptr
+  %r = alloca ptr
   %table = alloca ptr
   %src = alloca ptr
   %lexer = alloca ptr
   %tokens = alloca ptr
   %parser = alloca ptr
-  %ast = alloca ptr
-  %r = alloca ptr
   %t2808 = getelementptr [12 x i8], ptr @.str.390, i64 0, i64 0
   store ptr %t2808, ptr %src
   %t2809 = load ptr, ptr %src
@@ -8670,22 +8695,22 @@ err.false.1230:
   store ptr null, ptr %t2837
   br label %dyn_check_1231_0
 dyn_check_1231_0:
-  %t2838 = getelementptr [12 x i8], ptr @.str.336, i64 0, i64 0
+  %t2838 = getelementptr [9 x i8], ptr @.str.335, i64 0, i64 0
   %t2839 = call i32 @strcmp(ptr %t2835, ptr %t2838)
   %t2840 = icmp eq i32 %t2839, 0
   br i1 %t2840, label %dyn_match_1231_0, label %dyn_check_1231_1
 dyn_match_1231_0:
-  %t2841 = call ptr @wolf_SymbolTable_lookupVar(ptr %t2833, ptr %t2836)
+  %t2841 = call ptr @wolf_Resolver_lookupVar(ptr %t2833, ptr %t2836)
   store ptr %t2841, ptr %t2837
   br label %dyn_end_1230
   br label %dyn_check_1231_1
 dyn_check_1231_1:
-  %t2842 = getelementptr [9 x i8], ptr @.str.335, i64 0, i64 0
+  %t2842 = getelementptr [12 x i8], ptr @.str.336, i64 0, i64 0
   %t2843 = call i32 @strcmp(ptr %t2835, ptr %t2842)
   %t2844 = icmp eq i32 %t2843, 0
   br i1 %t2844, label %dyn_match_1231_1, label %dyn_end_1230
 dyn_match_1231_1:
-  %t2845 = call ptr @wolf_Resolver_lookupVar(ptr %t2833, ptr %t2836)
+  %t2845 = call ptr @wolf_SymbolTable_lookupVar(ptr %t2833, ptr %t2836)
   store ptr %t2845, ptr %t2837
   br label %dyn_end_1230
 dyn_end_1230:
@@ -8800,17 +8825,17 @@ if.end.1243:
 
 define ptr @wolf_test_resolver_foreach_scoping() {
 entry:
+  %src = alloca ptr
   %tokens = alloca ptr
   %ast = alloca ptr
-  %r = alloca ptr
-  %errs = alloca ptr
   %errCount = alloca i64
-  %i = alloca i64
+  %lvl = alloca ptr
   %errItem = alloca ptr
   %lexer = alloca ptr
   %parser = alloca ptr
-  %lvl = alloca ptr
-  %src = alloca ptr
+  %r = alloca ptr
+  %errs = alloca ptr
+  %i = alloca i64
   %t2888 = getelementptr [54 x i8], ptr @.str.396, i64 0, i64 0
   store ptr %t2888, ptr %src
   %t2889 = load ptr, ptr %src
@@ -8917,6 +8942,7 @@ for.body.1259:
   %t2926 = icmp eq i64 %t2927, 0
   br i1 %t2926, label %if.then.1264, label %if.end.1265
 if.then.1264:
+  ; DEBUG AssignStmt target type: *ir.Ident
   %t2928 = load i64, ptr %errCount
   %t2929 = call ptr @wolf_int_to_string(i64 %t2928)
   %t2930 = call i64 @wolf_intval(ptr %t2929)
@@ -8938,6 +8964,7 @@ err.false.1267:
   call void @wolf_println()
   br label %if.end.1265
 if.end.1265:
+  ; DEBUG AssignStmt target type: *ir.Ident
   %t2938 = load i64, ptr %i
   %t2939 = call ptr @wolf_int_to_string(i64 %t2938)
   %t2940 = call i64 @wolf_intval(ptr %t2939)
@@ -8982,14 +9009,14 @@ if.end.1273:
 define void @wolf_test_resolver_closure_scoping() {
 entry:
   %i = alloca i64
-  %lexer = alloca ptr
-  %tokens = alloca ptr
+  %src = alloca ptr
+  %errs = alloca ptr
+  %errCount = alloca i64
   %ast = alloca ptr
   %r = alloca ptr
-  %errCount = alloca i64
-  %src = alloca ptr
+  %lexer = alloca ptr
+  %tokens = alloca ptr
   %parser = alloca ptr
-  %errs = alloca ptr
   %t2950 = getelementptr [67 x i8], ptr @.str.400, i64 0, i64 0
   store ptr %t2950, ptr %src
   %t2951 = load ptr, ptr %src
@@ -9092,6 +9119,7 @@ for.body.1287:
   %t2986 = icmp eq i64 %t2987, 0
   br i1 %t2986, label %if.then.1292, label %if.end.1293
 if.then.1292:
+  ; DEBUG AssignStmt target type: *ir.Ident
   %t2988 = load i64, ptr %errCount
   %t2989 = call ptr @wolf_int_to_string(i64 %t2988)
   %t2990 = call i64 @wolf_intval(ptr %t2989)
@@ -9106,6 +9134,7 @@ err.false.1295:
   store i64 %t2992, ptr %errCount
   br label %if.end.1293
 if.end.1293:
+  ; DEBUG AssignStmt target type: *ir.Ident
   %t2993 = load i64, ptr %i
   %t2994 = call ptr @wolf_int_to_string(i64 %t2993)
   %t2995 = call i64 @wolf_intval(ptr %t2994)
@@ -9145,15 +9174,15 @@ if.end.1299:
 
 define void @wolf_test_resolver_match_scoping() {
 entry:
-  %lexer = alloca ptr
   %tokens = alloca ptr
-  %r = alloca ptr
+  %errs = alloca ptr
   %errCount = alloca i64
   %i = alloca i64
   %src = alloca ptr
+  %lexer = alloca ptr
   %parser = alloca ptr
   %ast = alloca ptr
-  %errs = alloca ptr
+  %r = alloca ptr
   %t3004 = getelementptr [69 x i8], ptr @.str.403, i64 0, i64 0
   store ptr %t3004, ptr %src
   %t3005 = load ptr, ptr %src
@@ -9256,6 +9285,7 @@ for.body.1315:
   %t3040 = icmp eq i64 %t3041, 0
   br i1 %t3040, label %if.then.1320, label %if.end.1321
 if.then.1320:
+  ; DEBUG AssignStmt target type: *ir.Ident
   %t3042 = load i64, ptr %errCount
   %t3043 = call ptr @wolf_int_to_string(i64 %t3042)
   %t3044 = call i64 @wolf_intval(ptr %t3043)
@@ -9270,6 +9300,7 @@ err.false.1323:
   store i64 %t3046, ptr %errCount
   br label %if.end.1321
 if.end.1321:
+  ; DEBUG AssignStmt target type: *ir.Ident
   %t3047 = load i64, ptr %i
   %t3048 = call ptr @wolf_int_to_string(i64 %t3047)
   %t3049 = call i64 @wolf_intval(ptr %t3048)
@@ -9310,15 +9341,15 @@ if.end.1327:
 define ptr @wolf_test_typechecker_strict_mismatch() {
 entry:
   %src = alloca ptr
+  %tc = alloca ptr
+  %errors = alloca ptr
   %lexer = alloca ptr
+  %tokens = alloca ptr
   %parser = alloca ptr
+  %ast = alloca ptr
   %c = alloca ptr
   %msg = alloca ptr
   %isMismatch = alloca i1
-  %tokens = alloca ptr
-  %ast = alloca ptr
-  %tc = alloca ptr
-  %errors = alloca ptr
   %t3058 = getelementptr [24 x i8], ptr @.str.406, i64 0, i64 0
   store ptr %t3058, ptr %src
   %t3059 = load ptr, ptr %src
@@ -9460,17 +9491,17 @@ if.end.1351:
 
 define ptr @wolf_test_typechecker_n1_loop() {
 entry:
-  %errors = alloca ptr
+  %msg = alloca ptr
   %isN1 = alloca i1
-  %tokens = alloca ptr
-  %lexer = alloca ptr
-  %parser = alloca ptr
   %ast = alloca ptr
   %tc = alloca ptr
+  %tokens = alloca ptr
+  %parser = alloca ptr
+  %errors = alloca ptr
   %c = alloca ptr
-  %msg = alloca ptr
   %lvl = alloca ptr
   %src = alloca ptr
+  %lexer = alloca ptr
   %t3106 = getelementptr [54 x i8], ptr @.str.410, i64 0, i64 0
   store ptr %t3106, ptr %src
   %t3107 = load ptr, ptr %src
@@ -9617,13 +9648,13 @@ if.end.1373:
 
 define ptr @wolf_test_typechecker_n1_eager_bypass() {
 entry:
-  %tc = alloca ptr
-  %errors = alloca ptr
   %src = alloca ptr
   %lexer = alloca ptr
   %tokens = alloca ptr
   %parser = alloca ptr
   %ast = alloca ptr
+  %tc = alloca ptr
+  %errors = alloca ptr
   %t3159 = getelementptr [67 x i8], ptr @.str.416, i64 0, i64 0
   store ptr %t3159, ptr %src
   %t3160 = load ptr, ptr %src
@@ -9722,11 +9753,11 @@ if.end.1389:
 
 define i1 @wolf___compiler_dispatch_controller(ptr %c.arg, ptr %m.arg, ptr %args.arg, ptr %req.arg, ptr %res.arg) {
 entry:
-  %args = alloca ptr
   %req = alloca ptr
   %res = alloca ptr
   %c = alloca ptr
   %m = alloca ptr
+  %args = alloca ptr
   store ptr %c.arg, ptr %c
   store ptr %m.arg, ptr %m
   store ptr %args.arg, ptr %args
@@ -10897,6 +10928,7 @@ entry:
   %Program.name_var = getelementptr [8 x i8], ptr @.str.122, i64 0, i64 0
   %t3592 = call ptr @wolf_class_create(ptr %Program.name_var)
   store ptr %t3592, ptr %this
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t3593 = load ptr, ptr %this
   %t3594 = getelementptr [8 x i8], ptr @.str.122, i64 0, i64 0
   %t3595 = getelementptr [5 x i8], ptr @.str.82, i64 0, i64 0
@@ -10913,10 +10945,12 @@ entry:
   %ExpressionStmt.name_var = getelementptr [15 x i8], ptr @.str.420, i64 0, i64 0
   %t3597 = call ptr @wolf_class_create(ptr %ExpressionStmt.name_var)
   store ptr %t3597, ptr %this
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t3598 = load ptr, ptr %this
   %t3599 = getelementptr [15 x i8], ptr @.str.420, i64 0, i64 0
   %t3600 = getelementptr [5 x i8], ptr @.str.82, i64 0, i64 0
   call void @wolf_map_set(ptr %t3598, ptr %t3600, ptr %t3599)
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t3601 = load ptr, ptr %this
   %t3602 = load ptr, ptr %expr
   %t3603 = getelementptr [5 x i8], ptr @.str.459, i64 0, i64 0
@@ -10927,28 +10961,32 @@ entry:
 
 define ptr @wolf_NewVarDecl(ptr %name.arg, ptr %typeName.arg, ptr %value.arg) {
 entry:
+  %name = alloca ptr
   %typeName = alloca ptr
   %value = alloca ptr
   %this = alloca ptr
-  %name = alloca ptr
   store ptr %name.arg, ptr %name
   store ptr %typeName.arg, ptr %typeName
   store ptr %value.arg, ptr %value
   %VarDecl.name_var = getelementptr [8 x i8], ptr @.str.126, i64 0, i64 0
   %t3605 = call ptr @wolf_class_create(ptr %VarDecl.name_var)
   store ptr %t3605, ptr %this
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t3606 = load ptr, ptr %this
   %t3607 = getelementptr [8 x i8], ptr @.str.126, i64 0, i64 0
   %t3608 = getelementptr [5 x i8], ptr @.str.82, i64 0, i64 0
   call void @wolf_map_set(ptr %t3606, ptr %t3608, ptr %t3607)
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t3609 = load ptr, ptr %this
   %t3610 = load ptr, ptr %name
   %t3611 = getelementptr [5 x i8], ptr @.str.128, i64 0, i64 0
   call void @wolf_map_set(ptr %t3609, ptr %t3611, ptr %t3610)
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t3612 = load ptr, ptr %this
   %t3613 = load ptr, ptr %typeName
   %t3614 = getelementptr [9 x i8], ptr @.str.460, i64 0, i64 0
   call void @wolf_map_set(ptr %t3612, ptr %t3614, ptr %t3613)
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t3615 = load ptr, ptr %this
   %t3616 = load ptr, ptr %value
   %t3617 = getelementptr [6 x i8], ptr @.str.135, i64 0, i64 0
@@ -10969,18 +11007,22 @@ entry:
   %AssignStmt.name_var = getelementptr [11 x i8], ptr @.str.421, i64 0, i64 0
   %t3619 = call ptr @wolf_class_create(ptr %AssignStmt.name_var)
   store ptr %t3619, ptr %this
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t3620 = load ptr, ptr %this
   %t3621 = getelementptr [11 x i8], ptr @.str.421, i64 0, i64 0
   %t3622 = getelementptr [5 x i8], ptr @.str.82, i64 0, i64 0
   call void @wolf_map_set(ptr %t3620, ptr %t3622, ptr %t3621)
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t3623 = load ptr, ptr %this
   %t3624 = load ptr, ptr %target
   %t3625 = getelementptr [7 x i8], ptr @.str.461, i64 0, i64 0
   call void @wolf_map_set(ptr %t3623, ptr %t3625, ptr %t3624)
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t3626 = load ptr, ptr %this
   %t3627 = load ptr, ptr %op
   %t3628 = getelementptr [3 x i8], ptr @.str.138, i64 0, i64 0
   call void @wolf_map_set(ptr %t3626, ptr %t3628, ptr %t3627)
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t3629 = load ptr, ptr %this
   %t3630 = load ptr, ptr %value
   %t3631 = getelementptr [6 x i8], ptr @.str.135, i64 0, i64 0
@@ -10997,10 +11039,12 @@ entry:
   %ReturnStmt.name_var = getelementptr [11 x i8], ptr @.str.281, i64 0, i64 0
   %t3633 = call ptr @wolf_class_create(ptr %ReturnStmt.name_var)
   store ptr %t3633, ptr %this
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t3634 = load ptr, ptr %this
   %t3635 = getelementptr [11 x i8], ptr @.str.281, i64 0, i64 0
   %t3636 = getelementptr [5 x i8], ptr @.str.82, i64 0, i64 0
   call void @wolf_map_set(ptr %t3634, ptr %t3636, ptr %t3635)
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t3637 = load ptr, ptr %this
   %t3638 = load ptr, ptr %values
   %t3639 = getelementptr [7 x i8], ptr @.str.283, i64 0, i64 0
@@ -11019,14 +11063,17 @@ entry:
   %IfStmt.name_var = getelementptr [7 x i8], ptr @.str.231, i64 0, i64 0
   %t3641 = call ptr @wolf_class_create(ptr %IfStmt.name_var)
   store ptr %t3641, ptr %this
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t3642 = load ptr, ptr %this
   %t3643 = getelementptr [7 x i8], ptr @.str.231, i64 0, i64 0
   %t3644 = getelementptr [5 x i8], ptr @.str.82, i64 0, i64 0
   call void @wolf_map_set(ptr %t3642, ptr %t3644, ptr %t3643)
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t3645 = load ptr, ptr %this
   %t3646 = load ptr, ptr %condition
   %t3647 = getelementptr [10 x i8], ptr @.str.233, i64 0, i64 0
   call void @wolf_map_set(ptr %t3645, ptr %t3647, ptr %t3646)
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t3648 = load ptr, ptr %this
   %t3649 = load ptr, ptr %body
   %t3650 = getelementptr [5 x i8], ptr @.str.252, i64 0, i64 0
@@ -11045,14 +11092,17 @@ entry:
   %ElseIfClause.name_var = getelementptr [13 x i8], ptr @.str.422, i64 0, i64 0
   %t3652 = call ptr @wolf_class_create(ptr %ElseIfClause.name_var)
   store ptr %t3652, ptr %this
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t3653 = load ptr, ptr %this
   %t3654 = getelementptr [13 x i8], ptr @.str.422, i64 0, i64 0
   %t3655 = getelementptr [5 x i8], ptr @.str.82, i64 0, i64 0
   call void @wolf_map_set(ptr %t3653, ptr %t3655, ptr %t3654)
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t3656 = load ptr, ptr %this
   %t3657 = load ptr, ptr %condition
   %t3658 = getelementptr [10 x i8], ptr @.str.233, i64 0, i64 0
   call void @wolf_map_set(ptr %t3656, ptr %t3658, ptr %t3657)
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t3659 = load ptr, ptr %this
   %t3660 = load ptr, ptr %body
   %t3661 = getelementptr [5 x i8], ptr @.str.252, i64 0, i64 0
@@ -11075,22 +11125,27 @@ entry:
   %ForStmt.name_var = getelementptr [8 x i8], ptr @.str.249, i64 0, i64 0
   %t3663 = call ptr @wolf_class_create(ptr %ForStmt.name_var)
   store ptr %t3663, ptr %this
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t3664 = load ptr, ptr %this
   %t3665 = getelementptr [8 x i8], ptr @.str.249, i64 0, i64 0
   %t3666 = getelementptr [5 x i8], ptr @.str.82, i64 0, i64 0
   call void @wolf_map_set(ptr %t3664, ptr %t3666, ptr %t3665)
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t3667 = load ptr, ptr %this
   %t3668 = load ptr, ptr %init
   %t3669 = getelementptr [5 x i8], ptr @.str.462, i64 0, i64 0
   call void @wolf_map_set(ptr %t3667, ptr %t3669, ptr %t3668)
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t3670 = load ptr, ptr %this
   %t3671 = load ptr, ptr %condition
   %t3672 = getelementptr [10 x i8], ptr @.str.233, i64 0, i64 0
   call void @wolf_map_set(ptr %t3670, ptr %t3672, ptr %t3671)
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t3673 = load ptr, ptr %this
   %t3674 = load ptr, ptr %update
   %t3675 = getelementptr [7 x i8], ptr @.str.463, i64 0, i64 0
   call void @wolf_map_set(ptr %t3673, ptr %t3675, ptr %t3674)
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t3676 = load ptr, ptr %this
   %t3677 = load ptr, ptr %body
   %t3678 = getelementptr [5 x i8], ptr @.str.252, i64 0, i64 0
@@ -11101,11 +11156,11 @@ entry:
 
 define ptr @wolf_NewForeachStmt(ptr %iterable.arg, ptr %valueVar.arg, ptr %keyVar.arg, ptr %body.arg) {
 entry:
-  %iterable = alloca ptr
   %valueVar = alloca ptr
   %keyVar = alloca ptr
   %body = alloca ptr
   %this = alloca ptr
+  %iterable = alloca ptr
   store ptr %iterable.arg, ptr %iterable
   store ptr %valueVar.arg, ptr %valueVar
   store ptr %keyVar.arg, ptr %keyVar
@@ -11113,22 +11168,27 @@ entry:
   %ForeachStmt.name_var = getelementptr [12 x i8], ptr @.str.295, i64 0, i64 0
   %t3680 = call ptr @wolf_class_create(ptr %ForeachStmt.name_var)
   store ptr %t3680, ptr %this
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t3681 = load ptr, ptr %this
   %t3682 = getelementptr [12 x i8], ptr @.str.295, i64 0, i64 0
   %t3683 = getelementptr [5 x i8], ptr @.str.82, i64 0, i64 0
   call void @wolf_map_set(ptr %t3681, ptr %t3683, ptr %t3682)
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t3684 = load ptr, ptr %this
   %t3685 = load ptr, ptr %iterable
   %t3686 = getelementptr [9 x i8], ptr @.str.297, i64 0, i64 0
   call void @wolf_map_set(ptr %t3684, ptr %t3686, ptr %t3685)
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t3687 = load ptr, ptr %this
   %t3688 = load ptr, ptr %valueVar
   %t3689 = getelementptr [9 x i8], ptr @.str.303, i64 0, i64 0
   call void @wolf_map_set(ptr %t3687, ptr %t3689, ptr %t3688)
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t3690 = load ptr, ptr %this
   %t3691 = load ptr, ptr %keyVar
   %t3692 = getelementptr [7 x i8], ptr @.str.300, i64 0, i64 0
   call void @wolf_map_set(ptr %t3690, ptr %t3692, ptr %t3691)
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t3693 = load ptr, ptr %this
   %t3694 = load ptr, ptr %body
   %t3695 = getelementptr [5 x i8], ptr @.str.252, i64 0, i64 0
@@ -11139,22 +11199,25 @@ entry:
 
 define ptr @wolf_NewWhileStmt(ptr %condition.arg, ptr %body.arg) {
 entry:
-  %body = alloca ptr
   %this = alloca ptr
   %condition = alloca ptr
+  %body = alloca ptr
   store ptr %condition.arg, ptr %condition
   store ptr %body.arg, ptr %body
   %WhileStmt.name_var = getelementptr [10 x i8], ptr @.str.257, i64 0, i64 0
   %t3697 = call ptr @wolf_class_create(ptr %WhileStmt.name_var)
   store ptr %t3697, ptr %this
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t3698 = load ptr, ptr %this
   %t3699 = getelementptr [10 x i8], ptr @.str.257, i64 0, i64 0
   %t3700 = getelementptr [5 x i8], ptr @.str.82, i64 0, i64 0
   call void @wolf_map_set(ptr %t3698, ptr %t3700, ptr %t3699)
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t3701 = load ptr, ptr %this
   %t3702 = load ptr, ptr %condition
   %t3703 = getelementptr [10 x i8], ptr @.str.233, i64 0, i64 0
   call void @wolf_map_set(ptr %t3701, ptr %t3703, ptr %t3702)
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t3704 = load ptr, ptr %this
   %t3705 = load ptr, ptr %body
   %t3706 = getelementptr [5 x i8], ptr @.str.252, i64 0, i64 0
@@ -11173,14 +11236,17 @@ entry:
   %MatchStmt.name_var = getelementptr [10 x i8], ptr @.str.322, i64 0, i64 0
   %t3708 = call ptr @wolf_class_create(ptr %MatchStmt.name_var)
   store ptr %t3708, ptr %this
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t3709 = load ptr, ptr %this
   %t3710 = getelementptr [10 x i8], ptr @.str.322, i64 0, i64 0
   %t3711 = getelementptr [5 x i8], ptr @.str.82, i64 0, i64 0
   call void @wolf_map_set(ptr %t3709, ptr %t3711, ptr %t3710)
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t3712 = load ptr, ptr %this
   %t3713 = load ptr, ptr %subject
   %t3714 = getelementptr [8 x i8], ptr @.str.464, i64 0, i64 0
   call void @wolf_map_set(ptr %t3712, ptr %t3714, ptr %t3713)
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t3715 = load ptr, ptr %this
   %t3716 = load ptr, ptr %arms
   %t3717 = getelementptr [5 x i8], ptr @.str.324, i64 0, i64 0
@@ -11199,14 +11265,17 @@ entry:
   %MatchArm.name_var = getelementptr [9 x i8], ptr @.str.423, i64 0, i64 0
   %t3719 = call ptr @wolf_class_create(ptr %MatchArm.name_var)
   store ptr %t3719, ptr %this
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t3720 = load ptr, ptr %this
   %t3721 = getelementptr [9 x i8], ptr @.str.423, i64 0, i64 0
   %t3722 = getelementptr [5 x i8], ptr @.str.82, i64 0, i64 0
   call void @wolf_map_set(ptr %t3720, ptr %t3722, ptr %t3721)
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t3723 = load ptr, ptr %this
   %t3724 = load ptr, ptr %pattern
   %t3725 = getelementptr [8 x i8], ptr @.str.326, i64 0, i64 0
   call void @wolf_map_set(ptr %t3723, ptr %t3725, ptr %t3724)
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t3726 = load ptr, ptr %this
   %t3727 = load ptr, ptr %body
   %t3728 = getelementptr [5 x i8], ptr @.str.252, i64 0, i64 0
@@ -11223,10 +11292,12 @@ entry:
   %BlockStmt.name_var = getelementptr [10 x i8], ptr @.str.279, i64 0, i64 0
   %t3730 = call ptr @wolf_class_create(ptr %BlockStmt.name_var)
   store ptr %t3730, ptr %this
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t3731 = load ptr, ptr %this
   %t3732 = getelementptr [10 x i8], ptr @.str.279, i64 0, i64 0
   %t3733 = getelementptr [5 x i8], ptr @.str.82, i64 0, i64 0
   call void @wolf_map_set(ptr %t3731, ptr %t3733, ptr %t3732)
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t3734 = load ptr, ptr %this
   %t3735 = load ptr, ptr %statements
   %t3736 = getelementptr [11 x i8], ptr @.str.124, i64 0, i64 0
@@ -11243,10 +11314,12 @@ entry:
   %FuncDecl.name_var = getelementptr [9 x i8], ptr @.str.275, i64 0, i64 0
   %t3738 = call ptr @wolf_class_create(ptr %FuncDecl.name_var)
   store ptr %t3738, ptr %this
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t3739 = load ptr, ptr %this
   %t3740 = getelementptr [9 x i8], ptr @.str.275, i64 0, i64 0
   %t3741 = getelementptr [5 x i8], ptr @.str.82, i64 0, i64 0
   call void @wolf_map_set(ptr %t3739, ptr %t3741, ptr %t3740)
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t3742 = load ptr, ptr %this
   %t3743 = load ptr, ptr %name
   %t3744 = getelementptr [5 x i8], ptr @.str.128, i64 0, i64 0
@@ -11267,18 +11340,22 @@ entry:
   %Param.name_var = getelementptr [6 x i8], ptr @.str.424, i64 0, i64 0
   %t3746 = call ptr @wolf_class_create(ptr %Param.name_var)
   store ptr %t3746, ptr %this
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t3747 = load ptr, ptr %this
   %t3748 = getelementptr [6 x i8], ptr @.str.424, i64 0, i64 0
   %t3749 = getelementptr [5 x i8], ptr @.str.82, i64 0, i64 0
   call void @wolf_map_set(ptr %t3747, ptr %t3749, ptr %t3748)
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t3750 = load ptr, ptr %this
   %t3751 = load ptr, ptr %name
   %t3752 = getelementptr [5 x i8], ptr @.str.128, i64 0, i64 0
   call void @wolf_map_set(ptr %t3750, ptr %t3752, ptr %t3751)
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t3753 = load ptr, ptr %this
   %t3754 = load ptr, ptr %typeName
   %t3755 = getelementptr [9 x i8], ptr @.str.460, i64 0, i64 0
   call void @wolf_map_set(ptr %t3753, ptr %t3755, ptr %t3754)
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t3756 = load ptr, ptr %this
   %t3757 = load ptr, ptr %defaultVal
   %t3758 = getelementptr [11 x i8], ptr @.str.465, i64 0, i64 0
@@ -11295,10 +11372,12 @@ entry:
   %ReturnTypeSpec.name_var = getelementptr [15 x i8], ptr @.str.425, i64 0, i64 0
   %t3760 = call ptr @wolf_class_create(ptr %ReturnTypeSpec.name_var)
   store ptr %t3760, ptr %this
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t3761 = load ptr, ptr %this
   %t3762 = getelementptr [15 x i8], ptr @.str.425, i64 0, i64 0
   %t3763 = getelementptr [5 x i8], ptr @.str.82, i64 0, i64 0
   call void @wolf_map_set(ptr %t3761, ptr %t3763, ptr %t3762)
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t3764 = load ptr, ptr %this
   %t3765 = load ptr, ptr %types
   %t3766 = getelementptr [6 x i8], ptr @.str.466, i64 0, i64 0
@@ -11315,10 +11394,12 @@ entry:
   %ClassDecl.name_var = getelementptr [10 x i8], ptr @.str.262, i64 0, i64 0
   %t3768 = call ptr @wolf_class_create(ptr %ClassDecl.name_var)
   store ptr %t3768, ptr %this
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t3769 = load ptr, ptr %this
   %t3770 = getelementptr [10 x i8], ptr @.str.262, i64 0, i64 0
   %t3771 = getelementptr [5 x i8], ptr @.str.82, i64 0, i64 0
   call void @wolf_map_set(ptr %t3769, ptr %t3771, ptr %t3770)
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t3772 = load ptr, ptr %this
   %t3773 = load ptr, ptr %name
   %t3774 = getelementptr [5 x i8], ptr @.str.128, i64 0, i64 0
@@ -11335,10 +11416,12 @@ entry:
   %InterfaceDecl.name_var = getelementptr [14 x i8], ptr @.str.426, i64 0, i64 0
   %t3776 = call ptr @wolf_class_create(ptr %InterfaceDecl.name_var)
   store ptr %t3776, ptr %this
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t3777 = load ptr, ptr %this
   %t3778 = getelementptr [14 x i8], ptr @.str.426, i64 0, i64 0
   %t3779 = getelementptr [5 x i8], ptr @.str.82, i64 0, i64 0
   call void @wolf_map_set(ptr %t3777, ptr %t3779, ptr %t3778)
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t3780 = load ptr, ptr %this
   %t3781 = load ptr, ptr %name
   %t3782 = getelementptr [5 x i8], ptr @.str.128, i64 0, i64 0
@@ -11355,10 +11438,12 @@ entry:
   %InterfaceMethod.name_var = getelementptr [16 x i8], ptr @.str.427, i64 0, i64 0
   %t3784 = call ptr @wolf_class_create(ptr %InterfaceMethod.name_var)
   store ptr %t3784, ptr %this
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t3785 = load ptr, ptr %this
   %t3786 = getelementptr [16 x i8], ptr @.str.427, i64 0, i64 0
   %t3787 = getelementptr [5 x i8], ptr @.str.82, i64 0, i64 0
   call void @wolf_map_set(ptr %t3785, ptr %t3787, ptr %t3786)
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t3788 = load ptr, ptr %this
   %t3789 = load ptr, ptr %name
   %t3790 = getelementptr [5 x i8], ptr @.str.128, i64 0, i64 0
@@ -11375,10 +11460,12 @@ entry:
   %EnumDecl.name_var = getelementptr [9 x i8], ptr @.str.428, i64 0, i64 0
   %t3792 = call ptr @wolf_class_create(ptr %EnumDecl.name_var)
   store ptr %t3792, ptr %this
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t3793 = load ptr, ptr %this
   %t3794 = getelementptr [9 x i8], ptr @.str.428, i64 0, i64 0
   %t3795 = getelementptr [5 x i8], ptr @.str.82, i64 0, i64 0
   call void @wolf_map_set(ptr %t3793, ptr %t3795, ptr %t3794)
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t3796 = load ptr, ptr %this
   %t3797 = load ptr, ptr %name
   %t3798 = getelementptr [5 x i8], ptr @.str.128, i64 0, i64 0
@@ -11389,11 +11476,11 @@ entry:
 
 define ptr @wolf_NewPropertyDecl(ptr %name.arg, ptr %typeName.arg, ptr %defaultVal.arg, ptr %visibility.arg) {
 entry:
-  %visibility = alloca ptr
-  %this = alloca ptr
   %name = alloca ptr
   %typeName = alloca ptr
   %defaultVal = alloca ptr
+  %visibility = alloca ptr
+  %this = alloca ptr
   store ptr %name.arg, ptr %name
   store ptr %typeName.arg, ptr %typeName
   store ptr %defaultVal.arg, ptr %defaultVal
@@ -11401,22 +11488,27 @@ entry:
   %PropertyDecl.name_var = getelementptr [13 x i8], ptr @.str.429, i64 0, i64 0
   %t3800 = call ptr @wolf_class_create(ptr %PropertyDecl.name_var)
   store ptr %t3800, ptr %this
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t3801 = load ptr, ptr %this
   %t3802 = getelementptr [13 x i8], ptr @.str.429, i64 0, i64 0
   %t3803 = getelementptr [5 x i8], ptr @.str.82, i64 0, i64 0
   call void @wolf_map_set(ptr %t3801, ptr %t3803, ptr %t3802)
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t3804 = load ptr, ptr %this
   %t3805 = load ptr, ptr %name
   %t3806 = getelementptr [5 x i8], ptr @.str.128, i64 0, i64 0
   call void @wolf_map_set(ptr %t3804, ptr %t3806, ptr %t3805)
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t3807 = load ptr, ptr %this
   %t3808 = load ptr, ptr %typeName
   %t3809 = getelementptr [9 x i8], ptr @.str.460, i64 0, i64 0
   call void @wolf_map_set(ptr %t3807, ptr %t3809, ptr %t3808)
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t3810 = load ptr, ptr %this
   %t3811 = load ptr, ptr %defaultVal
   %t3812 = getelementptr [11 x i8], ptr @.str.465, i64 0, i64 0
   call void @wolf_map_set(ptr %t3810, ptr %t3812, ptr %t3811)
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t3813 = load ptr, ptr %this
   %t3814 = load ptr, ptr %visibility
   %t3815 = getelementptr [11 x i8], ptr @.str.467, i64 0, i64 0
@@ -11427,28 +11519,32 @@ entry:
 
 define ptr @wolf_NewTryCatchStmt(ptr %tryBody.arg, ptr %catchVar.arg, ptr %catchBody.arg) {
 entry:
-  %tryBody = alloca ptr
-  %catchVar = alloca ptr
   %catchBody = alloca ptr
   %this = alloca ptr
+  %tryBody = alloca ptr
+  %catchVar = alloca ptr
   store ptr %tryBody.arg, ptr %tryBody
   store ptr %catchVar.arg, ptr %catchVar
   store ptr %catchBody.arg, ptr %catchBody
   %TryCatchStmt.name_var = getelementptr [13 x i8], ptr @.str.430, i64 0, i64 0
   %t3817 = call ptr @wolf_class_create(ptr %TryCatchStmt.name_var)
   store ptr %t3817, ptr %this
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t3818 = load ptr, ptr %this
   %t3819 = getelementptr [13 x i8], ptr @.str.430, i64 0, i64 0
   %t3820 = getelementptr [5 x i8], ptr @.str.82, i64 0, i64 0
   call void @wolf_map_set(ptr %t3818, ptr %t3820, ptr %t3819)
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t3821 = load ptr, ptr %this
   %t3822 = load ptr, ptr %tryBody
   %t3823 = getelementptr [8 x i8], ptr @.str.468, i64 0, i64 0
   call void @wolf_map_set(ptr %t3821, ptr %t3823, ptr %t3822)
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t3824 = load ptr, ptr %this
   %t3825 = load ptr, ptr %catchVar
   %t3826 = getelementptr [9 x i8], ptr @.str.469, i64 0, i64 0
   call void @wolf_map_set(ptr %t3824, ptr %t3826, ptr %t3825)
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t3827 = load ptr, ptr %this
   %t3828 = load ptr, ptr %catchBody
   %t3829 = getelementptr [10 x i8], ptr @.str.470, i64 0, i64 0
@@ -11465,10 +11561,12 @@ entry:
   %NamespaceDecl.name_var = getelementptr [14 x i8], ptr @.str.431, i64 0, i64 0
   %t3831 = call ptr @wolf_class_create(ptr %NamespaceDecl.name_var)
   store ptr %t3831, ptr %this
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t3832 = load ptr, ptr %this
   %t3833 = getelementptr [14 x i8], ptr @.str.431, i64 0, i64 0
   %t3834 = getelementptr [5 x i8], ptr @.str.82, i64 0, i64 0
   call void @wolf_map_set(ptr %t3832, ptr %t3834, ptr %t3833)
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t3835 = load ptr, ptr %this
   %t3836 = load ptr, ptr %name
   %t3837 = getelementptr [5 x i8], ptr @.str.128, i64 0, i64 0
@@ -11483,6 +11581,7 @@ entry:
   %MLBlockStmt.name_var = getelementptr [12 x i8], ptr @.str.432, i64 0, i64 0
   %t3839 = call ptr @wolf_class_create(ptr %MLBlockStmt.name_var)
   store ptr %t3839, ptr %this
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t3840 = load ptr, ptr %this
   %t3841 = getelementptr [12 x i8], ptr @.str.432, i64 0, i64 0
   %t3842 = getelementptr [5 x i8], ptr @.str.82, i64 0, i64 0
@@ -11505,22 +11604,27 @@ entry:
   %SuperviseBlockStmt.name_var = getelementptr [19 x i8], ptr @.str.433, i64 0, i64 0
   %t3844 = call ptr @wolf_class_create(ptr %SuperviseBlockStmt.name_var)
   store ptr %t3844, ptr %this
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t3845 = load ptr, ptr %this
   %t3846 = getelementptr [19 x i8], ptr @.str.433, i64 0, i64 0
   %t3847 = getelementptr [5 x i8], ptr @.str.82, i64 0, i64 0
   call void @wolf_map_set(ptr %t3845, ptr %t3847, ptr %t3846)
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t3848 = load ptr, ptr %this
   %t3849 = load ptr, ptr %strategy
   %t3850 = getelementptr [9 x i8], ptr @.str.471, i64 0, i64 0
   call void @wolf_map_set(ptr %t3848, ptr %t3850, ptr %t3849)
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t3851 = load ptr, ptr %this
   %t3852 = load ptr, ptr %restart
   %t3853 = getelementptr [8 x i8], ptr @.str.472, i64 0, i64 0
   call void @wolf_map_set(ptr %t3851, ptr %t3853, ptr %t3852)
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t3854 = load ptr, ptr %this
   %t3855 = load ptr, ptr %max
   %t3856 = getelementptr [4 x i8], ptr @.str.473, i64 0, i64 0
   call void @wolf_map_set(ptr %t3854, ptr %t3856, ptr %t3855)
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t3857 = load ptr, ptr %this
   %t3858 = load ptr, ptr %body
   %t3859 = getelementptr [5 x i8], ptr @.str.252, i64 0, i64 0
@@ -11531,16 +11635,18 @@ entry:
 
 define ptr @wolf_NewSpawnStmt(ptr %call.arg) {
 entry:
-  %this = alloca ptr
   %call = alloca ptr
+  %this = alloca ptr
   store ptr %call.arg, ptr %call
   %SpawnStmt.name_var = getelementptr [10 x i8], ptr @.str.434, i64 0, i64 0
   %t3861 = call ptr @wolf_class_create(ptr %SpawnStmt.name_var)
   store ptr %t3861, ptr %this
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t3862 = load ptr, ptr %this
   %t3863 = getelementptr [10 x i8], ptr @.str.434, i64 0, i64 0
   %t3864 = getelementptr [5 x i8], ptr @.str.82, i64 0, i64 0
   call void @wolf_map_set(ptr %t3862, ptr %t3864, ptr %t3863)
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t3865 = load ptr, ptr %this
   %t3866 = load ptr, ptr %call
   %t3867 = getelementptr [5 x i8], ptr @.str.474, i64 0, i64 0
@@ -11559,14 +11665,17 @@ entry:
   %TraceBlockStmt.name_var = getelementptr [15 x i8], ptr @.str.435, i64 0, i64 0
   %t3869 = call ptr @wolf_class_create(ptr %TraceBlockStmt.name_var)
   store ptr %t3869, ptr %this
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t3870 = load ptr, ptr %this
   %t3871 = getelementptr [15 x i8], ptr @.str.435, i64 0, i64 0
   %t3872 = getelementptr [5 x i8], ptr @.str.82, i64 0, i64 0
   call void @wolf_map_set(ptr %t3870, ptr %t3872, ptr %t3871)
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t3873 = load ptr, ptr %this
   %t3874 = load ptr, ptr %spanName
   %t3875 = getelementptr [9 x i8], ptr @.str.475, i64 0, i64 0
   call void @wolf_map_set(ptr %t3873, ptr %t3875, ptr %t3874)
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t3876 = load ptr, ptr %this
   %t3877 = load ptr, ptr %body
   %t3878 = getelementptr [5 x i8], ptr @.str.252, i64 0, i64 0
@@ -11583,10 +11692,12 @@ entry:
   %ParallelStmt.name_var = getelementptr [13 x i8], ptr @.str.436, i64 0, i64 0
   %t3880 = call ptr @wolf_class_create(ptr %ParallelStmt.name_var)
   store ptr %t3880, ptr %this
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t3881 = load ptr, ptr %this
   %t3882 = getelementptr [13 x i8], ptr @.str.436, i64 0, i64 0
   %t3883 = getelementptr [5 x i8], ptr @.str.82, i64 0, i64 0
   call void @wolf_map_set(ptr %t3881, ptr %t3883, ptr %t3882)
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t3884 = load ptr, ptr %this
   %t3885 = load ptr, ptr %body
   %t3886 = getelementptr [5 x i8], ptr @.str.252, i64 0, i64 0
@@ -11597,22 +11708,25 @@ entry:
 
 define ptr @wolf_NewDestructureAssign(ptr %names.arg, ptr %value.arg) {
 entry:
+  %this = alloca ptr
   %names = alloca ptr
   %value = alloca ptr
-  %this = alloca ptr
   store ptr %names.arg, ptr %names
   store ptr %value.arg, ptr %value
   %DestructureAssign.name_var = getelementptr [18 x i8], ptr @.str.437, i64 0, i64 0
   %t3888 = call ptr @wolf_class_create(ptr %DestructureAssign.name_var)
   store ptr %t3888, ptr %this
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t3889 = load ptr, ptr %this
   %t3890 = getelementptr [18 x i8], ptr @.str.437, i64 0, i64 0
   %t3891 = getelementptr [5 x i8], ptr @.str.82, i64 0, i64 0
   call void @wolf_map_set(ptr %t3889, ptr %t3891, ptr %t3890)
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t3892 = load ptr, ptr %this
   %t3893 = load ptr, ptr %names
   %t3894 = getelementptr [6 x i8], ptr @.str.476, i64 0, i64 0
   call void @wolf_map_set(ptr %t3892, ptr %t3894, ptr %t3893)
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t3895 = load ptr, ptr %this
   %t3896 = load ptr, ptr %value
   %t3897 = getelementptr [6 x i8], ptr @.str.135, i64 0, i64 0
@@ -11623,16 +11737,18 @@ entry:
 
 define ptr @wolf_NewDollarIdent(ptr %name.arg) {
 entry:
-  %name = alloca ptr
   %this = alloca ptr
+  %name = alloca ptr
   store ptr %name.arg, ptr %name
   %DollarIdent.name_var = getelementptr [12 x i8], ptr @.str.298, i64 0, i64 0
   %t3899 = call ptr @wolf_class_create(ptr %DollarIdent.name_var)
   store ptr %t3899, ptr %this
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t3900 = load ptr, ptr %this
   %t3901 = getelementptr [12 x i8], ptr @.str.298, i64 0, i64 0
   %t3902 = getelementptr [5 x i8], ptr @.str.82, i64 0, i64 0
   call void @wolf_map_set(ptr %t3900, ptr %t3902, ptr %t3901)
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t3903 = load ptr, ptr %this
   %t3904 = load ptr, ptr %name
   %t3905 = getelementptr [5 x i8], ptr @.str.128, i64 0, i64 0
@@ -11649,10 +11765,12 @@ entry:
   %Identifier.name_var = getelementptr [11 x i8], ptr @.str.438, i64 0, i64 0
   %t3907 = call ptr @wolf_class_create(ptr %Identifier.name_var)
   store ptr %t3907, ptr %this
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t3908 = load ptr, ptr %this
   %t3909 = getelementptr [11 x i8], ptr @.str.438, i64 0, i64 0
   %t3910 = getelementptr [5 x i8], ptr @.str.82, i64 0, i64 0
   call void @wolf_map_set(ptr %t3908, ptr %t3910, ptr %t3909)
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t3911 = load ptr, ptr %this
   %t3912 = load ptr, ptr %name
   %t3913 = getelementptr [5 x i8], ptr @.str.128, i64 0, i64 0
@@ -11669,10 +11787,12 @@ entry:
   %IntLiteral.name_var = getelementptr [11 x i8], ptr @.str.327, i64 0, i64 0
   %t3915 = call ptr @wolf_class_create(ptr %IntLiteral.name_var)
   store ptr %t3915, ptr %this
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t3916 = load ptr, ptr %this
   %t3917 = getelementptr [11 x i8], ptr @.str.327, i64 0, i64 0
   %t3918 = getelementptr [5 x i8], ptr @.str.82, i64 0, i64 0
   call void @wolf_map_set(ptr %t3916, ptr %t3918, ptr %t3917)
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t3919 = load ptr, ptr %this
   %t3920 = load ptr, ptr %value
   %t3921 = getelementptr [6 x i8], ptr @.str.135, i64 0, i64 0
@@ -11689,10 +11809,12 @@ entry:
   %FloatLiteral.name_var = getelementptr [13 x i8], ptr @.str.439, i64 0, i64 0
   %t3923 = call ptr @wolf_class_create(ptr %FloatLiteral.name_var)
   store ptr %t3923, ptr %this
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t3924 = load ptr, ptr %this
   %t3925 = getelementptr [13 x i8], ptr @.str.439, i64 0, i64 0
   %t3926 = getelementptr [5 x i8], ptr @.str.82, i64 0, i64 0
   call void @wolf_map_set(ptr %t3924, ptr %t3926, ptr %t3925)
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t3927 = load ptr, ptr %this
   %t3928 = load ptr, ptr %value
   %t3929 = getelementptr [6 x i8], ptr @.str.135, i64 0, i64 0
@@ -11709,10 +11831,12 @@ entry:
   %StringLiteral.name_var = getelementptr [14 x i8], ptr @.str.440, i64 0, i64 0
   %t3931 = call ptr @wolf_class_create(ptr %StringLiteral.name_var)
   store ptr %t3931, ptr %this
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t3932 = load ptr, ptr %this
   %t3933 = getelementptr [14 x i8], ptr @.str.440, i64 0, i64 0
   %t3934 = getelementptr [5 x i8], ptr @.str.82, i64 0, i64 0
   call void @wolf_map_set(ptr %t3932, ptr %t3934, ptr %t3933)
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t3935 = load ptr, ptr %this
   %t3936 = load ptr, ptr %value
   %t3937 = getelementptr [6 x i8], ptr @.str.135, i64 0, i64 0
@@ -11729,10 +11853,12 @@ entry:
   %InterpolatedString.name_var = getelementptr [19 x i8], ptr @.str.441, i64 0, i64 0
   %t3939 = call ptr @wolf_class_create(ptr %InterpolatedString.name_var)
   store ptr %t3939, ptr %this
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t3940 = load ptr, ptr %this
   %t3941 = getelementptr [19 x i8], ptr @.str.441, i64 0, i64 0
   %t3942 = getelementptr [5 x i8], ptr @.str.82, i64 0, i64 0
   call void @wolf_map_set(ptr %t3940, ptr %t3942, ptr %t3941)
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t3943 = load ptr, ptr %this
   %t3944 = load ptr, ptr %parts
   %t3945 = getelementptr [6 x i8], ptr @.str.477, i64 0, i64 0
@@ -11749,10 +11875,12 @@ entry:
   %BoolLiteral.name_var = getelementptr [12 x i8], ptr @.str.442, i64 0, i64 0
   %t3947 = call ptr @wolf_class_create(ptr %BoolLiteral.name_var)
   store ptr %t3947, ptr %this
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t3948 = load ptr, ptr %this
   %t3949 = getelementptr [12 x i8], ptr @.str.442, i64 0, i64 0
   %t3950 = getelementptr [5 x i8], ptr @.str.82, i64 0, i64 0
   call void @wolf_map_set(ptr %t3948, ptr %t3950, ptr %t3949)
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t3951 = load ptr, ptr %this
   %t3952 = load ptr, ptr %value
   %t3953 = getelementptr [6 x i8], ptr @.str.135, i64 0, i64 0
@@ -11767,6 +11895,7 @@ entry:
   %NilLiteral.name_var = getelementptr [11 x i8], ptr @.str.443, i64 0, i64 0
   %t3955 = call ptr @wolf_class_create(ptr %NilLiteral.name_var)
   store ptr %t3955, ptr %this
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t3956 = load ptr, ptr %this
   %t3957 = getelementptr [11 x i8], ptr @.str.443, i64 0, i64 0
   %t3958 = getelementptr [5 x i8], ptr @.str.82, i64 0, i64 0
@@ -11781,6 +11910,7 @@ entry:
   %Wildcard.name_var = getelementptr [9 x i8], ptr @.str.329, i64 0, i64 0
   %t3960 = call ptr @wolf_class_create(ptr %Wildcard.name_var)
   store ptr %t3960, ptr %this
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t3961 = load ptr, ptr %this
   %t3962 = getelementptr [9 x i8], ptr @.str.329, i64 0, i64 0
   %t3963 = getelementptr [5 x i8], ptr @.str.82, i64 0, i64 0
@@ -11797,10 +11927,12 @@ entry:
   %ArrayLiteral.name_var = getelementptr [13 x i8], ptr @.str.217, i64 0, i64 0
   %t3965 = call ptr @wolf_class_create(ptr %ArrayLiteral.name_var)
   store ptr %t3965, ptr %this
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t3966 = load ptr, ptr %this
   %t3967 = getelementptr [13 x i8], ptr @.str.217, i64 0, i64 0
   %t3968 = getelementptr [5 x i8], ptr @.str.82, i64 0, i64 0
   call void @wolf_map_set(ptr %t3966, ptr %t3968, ptr %t3967)
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t3969 = load ptr, ptr %this
   %t3970 = load ptr, ptr %elements
   %t3971 = getelementptr [9 x i8], ptr @.str.219, i64 0, i64 0
@@ -11811,22 +11943,25 @@ entry:
 
 define ptr @wolf_NewMapLiteral(ptr %keys.arg, ptr %values.arg) {
 entry:
+  %keys = alloca ptr
   %values = alloca ptr
   %this = alloca ptr
-  %keys = alloca ptr
   store ptr %keys.arg, ptr %keys
   store ptr %values.arg, ptr %values
   %MapLiteral.name_var = getelementptr [11 x i8], ptr @.str.224, i64 0, i64 0
   %t3973 = call ptr @wolf_class_create(ptr %MapLiteral.name_var)
   store ptr %t3973, ptr %this
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t3974 = load ptr, ptr %this
   %t3975 = getelementptr [11 x i8], ptr @.str.224, i64 0, i64 0
   %t3976 = getelementptr [5 x i8], ptr @.str.82, i64 0, i64 0
   call void @wolf_map_set(ptr %t3974, ptr %t3976, ptr %t3975)
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t3977 = load ptr, ptr %this
   %t3978 = load ptr, ptr %keys
   %t3979 = getelementptr [5 x i8], ptr @.str.226, i64 0, i64 0
   call void @wolf_map_set(ptr %t3977, ptr %t3979, ptr %t3978)
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t3980 = load ptr, ptr %this
   %t3981 = load ptr, ptr %values
   %t3982 = getelementptr [7 x i8], ptr @.str.283, i64 0, i64 0
@@ -11837,28 +11972,32 @@ entry:
 
 define ptr @wolf_NewBinaryExpr(ptr %left.arg, ptr %op.arg, ptr %right.arg) {
 entry:
+  %right = alloca ptr
   %this = alloca ptr
   %left = alloca ptr
   %op = alloca ptr
-  %right = alloca ptr
   store ptr %left.arg, ptr %left
   store ptr %op.arg, ptr %op
   store ptr %right.arg, ptr %right
   %BinaryExpr.name_var = getelementptr [11 x i8], ptr @.str.136, i64 0, i64 0
   %t3984 = call ptr @wolf_class_create(ptr %BinaryExpr.name_var)
   store ptr %t3984, ptr %this
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t3985 = load ptr, ptr %this
   %t3986 = getelementptr [11 x i8], ptr @.str.136, i64 0, i64 0
   %t3987 = getelementptr [5 x i8], ptr @.str.82, i64 0, i64 0
   call void @wolf_map_set(ptr %t3985, ptr %t3987, ptr %t3986)
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t3988 = load ptr, ptr %this
   %t3989 = load ptr, ptr %left
   %t3990 = getelementptr [5 x i8], ptr @.str.152, i64 0, i64 0
   call void @wolf_map_set(ptr %t3988, ptr %t3990, ptr %t3989)
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t3991 = load ptr, ptr %this
   %t3992 = load ptr, ptr %op
   %t3993 = getelementptr [3 x i8], ptr @.str.138, i64 0, i64 0
   call void @wolf_map_set(ptr %t3991, ptr %t3993, ptr %t3992)
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t3994 = load ptr, ptr %this
   %t3995 = load ptr, ptr %right
   %t3996 = getelementptr [6 x i8], ptr @.str.141, i64 0, i64 0
@@ -11877,14 +12016,17 @@ entry:
   %UnaryExpr.name_var = getelementptr [10 x i8], ptr @.str.160, i64 0, i64 0
   %t3998 = call ptr @wolf_class_create(ptr %UnaryExpr.name_var)
   store ptr %t3998, ptr %this
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t3999 = load ptr, ptr %this
   %t4000 = getelementptr [10 x i8], ptr @.str.160, i64 0, i64 0
   %t4001 = getelementptr [5 x i8], ptr @.str.82, i64 0, i64 0
   call void @wolf_map_set(ptr %t3999, ptr %t4001, ptr %t4000)
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t4002 = load ptr, ptr %this
   %t4003 = load ptr, ptr %op
   %t4004 = getelementptr [3 x i8], ptr @.str.138, i64 0, i64 0
   call void @wolf_map_set(ptr %t4002, ptr %t4004, ptr %t4003)
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t4005 = load ptr, ptr %this
   %t4006 = load ptr, ptr %operand
   %t4007 = getelementptr [8 x i8], ptr @.str.478, i64 0, i64 0
@@ -11895,22 +12037,25 @@ entry:
 
 define ptr @wolf_NewPostfixExpr(ptr %operand.arg, ptr %op.arg) {
 entry:
+  %this = alloca ptr
   %operand = alloca ptr
   %op = alloca ptr
-  %this = alloca ptr
   store ptr %operand.arg, ptr %operand
   store ptr %op.arg, ptr %op
   %PostfixExpr.name_var = getelementptr [12 x i8], ptr @.str.444, i64 0, i64 0
   %t4009 = call ptr @wolf_class_create(ptr %PostfixExpr.name_var)
   store ptr %t4009, ptr %this
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t4010 = load ptr, ptr %this
   %t4011 = getelementptr [12 x i8], ptr @.str.444, i64 0, i64 0
   %t4012 = getelementptr [5 x i8], ptr @.str.82, i64 0, i64 0
   call void @wolf_map_set(ptr %t4010, ptr %t4012, ptr %t4011)
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t4013 = load ptr, ptr %this
   %t4014 = load ptr, ptr %operand
   %t4015 = getelementptr [8 x i8], ptr @.str.478, i64 0, i64 0
   call void @wolf_map_set(ptr %t4013, ptr %t4015, ptr %t4014)
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t4016 = load ptr, ptr %this
   %t4017 = load ptr, ptr %op
   %t4018 = getelementptr [3 x i8], ptr @.str.138, i64 0, i64 0
@@ -11929,14 +12074,17 @@ entry:
   %CallExpr.name_var = getelementptr [9 x i8], ptr @.str.445, i64 0, i64 0
   %t4020 = call ptr @wolf_class_create(ptr %CallExpr.name_var)
   store ptr %t4020, ptr %this
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t4021 = load ptr, ptr %this
   %t4022 = getelementptr [9 x i8], ptr @.str.445, i64 0, i64 0
   %t4023 = getelementptr [5 x i8], ptr @.str.82, i64 0, i64 0
   call void @wolf_map_set(ptr %t4021, ptr %t4023, ptr %t4022)
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t4024 = load ptr, ptr %this
   %t4025 = load ptr, ptr %callee
   %t4026 = getelementptr [7 x i8], ptr @.str.479, i64 0, i64 0
   call void @wolf_map_set(ptr %t4024, ptr %t4026, ptr %t4025)
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t4027 = load ptr, ptr %this
   %t4028 = load ptr, ptr %args
   %t4029 = getelementptr [5 x i8], ptr @.str.198, i64 0, i64 0
@@ -11947,22 +12095,25 @@ entry:
 
 define ptr @wolf_NewNamedArg(ptr %name.arg, ptr %value.arg) {
 entry:
-  %value = alloca ptr
   %this = alloca ptr
   %name = alloca ptr
+  %value = alloca ptr
   store ptr %name.arg, ptr %name
   store ptr %value.arg, ptr %value
   %NamedArg.name_var = getelementptr [9 x i8], ptr @.str.446, i64 0, i64 0
   %t4031 = call ptr @wolf_class_create(ptr %NamedArg.name_var)
   store ptr %t4031, ptr %this
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t4032 = load ptr, ptr %this
   %t4033 = getelementptr [9 x i8], ptr @.str.446, i64 0, i64 0
   %t4034 = getelementptr [5 x i8], ptr @.str.82, i64 0, i64 0
   call void @wolf_map_set(ptr %t4032, ptr %t4034, ptr %t4033)
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t4035 = load ptr, ptr %this
   %t4036 = load ptr, ptr %name
   %t4037 = getelementptr [5 x i8], ptr @.str.128, i64 0, i64 0
   call void @wolf_map_set(ptr %t4035, ptr %t4037, ptr %t4036)
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t4038 = load ptr, ptr %this
   %t4039 = load ptr, ptr %value
   %t4040 = getelementptr [6 x i8], ptr @.str.135, i64 0, i64 0
@@ -11973,22 +12124,25 @@ entry:
 
 define ptr @wolf_NewPropertyAccess(ptr %object.arg, ptr %property.arg) {
 entry:
-  %this = alloca ptr
   %object = alloca ptr
   %property = alloca ptr
+  %this = alloca ptr
   store ptr %object.arg, ptr %object
   store ptr %property.arg, ptr %property
   %PropertyAccess.name_var = getelementptr [15 x i8], ptr @.str.447, i64 0, i64 0
   %t4042 = call ptr @wolf_class_create(ptr %PropertyAccess.name_var)
   store ptr %t4042, ptr %this
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t4043 = load ptr, ptr %this
   %t4044 = getelementptr [15 x i8], ptr @.str.447, i64 0, i64 0
   %t4045 = getelementptr [5 x i8], ptr @.str.82, i64 0, i64 0
   call void @wolf_map_set(ptr %t4043, ptr %t4045, ptr %t4044)
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t4046 = load ptr, ptr %this
   %t4047 = load ptr, ptr %object
   %t4048 = getelementptr [7 x i8], ptr @.str.184, i64 0, i64 0
   call void @wolf_map_set(ptr %t4046, ptr %t4048, ptr %t4047)
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t4049 = load ptr, ptr %this
   %t4050 = load ptr, ptr %property
   %t4051 = getelementptr [9 x i8], ptr @.str.480, i64 0, i64 0
@@ -12009,18 +12163,22 @@ entry:
   %MethodCall.name_var = getelementptr [11 x i8], ptr @.str.173, i64 0, i64 0
   %t4053 = call ptr @wolf_class_create(ptr %MethodCall.name_var)
   store ptr %t4053, ptr %this
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t4054 = load ptr, ptr %this
   %t4055 = getelementptr [11 x i8], ptr @.str.173, i64 0, i64 0
   %t4056 = getelementptr [5 x i8], ptr @.str.82, i64 0, i64 0
   call void @wolf_map_set(ptr %t4054, ptr %t4056, ptr %t4055)
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t4057 = load ptr, ptr %this
   %t4058 = load ptr, ptr %object
   %t4059 = getelementptr [7 x i8], ptr @.str.184, i64 0, i64 0
   call void @wolf_map_set(ptr %t4057, ptr %t4059, ptr %t4058)
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t4060 = load ptr, ptr %this
   %t4061 = load ptr, ptr %method
   %t4062 = getelementptr [7 x i8], ptr @.str.175, i64 0, i64 0
   call void @wolf_map_set(ptr %t4060, ptr %t4062, ptr %t4061)
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t4063 = load ptr, ptr %this
   %t4064 = load ptr, ptr %args
   %t4065 = getelementptr [5 x i8], ptr @.str.198, i64 0, i64 0
@@ -12031,28 +12189,32 @@ entry:
 
 define ptr @wolf_NewStaticCall(ptr %className.arg, ptr %method.arg, ptr %args.arg) {
 entry:
+  %this = alloca ptr
   %className = alloca ptr
   %method = alloca ptr
   %args = alloca ptr
-  %this = alloca ptr
   store ptr %className.arg, ptr %className
   store ptr %method.arg, ptr %method
   store ptr %args.arg, ptr %args
   %StaticCall.name_var = getelementptr [11 x i8], ptr @.str.191, i64 0, i64 0
   %t4067 = call ptr @wolf_class_create(ptr %StaticCall.name_var)
   store ptr %t4067, ptr %this
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t4068 = load ptr, ptr %this
   %t4069 = getelementptr [11 x i8], ptr @.str.191, i64 0, i64 0
   %t4070 = getelementptr [5 x i8], ptr @.str.82, i64 0, i64 0
   call void @wolf_map_set(ptr %t4068, ptr %t4070, ptr %t4069)
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t4071 = load ptr, ptr %this
   %t4072 = load ptr, ptr %className
   %t4073 = getelementptr [10 x i8], ptr @.str.193, i64 0, i64 0
   call void @wolf_map_set(ptr %t4071, ptr %t4073, ptr %t4072)
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t4074 = load ptr, ptr %this
   %t4075 = load ptr, ptr %method
   %t4076 = getelementptr [7 x i8], ptr @.str.175, i64 0, i64 0
   call void @wolf_map_set(ptr %t4074, ptr %t4076, ptr %t4075)
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t4077 = load ptr, ptr %this
   %t4078 = load ptr, ptr %args
   %t4079 = getelementptr [5 x i8], ptr @.str.198, i64 0, i64 0
@@ -12071,14 +12233,17 @@ entry:
   %EnumAccess.name_var = getelementptr [11 x i8], ptr @.str.448, i64 0, i64 0
   %t4081 = call ptr @wolf_class_create(ptr %EnumAccess.name_var)
   store ptr %t4081, ptr %this
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t4082 = load ptr, ptr %this
   %t4083 = getelementptr [11 x i8], ptr @.str.448, i64 0, i64 0
   %t4084 = getelementptr [5 x i8], ptr @.str.82, i64 0, i64 0
   call void @wolf_map_set(ptr %t4082, ptr %t4084, ptr %t4083)
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t4085 = load ptr, ptr %this
   %t4086 = load ptr, ptr %enumName
   %t4087 = getelementptr [9 x i8], ptr @.str.481, i64 0, i64 0
   call void @wolf_map_set(ptr %t4085, ptr %t4087, ptr %t4086)
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t4088 = load ptr, ptr %this
   %t4089 = load ptr, ptr %variant
   %t4090 = getelementptr [8 x i8], ptr @.str.482, i64 0, i64 0
@@ -12097,14 +12262,17 @@ entry:
   %IndexExpr.name_var = getelementptr [10 x i8], ptr @.str.203, i64 0, i64 0
   %t4092 = call ptr @wolf_class_create(ptr %IndexExpr.name_var)
   store ptr %t4092, ptr %this
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t4093 = load ptr, ptr %this
   %t4094 = getelementptr [10 x i8], ptr @.str.203, i64 0, i64 0
   %t4095 = getelementptr [5 x i8], ptr @.str.82, i64 0, i64 0
   call void @wolf_map_set(ptr %t4093, ptr %t4095, ptr %t4094)
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t4096 = load ptr, ptr %this
   %t4097 = load ptr, ptr %object
   %t4098 = getelementptr [7 x i8], ptr @.str.184, i64 0, i64 0
   call void @wolf_map_set(ptr %t4096, ptr %t4098, ptr %t4097)
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t4099 = load ptr, ptr %this
   %t4100 = load ptr, ptr %index
   %t4101 = getelementptr [6 x i8], ptr @.str.483, i64 0, i64 0
@@ -12123,14 +12291,17 @@ entry:
   %NewExpr.name_var = getelementptr [8 x i8], ptr @.str.208, i64 0, i64 0
   %t4103 = call ptr @wolf_class_create(ptr %NewExpr.name_var)
   store ptr %t4103, ptr %this
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t4104 = load ptr, ptr %this
   %t4105 = getelementptr [8 x i8], ptr @.str.208, i64 0, i64 0
   %t4106 = getelementptr [5 x i8], ptr @.str.82, i64 0, i64 0
   call void @wolf_map_set(ptr %t4104, ptr %t4106, ptr %t4105)
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t4107 = load ptr, ptr %this
   %t4108 = load ptr, ptr %classExpr
   %t4109 = getelementptr [10 x i8], ptr @.str.210, i64 0, i64 0
   call void @wolf_map_set(ptr %t4107, ptr %t4109, ptr %t4108)
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t4110 = load ptr, ptr %this
   %t4111 = load ptr, ptr %args
   %t4112 = getelementptr [5 x i8], ptr @.str.198, i64 0, i64 0
@@ -12147,10 +12318,12 @@ entry:
   %ClosureExpr.name_var = getelementptr [12 x i8], ptr @.str.309, i64 0, i64 0
   %t4114 = call ptr @wolf_class_create(ptr %ClosureExpr.name_var)
   store ptr %t4114, ptr %this
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t4115 = load ptr, ptr %this
   %t4116 = getelementptr [12 x i8], ptr @.str.309, i64 0, i64 0
   %t4117 = getelementptr [5 x i8], ptr @.str.82, i64 0, i64 0
   call void @wolf_map_set(ptr %t4115, ptr %t4117, ptr %t4116)
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t4118 = load ptr, ptr %this
   %t4119 = load ptr, ptr %params
   %t4120 = getelementptr [7 x i8], ptr @.str.277, i64 0, i64 0
@@ -12167,10 +12340,12 @@ entry:
   %AsyncExpr.name_var = getelementptr [10 x i8], ptr @.str.449, i64 0, i64 0
   %t4122 = call ptr @wolf_class_create(ptr %AsyncExpr.name_var)
   store ptr %t4122, ptr %this
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t4123 = load ptr, ptr %this
   %t4124 = getelementptr [10 x i8], ptr @.str.449, i64 0, i64 0
   %t4125 = getelementptr [5 x i8], ptr @.str.82, i64 0, i64 0
   call void @wolf_map_set(ptr %t4123, ptr %t4125, ptr %t4124)
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t4126 = load ptr, ptr %this
   %t4127 = load ptr, ptr %body
   %t4128 = getelementptr [5 x i8], ptr @.str.252, i64 0, i64 0
@@ -12187,10 +12362,12 @@ entry:
   %AwaitExpr.name_var = getelementptr [10 x i8], ptr @.str.450, i64 0, i64 0
   %t4130 = call ptr @wolf_class_create(ptr %AwaitExpr.name_var)
   store ptr %t4130, ptr %this
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t4131 = load ptr, ptr %this
   %t4132 = getelementptr [10 x i8], ptr @.str.450, i64 0, i64 0
   %t4133 = getelementptr [5 x i8], ptr @.str.82, i64 0, i64 0
   call void @wolf_map_set(ptr %t4131, ptr %t4133, ptr %t4132)
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t4134 = load ptr, ptr %this
   %t4135 = load ptr, ptr %expr
   %t4136 = getelementptr [5 x i8], ptr @.str.459, i64 0, i64 0
@@ -12207,10 +12384,12 @@ entry:
   %ChannelExpr.name_var = getelementptr [12 x i8], ptr @.str.451, i64 0, i64 0
   %t4138 = call ptr @wolf_class_create(ptr %ChannelExpr.name_var)
   store ptr %t4138, ptr %this
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t4139 = load ptr, ptr %this
   %t4140 = getelementptr [12 x i8], ptr @.str.451, i64 0, i64 0
   %t4141 = getelementptr [5 x i8], ptr @.str.82, i64 0, i64 0
   call void @wolf_map_set(ptr %t4139, ptr %t4141, ptr %t4140)
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t4142 = load ptr, ptr %this
   %t4143 = load ptr, ptr %elemType
   %t4144 = getelementptr [9 x i8], ptr @.str.484, i64 0, i64 0
@@ -12229,14 +12408,17 @@ entry:
   %SendExpr.name_var = getelementptr [9 x i8], ptr @.str.452, i64 0, i64 0
   %t4146 = call ptr @wolf_class_create(ptr %SendExpr.name_var)
   store ptr %t4146, ptr %this
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t4147 = load ptr, ptr %this
   %t4148 = getelementptr [9 x i8], ptr @.str.452, i64 0, i64 0
   %t4149 = getelementptr [5 x i8], ptr @.str.82, i64 0, i64 0
   call void @wolf_map_set(ptr %t4147, ptr %t4149, ptr %t4148)
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t4150 = load ptr, ptr %this
   %t4151 = load ptr, ptr %ch
   %t4152 = getelementptr [3 x i8], ptr @.str.485, i64 0, i64 0
   call void @wolf_map_set(ptr %t4150, ptr %t4152, ptr %t4151)
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t4153 = load ptr, ptr %this
   %t4154 = load ptr, ptr %value
   %t4155 = getelementptr [6 x i8], ptr @.str.135, i64 0, i64 0
@@ -12253,10 +12435,12 @@ entry:
   %ReceiveExpr.name_var = getelementptr [12 x i8], ptr @.str.453, i64 0, i64 0
   %t4157 = call ptr @wolf_class_create(ptr %ReceiveExpr.name_var)
   store ptr %t4157, ptr %this
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t4158 = load ptr, ptr %this
   %t4159 = getelementptr [12 x i8], ptr @.str.453, i64 0, i64 0
   %t4160 = getelementptr [5 x i8], ptr @.str.82, i64 0, i64 0
   call void @wolf_map_set(ptr %t4158, ptr %t4160, ptr %t4159)
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t4161 = load ptr, ptr %this
   %t4162 = load ptr, ptr %ch
   %t4163 = getelementptr [3 x i8], ptr @.str.485, i64 0, i64 0
@@ -12273,10 +12457,12 @@ entry:
   %ErrorExpr.name_var = getelementptr [10 x i8], ptr @.str.454, i64 0, i64 0
   %t4165 = call ptr @wolf_class_create(ptr %ErrorExpr.name_var)
   store ptr %t4165, ptr %this
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t4166 = load ptr, ptr %this
   %t4167 = getelementptr [10 x i8], ptr @.str.454, i64 0, i64 0
   %t4168 = getelementptr [5 x i8], ptr @.str.82, i64 0, i64 0
   call void @wolf_map_set(ptr %t4166, ptr %t4168, ptr %t4167)
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t4169 = load ptr, ptr %this
   %t4170 = load ptr, ptr %message
   %t4171 = getelementptr [8 x i8], ptr @.str.354, i64 0, i64 0
@@ -12287,22 +12473,25 @@ entry:
 
 define ptr @wolf_NewStringConcat(ptr %left.arg, ptr %right.arg) {
 entry:
-  %left = alloca ptr
   %right = alloca ptr
   %this = alloca ptr
+  %left = alloca ptr
   store ptr %left.arg, ptr %left
   store ptr %right.arg, ptr %right
   %StringConcat.name_var = getelementptr [13 x i8], ptr @.str.167, i64 0, i64 0
   %t4173 = call ptr @wolf_class_create(ptr %StringConcat.name_var)
   store ptr %t4173, ptr %this
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t4174 = load ptr, ptr %this
   %t4175 = getelementptr [13 x i8], ptr @.str.167, i64 0, i64 0
   %t4176 = getelementptr [5 x i8], ptr @.str.82, i64 0, i64 0
   call void @wolf_map_set(ptr %t4174, ptr %t4176, ptr %t4175)
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t4177 = load ptr, ptr %this
   %t4178 = load ptr, ptr %left
   %t4179 = getelementptr [5 x i8], ptr @.str.152, i64 0, i64 0
   call void @wolf_map_set(ptr %t4177, ptr %t4179, ptr %t4178)
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t4180 = load ptr, ptr %this
   %t4181 = load ptr, ptr %right
   %t4182 = getelementptr [6 x i8], ptr @.str.141, i64 0, i64 0
@@ -12319,10 +12508,12 @@ entry:
   %PrintExpr.name_var = getelementptr [10 x i8], ptr @.str.455, i64 0, i64 0
   %t4184 = call ptr @wolf_class_create(ptr %PrintExpr.name_var)
   store ptr %t4184, ptr %this
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t4185 = load ptr, ptr %this
   %t4186 = getelementptr [10 x i8], ptr @.str.455, i64 0, i64 0
   %t4187 = getelementptr [5 x i8], ptr @.str.82, i64 0, i64 0
   call void @wolf_map_set(ptr %t4185, ptr %t4187, ptr %t4186)
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t4188 = load ptr, ptr %this
   %t4189 = load ptr, ptr %arg
   %t4190 = getelementptr [4 x i8], ptr @.str.486, i64 0, i64 0
@@ -12333,9 +12524,9 @@ entry:
 
 define ptr @wolf_NewLexer(ptr %source.arg, ptr %file.arg) {
 entry:
-  %source = alloca ptr
   %file = alloca ptr
   %this = alloca ptr
+  %source = alloca ptr
   store ptr %source.arg, ptr %source
   store ptr %file.arg, ptr %file
   %Lexer.name_var = getelementptr [6 x i8], ptr @.str.456, i64 0, i64 0
@@ -12344,28 +12535,34 @@ entry:
   %t4193 = getelementptr [21 x i8], ptr @.str.487, i64 0, i64 0
   call void @wolf_print_str(ptr %t4193)
   call void @wolf_println()
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t4194 = load ptr, ptr %this
   %t4195 = load ptr, ptr %source
   %t4196 = getelementptr [7 x i8], ptr @.str.488, i64 0, i64 0
   call void @wolf_map_set(ptr %t4194, ptr %t4196, ptr %t4195)
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t4197 = load ptr, ptr %this
   %t4198 = load ptr, ptr %file
   %t4199 = getelementptr [5 x i8], ptr @.str.489, i64 0, i64 0
   call void @wolf_map_set(ptr %t4197, ptr %t4199, ptr %t4198)
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t4200 = load ptr, ptr %this
   %t4201 = call ptr @wolf_array_create()
   %t4202 = getelementptr [7 x i8], ptr @.str.490, i64 0, i64 0
   call void @wolf_map_set(ptr %t4200, ptr %t4202, ptr %t4201)
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t4203 = load ptr, ptr %this
   %t4204 = call ptr @wolf_array_create()
   %t4205 = getelementptr [7 x i8], ptr @.str.340, i64 0, i64 0
   call void @wolf_map_set(ptr %t4203, ptr %t4205, ptr %t4204)
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t4206 = load ptr, ptr %this
   %t4207 = load ptr, ptr %source
   %t4208 = call i64 @wolf_strings_length(ptr %t4207)
   %t4209 = call ptr @wolf_int_to_string(i64 %t4208)
   %t4210 = getelementptr [10 x i8], ptr @.str.491, i64 0, i64 0
   call void @wolf_map_set(ptr %t4206, ptr %t4210, ptr %t4209)
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t4211 = load ptr, ptr %this
   %t4212 = call ptr @wolf_compiler_lexerhelper_get_keywords()
   %t4213 = call i1 @wolf_has_error()
@@ -12407,18 +12604,21 @@ err.false.1665:
   br i1 %t4220, label %for.body.1661, label %for.end.1663
 for.body.1661:
   call void @wolf_thread_yield()
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t4222 = load ptr, ptr %this
   %t4223 = load ptr, ptr %this
   %t4224 = getelementptr [8 x i8], ptr @.str.494, i64 0, i64 0
   %t4225 = call ptr @wolf_map_get(ptr %t4223, ptr %t4224)
   %t4226 = getelementptr [6 x i8], ptr @.str.495, i64 0, i64 0
   call void @wolf_map_set(ptr %t4222, ptr %t4226, ptr %t4225)
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t4227 = load ptr, ptr %this
   %t4228 = load ptr, ptr %this
   %t4229 = getelementptr [5 x i8], ptr @.str.496, i64 0, i64 0
   %t4230 = call ptr @wolf_map_get(ptr %t4228, ptr %t4229)
   %t4231 = getelementptr [10 x i8], ptr @.str.497, i64 0, i64 0
   call void @wolf_map_set(ptr %t4227, ptr %t4231, ptr %t4230)
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t4232 = load ptr, ptr %this
   %t4233 = load ptr, ptr %this
   %t4234 = getelementptr [4 x i8], ptr @.str.498, i64 0, i64 0
@@ -12449,28 +12649,33 @@ err.true.1668:
 
 err.false.1669:
   store ptr %t4240, ptr %eofToken
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t4242 = load ptr, ptr %eofToken
   %t4243 = getelementptr [4 x i8], ptr @.str.84, i64 0, i64 0
   %t4244 = getelementptr [5 x i8], ptr @.str.82, i64 0, i64 0
   call void @wolf_map_set(ptr %t4242, ptr %t4244, ptr %t4243)
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t4245 = load ptr, ptr %eofToken
   %t4246 = load ptr, ptr %this
   %t4247 = getelementptr [5 x i8], ptr @.str.496, i64 0, i64 0
   %t4248 = call ptr @wolf_map_get(ptr %t4246, ptr %t4247)
   %t4249 = getelementptr [5 x i8], ptr @.str.496, i64 0, i64 0
   call void @wolf_map_set(ptr %t4245, ptr %t4249, ptr %t4248)
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t4250 = load ptr, ptr %eofToken
   %t4251 = load ptr, ptr %this
   %t4252 = getelementptr [4 x i8], ptr @.str.498, i64 0, i64 0
   %t4253 = call ptr @wolf_map_get(ptr %t4251, ptr %t4252)
   %t4254 = getelementptr [4 x i8], ptr @.str.498, i64 0, i64 0
   call void @wolf_map_set(ptr %t4250, ptr %t4254, ptr %t4253)
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t4255 = load ptr, ptr %eofToken
   %t4256 = load ptr, ptr %this
   %t4257 = getelementptr [8 x i8], ptr @.str.494, i64 0, i64 0
   %t4258 = call ptr @wolf_map_get(ptr %t4256, ptr %t4257)
   %t4259 = getelementptr [6 x i8], ptr @.str.495, i64 0, i64 0
   call void @wolf_map_set(ptr %t4255, ptr %t4259, ptr %t4258)
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t4260 = load ptr, ptr %eofToken
   %t4261 = call ptr @wolf_int_to_string(i64 0)
   %t4262 = getelementptr [7 x i8], ptr @.str.500, i64 0, i64 0
@@ -12535,6 +12740,7 @@ if.end.1673:
   %t4291 = call i64 @wolf_intval(ptr %t4290)
   %t4292 = call i64 @wolf_strings_charcode_at(ptr %t4287, i64 %t4291)
   store i64 %t4292, ptr %ch
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t4293 = load ptr, ptr %this
   %t4294 = load ptr, ptr %this
   %t4295 = getelementptr [8 x i8], ptr @.str.494, i64 0, i64 0
@@ -12548,6 +12754,7 @@ if.end.1673:
   %t4303 = icmp eq i64 %t4302, 10
   br i1 %t4303, label %if.then.1674, label %if.else.1676
 if.then.1674:
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t4304 = load ptr, ptr %this
   %t4305 = load ptr, ptr %this
   %t4306 = getelementptr [5 x i8], ptr @.str.496, i64 0, i64 0
@@ -12557,12 +12764,14 @@ if.then.1674:
   %t4311 = call ptr @wolf_int_to_string(i64 %t4310)
   %t4312 = getelementptr [5 x i8], ptr @.str.496, i64 0, i64 0
   call void @wolf_map_set(ptr %t4304, ptr %t4312, ptr %t4311)
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t4313 = load ptr, ptr %this
   %t4314 = call ptr @wolf_int_to_string(i64 1)
   %t4315 = getelementptr [4 x i8], ptr @.str.498, i64 0, i64 0
   call void @wolf_map_set(ptr %t4313, ptr %t4315, ptr %t4314)
   br label %if.end.1675
 if.else.1676:
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t4316 = load ptr, ptr %this
   %t4317 = load ptr, ptr %this
   %t4318 = getelementptr [4 x i8], ptr @.str.498, i64 0, i64 0
@@ -12718,16 +12927,19 @@ err.true.1691:
 
 err.false.1692:
   store ptr %t4385, ptr %tok
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t4387 = load ptr, ptr %tok
   %t4388 = load ptr, ptr %type
   %t4389 = getelementptr [5 x i8], ptr @.str.82, i64 0, i64 0
   call void @wolf_map_set(ptr %t4387, ptr %t4389, ptr %t4388)
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t4390 = load ptr, ptr %tok
   %t4391 = load ptr, ptr %this
   %t4392 = getelementptr [6 x i8], ptr @.str.495, i64 0, i64 0
   %t4393 = call ptr @wolf_map_get(ptr %t4391, ptr %t4392)
   %t4394 = getelementptr [6 x i8], ptr @.str.495, i64 0, i64 0
   call void @wolf_map_set(ptr %t4390, ptr %t4394, ptr %t4393)
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t4395 = load ptr, ptr %tok
   %t4396 = load ptr, ptr %this
   %t4397 = getelementptr [8 x i8], ptr @.str.494, i64 0, i64 0
@@ -12741,12 +12953,14 @@ err.false.1692:
   %t4405 = call ptr @wolf_int_to_string(i64 %t4402)
   %t4406 = getelementptr [7 x i8], ptr @.str.500, i64 0, i64 0
   call void @wolf_map_set(ptr %t4395, ptr %t4406, ptr %t4405)
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t4407 = load ptr, ptr %tok
   %t4408 = load ptr, ptr %this
   %t4409 = getelementptr [10 x i8], ptr @.str.497, i64 0, i64 0
   %t4410 = call ptr @wolf_map_get(ptr %t4408, ptr %t4409)
   %t4411 = getelementptr [5 x i8], ptr @.str.496, i64 0, i64 0
   call void @wolf_map_set(ptr %t4407, ptr %t4411, ptr %t4410)
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t4412 = load ptr, ptr %tok
   %t4413 = load ptr, ptr %this
   %t4414 = getelementptr [9 x i8], ptr @.str.499, i64 0, i64 0
@@ -12780,8 +12994,8 @@ entry:
 
 define ptr @wolf_Lexer_isAlpha(ptr %this.arg, ptr %ch.arg) {
 entry:
-  %this = alloca ptr
   %ch = alloca ptr
+  %this = alloca ptr
   store ptr %this.arg, ptr %this
   store ptr %ch.arg, ptr %ch
   %t4429 = load ptr, ptr %ch
@@ -12999,9 +13213,9 @@ for.end.1710:
 
 define ptr @wolf_Lexer_scanString(ptr %this.arg) {
 entry:
+  %this = alloca ptr
   %isDone = alloca i1
   %ch = alloca ptr
-  %this = alloca ptr
   store ptr %this.arg, ptr %this
   store i1 0, ptr %isDone
   br label %for.cond.1725
@@ -13042,6 +13256,7 @@ err.false.1732:
   %t4516 = icmp eq i64 %t4517, 34
   br i1 %t4516, label %if.then.1733, label %if.else.1735
 if.then.1733:
+  ; DEBUG AssignStmt target type: *ir.Ident
   store i1 1, ptr %isDone
   br label %if.end.1734
 if.else.1735:
@@ -13532,10 +13747,10 @@ err.false.1823:
 
 define ptr @wolf_Lexer_scanAtKeyword(ptr %this.arg) {
 entry:
+  %wordLen = alloca i64
   %word = alloca ptr
   %this = alloca ptr
   %wordStart = alloca ptr
-  %wordLen = alloca i64
   store ptr %this.arg, ptr %this
   %t4665 = load ptr, ptr %this
   ; DEBUG ident.Name=this, varClass=Lexer
@@ -14992,36 +15207,42 @@ if.end.1883:
 
 define ptr @wolf_NewParser(ptr %tokens.arg, ptr %file.arg, ptr %source.arg) {
 entry:
+  %source = alloca ptr
   %this = alloca ptr
   %tokens = alloca ptr
   %file = alloca ptr
-  %source = alloca ptr
   store ptr %tokens.arg, ptr %tokens
   store ptr %file.arg, ptr %file
   store ptr %source.arg, ptr %source
   %Parser.name_var = getelementptr [7 x i8], ptr @.str.211, i64 0, i64 0
   %t5168 = call ptr @wolf_class_create(ptr %Parser.name_var)
   store ptr %t5168, ptr %this
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t5169 = load ptr, ptr %this
   %t5170 = load ptr, ptr %tokens
   %t5171 = getelementptr [7 x i8], ptr @.str.490, i64 0, i64 0
   call void @wolf_map_set(ptr %t5169, ptr %t5171, ptr %t5170)
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t5172 = load ptr, ptr %this
   %t5173 = load ptr, ptr %file
   %t5174 = getelementptr [5 x i8], ptr @.str.489, i64 0, i64 0
   call void @wolf_map_set(ptr %t5172, ptr %t5174, ptr %t5173)
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t5175 = load ptr, ptr %this
   %t5176 = load ptr, ptr %source
   %t5177 = getelementptr [7 x i8], ptr @.str.488, i64 0, i64 0
   call void @wolf_map_set(ptr %t5175, ptr %t5177, ptr %t5176)
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t5178 = load ptr, ptr %this
   %t5179 = call ptr @wolf_int_to_string(i64 0)
   %t5180 = getelementptr [8 x i8], ptr @.str.494, i64 0, i64 0
   call void @wolf_map_set(ptr %t5178, ptr %t5180, ptr %t5179)
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t5181 = load ptr, ptr %this
   %t5182 = call ptr @wolf_array_create()
   %t5183 = getelementptr [7 x i8], ptr @.str.340, i64 0, i64 0
   call void @wolf_map_set(ptr %t5181, ptr %t5183, ptr %t5182)
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t5184 = load ptr, ptr %this
   %t5185 = getelementptr [1 x i8], ptr @.str.78, i64 0, i64 0
   %t5186 = getelementptr [10 x i8], ptr @.str.41, i64 0, i64 0
@@ -15032,9 +15253,9 @@ entry:
 
 define ptr @wolf_Parser_Parse(ptr %this.arg) {
 entry:
-  %stmt = alloca ptr
   %this = alloca ptr
   %program = alloca ptr
+  %stmt = alloca ptr
   store ptr %this.arg, ptr %this
   %t5188 = call ptr @wolf_NewProgram()
   %t5189 = call i1 @wolf_has_error()
@@ -15045,6 +15266,7 @@ err.true.2118:
 
 err.false.2119:
   store ptr %t5188, ptr %program
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t5190 = load ptr, ptr %program
   %t5191 = call ptr @wolf_array_create()
   %t5192 = getelementptr [11 x i8], ptr @.str.124, i64 0, i64 0
@@ -15380,9 +15602,9 @@ if.end.2181:
 
 define ptr @wolf_Parser_parseStatement(ptr %this.arg) {
 entry:
-  %tt = alloca ptr
   %this = alloca ptr
   %tok = alloca ptr
+  %tt = alloca ptr
   store ptr %this.arg, ptr %this
   %t5342 = load ptr, ptr %this
   ; DEBUG ident.Name=this, varClass=Parser
@@ -15747,6 +15969,7 @@ err.true.2246:
     ret ptr null
 
 err.false.2247:
+  ; DEBUG AssignStmt target type: *ir.Ident
   store i1 1, ptr %isStatic
   br label %if.end.2245
 if.end.2245:
@@ -15860,12 +16083,12 @@ err.false.2265:
 
 define ptr @wolf_Parser_parseVarDecl(ptr %this.arg) {
 entry:
-  %value = alloca ptr
   %this = alloca ptr
   %nameTok = alloca ptr
   %name = alloca ptr
   %typeName = alloca ptr
   %typeTok = alloca ptr
+  %value = alloca ptr
   store ptr %this.arg, ptr %this
   %t5511 = load ptr, ptr %this
   ; DEBUG ident.Name=this, varClass=Parser
@@ -15947,6 +16170,7 @@ err.true.2278:
 
 err.false.2279:
   store ptr %t5535, ptr %typeTok
+  ; DEBUG AssignStmt target type: *ir.Ident
   %t5537 = load ptr, ptr %this
   ; DEBUG ident.Name=this, varClass=Parser
   ; DEBUG directName=Parser_getTokenText, foundInSigs=true
@@ -15989,6 +16213,7 @@ err.true.2286:
     ret ptr null
 
 err.false.2287:
+  ; DEBUG AssignStmt target type: *ir.Ident
   %t5549 = load ptr, ptr %this
   ; DEBUG ident.Name=this, varClass=Parser
   ; DEBUG directName=Parser_parseExpression, foundInSigs=true
@@ -16072,8 +16297,8 @@ err.false.2299:
 
 define ptr @wolf_Parser_parsePrintStmt(ptr %this.arg) {
 entry:
-  %arg = alloca ptr
   %this = alloca ptr
+  %arg = alloca ptr
   store ptr %this.arg, ptr %this
   %t5571 = load ptr, ptr %this
   ; DEBUG ident.Name=this, varClass=Parser
@@ -16158,9 +16383,9 @@ err.false.2313:
 
 define ptr @wolf_Parser_parseReturnStmt(ptr %this.arg) {
 entry:
-  %val = alloca ptr
   %this = alloca ptr
   %values = alloca ptr
+  %val = alloca ptr
   store ptr %this.arg, ptr %this
   %t5596 = load ptr, ptr %this
   ; DEBUG ident.Name=this, varClass=Parser
@@ -16362,9 +16587,9 @@ err.false.2347:
 
 define ptr @wolf_Parser_parseBlock(ptr %this.arg) {
 entry:
+  %this = alloca ptr
   %stmts = alloca ptr
   %s = alloca ptr
-  %this = alloca ptr
   store ptr %this.arg, ptr %this
   %t5655 = load ptr, ptr %this
   ; DEBUG ident.Name=this, varClass=Parser
@@ -16547,10 +16772,12 @@ err.true.2376:
 
 err.false.2377:
   store ptr %t5710, ptr %node
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t5712 = load ptr, ptr %node
   %t5713 = call ptr @wolf_array_create()
   %t5714 = getelementptr [8 x i8], ptr @.str.243, i64 0, i64 0
   call void @wolf_map_set(ptr %t5712, ptr %t5714, ptr %t5713)
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t5715 = load ptr, ptr %node
   %t5716 = getelementptr [9 x i8], ptr @.str.237, i64 0, i64 0
   call void @wolf_map_set(ptr %t5715, ptr %t5716, ptr null)
@@ -16676,6 +16903,7 @@ err.false.2402:
   call void @wolf_array_push(ptr %t5752, ptr %t5755)
   br label %if.end.2389
 if.else.2390:
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t5757 = load ptr, ptr %node
   %t5758 = load ptr, ptr %this
   ; DEBUG ident.Name=this, varClass=Parser
@@ -16703,12 +16931,12 @@ for.end.2381:
 
 define ptr @wolf_Parser_parseForStmt(ptr %this.arg) {
 entry:
-  %update = alloca ptr
-  %body = alloca ptr
   %this = alloca ptr
   %init = alloca ptr
   %expr = alloca ptr
   %cond = alloca ptr
+  %update = alloca ptr
+  %body = alloca ptr
   store ptr %this.arg, ptr %this
   %t5763 = load ptr, ptr %this
   ; DEBUG ident.Name=this, varClass=Parser
@@ -16766,6 +16994,7 @@ err.false.2415:
   %t5781 = call i1 @wolf_boolval(ptr %t5779)
   br i1 %t5781, label %if.then.2416, label %if.else.2418
 if.then.2416:
+  ; DEBUG AssignStmt target type: *ir.Ident
   %t5782 = load ptr, ptr %this
   ; DEBUG ident.Name=this, varClass=Parser
   ; DEBUG directName=Parser_parseVarDecl, foundInSigs=true
@@ -16793,6 +17022,7 @@ err.true.2421:
 
 err.false.2422:
   store ptr %t5787, ptr %expr
+  ; DEBUG AssignStmt target type: *ir.Ident
   %t5789 = load ptr, ptr %expr
   %t5790 = call ptr @wolf_NewExpressionStmt(ptr %t5789)
   %t5791 = call i1 @wolf_has_error()
@@ -16848,6 +17078,7 @@ err.false.2430:
   %t5802 = xor i1 %t5803, 1
   br i1 %t5802, label %if.then.2431, label %if.end.2432
 if.then.2431:
+  ; DEBUG AssignStmt target type: *ir.Ident
   %t5804 = load ptr, ptr %this
   ; DEBUG ident.Name=this, varClass=Parser
   ; DEBUG directName=Parser_parseExpression, foundInSigs=true
@@ -16893,6 +17124,7 @@ err.false.2438:
   %t5817 = xor i1 %t5818, 1
   br i1 %t5817, label %if.then.2439, label %if.end.2440
 if.then.2439:
+  ; DEBUG AssignStmt target type: *ir.Ident
   %t5819 = load ptr, ptr %this
   ; DEBUG ident.Name=this, varClass=Parser
   ; DEBUG directName=Parser_parseExpression, foundInSigs=true
@@ -17077,8 +17309,10 @@ err.true.2467:
 
 err.false.2468:
   store ptr %t5875, ptr %vt2
+  ; DEBUG AssignStmt target type: *ir.Ident
   %t5877 = load ptr, ptr %valVar
   store ptr %t5877, ptr %keyVar
+  ; DEBUG AssignStmt target type: *ir.Ident
   %t5878 = load ptr, ptr %this
   ; DEBUG ident.Name=this, varClass=Parser
   ; DEBUG directName=Parser_getDollarIdentName, foundInSigs=true
@@ -17136,10 +17370,10 @@ err.false.2476:
 
 define ptr @wolf_Parser_parseWhileStmt(ptr %this.arg) {
 entry:
-  %body = alloca ptr
-  %node = alloca ptr
   %this = alloca ptr
   %condition = alloca ptr
+  %body = alloca ptr
+  %node = alloca ptr
   store ptr %this.arg, ptr %this
   %t5896 = load ptr, ptr %this
   ; DEBUG ident.Name=this, varClass=Parser
@@ -17347,12 +17581,12 @@ err.false.2508:
 
 define ptr @wolf_Parser_parseMatchArm(ptr %this.arg) {
 entry:
-  %block = alloca ptr
-  %stmt = alloca ptr
-  %node = alloca ptr
   %this = alloca ptr
   %pattern = alloca ptr
   %body = alloca ptr
+  %block = alloca ptr
+  %stmt = alloca ptr
+  %node = alloca ptr
   store ptr %this.arg, ptr %this
   store ptr null, ptr %pattern
   %t5961 = load ptr, ptr %this
@@ -17407,6 +17641,7 @@ err.true.2518:
     ret ptr null
 
 err.false.2519:
+  ; DEBUG AssignStmt target type: *ir.Ident
   %t5979 = call ptr @wolf_NewWildcard()
   %t5980 = call i1 @wolf_has_error()
   br i1 %t5980, label %err.true.2520, label %err.false.2521
@@ -17418,6 +17653,7 @@ err.false.2521:
   store ptr %t5979, ptr %pattern
   br label %if.end.2516
 if.else.2517:
+  ; DEBUG AssignStmt target type: *ir.Ident
   %t5981 = load ptr, ptr %this
   ; DEBUG ident.Name=this, varClass=Parser
   ; DEBUG directName=Parser_parseExpression, foundInSigs=true
@@ -17475,6 +17711,7 @@ err.true.2531:
 
 err.false.2532:
   store ptr %t5997, ptr %block
+  ; DEBUG AssignStmt target type: *ir.Ident
   %t5999 = load ptr, ptr %block
   %t6000 = getelementptr [11 x i8], ptr @.str.124, i64 0, i64 0
   %t6001 = call ptr @wolf_map_get(ptr %t5999, ptr %t6000)
@@ -17515,7 +17752,6 @@ err.false.2536:
 
 define ptr @wolf_Parser_parseFuncDecl(ptr %this.arg, ptr %visibility.arg, ptr %isStatic.arg, ptr %isInsideClass.arg) {
 entry:
-  %params = alloca ptr
   %node = alloca ptr
   %this = alloca ptr
   %visibility = alloca ptr
@@ -17523,6 +17759,7 @@ entry:
   %isInsideClass = alloca ptr
   %nameTok = alloca ptr
   %name = alloca ptr
+  %params = alloca ptr
   store ptr %this.arg, ptr %this
   store ptr %visibility.arg, ptr %visibility
   store ptr %isStatic.arg, ptr %isStatic
@@ -17613,10 +17850,12 @@ err.true.2549:
 
 err.false.2550:
   store ptr %t6038, ptr %node
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t6040 = load ptr, ptr %node
   %t6041 = load ptr, ptr %params
   %t6042 = getelementptr [7 x i8], ptr @.str.277, i64 0, i64 0
   call void @wolf_map_set(ptr %t6040, ptr %t6042, ptr %t6041)
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t6043 = load ptr, ptr %node
   %t6044 = load ptr, ptr %this
   ; DEBUG ident.Name=this, varClass=Parser
@@ -17637,13 +17876,13 @@ err.false.2552:
 
 define ptr @wolf_Parser_parseParamList(ptr %this.arg) {
 entry:
-  %params = alloca ptr
-  %pTok = alloca ptr
   %pName = alloca ptr
   %pType = alloca ptr
   %ptTok = alloca ptr
   %pDefault = alloca ptr
   %this = alloca ptr
+  %params = alloca ptr
+  %pTok = alloca ptr
   store ptr %this.arg, ptr %this
   %t6049 = call ptr @wolf_array_create()
   store ptr %t6049, ptr %params
@@ -17749,6 +17988,7 @@ err.true.2571:
 
 err.false.2572:
   store ptr %t6083, ptr %ptTok
+  ; DEBUG AssignStmt target type: *ir.Ident
   %t6085 = load ptr, ptr %this
   ; DEBUG ident.Name=this, varClass=Parser
   ; DEBUG directName=Parser_getTokenText, foundInSigs=true
@@ -17791,6 +18031,7 @@ err.true.2579:
     ret ptr null
 
 err.false.2580:
+  ; DEBUG AssignStmt target type: *ir.Ident
   %t6097 = load ptr, ptr %this
   ; DEBUG ident.Name=this, varClass=Parser
   ; DEBUG directName=Parser_parseExpression, foundInSigs=true
@@ -17857,14 +18098,14 @@ for.end.2556:
 
 define ptr @wolf_Parser_parseClassDecl(ptr %this.arg) {
 entry:
-  %this = alloca ptr
-  %nameTok = alloca ptr
-  %name = alloca ptr
   %node = alloca ptr
   %extWord = alloca ptr
   %extTok = alloca ptr
   %iname = alloca ptr
   %iname2 = alloca ptr
+  %this = alloca ptr
+  %nameTok = alloca ptr
+  %name = alloca ptr
   store ptr %this.arg, ptr %this
   %t6116 = load ptr, ptr %this
   ; DEBUG ident.Name=this, varClass=Parser
@@ -17914,22 +18155,27 @@ err.true.2597:
 
 err.false.2598:
   store ptr %t6129, ptr %node
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t6131 = load ptr, ptr %node
   %t6132 = getelementptr [1 x i8], ptr @.str.78, i64 0, i64 0
   %t6133 = getelementptr [12 x i8], ptr @.str.582, i64 0, i64 0
   call void @wolf_map_set(ptr %t6131, ptr %t6133, ptr %t6132)
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t6134 = load ptr, ptr %node
   %t6135 = call ptr @wolf_array_create()
   %t6136 = getelementptr [11 x i8], ptr @.str.583, i64 0, i64 0
   call void @wolf_map_set(ptr %t6134, ptr %t6136, ptr %t6135)
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t6137 = load ptr, ptr %node
   %t6138 = call ptr @wolf_array_create()
   %t6139 = getelementptr [16 x i8], ptr @.str.584, i64 0, i64 0
   call void @wolf_map_set(ptr %t6137, ptr %t6139, ptr %t6138)
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t6140 = load ptr, ptr %node
   %t6141 = call ptr @wolf_array_create()
   %t6142 = getelementptr [11 x i8], ptr @.str.266, i64 0, i64 0
   call void @wolf_map_set(ptr %t6140, ptr %t6142, ptr %t6141)
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t6143 = load ptr, ptr %node
   %t6144 = call ptr @wolf_array_create()
   %t6145 = getelementptr [8 x i8], ptr @.str.268, i64 0, i64 0
@@ -18003,6 +18249,7 @@ err.true.2611:
 
 err.false.2612:
   store ptr %t6167, ptr %extTok
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t6169 = load ptr, ptr %node
   %t6170 = load ptr, ptr %this
   ; DEBUG ident.Name=this, varClass=Parser
@@ -18224,17 +18471,17 @@ err.false.2650:
 
 define ptr @wolf_Parser_parseClassMember(ptr %this.arg, ptr %classNode.arg) {
 entry:
-  %this = alloca ptr
-  %classNode = alloca ptr
-  %tok = alloca ptr
-  %tt = alloca ptr
   %vis = alloca ptr
   %fn = alloca ptr
   %pTok = alloca ptr
-  %prop = alloca ptr
+  %this = alloca ptr
+  %tok = alloca ptr
+  %tt = alloca ptr
   %isStatic = alloca i1
   %pName = alloca ptr
   %pVal = alloca ptr
+  %prop = alloca ptr
+  %classNode = alloca ptr
   store ptr %this.arg, ptr %this
   store ptr %classNode.arg, ptr %classNode
   %t6242 = load ptr, ptr %this
@@ -18272,6 +18519,7 @@ err.false.2652:
   %t6262 = or i1 %t6257, %t6260
   br i1 %t6262, label %if.then.2653, label %if.end.2654
 if.then.2653:
+  ; DEBUG AssignStmt target type: *ir.Ident
   %t6263 = load ptr, ptr %this
   ; DEBUG ident.Name=this, varClass=Parser
   ; DEBUG directName=Parser_getTokenText, foundInSigs=true
@@ -18295,6 +18543,7 @@ err.true.2657:
 
 err.false.2658:
   store ptr %t6267, ptr %vis
+  ; DEBUG AssignStmt target type: *ir.Ident
   %t6269 = load ptr, ptr %this
   ; DEBUG ident.Name=this, varClass=Parser
   ; DEBUG directName=Parser_peek, foundInSigs=true
@@ -18307,6 +18556,7 @@ err.true.2659:
 
 err.false.2660:
   store ptr %t6270, ptr %tok
+  ; DEBUG AssignStmt target type: *ir.Ident
   %t6272 = load ptr, ptr %tok
   %t6273 = getelementptr [5 x i8], ptr @.str.82, i64 0, i64 0
   %t6274 = call ptr @wolf_map_get(ptr %t6272, ptr %t6273)
@@ -18330,7 +18580,9 @@ err.true.2663:
     ret ptr null
 
 err.false.2664:
+  ; DEBUG AssignStmt target type: *ir.Ident
   store i1 1, ptr %isStatic
+  ; DEBUG AssignStmt target type: *ir.Ident
   %t6282 = load ptr, ptr %this
   ; DEBUG ident.Name=this, varClass=Parser
   ; DEBUG directName=Parser_peek, foundInSigs=true
@@ -18343,6 +18595,7 @@ err.true.2665:
 
 err.false.2666:
   store ptr %t6283, ptr %tok
+  ; DEBUG AssignStmt target type: *ir.Ident
   %t6285 = load ptr, ptr %tok
   %t6286 = getelementptr [5 x i8], ptr @.str.82, i64 0, i64 0
   %t6287 = call ptr @wolf_map_get(ptr %t6285, ptr %t6286)
@@ -18437,6 +18690,7 @@ err.true.2681:
     ret ptr null
 
 err.false.2682:
+  ; DEBUG AssignStmt target type: *ir.Ident
   %t6322 = load ptr, ptr %this
   ; DEBUG ident.Name=this, varClass=Parser
   ; DEBUG directName=Parser_parseExpression, foundInSigs=true
@@ -18524,12 +18778,12 @@ err.false.2694:
 
 define ptr @wolf_Parser_parseExpression(ptr %this.arg, ptr %minBP.arg) {
 entry:
-  %left = alloca ptr
-  %running = alloca i1
-  %tok = alloca ptr
   %bp = alloca ptr
   %this = alloca ptr
   %minBP = alloca ptr
+  %left = alloca ptr
+  %running = alloca i1
+  %tok = alloca ptr
   store ptr %this.arg, ptr %this
   store ptr %minBP.arg, ptr %minBP
   %t6350 = load ptr, ptr %this
@@ -18592,9 +18846,11 @@ err.false.2706:
   %t6367 = icmp sle i64 %t6368, %t6369
   br i1 %t6367, label %if.then.2707, label %if.else.2709
 if.then.2707:
+  ; DEBUG AssignStmt target type: *ir.Ident
   store i1 0, ptr %running
   br label %if.end.2708
 if.else.2709:
+  ; DEBUG AssignStmt target type: *ir.Ident
   %t6370 = load ptr, ptr %this
   ; DEBUG ident.Name=this, varClass=Parser
   ; DEBUG directName=Parser_parseInfix, foundInSigs=true
@@ -18622,20 +18878,20 @@ for.end.2702:
 
 define ptr @wolf_Parser_parsePrefix(ptr %this.arg) {
 entry:
-  %tt = alloca ptr
-  %operand2 = alloca ptr
-  %raw = alloca ptr
-  %operand = alloca ptr
-  %inner = alloca ptr
-  %identName = alloca ptr
-  %parg = alloca ptr
-  %this = alloca ptr
   %rawLen = alloca i64
   %inner2 = alloca ptr
-  %varName = alloca ptr
+  %operand2 = alloca ptr
+  %identName = alloca ptr
+  %parg = alloca ptr
+  %operand = alloca ptr
   %tok = alloca ptr
-  %operand3 = alloca ptr
   %operand4 = alloca ptr
+  %varName = alloca ptr
+  %this = alloca ptr
+  %operand3 = alloca ptr
+  %inner = alloca ptr
+  %raw = alloca ptr
+  %tt = alloca ptr
   store ptr %this.arg, ptr %this
   %t6377 = load ptr, ptr %this
   ; DEBUG ident.Name=this, varClass=Parser
@@ -19000,6 +19256,7 @@ err.false.2777:
   %t6504 = icmp sgt i64 %t6503, 2
   br i1 %t6504, label %if.then.2778, label %if.end.2779
 if.then.2778:
+  ; DEBUG AssignStmt target type: *ir.Ident
   %t6505 = load ptr, ptr %raw
   %t6506 = load i64, ptr %rawLen
   %t6507 = sub i64 %t6506, 1
@@ -19369,27 +19626,27 @@ err.false.2847:
 
 define ptr @wolf_Parser_parseInfix(ptr %this.arg, ptr %left.arg, ptr %opTok.arg, ptr %bp.arg) {
 entry:
-  %this = alloca ptr
-  %sargs = alloca ptr
-  %dotMemberName = alloca ptr
-  %op = alloca ptr
-  %rhs = alloca ptr
-  %left = alloca ptr
-  %opTok = alloca ptr
-  %memberTok = alloca ptr
-  %className = alloca ptr
+  %args = alloca ptr
+  %dotMemberTok = alloca ptr
   %idx = alloca ptr
+  %this = alloca ptr
+  %memberName = alloca ptr
+  %memberName2 = alloca ptr
+  %sargs = alloca ptr
+  %rhs = alloca ptr
+  %right2 = alloca ptr
   %cargs = alloca ptr
   %aop = alloca ptr
+  %opTok = alloca ptr
   %bp = alloca ptr
-  %args = alloca ptr
-  %memberName2 = alloca ptr
-  %dotMemberTok = alloca ptr
   %tt = alloca ptr
-  %memberName = alloca ptr
+  %memberTok = alloca ptr
+  %className = alloca ptr
+  %dotMemberName = alloca ptr
+  %op = alloca ptr
+  %left = alloca ptr
   %memberTok2 = alloca ptr
   %right = alloca ptr
-  %right2 = alloca ptr
   store ptr %this.arg, ptr %this
   store ptr %left.arg, ptr %left
   store ptr %opTok.arg, ptr %opTok
@@ -19563,12 +19820,14 @@ err.false.2875:
   %t6694 = icmp eq i64 %t6695, 0
   br i1 %t6694, label %if.then.2876, label %if.else.2878
 if.then.2876:
+  ; DEBUG AssignStmt target type: *ir.Ident
   %t6696 = load ptr, ptr %left
   %t6697 = getelementptr [5 x i8], ptr @.str.128, i64 0, i64 0
   %t6698 = call ptr @wolf_map_get(ptr %t6696, ptr %t6697)
   store ptr %t6698, ptr %className
   br label %if.end.2877
 if.else.2878:
+  ; DEBUG AssignStmt target type: *ir.Ident
   %t6699 = getelementptr [8 x i8], ptr @.str.600, i64 0, i64 0
   store ptr %t6699, ptr %className
   br label %if.end.2877
@@ -20086,11 +20345,11 @@ err.false.2966:
 
 define ptr @wolf_Parser_parseMapLiteral(ptr %this.arg) {
 entry:
+  %k = alloca ptr
   %v = alloca ptr
   %this = alloca ptr
   %keys = alloca ptr
   %values = alloca ptr
-  %k = alloca ptr
   store ptr %this.arg, ptr %this
   %t6890 = load ptr, ptr %this
   ; DEBUG ident.Name=this, varClass=Parser
@@ -20245,11 +20504,11 @@ err.false.2992:
 
 define ptr @wolf_Parser_parseNewExpr(ptr %this.arg) {
 entry:
+  %args = alloca ptr
+  %this = alloca ptr
   %classTok = alloca ptr
   %className = alloca ptr
   %classIdent = alloca ptr
-  %args = alloca ptr
-  %this = alloca ptr
   store ptr %this.arg, ptr %this
   %t6941 = load ptr, ptr %this
   ; DEBUG ident.Name=this, varClass=Parser
@@ -20352,9 +20611,9 @@ err.false.3008:
 
 define ptr @wolf_Parser_parseClosureExpr(ptr %this.arg) {
 entry:
+  %this = alloca ptr
   %params = alloca ptr
   %closure = alloca ptr
-  %this = alloca ptr
   store ptr %this.arg, ptr %this
   %t6973 = load ptr, ptr %this
   ; DEBUG ident.Name=this, varClass=Parser
@@ -20441,6 +20700,7 @@ err.true.3023:
     ret ptr null
 
 err.false.3024:
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t7000 = load ptr, ptr %closure
   %t7001 = load ptr, ptr %this
   ; DEBUG ident.Name=this, varClass=Parser
@@ -20460,6 +20720,7 @@ err.false.3026:
   ret ptr %t7006
   br label %if.end.3022
 if.end.3022:
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t7007 = load ptr, ptr %closure
   %t7008 = load ptr, ptr %this
   ; DEBUG ident.Name=this, varClass=Parser
@@ -20815,10 +21076,10 @@ err.false.3086:
 
 define ptr @wolf_Parser_getDollarIdentName(ptr %this.arg, ptr %tok.arg) {
 entry:
+  %tok = alloca ptr
   %raw = alloca ptr
   %rawLen = alloca i64
   %this = alloca ptr
-  %tok = alloca ptr
   store ptr %this.arg, ptr %this
   store ptr %tok.arg, ptr %tok
   %t7158 = load ptr, ptr %this
@@ -20862,9 +21123,9 @@ if.end.3092:
 
 define ptr @wolf_Parser_peek(ptr %this.arg) {
 entry:
+  %this = alloca ptr
   %eof = alloca ptr
   %idx = alloca i64
-  %this = alloca ptr
   store ptr %this.arg, ptr %this
   %t7173 = load ptr, ptr %this
   %t7174 = getelementptr [8 x i8], ptr @.str.494, i64 0, i64 0
@@ -20893,6 +21154,7 @@ err.true.3097:
 
 err.false.3098:
   store ptr %t7183, ptr %eof
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t7185 = load ptr, ptr %eof
   %t7186 = getelementptr [4 x i8], ptr @.str.84, i64 0, i64 0
   %t7187 = getelementptr [5 x i8], ptr @.str.82, i64 0, i64 0
@@ -20964,6 +21226,7 @@ err.true.3107:
 
 err.false.3108:
   store ptr %t7212, ptr %eof
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t7214 = load ptr, ptr %eof
   %t7215 = getelementptr [4 x i8], ptr @.str.84, i64 0, i64 0
   %t7216 = getelementptr [5 x i8], ptr @.str.82, i64 0, i64 0
@@ -21012,6 +21275,7 @@ err.false.3112:
   %t7229 = xor i1 %t7230, 1
   br i1 %t7229, label %if.then.3113, label %if.end.3114
 if.then.3113:
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t7231 = load ptr, ptr %this
   %t7232 = load ptr, ptr %this
   %t7233 = getelementptr [8 x i8], ptr @.str.494, i64 0, i64 0
@@ -21230,18 +21494,21 @@ err.false.3140:
   store ptr %t7299, ptr %tok
   %t7301 = call ptr @wolf_map_create()
   store ptr %t7301, ptr %err
+  ; DEBUG AssignStmt target type: *ir.IndexExpr
   %t7302 = load ptr, ptr %err
   %t7303 = getelementptr [5 x i8], ptr @.str.496, i64 0, i64 0
   %t7304 = load ptr, ptr %tok
   %t7305 = getelementptr [5 x i8], ptr @.str.496, i64 0, i64 0
   %t7306 = call ptr @wolf_map_get(ptr %t7304, ptr %t7305)
   call void @wolf_map_set(ptr %t7302, ptr %t7303, ptr %t7306)
+  ; DEBUG AssignStmt target type: *ir.IndexExpr
   %t7307 = load ptr, ptr %err
   %t7308 = getelementptr [4 x i8], ptr @.str.498, i64 0, i64 0
   %t7309 = load ptr, ptr %tok
   %t7310 = getelementptr [4 x i8], ptr @.str.498, i64 0, i64 0
   %t7311 = call ptr @wolf_map_get(ptr %t7309, ptr %t7310)
   call void @wolf_map_set(ptr %t7307, ptr %t7308, ptr %t7311)
+  ; DEBUG AssignStmt target type: *ir.IndexExpr
   %t7312 = load ptr, ptr %err
   %t7313 = getelementptr [8 x i8], ptr @.str.354, i64 0, i64 0
   %t7314 = load ptr, ptr %msg
@@ -21271,34 +21538,42 @@ entry:
   %Resolver.name_var = getelementptr [9 x i8], ptr @.str.335, i64 0, i64 0
   %t7328 = call ptr @wolf_class_create(ptr %Resolver.name_var)
   store ptr %t7328, ptr %this
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t7329 = load ptr, ptr %this
   %t7330 = call ptr @wolf_array_create()
   %t7331 = getelementptr [7 x i8], ptr @.str.340, i64 0, i64 0
   call void @wolf_map_set(ptr %t7329, ptr %t7331, ptr %t7330)
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t7332 = load ptr, ptr %this
   %t7333 = call ptr @wolf_map_create()
   %t7334 = getelementptr [12 x i8], ptr @.str.627, i64 0, i64 0
   call void @wolf_map_set(ptr %t7332, ptr %t7334, ptr %t7333)
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t7335 = load ptr, ptr %this
   %t7336 = call ptr @wolf_int_to_string(i64 0)
   %t7337 = getelementptr [11 x i8], ptr @.str.628, i64 0, i64 0
   call void @wolf_map_set(ptr %t7335, ptr %t7337, ptr %t7336)
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t7338 = load ptr, ptr %this
   %t7339 = call ptr @wolf_map_create()
   %t7340 = getelementptr [8 x i8], ptr @.str.629, i64 0, i64 0
   call void @wolf_map_set(ptr %t7338, ptr %t7340, ptr %t7339)
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t7341 = load ptr, ptr %this
   %t7342 = call ptr @wolf_map_create()
   %t7343 = getelementptr [10 x i8], ptr @.str.630, i64 0, i64 0
   call void @wolf_map_set(ptr %t7341, ptr %t7343, ptr %t7342)
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t7344 = load ptr, ptr %this
   %t7345 = getelementptr [1 x i8], ptr @.str.78, i64 0, i64 0
   %t7346 = getelementptr [13 x i8], ptr @.str.631, i64 0, i64 0
   call void @wolf_map_set(ptr %t7344, ptr %t7346, ptr %t7345)
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t7347 = load ptr, ptr %this
   %t7348 = call ptr @wolf_int_to_string(i64 0)
   %t7349 = getelementptr [17 x i8], ptr @.str.632, i64 0, i64 0
   call void @wolf_map_set(ptr %t7347, ptr %t7349, ptr %t7348)
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t7350 = load ptr, ptr %this
   %t7351 = getelementptr [13 x i8], ptr @.str.333, i64 0, i64 0
   call void @wolf_map_set(ptr %t7350, ptr %t7351, ptr null)
@@ -21319,10 +21594,10 @@ err.false.3142:
 
 define ptr @wolf_Resolver_Resolve(ptr %this.arg, ptr %program.arg) {
 entry:
+  %table = alloca ptr
   %this = alloca ptr
   %program = alloca ptr
   %i = alloca i64
-  %table = alloca ptr
   store ptr %this.arg, ptr %this
   store ptr %program.arg, ptr %program
   %t7356 = load ptr, ptr %this
@@ -21372,6 +21647,7 @@ err.true.3151:
     ret ptr null
 
 err.false.3152:
+  ; DEBUG AssignStmt target type: *ir.Ident
   %t7375 = load i64, ptr %i
   %t7376 = call ptr @wolf_int_to_string(i64 %t7375)
   %t7377 = call i64 @wolf_intval(ptr %t7376)
@@ -21400,6 +21676,7 @@ err.true.3155:
 
 err.false.3156:
   store ptr %t7381, ptr %table
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t7383 = load ptr, ptr %this
   %t7384 = load ptr, ptr %table
   %t7385 = getelementptr [13 x i8], ptr @.str.333, i64 0, i64 0
@@ -21420,9 +21697,9 @@ entry:
 
 define ptr @wolf_Resolver_buildSymbolTable(ptr %this.arg) {
 entry:
+  %globalFrame = alloca ptr
   %this = alloca ptr
   %table = alloca ptr
-  %globalFrame = alloca ptr
   store ptr %this.arg, ptr %this
   %t7390 = call ptr @wolf_NewSymbolTable()
   %t7391 = call i1 @wolf_has_error()
@@ -21443,18 +21720,21 @@ err.false.3158:
   %t7398 = icmp ne ptr %t7397, null
   br i1 %t7398, label %if.then.3159, label %if.end.3160
 if.then.3159:
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t7399 = load ptr, ptr %table
   %t7400 = load ptr, ptr %globalFrame
   %t7401 = getelementptr [10 x i8], ptr @.str.634, i64 0, i64 0
   call void @wolf_map_set(ptr %t7399, ptr %t7401, ptr %t7400)
   br label %if.end.3160
 if.end.3160:
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t7402 = load ptr, ptr %table
   %t7403 = load ptr, ptr %this
   %t7404 = getelementptr [10 x i8], ptr @.str.630, i64 0, i64 0
   %t7405 = call ptr @wolf_map_get(ptr %t7403, ptr %t7404)
   %t7406 = getelementptr [10 x i8], ptr @.str.630, i64 0, i64 0
   call void @wolf_map_set(ptr %t7402, ptr %t7406, ptr %t7405)
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t7407 = load ptr, ptr %table
   %t7408 = load ptr, ptr %this
   %t7409 = getelementptr [8 x i8], ptr @.str.629, i64 0, i64 0
@@ -21542,6 +21822,7 @@ err.true.3173:
 err.false.3174:
   br label %if.end.3172
 if.end.3172:
+  ; DEBUG AssignStmt target type: *ir.Ident
   %t7445 = load i64, ptr %i
   %t7446 = call ptr @wolf_int_to_string(i64 %t7445)
   %t7447 = call i64 @wolf_intval(ptr %t7446)
@@ -21563,25 +21844,28 @@ for.end.3164:
 
 define void @wolf_Resolver_registerFunc(ptr %this.arg, ptr %fn.arg) {
 entry:
+  %pnames = alloca ptr
   %pi = alloca i64
   %this = alloca ptr
   %fn = alloca ptr
   %sym = alloca ptr
-  %pnames = alloca ptr
   store ptr %this.arg, ptr %this
   store ptr %fn.arg, ptr %fn
   %t7450 = call ptr @wolf_map_create()
   store ptr %t7450, ptr %sym
+  ; DEBUG AssignStmt target type: *ir.IndexExpr
   %t7451 = load ptr, ptr %sym
   %t7452 = getelementptr [5 x i8], ptr @.str.338, i64 0, i64 0
   %t7453 = getelementptr [5 x i8], ptr @.str.1, i64 0, i64 0
   call void @wolf_map_set(ptr %t7451, ptr %t7452, ptr %t7453)
+  ; DEBUG AssignStmt target type: *ir.IndexExpr
   %t7454 = load ptr, ptr %sym
   %t7455 = getelementptr [5 x i8], ptr @.str.128, i64 0, i64 0
   %t7456 = load ptr, ptr %fn
   %t7457 = getelementptr [5 x i8], ptr @.str.128, i64 0, i64 0
   %t7458 = call ptr @wolf_map_get(ptr %t7456, ptr %t7457)
   call void @wolf_map_set(ptr %t7454, ptr %t7455, ptr %t7458)
+  ; DEBUG AssignStmt target type: *ir.IndexExpr
   %t7459 = load ptr, ptr %sym
   %t7460 = getelementptr [11 x i8], ptr @.str.384, i64 0, i64 0
   %t7461 = load ptr, ptr %fn
@@ -21627,6 +21911,7 @@ for.body.3180:
   %t7481 = getelementptr [5 x i8], ptr @.str.128, i64 0, i64 0
   %t7482 = call ptr @wolf_map_get(ptr %t7480, ptr %t7481)
   call void @wolf_array_push(ptr %t7475, ptr %t7482)
+  ; DEBUG AssignStmt target type: *ir.Ident
   %t7483 = load i64, ptr %pi
   %t7484 = call ptr @wolf_int_to_string(i64 %t7483)
   %t7485 = call i64 @wolf_intval(ptr %t7484)
@@ -21643,10 +21928,12 @@ err.false.3186:
 for.update.3181:
   br label %for.cond.3179
 for.end.3182:
+  ; DEBUG AssignStmt target type: *ir.IndexExpr
   %t7488 = load ptr, ptr %sym
   %t7489 = getelementptr [11 x i8], ptr @.str.635, i64 0, i64 0
   %t7490 = load ptr, ptr %pnames
   call void @wolf_map_set(ptr %t7488, ptr %t7489, ptr %t7490)
+  ; DEBUG AssignStmt target type: *ir.IndexExpr
   %t7491 = load ptr, ptr %this
   %t7492 = getelementptr [10 x i8], ptr @.str.630, i64 0, i64 0
   %t7493 = call ptr @wolf_map_get(ptr %t7491, ptr %t7492)
@@ -21675,23 +21962,25 @@ err.false.3188:
 
 define void @wolf_Resolver_registerClass(ptr %this.arg, ptr %cls.arg) {
 entry:
-  %sym = alloca ptr
-  %methods = alloca ptr
   %mi = alloca i64
   %m = alloca ptr
   %this = alloca ptr
-  %cls = alloca ptr
-  %fields = alloca ptr
+  %sym = alloca ptr
   %fi = alloca i64
   %prop = alloca ptr
+  %methods = alloca ptr
+  %cls = alloca ptr
+  %fields = alloca ptr
   store ptr %this.arg, ptr %this
   store ptr %cls.arg, ptr %cls
   %t7505 = call ptr @wolf_map_create()
   store ptr %t7505, ptr %sym
+  ; DEBUG AssignStmt target type: *ir.IndexExpr
   %t7506 = load ptr, ptr %sym
   %t7507 = getelementptr [5 x i8], ptr @.str.338, i64 0, i64 0
   %t7508 = getelementptr [6 x i8], ptr @.str.5, i64 0, i64 0
   call void @wolf_map_set(ptr %t7506, ptr %t7507, ptr %t7508)
+  ; DEBUG AssignStmt target type: *ir.IndexExpr
   %t7509 = load ptr, ptr %sym
   %t7510 = getelementptr [5 x i8], ptr @.str.128, i64 0, i64 0
   %t7511 = load ptr, ptr %cls
@@ -21725,6 +22014,7 @@ for.body.3190:
   %t7525 = load i64, ptr %fi
   %t7526 = call ptr @wolf_array_get(ptr %t7524, i64 %t7525)
   store ptr %t7526, ptr %prop
+  ; DEBUG AssignStmt target type: *ir.IndexExpr
   %t7527 = load ptr, ptr %fields
   %t7528 = load ptr, ptr %prop
   %t7529 = getelementptr [5 x i8], ptr @.str.128, i64 0, i64 0
@@ -21733,6 +22023,7 @@ for.body.3190:
   %t7532 = getelementptr [9 x i8], ptr @.str.460, i64 0, i64 0
   %t7533 = call ptr @wolf_map_get(ptr %t7531, ptr %t7532)
   call void @wolf_map_set(ptr %t7527, ptr %t7530, ptr %t7533)
+  ; DEBUG AssignStmt target type: *ir.Ident
   %t7534 = load i64, ptr %fi
   %t7535 = call ptr @wolf_int_to_string(i64 %t7534)
   %t7536 = call i64 @wolf_intval(ptr %t7535)
@@ -21749,6 +22040,7 @@ err.false.3196:
 for.update.3191:
   br label %for.cond.3189
 for.end.3192:
+  ; DEBUG AssignStmt target type: *ir.IndexExpr
   %t7539 = load ptr, ptr %sym
   %t7540 = getelementptr [7 x i8], ptr @.str.361, i64 0, i64 0
   %t7541 = load ptr, ptr %fields
@@ -21780,6 +22072,7 @@ for.body.3198:
   %t7553 = load i64, ptr %mi
   %t7554 = call ptr @wolf_array_get(ptr %t7552, i64 %t7553)
   store ptr %t7554, ptr %m
+  ; DEBUG AssignStmt target type: *ir.IndexExpr
   %t7555 = load ptr, ptr %methods
   %t7556 = load ptr, ptr %m
   %t7557 = getelementptr [5 x i8], ptr @.str.128, i64 0, i64 0
@@ -21797,6 +22090,7 @@ err.true.3203:
 err.false.3204:
   %t7564 = call ptr @wolf_int_to_string(i64 %t7562)
   call void @wolf_map_set(ptr %t7555, ptr %t7558, ptr %t7564)
+  ; DEBUG AssignStmt target type: *ir.Ident
   %t7565 = load i64, ptr %mi
   %t7566 = call ptr @wolf_int_to_string(i64 %t7565)
   %t7567 = call i64 @wolf_intval(ptr %t7566)
@@ -21813,16 +22107,19 @@ err.false.3206:
 for.update.3199:
   br label %for.cond.3197
 for.end.3200:
+  ; DEBUG AssignStmt target type: *ir.IndexExpr
   %t7570 = load ptr, ptr %sym
   %t7571 = getelementptr [8 x i8], ptr @.str.268, i64 0, i64 0
   %t7572 = load ptr, ptr %methods
   call void @wolf_map_set(ptr %t7570, ptr %t7571, ptr %t7572)
+  ; DEBUG AssignStmt target type: *ir.IndexExpr
   %t7573 = load ptr, ptr %sym
   %t7574 = getelementptr [8 x i8], ptr @.str.585, i64 0, i64 0
   %t7575 = load ptr, ptr %cls
   %t7576 = getelementptr [12 x i8], ptr @.str.582, i64 0, i64 0
   %t7577 = call ptr @wolf_map_get(ptr %t7575, ptr %t7576)
   call void @wolf_map_set(ptr %t7573, ptr %t7574, ptr %t7577)
+  ; DEBUG AssignStmt target type: *ir.IndexExpr
   %t7578 = load ptr, ptr %this
   %t7579 = getelementptr [8 x i8], ptr @.str.629, i64 0, i64 0
   %t7580 = call ptr @wolf_map_get(ptr %t7578, ptr %t7579)
@@ -21836,9 +22133,9 @@ for.end.3200:
 
 define ptr @wolf_Resolver_resolveStmt(ptr %this.arg, ptr %stmt.arg) {
 entry:
-  %this = alloca ptr
   %stmt = alloca ptr
   %t = alloca ptr
+  %this = alloca ptr
   store ptr %this.arg, ptr %this
   store ptr %stmt.arg, ptr %stmt
   %t7585 = load ptr, ptr %stmt
@@ -22172,16 +22469,19 @@ err.false.3266:
 if.end.3264:
   %t7712 = call ptr @wolf_map_create()
   store ptr %t7712, ptr %sym
+  ; DEBUG AssignStmt target type: *ir.IndexExpr
   %t7713 = load ptr, ptr %sym
   %t7714 = getelementptr [5 x i8], ptr @.str.338, i64 0, i64 0
   %t7715 = getelementptr [4 x i8], ptr @.str.45, i64 0, i64 0
   call void @wolf_map_set(ptr %t7713, ptr %t7714, ptr %t7715)
+  ; DEBUG AssignStmt target type: *ir.IndexExpr
   %t7716 = load ptr, ptr %sym
   %t7717 = getelementptr [5 x i8], ptr @.str.128, i64 0, i64 0
   %t7718 = load ptr, ptr %stmt
   %t7719 = getelementptr [5 x i8], ptr @.str.128, i64 0, i64 0
   %t7720 = call ptr @wolf_map_get(ptr %t7718, ptr %t7719)
   call void @wolf_map_set(ptr %t7716, ptr %t7717, ptr %t7720)
+  ; DEBUG AssignStmt target type: *ir.IndexExpr
   %t7721 = load ptr, ptr %sym
   %t7722 = getelementptr [9 x i8], ptr @.str.460, i64 0, i64 0
   %t7723 = load ptr, ptr %stmt
@@ -22245,9 +22545,9 @@ err.false.3272:
 
 define ptr @wolf_Resolver_resolveReturnStmt(ptr %this.arg, ptr %stmt.arg) {
 entry:
+  %this = alloca ptr
   %stmt = alloca ptr
   %i = alloca i64
-  %this = alloca ptr
   store ptr %this.arg, ptr %this
   store ptr %stmt.arg, ptr %stmt
   store i64 0, ptr %i
@@ -22285,6 +22585,7 @@ err.true.3279:
     ret ptr null
 
 err.false.3280:
+  ; DEBUG AssignStmt target type: *ir.Ident
   %t7760 = load i64, ptr %i
   %t7761 = call ptr @wolf_int_to_string(i64 %t7760)
   %t7762 = call i64 @wolf_intval(ptr %t7761)
@@ -22306,10 +22607,10 @@ for.end.3276:
 
 define ptr @wolf_Resolver_resolveIfStmt(ptr %this.arg, ptr %stmt.arg) {
 entry:
-  %i = alloca i64
-  %clause = alloca ptr
   %this = alloca ptr
   %stmt = alloca ptr
+  %i = alloca i64
+  %clause = alloca ptr
   store ptr %this.arg, ptr %this
   store ptr %stmt.arg, ptr %stmt
   %t7765 = load ptr, ptr %this
@@ -22397,6 +22698,7 @@ err.true.3295:
     ret ptr null
 
 err.false.3296:
+  ; DEBUG AssignStmt target type: *ir.Ident
   %t7805 = load i64, ptr %i
   %t7806 = call ptr @wolf_int_to_string(i64 %t7805)
   %t7807 = call i64 @wolf_intval(ptr %t7806)
@@ -22563,10 +22865,10 @@ err.false.3322:
 
 define ptr @wolf_Resolver_resolveForeachStmt(ptr %this.arg, ptr %stmt.arg) {
 entry:
-  %keySym = alloca ptr
   %this = alloca ptr
   %stmt = alloca ptr
   %valSym = alloca ptr
+  %keySym = alloca ptr
   store ptr %this.arg, ptr %this
   store ptr %stmt.arg, ptr %stmt
   %t7870 = load ptr, ptr %this
@@ -22596,16 +22898,19 @@ err.true.3325:
 err.false.3326:
   %t7879 = call ptr @wolf_map_create()
   store ptr %t7879, ptr %valSym
+  ; DEBUG AssignStmt target type: *ir.IndexExpr
   %t7880 = load ptr, ptr %valSym
   %t7881 = getelementptr [5 x i8], ptr @.str.338, i64 0, i64 0
   %t7882 = getelementptr [4 x i8], ptr @.str.45, i64 0, i64 0
   call void @wolf_map_set(ptr %t7880, ptr %t7881, ptr %t7882)
+  ; DEBUG AssignStmt target type: *ir.IndexExpr
   %t7883 = load ptr, ptr %valSym
   %t7884 = getelementptr [5 x i8], ptr @.str.128, i64 0, i64 0
   %t7885 = load ptr, ptr %stmt
   %t7886 = getelementptr [9 x i8], ptr @.str.303, i64 0, i64 0
   %t7887 = call ptr @wolf_map_get(ptr %t7885, ptr %t7886)
   call void @wolf_map_set(ptr %t7883, ptr %t7884, ptr %t7887)
+  ; DEBUG AssignStmt target type: *ir.IndexExpr
   %t7888 = load ptr, ptr %valSym
   %t7889 = getelementptr [9 x i8], ptr @.str.460, i64 0, i64 0
   %t7890 = getelementptr [1 x i8], ptr @.str.78, i64 0, i64 0
@@ -22635,16 +22940,19 @@ err.false.3328:
 if.then.3329:
   %t7904 = call ptr @wolf_map_create()
   store ptr %t7904, ptr %keySym
+  ; DEBUG AssignStmt target type: *ir.IndexExpr
   %t7905 = load ptr, ptr %keySym
   %t7906 = getelementptr [5 x i8], ptr @.str.338, i64 0, i64 0
   %t7907 = getelementptr [4 x i8], ptr @.str.45, i64 0, i64 0
   call void @wolf_map_set(ptr %t7905, ptr %t7906, ptr %t7907)
+  ; DEBUG AssignStmt target type: *ir.IndexExpr
   %t7908 = load ptr, ptr %keySym
   %t7909 = getelementptr [5 x i8], ptr @.str.128, i64 0, i64 0
   %t7910 = load ptr, ptr %stmt
   %t7911 = getelementptr [7 x i8], ptr @.str.300, i64 0, i64 0
   %t7912 = call ptr @wolf_map_get(ptr %t7910, ptr %t7911)
   call void @wolf_map_set(ptr %t7908, ptr %t7909, ptr %t7912)
+  ; DEBUG AssignStmt target type: *ir.IndexExpr
   %t7913 = load ptr, ptr %keySym
   %t7914 = getelementptr [9 x i8], ptr @.str.460, i64 0, i64 0
   %t7915 = getelementptr [1 x i8], ptr @.str.78, i64 0, i64 0
@@ -22753,13 +23061,13 @@ if.end.3342:
 
 define ptr @wolf_Resolver_resolveMatchStmt(ptr %this.arg, ptr %stmt.arg) {
 entry:
+  %blen = alloca i64
+  %this = alloca ptr
+  %stmt = alloca ptr
   %i = alloca i64
   %len = alloca i64
   %arm = alloca ptr
   %j = alloca i64
-  %blen = alloca i64
-  %this = alloca ptr
-  %stmt = alloca ptr
   store ptr %this.arg, ptr %this
   store ptr %stmt.arg, ptr %stmt
   %t7956 = load ptr, ptr %this
@@ -22882,6 +23190,7 @@ err.true.3365:
     ret ptr null
 
 err.false.3366:
+  ; DEBUG AssignStmt target type: *ir.Ident
   %t8013 = load i64, ptr %j
   %t8014 = call ptr @wolf_int_to_string(i64 %t8013)
   %t8015 = call i64 @wolf_intval(ptr %t8014)
@@ -22909,6 +23218,7 @@ err.true.3369:
     ret ptr null
 
 err.false.3370:
+  ; DEBUG AssignStmt target type: *ir.Ident
   %t8021 = load i64, ptr %i
   %t8022 = call ptr @wolf_int_to_string(i64 %t8021)
   %t8023 = call i64 @wolf_intval(ptr %t8022)
@@ -22964,16 +23274,19 @@ err.true.3375:
 err.false.3376:
   %t8037 = call ptr @wolf_map_create()
   store ptr %t8037, ptr %errSym
+  ; DEBUG AssignStmt target type: *ir.IndexExpr
   %t8038 = load ptr, ptr %errSym
   %t8039 = getelementptr [5 x i8], ptr @.str.338, i64 0, i64 0
   %t8040 = getelementptr [4 x i8], ptr @.str.45, i64 0, i64 0
   call void @wolf_map_set(ptr %t8038, ptr %t8039, ptr %t8040)
+  ; DEBUG AssignStmt target type: *ir.IndexExpr
   %t8041 = load ptr, ptr %errSym
   %t8042 = getelementptr [5 x i8], ptr @.str.128, i64 0, i64 0
   %t8043 = load ptr, ptr %stmt
   %t8044 = getelementptr [9 x i8], ptr @.str.469, i64 0, i64 0
   %t8045 = call ptr @wolf_map_get(ptr %t8043, ptr %t8044)
   call void @wolf_map_set(ptr %t8041, ptr %t8042, ptr %t8045)
+  ; DEBUG AssignStmt target type: *ir.IndexExpr
   %t8046 = load ptr, ptr %errSym
   %t8047 = getelementptr [9 x i8], ptr @.str.460, i64 0, i64 0
   %t8048 = getelementptr [7 x i8], ptr @.str.636, i64 0, i64 0
@@ -23070,16 +23383,19 @@ for.body.3386:
   store ptr %t8081, ptr %p
   %t8082 = call ptr @wolf_map_create()
   store ptr %t8082, ptr %psym
+  ; DEBUG AssignStmt target type: *ir.IndexExpr
   %t8083 = load ptr, ptr %psym
   %t8084 = getelementptr [5 x i8], ptr @.str.338, i64 0, i64 0
   %t8085 = getelementptr [4 x i8], ptr @.str.45, i64 0, i64 0
   call void @wolf_map_set(ptr %t8083, ptr %t8084, ptr %t8085)
+  ; DEBUG AssignStmt target type: *ir.IndexExpr
   %t8086 = load ptr, ptr %psym
   %t8087 = getelementptr [5 x i8], ptr @.str.128, i64 0, i64 0
   %t8088 = load ptr, ptr %p
   %t8089 = getelementptr [5 x i8], ptr @.str.128, i64 0, i64 0
   %t8090 = call ptr @wolf_map_get(ptr %t8088, ptr %t8089)
   call void @wolf_map_set(ptr %t8086, ptr %t8087, ptr %t8090)
+  ; DEBUG AssignStmt target type: *ir.IndexExpr
   %t8091 = load ptr, ptr %psym
   %t8092 = getelementptr [9 x i8], ptr @.str.460, i64 0, i64 0
   %t8093 = load ptr, ptr %p
@@ -23101,6 +23417,7 @@ err.true.3391:
     ret ptr null
 
 err.false.3392:
+  ; DEBUG AssignStmt target type: *ir.Ident
   %t8103 = load i64, ptr %i
   %t8104 = call ptr @wolf_int_to_string(i64 %t8103)
   %t8105 = call i64 @wolf_intval(ptr %t8104)
@@ -23157,11 +23474,11 @@ err.false.3400:
 
 define ptr @wolf_Resolver_resolveClosureExpr(ptr %this.arg, ptr %expr.arg) {
 entry:
+  %psym = alloca ptr
   %this = alloca ptr
   %expr = alloca ptr
   %i = alloca i64
   %p = alloca ptr
-  %psym = alloca ptr
   store ptr %this.arg, ptr %this
   store ptr %expr.arg, ptr %expr
   %t8123 = load ptr, ptr %this
@@ -23202,16 +23519,19 @@ for.body.3404:
   store ptr %t8137, ptr %p
   %t8138 = call ptr @wolf_map_create()
   store ptr %t8138, ptr %psym
+  ; DEBUG AssignStmt target type: *ir.IndexExpr
   %t8139 = load ptr, ptr %psym
   %t8140 = getelementptr [5 x i8], ptr @.str.338, i64 0, i64 0
   %t8141 = getelementptr [4 x i8], ptr @.str.45, i64 0, i64 0
   call void @wolf_map_set(ptr %t8139, ptr %t8140, ptr %t8141)
+  ; DEBUG AssignStmt target type: *ir.IndexExpr
   %t8142 = load ptr, ptr %psym
   %t8143 = getelementptr [5 x i8], ptr @.str.128, i64 0, i64 0
   %t8144 = load ptr, ptr %p
   %t8145 = getelementptr [5 x i8], ptr @.str.128, i64 0, i64 0
   %t8146 = call ptr @wolf_map_get(ptr %t8144, ptr %t8145)
   call void @wolf_map_set(ptr %t8142, ptr %t8143, ptr %t8146)
+  ; DEBUG AssignStmt target type: *ir.IndexExpr
   %t8147 = load ptr, ptr %psym
   %t8148 = getelementptr [9 x i8], ptr @.str.460, i64 0, i64 0
   %t8149 = load ptr, ptr %p
@@ -23233,6 +23553,7 @@ err.true.3409:
     ret ptr null
 
 err.false.3410:
+  ; DEBUG AssignStmt target type: *ir.Ident
   %t8159 = load i64, ptr %i
   %t8160 = call ptr @wolf_int_to_string(i64 %t8159)
   %t8161 = call i64 @wolf_intval(ptr %t8160)
@@ -23313,19 +23634,20 @@ err.false.3423:
 
 define ptr @wolf_Resolver_resolveClassDecl(ptr %this.arg, ptr %cls.arg) {
 entry:
-  %fi = alloca i64
-  %prop = alloca ptr
-  %mi = alloca i64
   %this = alloca ptr
   %cls = alloca ptr
   %prevClass = alloca ptr
   %thisSym = alloca ptr
+  %fi = alloca i64
+  %prop = alloca ptr
+  %mi = alloca i64
   store ptr %this.arg, ptr %this
   store ptr %cls.arg, ptr %cls
   %t8189 = load ptr, ptr %this
   %t8190 = getelementptr [13 x i8], ptr @.str.631, i64 0, i64 0
   %t8191 = call ptr @wolf_map_get(ptr %t8189, ptr %t8190)
   store ptr %t8191, ptr %prevClass
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t8192 = load ptr, ptr %this
   %t8193 = load ptr, ptr %cls
   %t8194 = getelementptr [5 x i8], ptr @.str.128, i64 0, i64 0
@@ -23345,14 +23667,17 @@ err.true.3424:
 err.false.3425:
   %t8200 = call ptr @wolf_map_create()
   store ptr %t8200, ptr %thisSym
+  ; DEBUG AssignStmt target type: *ir.IndexExpr
   %t8201 = load ptr, ptr %thisSym
   %t8202 = getelementptr [5 x i8], ptr @.str.338, i64 0, i64 0
   %t8203 = getelementptr [4 x i8], ptr @.str.45, i64 0, i64 0
   call void @wolf_map_set(ptr %t8201, ptr %t8202, ptr %t8203)
+  ; DEBUG AssignStmt target type: *ir.IndexExpr
   %t8204 = load ptr, ptr %thisSym
   %t8205 = getelementptr [5 x i8], ptr @.str.128, i64 0, i64 0
   %t8206 = getelementptr [5 x i8], ptr @.str.637, i64 0, i64 0
   call void @wolf_map_set(ptr %t8204, ptr %t8205, ptr %t8206)
+  ; DEBUG AssignStmt target type: *ir.IndexExpr
   %t8207 = load ptr, ptr %thisSym
   %t8208 = getelementptr [9 x i8], ptr @.str.460, i64 0, i64 0
   %t8209 = load ptr, ptr %cls
@@ -23419,6 +23744,7 @@ err.true.3436:
 err.false.3437:
   br label %if.end.3435
 if.end.3435:
+  ; DEBUG AssignStmt target type: *ir.Ident
   %t8239 = load i64, ptr %fi
   %t8240 = call ptr @wolf_int_to_string(i64 %t8239)
   %t8241 = call i64 @wolf_intval(ptr %t8240)
@@ -23470,6 +23796,7 @@ err.true.3446:
     ret ptr null
 
 err.false.3447:
+  ; DEBUG AssignStmt target type: *ir.Ident
   %t8259 = load i64, ptr %mi
   %t8260 = call ptr @wolf_int_to_string(i64 %t8259)
   %t8261 = call i64 @wolf_intval(ptr %t8260)
@@ -23497,6 +23824,7 @@ err.true.3450:
     ret ptr null
 
 err.false.3451:
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t8267 = load ptr, ptr %this
   %t8268 = load ptr, ptr %prevClass
   %t8269 = getelementptr [13 x i8], ptr @.str.631, i64 0, i64 0
@@ -23553,6 +23881,7 @@ err.true.3460:
     ret ptr null
 
 err.false.3461:
+  ; DEBUG AssignStmt target type: *ir.Ident
   %t8284 = load i64, ptr %i
   %t8285 = call ptr @wolf_int_to_string(i64 %t8284)
   %t8286 = call i64 @wolf_intval(ptr %t8285)
@@ -23585,9 +23914,9 @@ err.false.3465:
 
 define ptr @wolf_Resolver_resolveExpr(ptr %this.arg, ptr %expr.arg) {
 entry:
-  %this = alloca ptr
   %expr = alloca ptr
   %t = alloca ptr
+  %this = alloca ptr
   store ptr %this.arg, ptr %this
   store ptr %expr.arg, ptr %expr
   %t8292 = load ptr, ptr %expr
@@ -24027,9 +24356,9 @@ if.end.3545:
 
 define ptr @wolf_Resolver_resolveDollarIdent(ptr %this.arg, ptr %expr.arg) {
 entry:
+  %name = alloca ptr
   %this = alloca ptr
   %expr = alloca ptr
-  %name = alloca ptr
   store ptr %this.arg, ptr %this
   store ptr %expr.arg, ptr %expr
   %t8469 = load ptr, ptr %expr
@@ -24305,16 +24634,19 @@ err.false.3580:
 if.then.3581:
   %t8598 = call ptr @wolf_map_create()
   store ptr %t8598, ptr %sym
+  ; DEBUG AssignStmt target type: *ir.IndexExpr
   %t8599 = load ptr, ptr %sym
   %t8600 = getelementptr [5 x i8], ptr @.str.338, i64 0, i64 0
   %t8601 = getelementptr [4 x i8], ptr @.str.45, i64 0, i64 0
   call void @wolf_map_set(ptr %t8599, ptr %t8600, ptr %t8601)
+  ; DEBUG AssignStmt target type: *ir.IndexExpr
   %t8602 = load ptr, ptr %sym
   %t8603 = getelementptr [5 x i8], ptr @.str.128, i64 0, i64 0
   %t8604 = load ptr, ptr %expr
   %t8605 = getelementptr [5 x i8], ptr @.str.128, i64 0, i64 0
   %t8606 = call ptr @wolf_map_get(ptr %t8604, ptr %t8605)
   call void @wolf_map_set(ptr %t8602, ptr %t8603, ptr %t8606)
+  ; DEBUG AssignStmt target type: *ir.IndexExpr
   %t8607 = load ptr, ptr %sym
   %t8608 = getelementptr [9 x i8], ptr @.str.460, i64 0, i64 0
   %t8609 = getelementptr [1 x i8], ptr @.str.78, i64 0, i64 0
@@ -24410,6 +24742,7 @@ err.true.3595:
     ret ptr null
 
 err.false.3596:
+  ; DEBUG AssignStmt target type: *ir.Ident
   %t8642 = load i64, ptr %i
   %t8643 = call ptr @wolf_int_to_string(i64 %t8642)
   %t8644 = call i64 @wolf_intval(ptr %t8643)
@@ -24431,9 +24764,9 @@ for.end.3592:
 
 define ptr @wolf_Resolver_resolveStaticCall(ptr %this.arg, ptr %expr.arg) {
 entry:
+  %i = alloca i64
   %this = alloca ptr
   %expr = alloca ptr
-  %i = alloca i64
   store ptr %this.arg, ptr %this
   store ptr %expr.arg, ptr %expr
   store i64 0, ptr %i
@@ -24471,6 +24804,7 @@ err.true.3605:
     ret ptr null
 
 err.false.3606:
+  ; DEBUG AssignStmt target type: *ir.Ident
   %t8662 = load i64, ptr %i
   %t8663 = call ptr @wolf_int_to_string(i64 %t8662)
   %t8664 = call i64 @wolf_intval(ptr %t8663)
@@ -24546,6 +24880,7 @@ err.true.3617:
     ret ptr null
 
 err.false.3618:
+  ; DEBUG AssignStmt target type: *ir.Ident
   %t8688 = load i64, ptr %i
   %t8689 = call ptr @wolf_int_to_string(i64 %t8688)
   %t8690 = call i64 @wolf_intval(ptr %t8689)
@@ -24647,6 +24982,7 @@ err.true.3633:
     ret ptr null
 
 err.false.3634:
+  ; DEBUG AssignStmt target type: *ir.Ident
   %t8726 = load i64, ptr %i
   %t8727 = call ptr @wolf_int_to_string(i64 %t8726)
   %t8728 = call i64 @wolf_intval(ptr %t8727)
@@ -24668,9 +25004,9 @@ for.end.3630:
 
 define ptr @wolf_Resolver_resolveArrayLiteral(ptr %this.arg, ptr %expr.arg) {
 entry:
-  %i = alloca i64
   %this = alloca ptr
   %expr = alloca ptr
+  %i = alloca i64
   store ptr %this.arg, ptr %this
   store ptr %expr.arg, ptr %expr
   store i64 0, ptr %i
@@ -24708,6 +25044,7 @@ err.true.3643:
     ret ptr null
 
 err.false.3644:
+  ; DEBUG AssignStmt target type: *ir.Ident
   %t8746 = load i64, ptr %i
   %t8747 = call ptr @wolf_int_to_string(i64 %t8746)
   %t8748 = call i64 @wolf_intval(ptr %t8747)
@@ -24729,9 +25066,9 @@ for.end.3640:
 
 define ptr @wolf_Resolver_resolveMapLiteral(ptr %this.arg, ptr %expr.arg) {
 entry:
+  %this = alloca ptr
   %expr = alloca ptr
   %i = alloca i64
-  %this = alloca ptr
   store ptr %this.arg, ptr %this
   store ptr %expr.arg, ptr %expr
   store i64 0, ptr %i
@@ -24785,6 +25122,7 @@ err.true.3655:
     ret ptr null
 
 err.false.3656:
+  ; DEBUG AssignStmt target type: *ir.Ident
   %t8774 = load i64, ptr %i
   %t8775 = call ptr @wolf_int_to_string(i64 %t8774)
   %t8776 = call i64 @wolf_intval(ptr %t8775)
@@ -24827,12 +25165,14 @@ err.false.3660:
   %t8786 = getelementptr [1 x i8], ptr @.str.78, i64 0, i64 0
   %t8787 = call ptr @wolf_string_concat(ptr %t8785, ptr %t8786)
   store ptr %t8787, ptr %depthKey
+  ; DEBUG AssignStmt target type: *ir.IndexExpr
   %t8788 = load ptr, ptr %this
   %t8789 = getelementptr [12 x i8], ptr @.str.627, i64 0, i64 0
   %t8790 = call ptr @wolf_map_get(ptr %t8788, ptr %t8789)
   %t8791 = load ptr, ptr %depthKey
   %t8792 = load ptr, ptr %frame
   call void @wolf_map_set(ptr %t8790, ptr %t8791, ptr %t8792)
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t8793 = load ptr, ptr %this
   %t8794 = load ptr, ptr %this
   %t8795 = getelementptr [11 x i8], ptr @.str.628, i64 0, i64 0
@@ -24866,6 +25206,7 @@ if.then.3663:
   ret ptr null
   br label %if.end.3664
 if.end.3664:
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t8807 = load ptr, ptr %this
   %t8808 = load ptr, ptr %this
   %t8809 = getelementptr [11 x i8], ptr @.str.628, i64 0, i64 0
@@ -24887,13 +25228,13 @@ err.false.3666:
 
 define ptr @wolf_Resolver_declareInScope(ptr %this.arg, ptr %name.arg, ptr %sym.arg) {
 entry:
-  %sym = alloca ptr
-  %depth = alloca i64
   %depthKey = alloca ptr
   %frame = alloca ptr
   %newFrame = alloca ptr
   %this = alloca ptr
   %name = alloca ptr
+  %sym = alloca ptr
+  %depth = alloca i64
   store ptr %this.arg, ptr %this
   store ptr %name.arg, ptr %name
   store ptr %sym.arg, ptr %sym
@@ -24936,10 +25277,12 @@ err.false.3670:
 if.then.3671:
   %t8836 = call ptr @wolf_map_create()
   store ptr %t8836, ptr %newFrame
+  ; DEBUG AssignStmt target type: *ir.IndexExpr
   %t8837 = load ptr, ptr %newFrame
   %t8838 = load ptr, ptr %name
   %t8839 = load ptr, ptr %sym
   call void @wolf_map_set(ptr %t8837, ptr %t8838, ptr %t8839)
+  ; DEBUG AssignStmt target type: *ir.IndexExpr
   %t8840 = load ptr, ptr %this
   %t8841 = getelementptr [12 x i8], ptr @.str.627, i64 0, i64 0
   %t8842 = call ptr @wolf_map_get(ptr %t8840, ptr %t8841)
@@ -24948,10 +25291,12 @@ if.then.3671:
   call void @wolf_map_set(ptr %t8842, ptr %t8843, ptr %t8844)
   br label %if.end.3672
 if.else.3673:
+  ; DEBUG AssignStmt target type: *ir.IndexExpr
   %t8845 = load ptr, ptr %frame
   %t8846 = load ptr, ptr %name
   %t8847 = load ptr, ptr %sym
   call void @wolf_map_set(ptr %t8845, ptr %t8846, ptr %t8847)
+  ; DEBUG AssignStmt target type: *ir.IndexExpr
   %t8848 = load ptr, ptr %this
   %t8849 = getelementptr [12 x i8], ptr @.str.627, i64 0, i64 0
   %t8850 = call ptr @wolf_map_get(ptr %t8848, ptr %t8849)
@@ -24965,12 +25310,12 @@ if.end.3672:
 
 define ptr @wolf_Resolver_lookupVar(ptr %this.arg, ptr %name.arg) {
 entry:
-  %this = alloca ptr
-  %name = alloca ptr
-  %depth = alloca i64
   %depthKey = alloca ptr
   %frame = alloca ptr
   %sym = alloca ptr
+  %this = alloca ptr
+  %name = alloca ptr
+  %depth = alloca i64
   store ptr %this.arg, ptr %this
   store ptr %name.arg, ptr %name
   %t8853 = load ptr, ptr %this
@@ -25031,6 +25376,7 @@ if.then.3684:
 if.end.3685:
   br label %if.end.3683
 if.end.3683:
+  ; DEBUG AssignStmt target type: *ir.Ident
   %t8881 = load i64, ptr %depth
   %t8882 = call ptr @wolf_int_to_string(i64 %t8881)
   %t8883 = call i64 @wolf_intval(ptr %t8882)
@@ -25109,10 +25455,12 @@ entry:
   store ptr %msg.arg, ptr %msg
   %t8908 = call ptr @wolf_map_create()
   store ptr %t8908, ptr %e
+  ; DEBUG AssignStmt target type: *ir.IndexExpr
   %t8909 = load ptr, ptr %e
   %t8910 = getelementptr [6 x i8], ptr @.str.341, i64 0, i64 0
   %t8911 = getelementptr [6 x i8], ptr @.str.68, i64 0, i64 0
   call void @wolf_map_set(ptr %t8909, ptr %t8910, ptr %t8911)
+  ; DEBUG AssignStmt target type: *ir.IndexExpr
   %t8912 = load ptr, ptr %e
   %t8913 = getelementptr [8 x i8], ptr @.str.354, i64 0, i64 0
   %t8914 = load ptr, ptr %msg
@@ -25139,10 +25487,12 @@ entry:
   store ptr %msg.arg, ptr %msg
   %t8922 = call ptr @wolf_map_create()
   store ptr %t8922, ptr %e
+  ; DEBUG AssignStmt target type: *ir.IndexExpr
   %t8923 = load ptr, ptr %e
   %t8924 = getelementptr [6 x i8], ptr @.str.341, i64 0, i64 0
   %t8925 = getelementptr [8 x i8], ptr @.str.412, i64 0, i64 0
   call void @wolf_map_set(ptr %t8923, ptr %t8924, ptr %t8925)
+  ; DEBUG AssignStmt target type: *ir.IndexExpr
   %t8926 = load ptr, ptr %e
   %t8927 = getelementptr [8 x i8], ptr @.str.354, i64 0, i64 0
   %t8928 = load ptr, ptr %msg
@@ -25161,14 +25511,17 @@ entry:
   %SymbolTable.name_var = getelementptr [12 x i8], ptr @.str.336, i64 0, i64 0
   %t8933 = call ptr @wolf_class_create(ptr %SymbolTable.name_var)
   store ptr %t8933, ptr %this
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t8934 = load ptr, ptr %this
   %t8935 = call ptr @wolf_map_create()
   %t8936 = getelementptr [10 x i8], ptr @.str.634, i64 0, i64 0
   call void @wolf_map_set(ptr %t8934, ptr %t8936, ptr %t8935)
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t8937 = load ptr, ptr %this
   %t8938 = call ptr @wolf_map_create()
   %t8939 = getelementptr [10 x i8], ptr @.str.630, i64 0, i64 0
   call void @wolf_map_set(ptr %t8937, ptr %t8939, ptr %t8938)
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t8940 = load ptr, ptr %this
   %t8941 = call ptr @wolf_map_create()
   %t8942 = getelementptr [8 x i8], ptr @.str.629, i64 0, i64 0
@@ -25290,6 +25643,7 @@ if.then.3704:
   ret ptr %t8990
   br label %if.end.3705
 if.end.3705:
+  ; DEBUG AssignStmt target type: *ir.Ident
   %t8991 = load i64, ptr %i
   %t8992 = call ptr @wolf_int_to_string(i64 %t8991)
   %t8993 = call i64 @wolf_intval(ptr %t8992)
@@ -25322,30 +25676,35 @@ entry:
 
 define ptr @wolf_NewTypeChecker(ptr %resolver.arg, ptr %file.arg) {
 entry:
+  %this = alloca ptr
   %resolver = alloca ptr
   %file = alloca ptr
-  %this = alloca ptr
   store ptr %resolver.arg, ptr %resolver
   store ptr %file.arg, ptr %file
   %TypeChecker.name_var = getelementptr [12 x i8], ptr @.str.458, i64 0, i64 0
   %t8999 = call ptr @wolf_class_create(ptr %TypeChecker.name_var)
   store ptr %t8999, ptr %this
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t9000 = load ptr, ptr %this
   %t9001 = load ptr, ptr %resolver
   %t9002 = getelementptr [9 x i8], ptr @.str.645, i64 0, i64 0
   call void @wolf_map_set(ptr %t9000, ptr %t9002, ptr %t9001)
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t9003 = load ptr, ptr %this
   %t9004 = load ptr, ptr %file
   %t9005 = getelementptr [5 x i8], ptr @.str.489, i64 0, i64 0
   call void @wolf_map_set(ptr %t9003, ptr %t9005, ptr %t9004)
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t9006 = load ptr, ptr %this
   %t9007 = call ptr @wolf_array_create()
   %t9008 = getelementptr [7 x i8], ptr @.str.340, i64 0, i64 0
   call void @wolf_map_set(ptr %t9006, ptr %t9008, ptr %t9007)
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t9009 = load ptr, ptr %this
   %t9010 = call ptr @wolf_bool_to_string(i1 0)
   %t9011 = getelementptr [11 x i8], ptr @.str.646, i64 0, i64 0
   call void @wolf_map_set(ptr %t9009, ptr %t9011, ptr %t9010)
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t9012 = load ptr, ptr %this
   %t9013 = call ptr @wolf_map_create()
   %t9014 = getelementptr [13 x i8], ptr @.str.647, i64 0, i64 0
@@ -25360,6 +25719,7 @@ entry:
   %strict = alloca ptr
   store ptr %this.arg, ptr %this
   store ptr %strict.arg, ptr %strict
+  ; DEBUG AssignStmt target type: *ir.FieldAccess
   %t9016 = load ptr, ptr %this
   %t9017 = load ptr, ptr %strict
   %t9018 = getelementptr [11 x i8], ptr @.str.646, i64 0, i64 0
@@ -25369,11 +25729,11 @@ entry:
 
 define ptr @wolf_TypeChecker_Check(ptr %this.arg, ptr %program.arg) {
 entry:
+  %stmts = alloca ptr
   %i = alloca i64
   %len = alloca i64
   %this = alloca ptr
   %program = alloca ptr
-  %stmts = alloca ptr
   store ptr %this.arg, ptr %this
   store ptr %program.arg, ptr %program
   %t9019 = load ptr, ptr %program
@@ -25423,6 +25783,7 @@ err.true.3716:
     ret ptr null
 
 err.false.3717:
+  ; DEBUG AssignStmt target type: *ir.Ident
   %t9039 = load i64, ptr %i
   %t9040 = call ptr @wolf_int_to_string(i64 %t9039)
   %t9041 = call i64 @wolf_intval(ptr %t9040)
@@ -25457,36 +25818,41 @@ entry:
 
 define ptr @wolf_TypeChecker_addError(ptr %this.arg, ptr %line.arg, ptr %col.arg, ptr %msg.arg) {
 entry:
+  %l1 = alloca ptr
+  %l2 = alloca ptr
   %l3 = alloca ptr
   %this = alloca ptr
   %line = alloca ptr
   %col = alloca ptr
   %msg = alloca ptr
   %e = alloca ptr
-  %l1 = alloca ptr
-  %l2 = alloca ptr
   store ptr %this.arg, ptr %this
   store ptr %line.arg, ptr %line
   store ptr %col.arg, ptr %col
   store ptr %msg.arg, ptr %msg
   %t9050 = call ptr @wolf_map_create()
   store ptr %t9050, ptr %e
+  ; DEBUG AssignStmt target type: *ir.IndexExpr
   %t9051 = load ptr, ptr %e
   %t9052 = getelementptr [6 x i8], ptr @.str.341, i64 0, i64 0
   %t9053 = getelementptr [6 x i8], ptr @.str.68, i64 0, i64 0
   call void @wolf_map_set(ptr %t9051, ptr %t9052, ptr %t9053)
+  ; DEBUG AssignStmt target type: *ir.IndexExpr
   %t9054 = load ptr, ptr %e
   %t9055 = getelementptr [5 x i8], ptr @.str.496, i64 0, i64 0
   %t9056 = load ptr, ptr %line
   call void @wolf_map_set(ptr %t9054, ptr %t9055, ptr %t9056)
+  ; DEBUG AssignStmt target type: *ir.IndexExpr
   %t9057 = load ptr, ptr %e
   %t9058 = getelementptr [4 x i8], ptr @.str.498, i64 0, i64 0
   %t9059 = load ptr, ptr %col
   call void @wolf_map_set(ptr %t9057, ptr %t9058, ptr %t9059)
+  ; DEBUG AssignStmt target type: *ir.IndexExpr
   %t9060 = load ptr, ptr %e
   %t9061 = getelementptr [8 x i8], ptr @.str.354, i64 0, i64 0
   %t9062 = load ptr, ptr %msg
   call void @wolf_map_set(ptr %t9060, ptr %t9061, ptr %t9062)
+  ; DEBUG AssignStmt target type: *ir.IndexExpr
   %t9063 = load ptr, ptr %e
   %t9064 = getelementptr [6 x i8], ptr @.str.648, i64 0, i64 0
   %t9065 = getelementptr [12 x i8], ptr @.str.649, i64 0, i64 0
@@ -25530,22 +25896,27 @@ entry:
   store ptr %msg.arg, ptr %msg
   %t9080 = call ptr @wolf_map_create()
   store ptr %t9080, ptr %e
+  ; DEBUG AssignStmt target type: *ir.IndexExpr
   %t9081 = load ptr, ptr %e
   %t9082 = getelementptr [6 x i8], ptr @.str.341, i64 0, i64 0
   %t9083 = getelementptr [8 x i8], ptr @.str.412, i64 0, i64 0
   call void @wolf_map_set(ptr %t9081, ptr %t9082, ptr %t9083)
+  ; DEBUG AssignStmt target type: *ir.IndexExpr
   %t9084 = load ptr, ptr %e
   %t9085 = getelementptr [5 x i8], ptr @.str.496, i64 0, i64 0
   %t9086 = load ptr, ptr %line
   call void @wolf_map_set(ptr %t9084, ptr %t9085, ptr %t9086)
+  ; DEBUG AssignStmt target type: *ir.IndexExpr
   %t9087 = load ptr, ptr %e
   %t9088 = getelementptr [4 x i8], ptr @.str.498, i64 0, i64 0
   %t9089 = load ptr, ptr %col
   call void @wolf_map_set(ptr %t9087, ptr %t9088, ptr %t9089)
+  ; DEBUG AssignStmt target type: *ir.IndexExpr
   %t9090 = load ptr, ptr %e
   %t9091 = getelementptr [8 x i8], ptr @.str.354, i64 0, i64 0
   %t9092 = load ptr, ptr %msg
   call void @wolf_map_set(ptr %t9090, ptr %t9091, ptr %t9092)
+  ; DEBUG AssignStmt target type: *ir.IndexExpr
   %t9093 = load ptr, ptr %e
   %t9094 = getelementptr [6 x i8], ptr @.str.648, i64 0, i64 0
   %t9095 = getelementptr [12 x i8], ptr @.str.649, i64 0, i64 0
@@ -25572,9 +25943,9 @@ entry:
 
 define ptr @wolf_TypeChecker_checkStmt(ptr %this.arg, ptr %stmt.arg) {
 entry:
-  %t = alloca ptr
   %this = alloca ptr
   %stmt = alloca ptr
+  %t = alloca ptr
   store ptr %this.arg, ptr %this
   store ptr %stmt.arg, ptr %stmt
   %t9109 = load ptr, ptr %stmt
@@ -26094,6 +26465,7 @@ err.true.3812:
     ret ptr null
 
 err.false.3813:
+  ; DEBUG AssignStmt target type: *ir.Ident
   %t9313 = load i64, ptr %i
   %t9314 = call ptr @wolf_int_to_string(i64 %t9313)
   %t9315 = call i64 @wolf_intval(ptr %t9314)
@@ -26115,10 +26487,10 @@ for.end.3811:
 
 define ptr @wolf_TypeChecker_checkReturnStmt(ptr %this.arg, ptr %stmt.arg) {
 entry:
-  %len = alloca i64
   %this = alloca ptr
   %stmt = alloca ptr
   %i = alloca i64
+  %len = alloca i64
   store ptr %this.arg, ptr %this
   store ptr %stmt.arg, ptr %stmt
   store i64 0, ptr %i
@@ -26158,6 +26530,7 @@ err.true.3822:
     ret ptr null
 
 err.false.3823:
+  ; DEBUG AssignStmt target type: *ir.Ident
   %t9334 = load i64, ptr %i
   %t9335 = call ptr @wolf_int_to_string(i64 %t9334)
   %t9336 = call i64 @wolf_intval(ptr %t9335)
@@ -26269,6 +26642,7 @@ err.true.3838:
     ret ptr null
 
 err.false.3839:
+  ; DEBUG AssignStmt target type: *ir.Ident
   %t9376 = load i64, ptr %i
   %t9377 = call ptr @wolf_int_to_string(i64 %t9376)
   %t9378 = call i64 @wolf_intval(ptr %t9377)
@@ -26502,14 +26876,14 @@ err.false.3867:
 
 define ptr @wolf_TypeChecker_checkMatchStmt(ptr %this.arg, ptr %stmt.arg) {
 entry:
-  %this = alloca ptr
-  %stmt = alloca ptr
-  %i = alloca i64
   %len = alloca i64
   %hasWildcard = alloca i1
   %arm = alloca ptr
   %j = alloca i64
   %blen = alloca i64
+  %this = alloca ptr
+  %stmt = alloca ptr
+  %i = alloca i64
   store ptr %this.arg, ptr %this
   store ptr %stmt.arg, ptr %stmt
   %t9466 = load ptr, ptr %this
@@ -26564,6 +26938,7 @@ for.body.3873:
   %t9491 = icmp eq i64 %t9492, 0
   br i1 %t9491, label %if.then.3876, label %if.else.3878
 if.then.3876:
+  ; DEBUG AssignStmt target type: *ir.Ident
   store i1 1, ptr %hasWildcard
   br label %if.end.3877
 if.else.3878:
@@ -26620,6 +26995,7 @@ err.true.3887:
     ret ptr null
 
 err.false.3888:
+  ; DEBUG AssignStmt target type: *ir.Ident
   %t9515 = load i64, ptr %j
   %t9516 = call ptr @wolf_int_to_string(i64 %t9515)
   %t9517 = call i64 @wolf_intval(ptr %t9516)
@@ -26636,6 +27012,7 @@ err.false.3890:
 for.update.3885:
   br label %for.cond.3883
 for.end.3886:
+  ; DEBUG AssignStmt target type: *ir.Ident
   %t9520 = load i64, ptr %i
   %t9521 = call ptr @wolf_int_to_string(i64 %t9520)
   %t9522 = call i64 @wolf_intval(ptr %t9521)
@@ -26726,16 +27103,16 @@ err.false.3902:
 
 define ptr @wolf_TypeChecker_checkVarDecl(ptr %this.arg, ptr %v.arg) {
 entry:
-  %this = alloca ptr
-  %declaredType = alloca ptr
-  %m1 = alloca ptr
-  %m2 = alloca ptr
-  %m3 = alloca ptr
-  %m6 = alloca ptr
   %v = alloca ptr
-  %inferredType = alloca ptr
+  %declaredType = alloca ptr
+  %m2 = alloca ptr
   %m4 = alloca ptr
   %m5 = alloca ptr
+  %this = alloca ptr
+  %m1 = alloca ptr
+  %m3 = alloca ptr
+  %m6 = alloca ptr
+  %inferredType = alloca ptr
   store ptr %this.arg, ptr %this
   store ptr %v.arg, ptr %v
   %t9553 = load ptr, ptr %v
@@ -26906,11 +27283,11 @@ entry:
 
 define ptr @wolf_TypeChecker_checkFuncDecl(ptr %this.arg, ptr %f.arg) {
 entry:
+  %param = alloca ptr
   %this = alloca ptr
   %f = alloca ptr
   %i = alloca i64
   %len = alloca i64
-  %param = alloca ptr
   store ptr %this.arg, ptr %this
   store ptr %f.arg, ptr %f
   store i64 0, ptr %i
@@ -26962,6 +27339,7 @@ err.true.3935:
 err.false.3936:
   br label %if.end.3934
 if.end.3934:
+  ; DEBUG AssignStmt target type: *ir.Ident
   %t9658 = load i64, ptr %i
   %t9659 = call ptr @wolf_int_to_string(i64 %t9658)
   %t9660 = call i64 @wolf_intval(ptr %t9659)
@@ -27027,11 +27405,11 @@ if.end.3944:
 
 define ptr @wolf_TypeChecker_checkClassDecl(ptr %this.arg, ptr %cls.arg) {
 entry:
+  %prop = alloca ptr
   %this = alloca ptr
   %cls = alloca ptr
   %i = alloca i64
   %len = alloca i64
-  %prop = alloca ptr
   store ptr %this.arg, ptr %this
   store ptr %cls.arg, ptr %cls
   store i64 0, ptr %i
@@ -27083,6 +27461,7 @@ err.true.3955:
 err.false.3956:
   br label %if.end.3954
 if.end.3954:
+  ; DEBUG AssignStmt target type: *ir.Ident
   %t9706 = load i64, ptr %i
   %t9707 = call ptr @wolf_int_to_string(i64 %t9706)
   %t9708 = call i64 @wolf_intval(ptr %t9707)
@@ -27099,7 +27478,9 @@ err.false.3958:
 for.update.3951:
   br label %for.cond.3949
 for.end.3952:
+  ; DEBUG AssignStmt target type: *ir.Ident
   store i64 0, ptr %i
+  ; DEBUG AssignStmt target type: *ir.Ident
   %t9711 = load ptr, ptr %cls
   %t9712 = getelementptr [8 x i8], ptr @.str.268, i64 0, i64 0
   %t9713 = call ptr @wolf_map_get(ptr %t9711, ptr %t9712)
@@ -27136,6 +27517,7 @@ err.true.3965:
     ret ptr null
 
 err.false.3966:
+  ; DEBUG AssignStmt target type: *ir.Ident
   %t9727 = load i64, ptr %i
   %t9728 = call ptr @wolf_int_to_string(i64 %t9727)
   %t9729 = call i64 @wolf_intval(ptr %t9728)
@@ -27204,12 +27586,12 @@ if.end.3974:
 
 define ptr @wolf_TypeChecker_checkExpr(ptr %this.arg, ptr %expr.arg) {
 entry:
-  %len = alloca i64
   %na = alloca ptr
   %this = alloca ptr
   %expr = alloca ptr
   %t = alloca ptr
   %i = alloca i64
+  %len = alloca i64
   store ptr %this.arg, ptr %this
   store ptr %expr.arg, ptr %expr
   %t9750 = load ptr, ptr %expr
@@ -27363,6 +27745,7 @@ err.true.4003:
     ret ptr null
 
 err.false.4004:
+  ; DEBUG AssignStmt target type: *ir.Ident
   %t9817 = load i64, ptr %i
   %t9818 = call ptr @wolf_int_to_string(i64 %t9817)
   %t9819 = call i64 @wolf_intval(ptr %t9818)
@@ -27379,7 +27762,9 @@ err.false.4006:
 for.update.4001:
   br label %for.cond.3999
 for.end.4002:
+  ; DEBUG AssignStmt target type: *ir.Ident
   store i64 0, ptr %i
+  ; DEBUG AssignStmt target type: *ir.Ident
   %t9822 = load ptr, ptr %expr
   %t9823 = getelementptr [10 x i8], ptr @.str.658, i64 0, i64 0
   %t9824 = call ptr @wolf_map_get(ptr %t9822, ptr %t9823)
@@ -27420,6 +27805,7 @@ err.true.4013:
     ret ptr null
 
 err.false.4014:
+  ; DEBUG AssignStmt target type: *ir.Ident
   %t9841 = load i64, ptr %i
   %t9842 = call ptr @wolf_int_to_string(i64 %t9841)
   %t9843 = call i64 @wolf_intval(ptr %t9842)
@@ -27519,6 +27905,7 @@ err.true.4031:
     ret ptr null
 
 err.false.4032:
+  ; DEBUG AssignStmt target type: *ir.Ident
   %t9882 = load i64, ptr %i
   %t9883 = call ptr @wolf_int_to_string(i64 %t9882)
   %t9884 = call i64 @wolf_intval(ptr %t9883)
@@ -27618,6 +28005,7 @@ err.true.4049:
     ret ptr null
 
 err.false.4050:
+  ; DEBUG AssignStmt target type: *ir.Ident
   %t9923 = load i64, ptr %i
   %t9924 = call ptr @wolf_int_to_string(i64 %t9923)
   %t9925 = call i64 @wolf_intval(ptr %t9924)
@@ -27885,6 +28273,7 @@ err.true.4097:
     ret ptr null
 
 err.false.4098:
+  ; DEBUG AssignStmt target type: *ir.Ident
   %t10038 = load i64, ptr %i
   %t10039 = call ptr @wolf_int_to_string(i64 %t10038)
   %t10040 = call i64 @wolf_intval(ptr %t10039)
@@ -27963,6 +28352,7 @@ err.true.4111:
     ret ptr null
 
 err.false.4112:
+  ; DEBUG AssignStmt target type: *ir.Ident
   %t10071 = load i64, ptr %i
   %t10072 = call ptr @wolf_int_to_string(i64 %t10071)
   %t10073 = call i64 @wolf_intval(ptr %t10072)
@@ -28025,6 +28415,7 @@ err.true.4123:
     ret ptr null
 
 err.false.4124:
+  ; DEBUG AssignStmt target type: *ir.Ident
   %t10096 = load i64, ptr %i
   %t10097 = call ptr @wolf_int_to_string(i64 %t10096)
   %t10098 = call i64 @wolf_intval(ptr %t10097)
@@ -28124,6 +28515,7 @@ err.true.4141:
     ret ptr null
 
 err.false.4142:
+  ; DEBUG AssignStmt target type: *ir.Ident
   %t10137 = load i64, ptr %i
   %t10138 = call ptr @wolf_int_to_string(i64 %t10137)
   %t10139 = call i64 @wolf_intval(ptr %t10138)
@@ -28471,8 +28863,8 @@ if.end.4200:
 
 define ptr @wolf_TypeChecker_exprName(ptr %this.arg, ptr %expr.arg) {
 entry:
-  %expr = alloca ptr
   %this = alloca ptr
+  %expr = alloca ptr
   store ptr %this.arg, ptr %this
   store ptr %expr.arg, ptr %expr
   %t10287 = load ptr, ptr %expr
@@ -28517,20 +28909,20 @@ if.end.4206:
 
 define ptr @wolf_TypeChecker_checkN1InLoop(ptr %this.arg, ptr %block.arg, ptr %loopLine.arg) {
 entry:
+  %expr = alloca ptr
   %block = alloca ptr
   %hasRelation = alloca ptr
-  %stmts = alloca ptr
-  %i = alloca i64
-  %expr = alloca ptr
-  %this = alloca ptr
-  %w1 = alloca ptr
-  %w2 = alloca ptr
-  %w3 = alloca ptr
-  %stmt = alloca ptr
-  %recvName = alloca ptr
   %len = alloca i64
-  %w4 = alloca ptr
+  %w2 = alloca ptr
   %loopLine = alloca ptr
+  %stmts = alloca ptr
+  %stmt = alloca ptr
+  %this = alloca ptr
+  %i = alloca i64
+  %w4 = alloca ptr
+  %recvName = alloca ptr
+  %w1 = alloca ptr
+  %w3 = alloca ptr
   store ptr %this.arg, ptr %this
   store ptr %block.arg, ptr %block
   store ptr %loopLine.arg, ptr %loopLine
@@ -28590,6 +28982,7 @@ for.body.4214:
   %t10334 = icmp eq i64 %t10335, 0
   br i1 %t10334, label %if.then.4217, label %if.elseif.cond.4219
 if.then.4217:
+  ; DEBUG AssignStmt target type: *ir.Ident
   %t10336 = load ptr, ptr %stmt
   %t10337 = getelementptr [5 x i8], ptr @.str.459, i64 0, i64 0
   %t10338 = call ptr @wolf_map_get(ptr %t10336, ptr %t10337)
@@ -28604,6 +28997,7 @@ if.elseif.cond.4219:
   %t10343 = icmp eq i64 %t10344, 0
   br i1 %t10343, label %if.elseif.then.4220, label %if.elseif.cond.4221
 if.elseif.then.4220:
+  ; DEBUG AssignStmt target type: *ir.Ident
   %t10345 = load ptr, ptr %stmt
   %t10346 = getelementptr [6 x i8], ptr @.str.135, i64 0, i64 0
   %t10347 = call ptr @wolf_map_get(ptr %t10345, ptr %t10346)
@@ -28618,6 +29012,7 @@ if.elseif.cond.4221:
   %t10352 = icmp eq i64 %t10353, 0
   br i1 %t10352, label %if.elseif.then.4222, label %if.end.4218
 if.elseif.then.4222:
+  ; DEBUG AssignStmt target type: *ir.Ident
   %t10354 = load ptr, ptr %stmt
   %t10355 = getelementptr [6 x i8], ptr @.str.135, i64 0, i64 0
   %t10356 = call ptr @wolf_map_get(ptr %t10354, ptr %t10355)
@@ -28668,6 +29063,7 @@ err.false.4230:
   %t10377 = call i1 @wolf_boolval(ptr %t10375)
   br i1 %t10377, label %if.then.4231, label %if.elseif.cond.4233
 if.then.4231:
+  ; DEBUG AssignStmt target type: *ir.IndexExpr
   %t10378 = load ptr, ptr %hasRelation
   %t10379 = load ptr, ptr %recvName
   %t10380 = getelementptr [4 x i8], ptr @.str.673, i64 0, i64 0
@@ -28743,6 +29139,7 @@ if.end.4232:
 if.end.4226:
   br label %if.end.4224
 if.end.4224:
+  ; DEBUG AssignStmt target type: *ir.Ident
   %t10418 = load i64, ptr %i
   %t10419 = call ptr @wolf_int_to_string(i64 %t10418)
   %t10420 = call i64 @wolf_intval(ptr %t10419)
@@ -28765,9 +29162,9 @@ for.end.4216:
 define i32 @main(i32 %argc, ptr %argv) {
 entry:
   call void @wolf_init_args(i32 %argc, ptr %argv)
-  %passed = alloca i64
   %failed = alloca i64
   %e = alloca ptr
+  %passed = alloca i64
   store i64 0, ptr %passed
   store i64 0, ptr %failed
   call void @wolf_clear_error()
@@ -28782,6 +29179,7 @@ err.false.4246:
   %t10425 = getelementptr [20 x i8], ptr @.str.677, i64 0, i64 0
   call void @wolf_print_str(ptr %t10425)
   call void @wolf_println()
+  ; DEBUG AssignStmt target type: *ir.Ident
   %t10426 = load i64, ptr %passed
   %t10427 = add i64 %t10426, 1
   store i64 %t10427, ptr %passed
@@ -28795,6 +29193,7 @@ catch.4243:
     %t10431 = call ptr @wolf_string_concat(ptr %t10429, ptr %t10430)
     call void @wolf_print_str(ptr %t10431)
     call void @wolf_println()
+    ; DEBUG AssignStmt target type: *ir.Ident
     %t10432 = load i64, ptr %failed
     %t10433 = add i64 %t10432, 1
     store i64 %t10433, ptr %failed
@@ -28813,6 +29212,7 @@ err.false.4250:
   %t10436 = getelementptr [21 x i8], ptr @.str.679, i64 0, i64 0
   call void @wolf_print_str(ptr %t10436)
   call void @wolf_println()
+  ; DEBUG AssignStmt target type: *ir.Ident
   %t10437 = load i64, ptr %passed
   %t10438 = add i64 %t10437, 1
   store i64 %t10438, ptr %passed
@@ -28826,6 +29226,7 @@ catch.4247:
     %t10442 = call ptr @wolf_string_concat(ptr %t10440, ptr %t10441)
     call void @wolf_print_str(ptr %t10442)
     call void @wolf_println()
+    ; DEBUG AssignStmt target type: *ir.Ident
     %t10443 = load i64, ptr %failed
     %t10444 = add i64 %t10443, 1
     store i64 %t10444, ptr %failed
@@ -28844,6 +29245,7 @@ err.false.4254:
   %t10447 = getelementptr [21 x i8], ptr @.str.681, i64 0, i64 0
   call void @wolf_print_str(ptr %t10447)
   call void @wolf_println()
+  ; DEBUG AssignStmt target type: *ir.Ident
   %t10448 = load i64, ptr %passed
   %t10449 = add i64 %t10448, 1
   store i64 %t10449, ptr %passed
@@ -28857,6 +29259,7 @@ catch.4251:
     %t10453 = call ptr @wolf_string_concat(ptr %t10451, ptr %t10452)
     call void @wolf_print_str(ptr %t10453)
     call void @wolf_println()
+    ; DEBUG AssignStmt target type: *ir.Ident
     %t10454 = load i64, ptr %failed
     %t10455 = add i64 %t10454, 1
     store i64 %t10455, ptr %failed
@@ -28875,6 +29278,7 @@ err.false.4258:
   %t10458 = getelementptr [22 x i8], ptr @.str.683, i64 0, i64 0
   call void @wolf_print_str(ptr %t10458)
   call void @wolf_println()
+  ; DEBUG AssignStmt target type: *ir.Ident
   %t10459 = load i64, ptr %passed
   %t10460 = add i64 %t10459, 1
   store i64 %t10460, ptr %passed
@@ -28888,6 +29292,7 @@ catch.4255:
     %t10464 = call ptr @wolf_string_concat(ptr %t10462, ptr %t10463)
     call void @wolf_print_str(ptr %t10464)
     call void @wolf_println()
+    ; DEBUG AssignStmt target type: *ir.Ident
     %t10465 = load i64, ptr %failed
     %t10466 = add i64 %t10465, 1
     store i64 %t10466, ptr %failed
@@ -28906,6 +29311,7 @@ err.false.4262:
   %t10469 = getelementptr [20 x i8], ptr @.str.685, i64 0, i64 0
   call void @wolf_print_str(ptr %t10469)
   call void @wolf_println()
+  ; DEBUG AssignStmt target type: *ir.Ident
   %t10470 = load i64, ptr %passed
   %t10471 = add i64 %t10470, 1
   store i64 %t10471, ptr %passed
@@ -28919,6 +29325,7 @@ catch.4259:
     %t10475 = call ptr @wolf_string_concat(ptr %t10473, ptr %t10474)
     call void @wolf_print_str(ptr %t10475)
     call void @wolf_println()
+    ; DEBUG AssignStmt target type: *ir.Ident
     %t10476 = load i64, ptr %failed
     %t10477 = add i64 %t10476, 1
     store i64 %t10477, ptr %failed
@@ -28937,6 +29344,7 @@ err.false.4266:
   %t10480 = getelementptr [24 x i8], ptr @.str.687, i64 0, i64 0
   call void @wolf_print_str(ptr %t10480)
   call void @wolf_println()
+  ; DEBUG AssignStmt target type: *ir.Ident
   %t10481 = load i64, ptr %passed
   %t10482 = add i64 %t10481, 1
   store i64 %t10482, ptr %passed
@@ -28950,6 +29358,7 @@ catch.4263:
     %t10486 = call ptr @wolf_string_concat(ptr %t10484, ptr %t10485)
     call void @wolf_print_str(ptr %t10486)
     call void @wolf_println()
+    ; DEBUG AssignStmt target type: *ir.Ident
     %t10487 = load i64, ptr %failed
     %t10488 = add i64 %t10487, 1
     store i64 %t10488, ptr %failed
@@ -28968,6 +29377,7 @@ err.false.4270:
   %t10491 = getelementptr [22 x i8], ptr @.str.689, i64 0, i64 0
   call void @wolf_print_str(ptr %t10491)
   call void @wolf_println()
+  ; DEBUG AssignStmt target type: *ir.Ident
   %t10492 = load i64, ptr %passed
   %t10493 = add i64 %t10492, 1
   store i64 %t10493, ptr %passed
@@ -28981,6 +29391,7 @@ catch.4267:
     %t10497 = call ptr @wolf_string_concat(ptr %t10495, ptr %t10496)
     call void @wolf_print_str(ptr %t10497)
     call void @wolf_println()
+    ; DEBUG AssignStmt target type: *ir.Ident
     %t10498 = load i64, ptr %failed
     %t10499 = add i64 %t10498, 1
     store i64 %t10499, ptr %failed
@@ -28999,6 +29410,7 @@ err.false.4274:
   %t10502 = getelementptr [28 x i8], ptr @.str.691, i64 0, i64 0
   call void @wolf_print_str(ptr %t10502)
   call void @wolf_println()
+  ; DEBUG AssignStmt target type: *ir.Ident
   %t10503 = load i64, ptr %passed
   %t10504 = add i64 %t10503, 1
   store i64 %t10504, ptr %passed
@@ -29012,6 +29424,7 @@ catch.4271:
     %t10508 = call ptr @wolf_string_concat(ptr %t10506, ptr %t10507)
     call void @wolf_print_str(ptr %t10508)
     call void @wolf_println()
+    ; DEBUG AssignStmt target type: *ir.Ident
     %t10509 = load i64, ptr %failed
     %t10510 = add i64 %t10509, 1
     store i64 %t10510, ptr %failed
@@ -29030,6 +29443,7 @@ err.false.4278:
   %t10513 = getelementptr [38 x i8], ptr @.str.693, i64 0, i64 0
   call void @wolf_print_str(ptr %t10513)
   call void @wolf_println()
+  ; DEBUG AssignStmt target type: *ir.Ident
   %t10514 = load i64, ptr %passed
   %t10515 = add i64 %t10514, 1
   store i64 %t10515, ptr %passed
@@ -29043,6 +29457,7 @@ catch.4275:
     %t10519 = call ptr @wolf_string_concat(ptr %t10517, ptr %t10518)
     call void @wolf_print_str(ptr %t10519)
     call void @wolf_println()
+    ; DEBUG AssignStmt target type: *ir.Ident
     %t10520 = load i64, ptr %failed
     %t10521 = add i64 %t10520, 1
     store i64 %t10521, ptr %failed
@@ -29061,6 +29476,7 @@ err.false.4282:
   %t10524 = getelementptr [27 x i8], ptr @.str.695, i64 0, i64 0
   call void @wolf_print_str(ptr %t10524)
   call void @wolf_println()
+  ; DEBUG AssignStmt target type: *ir.Ident
   %t10525 = load i64, ptr %passed
   %t10526 = add i64 %t10525, 1
   store i64 %t10526, ptr %passed
@@ -29074,6 +29490,7 @@ catch.4279:
     %t10530 = call ptr @wolf_string_concat(ptr %t10528, ptr %t10529)
     call void @wolf_print_str(ptr %t10530)
     call void @wolf_println()
+    ; DEBUG AssignStmt target type: *ir.Ident
     %t10531 = load i64, ptr %failed
     %t10532 = add i64 %t10531, 1
     store i64 %t10532, ptr %failed
@@ -29092,6 +29509,7 @@ err.false.4286:
   %t10535 = getelementptr [30 x i8], ptr @.str.697, i64 0, i64 0
   call void @wolf_print_str(ptr %t10535)
   call void @wolf_println()
+  ; DEBUG AssignStmt target type: *ir.Ident
   %t10536 = load i64, ptr %passed
   %t10537 = add i64 %t10536, 1
   store i64 %t10537, ptr %passed
@@ -29105,6 +29523,7 @@ catch.4283:
     %t10541 = call ptr @wolf_string_concat(ptr %t10539, ptr %t10540)
     call void @wolf_print_str(ptr %t10541)
     call void @wolf_println()
+    ; DEBUG AssignStmt target type: *ir.Ident
     %t10542 = load i64, ptr %failed
     %t10543 = add i64 %t10542, 1
     store i64 %t10543, ptr %failed
@@ -29123,6 +29542,7 @@ err.false.4290:
   %t10546 = getelementptr [28 x i8], ptr @.str.699, i64 0, i64 0
   call void @wolf_print_str(ptr %t10546)
   call void @wolf_println()
+  ; DEBUG AssignStmt target type: *ir.Ident
   %t10547 = load i64, ptr %passed
   %t10548 = add i64 %t10547, 1
   store i64 %t10548, ptr %passed
@@ -29136,6 +29556,7 @@ catch.4287:
     %t10552 = call ptr @wolf_string_concat(ptr %t10550, ptr %t10551)
     call void @wolf_print_str(ptr %t10552)
     call void @wolf_println()
+    ; DEBUG AssignStmt target type: *ir.Ident
     %t10553 = load i64, ptr %failed
     %t10554 = add i64 %t10553, 1
     store i64 %t10554, ptr %failed
@@ -29154,6 +29575,7 @@ err.false.4294:
   %t10557 = getelementptr [36 x i8], ptr @.str.701, i64 0, i64 0
   call void @wolf_print_str(ptr %t10557)
   call void @wolf_println()
+  ; DEBUG AssignStmt target type: *ir.Ident
   %t10558 = load i64, ptr %passed
   %t10559 = add i64 %t10558, 1
   store i64 %t10559, ptr %passed
@@ -29167,6 +29589,7 @@ catch.4291:
     %t10563 = call ptr @wolf_string_concat(ptr %t10561, ptr %t10562)
     call void @wolf_print_str(ptr %t10563)
     call void @wolf_println()
+    ; DEBUG AssignStmt target type: *ir.Ident
     %t10564 = load i64, ptr %failed
     %t10565 = add i64 %t10564, 1
     store i64 %t10565, ptr %failed
@@ -29185,6 +29608,7 @@ err.false.4298:
   %t10568 = getelementptr [28 x i8], ptr @.str.703, i64 0, i64 0
   call void @wolf_print_str(ptr %t10568)
   call void @wolf_println()
+  ; DEBUG AssignStmt target type: *ir.Ident
   %t10569 = load i64, ptr %passed
   %t10570 = add i64 %t10569, 1
   store i64 %t10570, ptr %passed
@@ -29198,6 +29622,7 @@ catch.4295:
     %t10574 = call ptr @wolf_string_concat(ptr %t10572, ptr %t10573)
     call void @wolf_print_str(ptr %t10574)
     call void @wolf_println()
+    ; DEBUG AssignStmt target type: *ir.Ident
     %t10575 = load i64, ptr %failed
     %t10576 = add i64 %t10575, 1
     store i64 %t10576, ptr %failed
@@ -29216,6 +29641,7 @@ err.false.4302:
   %t10579 = getelementptr [28 x i8], ptr @.str.705, i64 0, i64 0
   call void @wolf_print_str(ptr %t10579)
   call void @wolf_println()
+  ; DEBUG AssignStmt target type: *ir.Ident
   %t10580 = load i64, ptr %passed
   %t10581 = add i64 %t10580, 1
   store i64 %t10581, ptr %passed
@@ -29229,6 +29655,7 @@ catch.4299:
     %t10585 = call ptr @wolf_string_concat(ptr %t10583, ptr %t10584)
     call void @wolf_print_str(ptr %t10585)
     call void @wolf_println()
+    ; DEBUG AssignStmt target type: *ir.Ident
     %t10586 = load i64, ptr %failed
     %t10587 = add i64 %t10586, 1
     store i64 %t10587, ptr %failed
@@ -29247,6 +29674,7 @@ err.false.4306:
   %t10590 = getelementptr [25 x i8], ptr @.str.707, i64 0, i64 0
   call void @wolf_print_str(ptr %t10590)
   call void @wolf_println()
+  ; DEBUG AssignStmt target type: *ir.Ident
   %t10591 = load i64, ptr %passed
   %t10592 = add i64 %t10591, 1
   store i64 %t10592, ptr %passed
@@ -29260,6 +29688,7 @@ catch.4303:
     %t10596 = call ptr @wolf_string_concat(ptr %t10594, ptr %t10595)
     call void @wolf_print_str(ptr %t10596)
     call void @wolf_println()
+    ; DEBUG AssignStmt target type: *ir.Ident
     %t10597 = load i64, ptr %failed
     %t10598 = add i64 %t10597, 1
     store i64 %t10598, ptr %failed
@@ -29278,6 +29707,7 @@ err.false.4310:
   %t10601 = getelementptr [30 x i8], ptr @.str.709, i64 0, i64 0
   call void @wolf_print_str(ptr %t10601)
   call void @wolf_println()
+  ; DEBUG AssignStmt target type: *ir.Ident
   %t10602 = load i64, ptr %passed
   %t10603 = add i64 %t10602, 1
   store i64 %t10603, ptr %passed
@@ -29291,6 +29721,7 @@ catch.4307:
     %t10607 = call ptr @wolf_string_concat(ptr %t10605, ptr %t10606)
     call void @wolf_print_str(ptr %t10607)
     call void @wolf_println()
+    ; DEBUG AssignStmt target type: *ir.Ident
     %t10608 = load i64, ptr %failed
     %t10609 = add i64 %t10608, 1
     store i64 %t10609, ptr %failed
@@ -29309,6 +29740,7 @@ err.false.4314:
   %t10612 = getelementptr [28 x i8], ptr @.str.711, i64 0, i64 0
   call void @wolf_print_str(ptr %t10612)
   call void @wolf_println()
+  ; DEBUG AssignStmt target type: *ir.Ident
   %t10613 = load i64, ptr %passed
   %t10614 = add i64 %t10613, 1
   store i64 %t10614, ptr %passed
@@ -29322,6 +29754,7 @@ catch.4311:
     %t10618 = call ptr @wolf_string_concat(ptr %t10616, ptr %t10617)
     call void @wolf_print_str(ptr %t10618)
     call void @wolf_println()
+    ; DEBUG AssignStmt target type: *ir.Ident
     %t10619 = load i64, ptr %failed
     %t10620 = add i64 %t10619, 1
     store i64 %t10620, ptr %failed
@@ -29340,6 +29773,7 @@ err.false.4318:
   %t10623 = getelementptr [24 x i8], ptr @.str.713, i64 0, i64 0
   call void @wolf_print_str(ptr %t10623)
   call void @wolf_println()
+  ; DEBUG AssignStmt target type: *ir.Ident
   %t10624 = load i64, ptr %passed
   %t10625 = add i64 %t10624, 1
   store i64 %t10625, ptr %passed
@@ -29353,6 +29787,7 @@ catch.4315:
     %t10629 = call ptr @wolf_string_concat(ptr %t10627, ptr %t10628)
     call void @wolf_print_str(ptr %t10629)
     call void @wolf_println()
+    ; DEBUG AssignStmt target type: *ir.Ident
     %t10630 = load i64, ptr %failed
     %t10631 = add i64 %t10630, 1
     store i64 %t10631, ptr %failed
@@ -29371,6 +29806,7 @@ err.false.4322:
   %t10634 = getelementptr [31 x i8], ptr @.str.715, i64 0, i64 0
   call void @wolf_print_str(ptr %t10634)
   call void @wolf_println()
+  ; DEBUG AssignStmt target type: *ir.Ident
   %t10635 = load i64, ptr %passed
   %t10636 = add i64 %t10635, 1
   store i64 %t10636, ptr %passed
@@ -29384,6 +29820,7 @@ catch.4319:
     %t10640 = call ptr @wolf_string_concat(ptr %t10638, ptr %t10639)
     call void @wolf_print_str(ptr %t10640)
     call void @wolf_println()
+    ; DEBUG AssignStmt target type: *ir.Ident
     %t10641 = load i64, ptr %failed
     %t10642 = add i64 %t10641, 1
     store i64 %t10642, ptr %failed
@@ -29402,6 +29839,7 @@ err.false.4326:
   %t10645 = getelementptr [25 x i8], ptr @.str.717, i64 0, i64 0
   call void @wolf_print_str(ptr %t10645)
   call void @wolf_println()
+  ; DEBUG AssignStmt target type: *ir.Ident
   %t10646 = load i64, ptr %passed
   %t10647 = add i64 %t10646, 1
   store i64 %t10647, ptr %passed
@@ -29415,6 +29853,7 @@ catch.4323:
     %t10651 = call ptr @wolf_string_concat(ptr %t10649, ptr %t10650)
     call void @wolf_print_str(ptr %t10651)
     call void @wolf_println()
+    ; DEBUG AssignStmt target type: *ir.Ident
     %t10652 = load i64, ptr %failed
     %t10653 = add i64 %t10652, 1
     store i64 %t10653, ptr %failed
@@ -29433,6 +29872,7 @@ err.false.4330:
   %t10656 = getelementptr [27 x i8], ptr @.str.719, i64 0, i64 0
   call void @wolf_print_str(ptr %t10656)
   call void @wolf_println()
+  ; DEBUG AssignStmt target type: *ir.Ident
   %t10657 = load i64, ptr %passed
   %t10658 = add i64 %t10657, 1
   store i64 %t10658, ptr %passed
@@ -29446,6 +29886,7 @@ catch.4327:
     %t10662 = call ptr @wolf_string_concat(ptr %t10660, ptr %t10661)
     call void @wolf_print_str(ptr %t10662)
     call void @wolf_println()
+    ; DEBUG AssignStmt target type: *ir.Ident
     %t10663 = load i64, ptr %failed
     %t10664 = add i64 %t10663, 1
     store i64 %t10664, ptr %failed
@@ -29464,6 +29905,7 @@ err.false.4334:
   %t10667 = getelementptr [27 x i8], ptr @.str.721, i64 0, i64 0
   call void @wolf_print_str(ptr %t10667)
   call void @wolf_println()
+  ; DEBUG AssignStmt target type: *ir.Ident
   %t10668 = load i64, ptr %passed
   %t10669 = add i64 %t10668, 1
   store i64 %t10669, ptr %passed
@@ -29477,6 +29919,7 @@ catch.4331:
     %t10673 = call ptr @wolf_string_concat(ptr %t10671, ptr %t10672)
     call void @wolf_print_str(ptr %t10673)
     call void @wolf_println()
+    ; DEBUG AssignStmt target type: *ir.Ident
     %t10674 = load i64, ptr %failed
     %t10675 = add i64 %t10674, 1
     store i64 %t10675, ptr %failed
@@ -29495,6 +29938,7 @@ err.false.4338:
   %t10678 = getelementptr [28 x i8], ptr @.str.723, i64 0, i64 0
   call void @wolf_print_str(ptr %t10678)
   call void @wolf_println()
+  ; DEBUG AssignStmt target type: *ir.Ident
   %t10679 = load i64, ptr %passed
   %t10680 = add i64 %t10679, 1
   store i64 %t10680, ptr %passed
@@ -29508,6 +29952,7 @@ catch.4335:
     %t10684 = call ptr @wolf_string_concat(ptr %t10682, ptr %t10683)
     call void @wolf_print_str(ptr %t10684)
     call void @wolf_println()
+    ; DEBUG AssignStmt target type: *ir.Ident
     %t10685 = load i64, ptr %failed
     %t10686 = add i64 %t10685, 1
     store i64 %t10686, ptr %failed
@@ -29526,6 +29971,7 @@ err.false.4342:
   %t10689 = getelementptr [29 x i8], ptr @.str.725, i64 0, i64 0
   call void @wolf_print_str(ptr %t10689)
   call void @wolf_println()
+  ; DEBUG AssignStmt target type: *ir.Ident
   %t10690 = load i64, ptr %passed
   %t10691 = add i64 %t10690, 1
   store i64 %t10691, ptr %passed
@@ -29539,6 +29985,7 @@ catch.4339:
     %t10695 = call ptr @wolf_string_concat(ptr %t10693, ptr %t10694)
     call void @wolf_print_str(ptr %t10695)
     call void @wolf_println()
+    ; DEBUG AssignStmt target type: *ir.Ident
     %t10696 = load i64, ptr %failed
     %t10697 = add i64 %t10696, 1
     store i64 %t10697, ptr %failed
@@ -29557,6 +30004,7 @@ err.false.4346:
   %t10700 = getelementptr [29 x i8], ptr @.str.727, i64 0, i64 0
   call void @wolf_print_str(ptr %t10700)
   call void @wolf_println()
+  ; DEBUG AssignStmt target type: *ir.Ident
   %t10701 = load i64, ptr %passed
   %t10702 = add i64 %t10701, 1
   store i64 %t10702, ptr %passed
@@ -29570,6 +30018,7 @@ catch.4343:
     %t10706 = call ptr @wolf_string_concat(ptr %t10704, ptr %t10705)
     call void @wolf_print_str(ptr %t10706)
     call void @wolf_println()
+    ; DEBUG AssignStmt target type: *ir.Ident
     %t10707 = load i64, ptr %failed
     %t10708 = add i64 %t10707, 1
     store i64 %t10708, ptr %failed
@@ -29588,6 +30037,7 @@ err.false.4350:
   %t10711 = getelementptr [30 x i8], ptr @.str.729, i64 0, i64 0
   call void @wolf_print_str(ptr %t10711)
   call void @wolf_println()
+  ; DEBUG AssignStmt target type: *ir.Ident
   %t10712 = load i64, ptr %passed
   %t10713 = add i64 %t10712, 1
   store i64 %t10713, ptr %passed
@@ -29601,6 +30051,7 @@ catch.4347:
     %t10717 = call ptr @wolf_string_concat(ptr %t10715, ptr %t10716)
     call void @wolf_print_str(ptr %t10717)
     call void @wolf_println()
+    ; DEBUG AssignStmt target type: *ir.Ident
     %t10718 = load i64, ptr %failed
     %t10719 = add i64 %t10718, 1
     store i64 %t10719, ptr %failed
@@ -29619,6 +30070,7 @@ err.false.4354:
   %t10722 = getelementptr [30 x i8], ptr @.str.731, i64 0, i64 0
   call void @wolf_print_str(ptr %t10722)
   call void @wolf_println()
+  ; DEBUG AssignStmt target type: *ir.Ident
   %t10723 = load i64, ptr %passed
   %t10724 = add i64 %t10723, 1
   store i64 %t10724, ptr %passed
@@ -29632,6 +30084,7 @@ catch.4351:
     %t10728 = call ptr @wolf_string_concat(ptr %t10726, ptr %t10727)
     call void @wolf_print_str(ptr %t10728)
     call void @wolf_println()
+    ; DEBUG AssignStmt target type: *ir.Ident
     %t10729 = load i64, ptr %failed
     %t10730 = add i64 %t10729, 1
     store i64 %t10730, ptr %failed
@@ -29650,6 +30103,7 @@ err.false.4358:
   %t10733 = getelementptr [27 x i8], ptr @.str.733, i64 0, i64 0
   call void @wolf_print_str(ptr %t10733)
   call void @wolf_println()
+  ; DEBUG AssignStmt target type: *ir.Ident
   %t10734 = load i64, ptr %passed
   %t10735 = add i64 %t10734, 1
   store i64 %t10735, ptr %passed
@@ -29663,6 +30117,7 @@ catch.4355:
     %t10739 = call ptr @wolf_string_concat(ptr %t10737, ptr %t10738)
     call void @wolf_print_str(ptr %t10739)
     call void @wolf_println()
+    ; DEBUG AssignStmt target type: *ir.Ident
     %t10740 = load i64, ptr %failed
     %t10741 = add i64 %t10740, 1
     store i64 %t10741, ptr %failed
@@ -29681,6 +30136,7 @@ err.false.4362:
   %t10744 = getelementptr [27 x i8], ptr @.str.735, i64 0, i64 0
   call void @wolf_print_str(ptr %t10744)
   call void @wolf_println()
+  ; DEBUG AssignStmt target type: *ir.Ident
   %t10745 = load i64, ptr %passed
   %t10746 = add i64 %t10745, 1
   store i64 %t10746, ptr %passed
@@ -29694,6 +30150,7 @@ catch.4359:
     %t10750 = call ptr @wolf_string_concat(ptr %t10748, ptr %t10749)
     call void @wolf_print_str(ptr %t10750)
     call void @wolf_println()
+    ; DEBUG AssignStmt target type: *ir.Ident
     %t10751 = load i64, ptr %failed
     %t10752 = add i64 %t10751, 1
     store i64 %t10752, ptr %failed
@@ -29712,6 +30169,7 @@ err.false.4366:
   %t10755 = getelementptr [29 x i8], ptr @.str.737, i64 0, i64 0
   call void @wolf_print_str(ptr %t10755)
   call void @wolf_println()
+  ; DEBUG AssignStmt target type: *ir.Ident
   %t10756 = load i64, ptr %passed
   %t10757 = add i64 %t10756, 1
   store i64 %t10757, ptr %passed
@@ -29725,6 +30183,7 @@ catch.4363:
     %t10761 = call ptr @wolf_string_concat(ptr %t10759, ptr %t10760)
     call void @wolf_print_str(ptr %t10761)
     call void @wolf_println()
+    ; DEBUG AssignStmt target type: *ir.Ident
     %t10762 = load i64, ptr %failed
     %t10763 = add i64 %t10762, 1
     store i64 %t10763, ptr %failed
@@ -29743,6 +30202,7 @@ err.false.4370:
   %t10766 = getelementptr [30 x i8], ptr @.str.739, i64 0, i64 0
   call void @wolf_print_str(ptr %t10766)
   call void @wolf_println()
+  ; DEBUG AssignStmt target type: *ir.Ident
   %t10767 = load i64, ptr %passed
   %t10768 = add i64 %t10767, 1
   store i64 %t10768, ptr %passed
@@ -29756,6 +30216,7 @@ catch.4367:
     %t10772 = call ptr @wolf_string_concat(ptr %t10770, ptr %t10771)
     call void @wolf_print_str(ptr %t10772)
     call void @wolf_println()
+    ; DEBUG AssignStmt target type: *ir.Ident
     %t10773 = load i64, ptr %failed
     %t10774 = add i64 %t10773, 1
     store i64 %t10774, ptr %failed
@@ -29774,6 +30235,7 @@ err.false.4374:
   %t10777 = getelementptr [32 x i8], ptr @.str.741, i64 0, i64 0
   call void @wolf_print_str(ptr %t10777)
   call void @wolf_println()
+  ; DEBUG AssignStmt target type: *ir.Ident
   %t10778 = load i64, ptr %passed
   %t10779 = add i64 %t10778, 1
   store i64 %t10779, ptr %passed
@@ -29787,6 +30249,7 @@ catch.4371:
     %t10783 = call ptr @wolf_string_concat(ptr %t10781, ptr %t10782)
     call void @wolf_print_str(ptr %t10783)
     call void @wolf_println()
+    ; DEBUG AssignStmt target type: *ir.Ident
     %t10784 = load i64, ptr %failed
     %t10785 = add i64 %t10784, 1
     store i64 %t10785, ptr %failed
@@ -29805,6 +30268,7 @@ err.false.4378:
   %t10788 = getelementptr [29 x i8], ptr @.str.743, i64 0, i64 0
   call void @wolf_print_str(ptr %t10788)
   call void @wolf_println()
+  ; DEBUG AssignStmt target type: *ir.Ident
   %t10789 = load i64, ptr %passed
   %t10790 = add i64 %t10789, 1
   store i64 %t10790, ptr %passed
@@ -29818,6 +30282,7 @@ catch.4375:
     %t10794 = call ptr @wolf_string_concat(ptr %t10792, ptr %t10793)
     call void @wolf_print_str(ptr %t10794)
     call void @wolf_println()
+    ; DEBUG AssignStmt target type: *ir.Ident
     %t10795 = load i64, ptr %failed
     %t10796 = add i64 %t10795, 1
     store i64 %t10796, ptr %failed
@@ -29836,6 +30301,7 @@ err.false.4382:
   %t10799 = getelementptr [34 x i8], ptr @.str.745, i64 0, i64 0
   call void @wolf_print_str(ptr %t10799)
   call void @wolf_println()
+  ; DEBUG AssignStmt target type: *ir.Ident
   %t10800 = load i64, ptr %passed
   %t10801 = add i64 %t10800, 1
   store i64 %t10801, ptr %passed
@@ -29849,6 +30315,7 @@ catch.4379:
     %t10805 = call ptr @wolf_string_concat(ptr %t10803, ptr %t10804)
     call void @wolf_print_str(ptr %t10805)
     call void @wolf_println()
+    ; DEBUG AssignStmt target type: *ir.Ident
     %t10806 = load i64, ptr %failed
     %t10807 = add i64 %t10806, 1
     store i64 %t10807, ptr %failed
@@ -29867,6 +30334,7 @@ err.false.4386:
   %t10810 = getelementptr [36 x i8], ptr @.str.747, i64 0, i64 0
   call void @wolf_print_str(ptr %t10810)
   call void @wolf_println()
+  ; DEBUG AssignStmt target type: *ir.Ident
   %t10811 = load i64, ptr %passed
   %t10812 = add i64 %t10811, 1
   store i64 %t10812, ptr %passed
@@ -29880,6 +30348,7 @@ catch.4383:
     %t10816 = call ptr @wolf_string_concat(ptr %t10814, ptr %t10815)
     call void @wolf_print_str(ptr %t10816)
     call void @wolf_println()
+    ; DEBUG AssignStmt target type: *ir.Ident
     %t10817 = load i64, ptr %failed
     %t10818 = add i64 %t10817, 1
     store i64 %t10818, ptr %failed
@@ -29898,6 +30367,7 @@ err.false.4390:
   %t10821 = getelementptr [29 x i8], ptr @.str.749, i64 0, i64 0
   call void @wolf_print_str(ptr %t10821)
   call void @wolf_println()
+  ; DEBUG AssignStmt target type: *ir.Ident
   %t10822 = load i64, ptr %passed
   %t10823 = add i64 %t10822, 1
   store i64 %t10823, ptr %passed
@@ -29911,6 +30381,7 @@ catch.4387:
     %t10827 = call ptr @wolf_string_concat(ptr %t10825, ptr %t10826)
     call void @wolf_print_str(ptr %t10827)
     call void @wolf_println()
+    ; DEBUG AssignStmt target type: *ir.Ident
     %t10828 = load i64, ptr %failed
     %t10829 = add i64 %t10828, 1
     store i64 %t10829, ptr %failed
@@ -29929,6 +30400,7 @@ err.false.4394:
   %t10832 = getelementptr [30 x i8], ptr @.str.751, i64 0, i64 0
   call void @wolf_print_str(ptr %t10832)
   call void @wolf_println()
+  ; DEBUG AssignStmt target type: *ir.Ident
   %t10833 = load i64, ptr %passed
   %t10834 = add i64 %t10833, 1
   store i64 %t10834, ptr %passed
@@ -29942,6 +30414,7 @@ catch.4391:
     %t10838 = call ptr @wolf_string_concat(ptr %t10836, ptr %t10837)
     call void @wolf_print_str(ptr %t10838)
     call void @wolf_println()
+    ; DEBUG AssignStmt target type: *ir.Ident
     %t10839 = load i64, ptr %failed
     %t10840 = add i64 %t10839, 1
     store i64 %t10840, ptr %failed
@@ -29960,6 +30433,7 @@ err.false.4398:
   %t10843 = getelementptr [30 x i8], ptr @.str.753, i64 0, i64 0
   call void @wolf_print_str(ptr %t10843)
   call void @wolf_println()
+  ; DEBUG AssignStmt target type: *ir.Ident
   %t10844 = load i64, ptr %passed
   %t10845 = add i64 %t10844, 1
   store i64 %t10845, ptr %passed
@@ -29973,6 +30447,7 @@ catch.4395:
     %t10849 = call ptr @wolf_string_concat(ptr %t10847, ptr %t10848)
     call void @wolf_print_str(ptr %t10849)
     call void @wolf_println()
+    ; DEBUG AssignStmt target type: *ir.Ident
     %t10850 = load i64, ptr %failed
     %t10851 = add i64 %t10850, 1
     store i64 %t10851, ptr %failed
@@ -29991,6 +30466,7 @@ err.false.4402:
   %t10854 = getelementptr [35 x i8], ptr @.str.755, i64 0, i64 0
   call void @wolf_print_str(ptr %t10854)
   call void @wolf_println()
+  ; DEBUG AssignStmt target type: *ir.Ident
   %t10855 = load i64, ptr %passed
   %t10856 = add i64 %t10855, 1
   store i64 %t10856, ptr %passed
@@ -30004,6 +30480,7 @@ catch.4399:
     %t10860 = call ptr @wolf_string_concat(ptr %t10858, ptr %t10859)
     call void @wolf_print_str(ptr %t10860)
     call void @wolf_println()
+    ; DEBUG AssignStmt target type: *ir.Ident
     %t10861 = load i64, ptr %failed
     %t10862 = add i64 %t10861, 1
     store i64 %t10862, ptr %failed
@@ -30022,6 +30499,7 @@ err.false.4406:
   %t10865 = getelementptr [32 x i8], ptr @.str.757, i64 0, i64 0
   call void @wolf_print_str(ptr %t10865)
   call void @wolf_println()
+  ; DEBUG AssignStmt target type: *ir.Ident
   %t10866 = load i64, ptr %passed
   %t10867 = add i64 %t10866, 1
   store i64 %t10867, ptr %passed
@@ -30035,6 +30513,7 @@ catch.4403:
     %t10871 = call ptr @wolf_string_concat(ptr %t10869, ptr %t10870)
     call void @wolf_print_str(ptr %t10871)
     call void @wolf_println()
+    ; DEBUG AssignStmt target type: *ir.Ident
     %t10872 = load i64, ptr %failed
     %t10873 = add i64 %t10872, 1
     store i64 %t10873, ptr %failed
@@ -30053,6 +30532,7 @@ err.false.4410:
   %t10876 = getelementptr [30 x i8], ptr @.str.759, i64 0, i64 0
   call void @wolf_print_str(ptr %t10876)
   call void @wolf_println()
+  ; DEBUG AssignStmt target type: *ir.Ident
   %t10877 = load i64, ptr %passed
   %t10878 = add i64 %t10877, 1
   store i64 %t10878, ptr %passed
@@ -30066,6 +30546,7 @@ catch.4407:
     %t10882 = call ptr @wolf_string_concat(ptr %t10880, ptr %t10881)
     call void @wolf_print_str(ptr %t10882)
     call void @wolf_println()
+    ; DEBUG AssignStmt target type: *ir.Ident
     %t10883 = load i64, ptr %failed
     %t10884 = add i64 %t10883, 1
     store i64 %t10884, ptr %failed
@@ -30084,6 +30565,7 @@ err.false.4414:
   %t10887 = getelementptr [34 x i8], ptr @.str.761, i64 0, i64 0
   call void @wolf_print_str(ptr %t10887)
   call void @wolf_println()
+  ; DEBUG AssignStmt target type: *ir.Ident
   %t10888 = load i64, ptr %passed
   %t10889 = add i64 %t10888, 1
   store i64 %t10889, ptr %passed
@@ -30097,6 +30579,7 @@ catch.4411:
     %t10893 = call ptr @wolf_string_concat(ptr %t10891, ptr %t10892)
     call void @wolf_print_str(ptr %t10893)
     call void @wolf_println()
+    ; DEBUG AssignStmt target type: *ir.Ident
     %t10894 = load i64, ptr %failed
     %t10895 = add i64 %t10894, 1
     store i64 %t10895, ptr %failed
@@ -30115,6 +30598,7 @@ err.false.4418:
   %t10898 = getelementptr [34 x i8], ptr @.str.763, i64 0, i64 0
   call void @wolf_print_str(ptr %t10898)
   call void @wolf_println()
+  ; DEBUG AssignStmt target type: *ir.Ident
   %t10899 = load i64, ptr %passed
   %t10900 = add i64 %t10899, 1
   store i64 %t10900, ptr %passed
@@ -30128,6 +30612,7 @@ catch.4415:
     %t10904 = call ptr @wolf_string_concat(ptr %t10902, ptr %t10903)
     call void @wolf_print_str(ptr %t10904)
     call void @wolf_println()
+    ; DEBUG AssignStmt target type: *ir.Ident
     %t10905 = load i64, ptr %failed
     %t10906 = add i64 %t10905, 1
     store i64 %t10906, ptr %failed
@@ -30146,6 +30631,7 @@ err.false.4422:
   %t10909 = getelementptr [32 x i8], ptr @.str.765, i64 0, i64 0
   call void @wolf_print_str(ptr %t10909)
   call void @wolf_println()
+  ; DEBUG AssignStmt target type: *ir.Ident
   %t10910 = load i64, ptr %passed
   %t10911 = add i64 %t10910, 1
   store i64 %t10911, ptr %passed
@@ -30159,6 +30645,7 @@ catch.4419:
     %t10915 = call ptr @wolf_string_concat(ptr %t10913, ptr %t10914)
     call void @wolf_print_str(ptr %t10915)
     call void @wolf_println()
+    ; DEBUG AssignStmt target type: *ir.Ident
     %t10916 = load i64, ptr %failed
     %t10917 = add i64 %t10916, 1
     store i64 %t10917, ptr %failed
@@ -30177,6 +30664,7 @@ err.false.4426:
   %t10920 = getelementptr [37 x i8], ptr @.str.767, i64 0, i64 0
   call void @wolf_print_str(ptr %t10920)
   call void @wolf_println()
+  ; DEBUG AssignStmt target type: *ir.Ident
   %t10921 = load i64, ptr %passed
   %t10922 = add i64 %t10921, 1
   store i64 %t10922, ptr %passed
@@ -30190,6 +30678,7 @@ catch.4423:
     %t10926 = call ptr @wolf_string_concat(ptr %t10924, ptr %t10925)
     call void @wolf_print_str(ptr %t10926)
     call void @wolf_println()
+    ; DEBUG AssignStmt target type: *ir.Ident
     %t10927 = load i64, ptr %failed
     %t10928 = add i64 %t10927, 1
     store i64 %t10928, ptr %failed
@@ -30208,6 +30697,7 @@ err.false.4430:
   %t10931 = getelementptr [29 x i8], ptr @.str.769, i64 0, i64 0
   call void @wolf_print_str(ptr %t10931)
   call void @wolf_println()
+  ; DEBUG AssignStmt target type: *ir.Ident
   %t10932 = load i64, ptr %passed
   %t10933 = add i64 %t10932, 1
   store i64 %t10933, ptr %passed
@@ -30221,6 +30711,7 @@ catch.4427:
     %t10937 = call ptr @wolf_string_concat(ptr %t10935, ptr %t10936)
     call void @wolf_print_str(ptr %t10937)
     call void @wolf_println()
+    ; DEBUG AssignStmt target type: *ir.Ident
     %t10938 = load i64, ptr %failed
     %t10939 = add i64 %t10938, 1
     store i64 %t10939, ptr %failed
@@ -30239,6 +30730,7 @@ err.false.4434:
   %t10942 = getelementptr [37 x i8], ptr @.str.771, i64 0, i64 0
   call void @wolf_print_str(ptr %t10942)
   call void @wolf_println()
+  ; DEBUG AssignStmt target type: *ir.Ident
   %t10943 = load i64, ptr %passed
   %t10944 = add i64 %t10943, 1
   store i64 %t10944, ptr %passed
@@ -30252,6 +30744,7 @@ catch.4431:
     %t10948 = call ptr @wolf_string_concat(ptr %t10946, ptr %t10947)
     call void @wolf_print_str(ptr %t10948)
     call void @wolf_println()
+    ; DEBUG AssignStmt target type: *ir.Ident
     %t10949 = load i64, ptr %failed
     %t10950 = add i64 %t10949, 1
     store i64 %t10950, ptr %failed

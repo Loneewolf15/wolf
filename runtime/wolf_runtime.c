@@ -918,6 +918,16 @@ static inline char* json_decode_realloc(char* old, size_t old_sz, size_t new_sz)
 static __thread int wolf_req_oom = 0;
 
 void wolf_req_oom_clear(void) { wolf_req_oom = 0; }
+
+void wolf_panic_oom(void) {
+    extern __thread void* wolf_active_ctx;
+    if (wolf_active_ctx) {
+        extern void wolf_engine_longjmp_oom(void);
+        wolf_engine_longjmp_oom();
+    }
+    fprintf(stderr, "[WOLF-PANIC] Uncaught Out Of Memory exception.\n");
+    abort();
+}
 int  wolf_req_oom_check(void) { return wolf_req_oom; }
 
 void* wolf_req_alloc(size_t sz) {

@@ -140,6 +140,58 @@ database layer, and embeds CPython for native ML library access.`,
 		},
 	}
 
+	checkCmd := &cobra.Command{
+		Use:   "check [file]",
+		Short: "Typecheck a Wolf source file without emitting a binary",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			source, err := os.ReadFile(args[0])
+			if err != nil {
+				if jsonOutput {
+					b, _ := json.Marshal(map[string]interface{}{"success": false, "errors": []string{err.Error()}})
+					fmt.Println(string(b))
+					return nil
+				}
+				return fmt.Errorf("cannot read file: %w", err)
+			}
+
+			projectRoot, err := os.Getwd()
+			if err != nil {
+				return fmt.Errorf("wolf: cannot determine working directory: %w", err)
+			}
+			c, err := compiler.NewWithConfig(projectRoot)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "wolf: config warning: %v\n", err)
+				c = compiler.New()
+			}
+
+			c.Verbose = verbose
+			c.StrictMode = strict
+
+			result, err := c.Check(string(source), args[0])
+			if err != nil {
+				if jsonOutput {
+					b, _ := json.Marshal(map[string]interface{}{"success": false, "errors": result.Errors})
+					fmt.Println(string(b))
+					return nil
+				}
+				for _, e := range result.Errors {
+					fmt.Fprintln(os.Stderr, e)
+				}
+				return err
+			}
+
+			if jsonOutput {
+				b, _ := json.Marshal(map[string]interface{}{"success": true, "message": "Typecheck passed"})
+				fmt.Println(string(b))
+				return nil
+			}
+			fmt.Println("wolf: typecheck passed ✓")
+			return nil
+		},
+	}
+	checkCmd.Flags().BoolVar(&jsonOutput, "json", false, "Output compiler diagnostics in structured JSON format")
+
 	fmtCmd := &cobra.Command{
 		Use:   "fmt [file]",
 		Short: "Format a Wolf source file",
@@ -544,7 +596,7 @@ database layer, and embeds CPython for native ML library access.`,
 		},
 	}
 
-	rootCmd.AddCommand(buildCmd, runCmd, fmtCmd, testCmd, pythonCmd, newCmd, generateCmd, migrateCmd, tokensCmd, skillsCmd, devCmd, installCmd, dockerCmd)
+	rootCmd.AddCommand(buildCmd, runCmd, checkCmd, fmtCmd, testCmd, pythonCmd, newCmd, generateCmd, migrateCmd, tokensCmd, skillsCmd, devCmd, installCmd, dockerCmd)
 
 	if err := rootCmd.Execute(); err != nil {
 		os.Exit(1)

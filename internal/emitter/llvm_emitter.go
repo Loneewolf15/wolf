@@ -24,6 +24,7 @@ type LLVMEmitter struct {
 	indent          int
 	varTypes        map[string]string
 	varClass        map[string]string // varName → ClassName for object instances
+	propClass       map[string]string // propName → ClassName from model factory
 	classExtends    map[string]string // ClassName → ParentClassName
 	funcSigs        map[string]*ir.Function
 	currentRetType  string
@@ -55,6 +56,7 @@ func NewLLVMEmitter() *LLVMEmitter {
 		stringConsts:    make(map[string]string),
 		varTypes:        make(map[string]string),
 		varClass:        make(map[string]string),
+		propClass:       make(map[string]string),
 		classExtends:    make(map[string]string),
 		funcSigs:        make(map[string]*ir.Function),
 		declaredExterns: make(map[string]bool),
@@ -225,9 +227,7 @@ func (e *LLVMEmitter) Emit(program *ir.Program) string {
 		e.funcSigs[fn.Name] = fn
 	}
 	for _, cls := range program.Classes {
-		if cls.Extends != "" {
-			e.classExtends[cls.Name] = cls.Extends
-		}
+		e.classExtends[cls.Name] = cls.Extends
 		if cls.Constructor != nil {
 			cls.Constructor.Name = "New" + cls.Name
 			cls.Constructor.ReturnTypes = []string{"ptr"}
@@ -1197,6 +1197,25 @@ func (e *LLVMEmitter) lastStmtIsReturn(stmts []ir.Stmt) bool {
 
 // ========== Statement Emission ==========
 
+// resolveModelClassName depends on classExtends being populated
+// before propClass/varClass assignment tracking runs.
+// AutoDiscover processes files alphabetically — controllers (C)
+// before models (M) — so models must be registered in a prior pass.
+// If this breaks, ensure model files are parsed in Phase 2 before
+// controller method bodies are analyzed.
+func (e *LLVMEmitter) resolveModelClassName(name string) string {
+	if _, exists := e.classExtends[name]; exists {
+		e.writelnIndent(fmt.Sprintf("; DEBUG resolveModelClassName: found exact %s", name))
+		return name
+	}
+	if _, exists := e.classExtends[name+"Model"]; exists {
+		e.writelnIndent(fmt.Sprintf("; DEBUG resolveModelClassName: resolved %s to %s", name, name+"Model"))
+		return name + "Model"
+	}
+	e.writelnIndent(fmt.Sprintf("; DEBUG resolveModelClassName: failed to resolve %s", name))
+	return name
+}
+
 func (e *LLVMEmitter) emitStmt(stmt ir.Stmt) {
 	switch s := stmt.(type) {
 	case *ir.VarDeclStmt:
@@ -1415,6 +1434,7 @@ func (e *LLVMEmitter) emitVarDecl(s *ir.VarDeclStmt) {
 }
 
 func (e *LLVMEmitter) emitAssign(s *ir.AssignStmt) {
+	e.writelnIndent(fmt.Sprintf("; DEBUG AssignStmt target type: %T", s.Target))
 	switch target := s.Target.(type) {
 	case *ir.Ident:
 		// Infer type from value expression
@@ -1438,9 +1458,29 @@ func (e *LLVMEmitter) emitAssign(s *ir.AssignStmt) {
 			}
 		}
 
+		// Track local var class from model factory:
+		// $userModel = $this->model("User") → varClass["userModel"] = "User"
+		if mc, ok := s.Value.(*ir.MethodCallExpr); ok {
+			if mc.Method == "model" && len(mc.Args) == 1 {
+				if strLit, ok := mc.Args[0].(*ir.StringLit); ok {
+					e.varClass[target.Name] = e.resolveModelClassName(strLit.Value)
+				}
+			}
+		}
+
 		val := e.emitExpr(s.Value, storedType)
 		e.writelnIndent(fmt.Sprintf("store %s %s, ptr %%%s", storedType, val, target.Name))
 	case *ir.FieldAccess:
+		// Track property class from model factory:
+		// $this->userModel = $this->model("User") → propClass["userModel"] = "User"
+		if mc, ok := s.Value.(*ir.MethodCallExpr); ok {
+			if mc.Method == "model" && len(mc.Args) == 1 {
+				if strLit, ok := mc.Args[0].(*ir.StringLit); ok {
+					e.propClass[target.Field] = e.resolveModelClassName(strLit.Value)
+				}
+			}
+		}
+
 		objVal := e.emitExpr(target.Object, "ptr")
 		valVal := e.emitArgAsString(s.Value)
 		keyLabel := e.addStringConst(target.Field)
@@ -3804,6 +3844,96 @@ var methodDispatch = map[string]struct {
 	"header": {"wolf_http_client_res_header", "ptr"},
 }
 
+// emitResolvedMethodCall handles static dispatch once the className is known.
+// Used by both varClass (local var) and propClass (property) dispatch paths.
+func (e *LLVMEmitter) emitResolvedMethodCall(
+	className string,
+	methodName string,
+	objVal string,
+	args []ir.Expr,
+) string {
+	directName := fmt.Sprintf("%s_%s", className, methodName)
+
+	// Walk inheritance chain
+	fnSig, found := e.funcSigs[directName]
+	currClass := className
+	for !found {
+		parent, hasParent := e.classExtends[currClass]
+		if !hasParent || parent == "" {
+			break
+		}
+		parentMethod := fmt.Sprintf("%s_%s", parent, methodName)
+		if parentSig, foundParent := e.funcSigs[parentMethod]; foundParent {
+			fnSig = parentSig
+			directName = parentMethod
+			found = true
+			break
+		}
+		currClass = parent
+	}
+
+	e.writelnIndent(fmt.Sprintf("; DEBUG directName=%s, foundInSigs=%v", directName, found))
+
+	if !found {
+		// NOTE: When found == false, we assume all params are ptr type.
+		// This is safe for model factory methods today but will miscompile
+		// methods with i64/i32 params. Proper fix: ensure all linked classes
+		// are parsed before emitting call sites. Tracked as Option A (vtable).
+		emitName := "wolf_" + directName
+		argStrs := []string{fmt.Sprintf("ptr %s", objVal)}
+		for _, arg := range args {
+			val := e.emitArgAsString(arg)
+			argStrs = append(argStrs, fmt.Sprintf("ptr %s", val))
+		}
+		reg := e.nextLocal()
+		e.writelnIndent(fmt.Sprintf("%s = call ptr @%s(%s)", reg, emitName, strings.Join(argStrs, ", ")))
+		return reg
+	}
+
+	// Build arg list
+	argStrs := []string{fmt.Sprintf("ptr %s", objVal)}
+	for i, arg := range args {
+		expectedType := "ptr"
+		if fnSig != nil && i+1 < len(fnSig.Params) {
+			expectedType = e.wolfTypeToLLVM(fnSig.Params[i+1].Type)
+		}
+		val := e.emitArgAsString(arg)
+		if expectedType == "i64" {
+			casted := e.nextLocal()
+			e.writelnIndent(fmt.Sprintf("%s = call i64 @wolf_intval(ptr %s)", casted, val))
+			argStrs = append(argStrs, fmt.Sprintf("i64 %s", casted))
+		} else {
+			argStrs = append(argStrs, fmt.Sprintf("ptr %s", val))
+		}
+	}
+
+	// Determine return type
+	retType := "void"
+	if fnSig != nil {
+		if len(fnSig.ReturnTypes) > 0 {
+			retType = e.wolfTypeToLLVM(fnSig.ReturnTypes[0])
+		} else if functionHasReturnValue(fnSig.Body) {
+			retType = "ptr"
+		}
+	}
+
+	emitName := directName
+	if !strings.HasPrefix(emitName, "wolf_") {
+		emitName = "wolf_" + emitName
+	}
+
+	reg := e.nextLocal()
+	if retType == "void" {
+		e.writelnIndent(fmt.Sprintf("call void @%s(%s)", emitName, strings.Join(argStrs, ", ")))
+		e.checkErrorPropagate()
+		return "null"
+	}
+	e.writelnIndent(fmt.Sprintf("%s = call %s @%s(%s)", reg, retType, emitName, strings.Join(argStrs, ", ")))
+	e.checkErrorPropagate()
+	e.emittedTypes[reg] = retType
+	return reg
+}
+
 func (e *LLVMEmitter) emitMethodCall(mc *ir.MethodCallExpr) string {
 	objVal := e.emitExpr(mc.Object, "ptr")
 
@@ -3812,66 +3942,16 @@ func (e *LLVMEmitter) emitMethodCall(mc *ir.MethodCallExpr) string {
 	if ident, ok := mc.Object.(*ir.Ident); ok {
 		e.writelnIndent(fmt.Sprintf("; DEBUG ident.Name=%s, varClass=%s", ident.Name, e.varClass[ident.Name]))
 		if className, hasClass := e.varClass[ident.Name]; hasClass {
-			directName := fmt.Sprintf("%s_%s", className, mc.Method)
-
-			// Walk inheritance chain if method is not found directly
-			fnSig, found := e.funcSigs[directName]
-			currClass := className
-			for !found {
-				parent, hasParent := e.classExtends[currClass]
-				if !hasParent || parent == "" {
-					break
-				}
-				parentMethod := fmt.Sprintf("%s_%s", parent, mc.Method)
-				if parentSig, foundParent := e.funcSigs[parentMethod]; foundParent {
-					fnSig = parentSig
-					directName = parentMethod
-					found = true
-					break
-				}
-				currClass = parent
+			if result := e.emitResolvedMethodCall(className, mc.Method, objVal, mc.Args); result != "" {
+				return result
 			}
+		}
+	}
 
-			e.writelnIndent(fmt.Sprintf("; DEBUG directName=%s, foundInSigs=%v", directName, found))
-
-			if found {
-				args := []string{fmt.Sprintf("ptr %s", objVal)}
-				for i, arg := range mc.Args {
-					expectedType := "ptr"
-					if fnSig != nil && i+1 < len(fnSig.Params) {
-						expectedType = e.wolfTypeToLLVM(fnSig.Params[i+1].Type)
-					}
-					val := e.emitArgAsString(arg)
-					if expectedType == "i64" {
-						casted := e.nextLocal()
-						e.writelnIndent(fmt.Sprintf("%s = call i64 @wolf_intval(ptr %s)", casted, val))
-						args = append(args, fmt.Sprintf("i64 %s", casted))
-					} else {
-						args = append(args, fmt.Sprintf("ptr %s", val))
-					}
-				}
-				retType := "void"
-				if fnSig != nil {
-					if len(fnSig.ReturnTypes) > 0 {
-						retType = e.wolfTypeToLLVM(fnSig.ReturnTypes[0])
-					} else if functionHasReturnValue(fnSig.Body) {
-						retType = "ptr"
-					}
-				}
-				emitName := directName
-				if !strings.HasPrefix(emitName, "wolf_") {
-					emitName = "wolf_" + emitName
-				}
-				reg := e.nextLocal()
-				if retType == "void" {
-					e.writelnIndent(fmt.Sprintf("call void @%s(%s)", emitName, strings.Join(args, ", ")))
-					e.checkErrorPropagate()
-					return "null"
-				}
-				e.writelnIndent(fmt.Sprintf("%s = call %s @%s(%s)", reg, retType, emitName, strings.Join(args, ", ")))
-				e.checkErrorPropagate()
-				e.emittedTypes[reg] = retType
-				return reg
+	if fa, ok := mc.Object.(*ir.FieldAccess); ok {
+		if className, hasClass := e.propClass[fa.Field]; hasClass {
+			if result := e.emitResolvedMethodCall(className, mc.Method, objVal, mc.Args); result != "" {
+				return result
 			}
 		}
 	}
@@ -4044,10 +4124,26 @@ func (e *LLVMEmitter) emitMethodCall(mc *ir.MethodCallExpr) string {
 		e.writelnIndent(fmt.Sprintf("br i1 %s, label %%%s, label %%%s", isMatch, matchBlock, nextBlock))
 		e.writeln(fmt.Sprintf("%s:", matchBlock))
 
-		// Build arg string
+		// Build arg string using the precise signature of this candidate (Option A)
+		fnSig := e.funcSigs[callee]
 		callArgs := []string{fmt.Sprintf("ptr %s", objVal)}
-		for _, argVal := range emittedArgs {
-			callArgs = append(callArgs, fmt.Sprintf("ptr %s", argVal))
+		for argIdx, argVal := range emittedArgs {
+			expectedType := "ptr"
+			if fnSig != nil && argIdx+1 < len(fnSig.Params) {
+				expectedType = e.wolfTypeToLLVM(fnSig.Params[argIdx+1].Type)
+			}
+
+			if expectedType == "i64" {
+				casted := e.nextLocal()
+				e.writelnIndent(fmt.Sprintf("%s = call i64 @wolf_intval(ptr %s)", casted, argVal))
+				callArgs = append(callArgs, fmt.Sprintf("i64 %s", casted))
+			} else if expectedType == "double" {
+				casted := e.nextLocal()
+				e.writelnIndent(fmt.Sprintf("%s = call double @wolf_floatval(ptr %s)", casted, argVal))
+				callArgs = append(callArgs, fmt.Sprintf("double %s", casted))
+			} else {
+				callArgs = append(callArgs, fmt.Sprintf("ptr %s", argVal))
+			}
 		}
 
 		// BUG-074 FIX: callee may already be a fully-qualified stdlib name (e.g.
@@ -4057,9 +4153,34 @@ func (e *LLVMEmitter) emitMethodCall(mc *ir.MethodCallExpr) string {
 		if !strings.HasPrefix(emitName, "wolf_") {
 			emitName = "wolf_" + emitName
 		}
+
+		retType := "void"
+		if fnSig != nil {
+			if len(fnSig.ReturnTypes) > 0 {
+				retType = e.wolfTypeToLLVM(fnSig.ReturnTypes[0])
+			} else if functionHasReturnValue(fnSig.Body) {
+				retType = "ptr"
+			}
+		}
+
 		callRes := e.nextLocal()
-		e.writelnIndent(fmt.Sprintf("%s = call ptr @%s(%s)", callRes, emitName, strings.Join(callArgs, ", ")))
-		e.writelnIndent(fmt.Sprintf("store ptr %s, ptr %s", callRes, retAlloca))
+		if retType == "void" {
+			e.writelnIndent(fmt.Sprintf("call void @%s(%s)", emitName, strings.Join(callArgs, ", ")))
+			e.writelnIndent(fmt.Sprintf("store ptr null, ptr %s", retAlloca))
+		} else {
+			e.writelnIndent(fmt.Sprintf("%s = call %s @%s(%s)", callRes, retType, emitName, strings.Join(callArgs, ", ")))
+			if retType == "i64" {
+				boxed := e.nextLocal()
+				e.writelnIndent(fmt.Sprintf("%s = call ptr @wolf_int_to_string(i64 %s)", boxed, callRes))
+				e.writelnIndent(fmt.Sprintf("store ptr %s, ptr %s", boxed, retAlloca))
+			} else if retType == "double" {
+				boxed := e.nextLocal()
+				e.writelnIndent(fmt.Sprintf("%s = call ptr @wolf_float_to_string(double %s)", boxed, callRes))
+				e.writelnIndent(fmt.Sprintf("store ptr %s, ptr %s", boxed, retAlloca))
+			} else {
+				e.writelnIndent(fmt.Sprintf("store ptr %s, ptr %s", callRes, retAlloca))
+			}
+		}
 		e.writelnIndent(fmt.Sprintf("br label %%%s", endBlock))
 	}
 

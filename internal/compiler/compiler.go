@@ -98,7 +98,7 @@ func (c *Compiler) Compile(source, filename string) (*CompileResult, error) {
 	if projectRoot == "" {
 		projectRoot = filepath.Dir(filename)
 	}
-	discoveredASTs, err := c.AutoDiscover(projectRoot)
+	discoveredASTs, err := c.AutoDiscover(projectRoot, filename)
 	if err != nil {
 		result.Errors = append(result.Errors, err.Error())
 		return result, fmt.Errorf("autodiscovery failed: %w", err)
@@ -187,6 +187,86 @@ func (c *Compiler) Compile(source, filename string) (*CompileResult, error) {
 	result.RequiresRedis = llvmEmit.RequiresRedis
 
 	fmt.Printf(">> Done returning\n")
+	return result, nil
+}
+
+// Check runs the compiler pipeline up to Phase 4 (Type Checking) and returns errors if any.
+func (c *Compiler) Check(source, filename string) (*CompileResult, error) {
+	result := &CompileResult{
+		OutputPath: "",
+		Errors:     []string{},
+	}
+
+	fmt.Printf(">> Phase 1: Lexing %s\n", filename)
+	l := lexer.New(source, filename)
+	tokens, lexErrs := l.Tokenize()
+	if len(lexErrs) > 0 {
+		for _, e := range lexErrs {
+			result.Errors = append(result.Errors, e.Error())
+		}
+		return result, fmt.Errorf("lex errors: %d errors found", len(lexErrs))
+	}
+
+	fmt.Printf(">> Phase 2: Parsing\n")
+	p := parser.New(tokens, filename)
+	program, parseErrs := p.Parse()
+	if len(parseErrs) > 0 {
+		for _, e := range parseErrs {
+			result.Errors = append(result.Errors, e.Error())
+		}
+		return result, fmt.Errorf("parse errors: %d errors found", len(parseErrs))
+	}
+
+	fmt.Printf(">> Phase 2.5: AutoDiscover\n")
+	projectRoot := c.ProjectRoot
+	if projectRoot == "" {
+		projectRoot = filepath.Dir(filename)
+	}
+	discoveredASTs, err := c.AutoDiscover(projectRoot, filename)
+	if err != nil {
+		fmt.Printf("wolf: autodiscovery warning: %v\n", err)
+	} else {
+		var allDiscovered []parser.Statement
+		for _, ast := range discoveredASTs {
+			allDiscovered = append(allDiscovered, ast.Statements...)
+		}
+		program.Statements = append(allDiscovered, program.Statements...)
+	}
+
+	fmt.Printf(">> Phase 2.8: Dispatchers\n")
+	factoryFunc := generateModelFactoryAST(program)
+	if factoryFunc != nil {
+		program.Statements = append(program.Statements, factoryFunc)
+	}
+
+	fmt.Printf(">> Phase 3: Resolve\n")
+	res := resolver.New(filename)
+	res.SetStrictMode(c.StrictMode)
+	resolveErrors := res.Resolve(program)
+	if len(resolveErrors) > 0 {
+		for _, e := range resolveErrors {
+			result.Errors = append(result.Errors, e.Error())
+		}
+		return result, fmt.Errorf("resolver errors: %d errors found", len(resolveErrors))
+	}
+
+	fmt.Printf(">> Phase 4: Typecheck\n")
+	tc := typechecker.New(res, filename)
+	tc.SetStrictMode(c.StrictMode)
+	typeErrors := tc.Check(program)
+	var hardTypeErrors []*lexer.WolfError
+	for _, e := range typeErrors {
+		if e.IsWarning {
+			fmt.Fprintf(os.Stderr, "%s\n", e.Error())
+		} else {
+			result.Errors = append(result.Errors, e.Error())
+			hardTypeErrors = append(hardTypeErrors, e)
+		}
+	}
+	if len(hardTypeErrors) > 0 {
+		return result, fmt.Errorf("type errors: %d errors found", len(hardTypeErrors))
+	}
+
 	return result, nil
 }
 

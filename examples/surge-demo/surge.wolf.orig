@@ -80,9 +80,8 @@ print("  POST /rides/estimate  - Price estimate")
 serve(8080)
 
 class CrashMaker {
-    public $val = 42
     func doCrash() {
-        return $this->val
+        return 1
     }
 }
 

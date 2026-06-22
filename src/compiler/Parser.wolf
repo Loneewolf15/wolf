@@ -9,7 +9,7 @@ class Parser {
     public $errors = []
     public $file = ""
     public $source = ""
-    public $namespace = ""
+    public $currentNamespace = ""
 
     public func __construct($tokens, $file, $source) {
         $this->tokens = $tokens
@@ -17,7 +17,7 @@ class Parser {
         $this->source = $source
         $this->current = 0
         $this->errors = []
-        $this->namespace = ""
+        $this->currentNamespace = ""
     }
 
     public func Parse() {

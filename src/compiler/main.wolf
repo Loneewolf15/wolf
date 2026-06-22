@@ -1,0 +1,84 @@
+// src/compiler/main.wolf
+// Wolf Self-Hosted Compiler — Partial Self-Hosting Entry Point
+// Phases 1-4 run in Wolf. Phase 5 (LLVM emission) runs in Go bootstrap.
+// Self-hosting milestone: Wolf compiler can analyze itself.
+
+class WolfCompiler {
+    public $file = ""
+    public $source = ""
+    public $strict = false
+
+    public func __construct($file, $source, $strict) {
+        $this->file   = $file
+        $this->source = $source
+        $this->strict = $strict
+    }
+
+    public func Compile() {
+        // Phase 1 — Lex
+        var $lexer  = new Lexer($this->source, $this->file)
+        var $tokens = $lexer->Tokenize()
+
+        if (count($tokens) == 0) {
+            throw("wolf: lex error — no tokens produced from " .. $this->file)
+        }
+
+        // Phase 2 — Parse
+        var $parser = new Parser($tokens, $this->file, $this->source)
+        var $ast    = $parser->Parse()
+
+        if (count($parser->Errors()) > 0) {
+            var $errs = $parser->Errors()
+            var $i = 0
+            while ($i < count($errs)) {
+                var $e = $errs[$i]
+                print("wolf: parse error: " .. $e["message"] .. " at line " .. $e["line"])
+                $i = $i + 1
+            }
+            throw("wolf: parse failed — " .. $this->file)
+        }
+
+        // Phase 3 — Resolve
+        var $resolver = new Resolver()
+        $resolver->Resolve($ast)
+
+        // Phase 4 — Typecheck
+        var $checker = new TypeChecker($resolver, $this->file)
+        $checker->Check($ast)
+
+        // Phase 5 — LLVM emission handled by Go bootstrap
+        // Boundary: Wolf hands resolved, type-checked AST back to Go.
+        // Remove this comment when emitter.wolf exists.
+        print("wolf: analysis complete — " .. $this->file)
+    }
+}
+
+// CLI entry point
+// Usage: wolf-self <file> [--strict]
+func main() {
+    var $argc = wolf_argc()
+
+    if ($argc < 2) {
+        print("usage: wolf-self <file.wolf> [--strict]")
+        wolf_system_exit(1)
+    }
+
+    var $file   = wolf_argv(1)
+    var $strict = false
+
+    if ($argc > 2) {
+        if (wolf_argv(2) == "--strict") {
+            $strict = true
+        }
+    }
+
+    var $source = wolf_file_read($file)
+
+    if ($source == nil) {
+        print("wolf: cannot read file — " .. $file)
+        wolf_system_exit(1)
+    }
+
+    var $compiler = new WolfCompiler($file, $source, $strict)
+    $compiler->Compile()
+}

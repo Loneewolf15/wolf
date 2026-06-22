@@ -1,0 +1,5 @@
+func handle_request($req, $res) {
+    http_status(200)
+    print("OK")
+}
+wolf_http_serve(8080, handle_request)

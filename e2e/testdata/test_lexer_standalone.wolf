@@ -1,0 +1,27 @@
+func test_standalone() {
+    var $src = "
+func add($a, $b) {
+    return $a + $b;
+}
+
+class Math {
+    func get() { return 42; }
+}
+"
+    var $l = new Lexer($src, "standalone.wolf")
+    var $tokens = $l->Tokenize()
+    
+    print("Tokens count: " .. count($tokens))
+    var $i = 0
+    while ($i < count($tokens)) {
+        var $t = $tokens[$i]
+        print(sprintf("Token %2d: Type %2d, Lexeme '%s'", $i, $t->type, $t->lexeme))
+        $i = $i + 1
+    }
+}
+
+func main() {
+    test_standalone()
+}
+
+main()

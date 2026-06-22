@@ -1,0 +1,7 @@
+func add($a, $b) {
+    return $a + $b;
+}
+
+class Math {
+    func get() { return 42; }
+}

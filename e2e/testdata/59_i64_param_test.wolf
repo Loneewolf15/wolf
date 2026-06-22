@@ -1,0 +1,28 @@
+class TestCustomerModel {
+    func getUserByIdInt($id: int) -> int {
+        return $id
+    }
+}
+
+class TestController {
+    $userModel
+
+    func __construct() {
+        $this->userModel = $this->model("TestCustomer")
+    }
+
+    func test() {
+        return $this->userModel->getUserByIdInt(42)
+    }
+
+    func model($name) {
+        return new TestCustomerModel()
+    }
+}
+
+func main() {
+    $c = new TestController()
+    print($c->test())
+}
+
+main()

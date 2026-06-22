@@ -245,6 +245,15 @@ Wolf Source (.wolf)
 
 The compiler is written in **Go**. The runtime (`wolf_runtime.c`) is a portable C library linked at compile time — it provides the 110+ stdlib functions, memory management, HTTP server, and database drivers.
 
+### Self-Hosting (Alpha)
+Wolf's compiler is being rewritten in Wolf. Currently, Phases 1-4 (Lexing, Parsing, Scope Resolution, and Type Checking) run natively as compiled Wolf binaries with zero Go involvement. 
+
+When invoking the self-hosted compiler:
+- **Single-File Mode (`wolf-self <file>`)**: Analyzes a single file in isolation. Dependencies (like imported classes) are not automatically loaded, which may result in intentional `RESOLVE ERROR: unknown class` outputs.
+- **Project Mode (`wolf-self --project <dir>`)**: *(Coming Soon)* Runs AutoDiscover in Wolf to load the full source tree before analysis, resolving cross-file dependencies.
+
+LLVM IR emission (Phase 5) is targeted for Q1 2027, at which point Wolf becomes fully self-hosting.
+
 ---
 
 ## 🗺 Roadmap
@@ -259,6 +268,7 @@ The compiler is written in **Go**. The runtime (`wolf_runtime.c`) is a portable 
 - [ ] `@ml` Python bridge (CPython C API)
 - [ ] Production MySQL/PostgreSQL drivers
 - [ ] Async/parallel concurrency
+- [ ] Option A vtable (Static Dispatch Fallback for dynamic methods)
 - [ ] Package manager (`wolf install`)
 - [ ] Rust-style error messages
 - [ ] macOS + Windows builds
