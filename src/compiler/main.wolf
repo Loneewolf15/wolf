@@ -2,17 +2,118 @@
 // Wolf Self-Hosted Compiler — Partial Self-Hosting Entry Point
 // Phases 1-4 run in Wolf. Phase 5 (LLVM emission) runs in Go bootstrap.
 // Self-hosting milestone: Wolf compiler can analyze itself.
+//
+// --project <dir>  AutoDiscovery: scan <dir> recursively for .wolf files,
+//                  lex+parse each, merge all ASTs into one program, then
+//                  resolve + typecheck the merged whole in a single pass.
+//                  This mirrors the Go bootstrap's AutoDiscover logic in
+//                  internal/compiler/autodiscovery.go exactly.
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Suffix helpers (replaces wolf_str_ends_with which is mapped but may not be
+// available on all emitter paths; using it directly is fine since it IS at
+// emitter line 3591, but keeping as named wrappers improves readability).
+// ─────────────────────────────────────────────────────────────────────────────
+
+func wolf_ends_with_wolf_ext($path) {
+    return wolf_str_ends_with($path, ".wolf")
+}
+
+func wolf_ends_with_test_ext($path) {
+    return wolf_str_ends_with($path, "_test.wolf")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// WolfCompiler
+// ─────────────────────────────────────────────────────────────────────────────
 
 class WolfCompiler {
     public $file = ""
     public $source = ""
     public $strict = false
+    public $projectDir = ""
 
-    public func __construct($file, $source, $strict) {
-        $this->file   = $file
-        $this->source = $source
-        $this->strict = $strict
+    public func __construct($file, $source, $strict, $projectDir) {
+        $this->file       = $file
+        $this->source     = $source
+        $this->strict     = $strict
+        $this->projectDir = $projectDir
     }
+
+    // ─── AutoDiscover ──────────────────────────────────────────────────────
+    // Recursively walk $dir, lex+parse every .wolf file that is not a test
+    // and not the main file, and return an array of Program ASTs.
+    // Matches the Go bootstrap walk in autodiscovery.go:
+    //   - Includes all .wolf files (no hidden-entry filter — Go's Walk does not skip them)
+    //   - Excludes _test.wolf
+    //   - Excludes the main file itself (compared by string path)
+    //   - Does NOT skip subdirectories explicitly — wolf_file_list_dir returns
+    //     entries; directories are recurse-detected via wolf_dir_exists.
+
+    public func AutoDiscover($dir, $mainFile) {
+        var $discovered = []
+
+        var $entries = wolf_file_list_dir($dir)
+        if ($entries == nil) {
+            return $discovered
+        }
+
+        var $n = count($entries)
+        var $i = 0
+        while ($i < $n) {
+            var $entry = $entries[$i]
+            $i = intval($i) + 1
+
+            // Build full path
+            var $fullPath = wolf_path_join($dir, $entry)
+
+            // If this entry is a directory — recurse into it
+            if (wolf_dir_exists($fullPath)) {
+                var $sub = $this->AutoDiscover($fullPath, $mainFile)
+                var $j = 0
+                var $subLen = count($sub)
+                while ($j < $subLen) {
+                    Arrays::array_push($discovered, $sub[$j])
+                    $j = intval($j) + 1
+                }
+                // Move to next entry
+            } else {
+                // Must end in .wolf
+                if (!wolf_ends_with_wolf_ext($fullPath)) {
+                    // Not a wolf file — skip
+                } else {
+                    // Exclude _test.wolf
+                    if (wolf_ends_with_test_ext($fullPath)) {
+                        // Test file — skip
+                    } else {
+                        // Exclude the main file itself
+                        if ($fullPath == $mainFile) {
+                            // Self — skip
+                        } else {
+                            // Valid discovered file — lex + parse
+                            var $src = wolf_file_read($fullPath)
+                            if ($src != nil) {
+                                var $lx = new Lexer($src, $fullPath)
+                                var $toks = $lx->Tokenize()
+                                var $pr = new Parser($toks, $fullPath, $src)
+                                var $fileAst = $pr->Parse()
+                                Arrays::array_push($discovered, $fileAst)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        return $discovered
+    }
+
+    // ─── Compile ───────────────────────────────────────────────────────────
+    // Main compilation pipeline.
+    // When $this->projectDir != "", Phase 2.5 auto-discovers companion files
+    // and merges all their statements BEFORE main's statements (mirrors
+    // compiler.go line 113: program.Statements = append(allDiscovered, program.Statements...))
+    // so that class/func hoisting in the Resolver sees all declarations.
 
     public func Compile() {
         // Phase 1 — Lex
@@ -33,43 +134,122 @@ class WolfCompiler {
             while ($i < count($errs)) {
                 var $e = $errs[$i]
                 print("wolf: parse error: " .. $e["message"] .. " at line " .. $e["line"])
-                $i = $i + 1
+                $i = intval($i) + 1
             }
             throw("wolf: parse failed — " .. $this->file)
         }
 
-        // Phase 3 — Resolve
+        // Phase 2.5 — AutoDiscover
+        // Only runs when --project was passed.
+        if ($this->projectDir != "") {
+            if (wolf_dir_exists($this->projectDir)) {
+                var $discoveredAsts = $this->AutoDiscover($this->projectDir, $this->file)
+                var $discoveredCount = count($discoveredAsts)
+
+                if ($discoveredCount > 0) {
+                    // Flatten discovered statements into a prefix array
+                    var $allDiscovered = []
+                    var $di = 0
+                    while ($di < $discoveredCount) {
+                        var $dAst = $discoveredAsts[$di]
+                        // Each $dAst is a Program with ->statements
+                        var $dStmts = $dAst->statements
+                        var $si = 0
+                        while ($si < count($dStmts)) {
+                            Arrays::array_push($allDiscovered, $dStmts[$si])
+                            $si = intval($si) + 1
+                        }
+                        $di = intval($di) + 1
+                    }
+
+                    // Prepend discovered statements before main AST statements
+                    // (mirrors: program.Statements = append(allDiscovered, program.Statements...))
+                    var $merged = []
+                    var $mi = 0
+                    while ($mi < count($allDiscovered)) {
+                        Arrays::array_push($merged, $allDiscovered[$mi])
+                        $mi = intval($mi) + 1
+                    }
+                    var $ms = 0
+                    while ($ms < count($ast->statements)) {
+                        Arrays::array_push($merged, $ast->statements[$ms])
+                        $ms = intval($ms) + 1
+                    }
+                    $ast->statements = $merged
+                }
+            } else {
+                print("wolf: warning: --project dir not found: " .. $this->projectDir)
+            }
+        }
+
+        // Phase 3 — Resolve (single pass over merged program)
         var $resolver = new Resolver()
         $resolver->Resolve($ast)
 
-        // Phase 4 — Typecheck
+        if ($this->strict) {
+            var $resolveErrs = $resolver->Errors()
+            var $ri = 0
+            while ($ri < count($resolveErrs)) {
+                var $re = $resolveErrs[$ri]
+                if ($re["level"] == "error") {
+                    print("wolf: resolve error: " .. $re["message"])
+                }
+                $ri = intval($ri) + 1
+            }
+        }
+
+        // Phase 4 — Typecheck (single pass over merged program)
         var $checker = new TypeChecker($resolver, $this->file)
+        if ($this->strict) {
+            $checker->SetStrictMode(true)
+        }
         $checker->Check($ast)
 
         // Phase 5 — LLVM emission handled by Go bootstrap
         // Boundary: Wolf hands resolved, type-checked AST back to Go.
         // Remove this comment when emitter.wolf exists.
         print("wolf: analysis complete — " .. $this->file)
+        if ($this->projectDir != "") {
+            print("wolf: --project mode, dir: " .. $this->projectDir)
+        }
     }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
 // CLI entry point
-// Usage: wolf-self <file> [--strict]
+// Usage: wolf-self <file.wolf> [--strict] [--project <dir>]
+// ─────────────────────────────────────────────────────────────────────────────
 func main() {
     var $argc = wolf_argc()
 
     if ($argc < 2) {
-        print("usage: wolf-self <file.wolf> [--strict]")
+        print("usage: wolf-self <file.wolf> [--strict] [--project <dir>]")
         wolf_system_exit(1)
     }
 
-    var $file   = wolf_argv(1)
-    var $strict = false
+    var $file       = wolf_argv(1)
+    var $strict     = false
+    var $projectDir = ""
 
-    if ($argc > 2) {
-        if (wolf_argv(2) == "--strict") {
+    // Parse remaining flags
+    var $argi = 2
+    while ($argi < $argc) {
+        var $arg = wolf_argv($argi)
+        if ($arg == "--strict") {
             $strict = true
+        } else {
+            if ($arg == "--project") {
+                var $nextIdx = intval($argi) + 1
+                if ($nextIdx < $argc) {
+                    $projectDir = wolf_argv($nextIdx)
+                    $argi = intval($argi) + 1
+                } else {
+                    print("wolf: --project requires a directory argument")
+                    wolf_system_exit(1)
+                }
+            }
         }
+        $argi = intval($argi) + 1
     }
 
     var $source = wolf_file_read($file)
@@ -79,6 +259,6 @@ func main() {
         wolf_system_exit(1)
     }
 
-    var $compiler = new WolfCompiler($file, $source, $strict)
+    var $compiler = new WolfCompiler($file, $source, $strict, $projectDir)
     $compiler->Compile()
 }
