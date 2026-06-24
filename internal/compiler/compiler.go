@@ -98,7 +98,7 @@ func (c *Compiler) Compile(source, filename string) (*CompileResult, error) {
 	if projectRoot == "" {
 		projectRoot = filepath.Dir(filename)
 	}
-	discoveredASTs, err := c.AutoDiscover(projectRoot, filename)
+	discoveredASTs, err := c.AutoDiscover(projectRoot, filename, program)
 	if err != nil {
 		result.Errors = append(result.Errors, err.Error())
 		return result, fmt.Errorf("autodiscovery failed: %w", err)
@@ -222,7 +222,7 @@ func (c *Compiler) Check(source, filename string) (*CompileResult, error) {
 	if projectRoot == "" {
 		projectRoot = filepath.Dir(filename)
 	}
-	discoveredASTs, err := c.AutoDiscover(projectRoot, filename)
+	discoveredASTs, err := c.AutoDiscover(projectRoot, filename, program)
 	if err != nil {
 		fmt.Printf("wolf: autodiscovery warning: %v\n", err)
 	} else {
@@ -937,18 +937,31 @@ func getPkgConfigVariable(lib, variable string) (string, error) {
 	return "", fmt.Errorf("pkg-config not found")
 }
 
-// runtimeCacheKey returns a hex SHA-256 hash of wolf_runtime.c content + compile flags.
+// runtimeCacheKey returns a hex SHA-256 hash of wolf_runtime.c + wolf_http_engine.c
+// content + compile flags.
 // Used as the filename for the cached .o in /tmp/wolf_rt_cache/.
+// wolf_http_engine.c is #include'd by wolf_runtime.c, so changes to either file
+// must invalidate the cache.
 func runtimeCacheKey(runtimeC string, flags []string) (string, error) {
 	h := sha256.New()
+	// Hash wolf_runtime.c
 	f, err := os.Open(runtimeC)
 	if err != nil {
 		return "", err
 	}
-	defer f.Close()
 	if _, err := io.Copy(h, f); err != nil {
+		f.Close()
 		return "", err
 	}
+	f.Close()
+
+	// Hash wolf_http_engine.c (it is #include'd by wolf_runtime.c so must also invalidate cache)
+	engineC := filepath.Join(filepath.Dir(runtimeC), "wolf_http_engine.c")
+	if ef, err := os.Open(engineC); err == nil {
+		_, _ = io.Copy(h, ef)
+		ef.Close()
+	}
+
 	// Mix in the flags (exclude the -o <path> and the runtimeC path at the end,
 	// which vary per test but don't affect the compiled object content).
 	for _, flag := range flags {

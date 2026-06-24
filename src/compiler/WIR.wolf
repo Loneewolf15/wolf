@@ -1,0 +1,124 @@
+// src/compiler/WIR.wolf
+// Wolf Intermediate Representation (WIR)
+
+class WIRInstruction {
+    public $opcode = ""
+    public $dest = ""
+    public $op1 = ""
+    public $op2 = ""
+    public $type = ""
+    
+    public func __construct($opcode, $dest, $op1, $op2, $type) {
+        $this->opcode = $opcode
+        $this->dest = $dest
+        $this->op1 = $op1
+        $this->op2 = $op2
+        $this->type = $type
+    }
+
+    public func to_string() {
+        if ($this->dest != "") {
+            if ($this->op2 != "") {
+                return $this->dest .. " = " .. $this->opcode .. " " .. $this->type .. " " .. $this->op1 .. ", " .. $this->op2
+            } else {
+                return $this->dest .. " = " .. $this->opcode .. " " .. $this->type .. " " .. $this->op1
+            }
+        } else {
+            if ($this->op2 != "") {
+                return $this->opcode .. " " .. $this->type .. " " .. $this->op1 .. ", " .. $this->op2
+            } else {
+                return $this->opcode .. " " .. $this->type .. " " .. $this->op1
+            }
+        }
+    }
+}
+
+class WIRBlock {
+    public $label = ""
+    public $instructions = []
+
+    public func __construct($label) {
+        $this->label = $label
+        $this->instructions = []
+    }
+
+    public func addInstruction($inst) {
+        Arrays::array_push($this->instructions, $inst)
+    }
+
+    public func to_string() {
+        var $out = $this->label .. ":\n"
+        var $i = 0
+        while ($i < count($this->instructions)) {
+            var $inst = $this->instructions[$i]
+            $out = $out .. "  " .. $inst->to_string() .. "\n"
+            $i = intval($i) + 1
+        }
+        return $out
+    }
+}
+
+class WIRFunction {
+    public $name = ""
+    public $blocks = []
+    public $params = []
+    public $retType = ""
+
+    public func __construct($name, $params, $retType) {
+        $this->name = $name
+        $this->params = $params
+        $this->retType = $retType
+        $this->blocks = []
+    }
+
+    public func addBlock($block) {
+        Arrays::array_push($this->blocks, $block)
+    }
+
+    public func to_string() {
+        var $out = "func " .. $this->name .. "("
+        var $i = 0
+        while ($i < count($this->params)) {
+            $out = $out .. $this->params[$i]
+            if (intval($i) + 1 < count($this->params)) {
+                $out = $out .. ", "
+            }
+            $i = intval($i) + 1
+        }
+        $out = $out .. ") -> " .. $this->retType .. " {\n"
+        
+        $i = 0
+        while ($i < count($this->blocks)) {
+            var $block = $this->blocks[$i]
+            $out = $out .. $block->to_string()
+            $i = intval($i) + 1
+        }
+        $out = $out .. "}\n"
+        return $out
+    }
+}
+
+class WIRModule {
+    public $name = ""
+    public $functions = []
+
+    public func __construct($name) {
+        $this->name = $name
+        $this->functions = []
+    }
+
+    public func addFunction($fn) {
+        Arrays::array_push($this->functions, $fn)
+    }
+
+    public func to_string() {
+        var $out = "; Module: " .. $this->name .. "\n"
+        var $i = 0
+        while ($i < count($this->functions)) {
+            var $fn = $this->functions[$i]
+            $out = $out .. $fn->to_string() .. "\n"
+            $i = intval($i) + 1
+        }
+        return $out
+    }
+}

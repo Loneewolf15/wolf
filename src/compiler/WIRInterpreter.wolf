@@ -1,0 +1,166 @@
+// src/compiler/WIRInterpreter.wolf
+// A simple interpreter for testing WolfIR locally without lowering to LLVM
+
+class WIRInterpreter {
+    public $registers = {}
+
+    public func __construct() {
+        $this->registers = {}
+    }
+
+    public func runModule($module) {
+        var $i = 0
+        while ($i < count($module->functions)) {
+            var $fn = $module->functions[$i]
+            if ($fn->name == "main") {
+                return $this->runFunction($fn)
+            }
+            $i = intval($i) + 1
+        }
+        return nil
+    }
+
+    public func getBlockIndex($fn, $label) {
+        var $i = 0
+        while ($i < count($fn->blocks)) {
+            if ($fn->blocks[$i]->label == $label) {
+                return $i
+            }
+            $i = intval($i) + 1
+        }
+        return -1
+    }
+
+    public func runFunction($fn) {
+        if (count($fn->blocks) == 0) {
+            return nil
+        }
+        
+        var $b = 0
+        while ($b >= 0 && $b < count($fn->blocks)) {
+            var $block = $fn->blocks[$b]
+            var $i = 0
+            var $jumped = false
+            
+            while ($i < count($block->instructions)) {
+                var $inst = $block->instructions[$i]
+                
+                if ($inst->opcode == "br") {
+                    $b = intval($this->getBlockIndex($fn, $inst->op1))
+                    $jumped = true
+                    $i = count($block->instructions) // break inner loop
+                } else if ($inst->opcode == "cond_br") {
+                    var $cond = $this->resolveOperand($inst->op1)
+                    var $tL = $inst->op2
+                    var $fL = $inst->type
+                    
+                    if ($cond) {
+                        $b = intval($this->getBlockIndex($fn, $tL))
+                    } else {
+                        $b = intval($this->getBlockIndex($fn, $fL))
+                    }
+                    $jumped = true
+                    $i = count($block->instructions) // break inner loop
+                } else {
+                    var $res = $this->executeInstruction($inst)
+                    if ($inst->opcode == "ret") {
+                        return $res
+                    }
+                }
+                if (!$jumped) {
+                    $i = intval($i) + 1
+                }
+            }
+            if (!$jumped) {
+                $b = intval($b) + 1
+            }
+        }
+        return nil
+    }
+
+    public func resolveOperand($op) {
+        // If operand is a register, return its value
+        if (strlen($op) > 0) {
+            var $firstChar = substr($op, 0, 1)
+            if ($firstChar == "%") {
+                return $this->registers[$op]
+            }
+            
+            // Otherwise it's a literal or nil
+            if ($op == "nil") {
+                return nil
+            }
+            
+            // Just integer literal for now
+            return intval($op)
+        }
+        return nil
+    }
+
+    public func executeInstruction($inst) {
+        if ($inst->opcode == "alloca") {
+            $this->registers[$inst->dest] = nil
+            return nil
+        }
+        if ($inst->opcode == "store") {
+            var $val = $this->resolveOperand($inst->op1)
+            $this->registers[$inst->op2] = $val
+            return nil
+        }
+        if ($inst->opcode == "load") {
+            var $val = $this->resolveOperand($inst->op1)
+            $this->registers[$inst->dest] = $val
+            return nil
+        }
+        if ($inst->opcode == "const_string") {
+            $this->registers[$inst->dest] = $inst->op1
+            return nil
+        }
+        if ($inst->opcode == "add") {
+            var $op1 = $this->resolveOperand($inst->op1)
+            var $op2 = $this->resolveOperand($inst->op2)
+            var $res = intval($op1) + intval($op2)
+            $this->registers[$inst->dest] = $res
+            return nil
+        }
+        if ($inst->opcode == "sub") {
+            var $op1 = $this->resolveOperand($inst->op1)
+            var $op2 = $this->resolveOperand($inst->op2)
+            var $res = intval($op1) - intval($op2)
+            $this->registers[$inst->dest] = $res
+            return nil
+        }
+        if ($inst->opcode == "mul") {
+            var $op1 = $this->resolveOperand($inst->op1)
+            var $op2 = $this->resolveOperand($inst->op2)
+            var $res = intval($op1) * intval($op2)
+            $this->registers[$inst->dest] = $res
+            return nil
+        }
+        if ($inst->opcode == "div") {
+            var $op1 = $this->resolveOperand($inst->op1)
+            var $op2 = $this->resolveOperand($inst->op2)
+            var $res = intval($op1) / intval($op2)
+            $this->registers[$inst->dest] = $res
+            return nil
+        }
+        if ($inst->opcode == "cmp") {
+            var $op1 = $this->resolveOperand($inst->op1)
+            var $op2 = $this->resolveOperand($inst->op2)
+            var $res = false
+            if ($inst->type == "eq") { $res = ($op1 == $op2) }
+            else if ($inst->type == "ne") { $res = ($op1 != $op2) }
+            else if ($inst->type == "sgt") { $res = (intval($op1) > intval($op2)) }
+            else if ($inst->type == "slt") { $res = (intval($op1) < intval($op2)) }
+            else if ($inst->type == "sge") { $res = (intval($op1) >= intval($op2)) }
+            else if ($inst->type == "sle") { $res = (intval($op1) <= intval($op2)) }
+            
+            $this->registers[$inst->dest] = $res
+            return nil
+        }
+        if ($inst->opcode == "ret") {
+            return $this->resolveOperand($inst->op1)
+        }
+        return nil
+    }
+}

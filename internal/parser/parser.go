@@ -110,6 +110,9 @@ func (p *Parser) parseStatement() Statement {
 	case lexer.TOKEN_NAMESPACE:
 		return p.parseNamespaceDecl()
 
+	case lexer.TOKEN_IMPORT:
+		return p.parseImportStmt()
+
 	case lexer.TOKEN_AT_ML:
 		return p.parseMLBlockStmt()
 
@@ -790,6 +793,41 @@ func (p *Parser) parseNamespaceDecl() *NamespaceDecl {
 
 	p.namespace = name
 	return &NamespaceDecl{Name: name, Pos_: pos}
+}
+
+// ---- import ----
+
+func (p *Parser) parseImportStmt() *ImportStmt {
+	pos := p.currentPos()
+	p.advance() // consume 'import'
+
+	if !p.check(lexer.TOKEN_STRING) {
+		p.addError("expected string path after 'import'")
+		return &ImportStmt{Pos_: pos}
+	}
+	pathTok := p.advance()
+	
+	// Strip quotes from string literal
+	rawPath := pathTok.Literal
+	if len(rawPath) >= 2 && rawPath[0] == '"' && rawPath[len(rawPath)-1] == '"' {
+		rawPath = rawPath[1 : len(rawPath)-1]
+	}
+
+	alias := ""
+	if p.check(lexer.TOKEN_AS) {
+		p.advance() // consume 'as'
+		if p.check(lexer.TOKEN_IDENT) {
+			alias = p.advance().Literal
+		} else {
+			p.addError("expected identifier after 'as'")
+		}
+	}
+
+	return &ImportStmt{
+		Path:  rawPath,
+		Alias: alias,
+		Pos_:  pos,
+	}
 }
 
 // ---- @ml block ----

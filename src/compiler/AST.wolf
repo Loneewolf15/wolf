@@ -21,6 +21,15 @@ class Program extends ASTNode {
 
 // ---------- Statements ----------
 
+class ImportStmt extends ASTNode {
+    public $path = ""
+    public $alias = ""
+
+    public func constructor() {
+        $this->type = "ImportStmt"
+    }
+}
+
 class ExpressionStmt extends ASTNode {
     public $expr = nil
 

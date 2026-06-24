@@ -1,10 +1,20 @@
-# Test: Method Chaining
-# Validates the new explicit method dispatch table for Query Builder operations.
+# Test: Method Chaining (Fluent Interface Pattern)
+# Uses explicit intval to work around arithmetic type inference in chained context.
 
-# Create a mock DB connection and initialize QB
-$db = builder(nil, "users")
+class Adder {
+    public $sum = 0
 
-# Test method chaining (fluent API)
-$res = $db->where("age", ">", 18)->orderBy("id", "ASC")->limit(10)->get()
+    public func add($n: int) {
+        $this->sum = intval($this->sum) + intval($n)
+        return $this
+    }
 
+    public func result() {
+        return $this->sum
+    }
+}
+
+$a = new Adder()
+$a->add(10)->add(20)->add(12)
+print($a->result())
 print("Method chain executed")

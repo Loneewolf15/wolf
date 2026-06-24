@@ -559,15 +559,159 @@ void wolf_arena_pool_destroy(WolfArenaPool* pool) {
  * HTTP Request Parser (arena-backed, zero-copy where possible)
  * ================================================================ */
 
+/* wolf_engine_parse_multipart — parse multipart/form-data body into
+ * WolfConnCtx.uploads[] using the per-request arena.
+ * Uses memmem() for POSIX-portable boundary search.
+ * Mirrors wolf_parse_multipart() in wolf_runtime.c but targets WolfConnCtx
+ * (arena alloc) instead of http_contexts[] (wolf_req_alloc arena). */
+static void wolf_engine_parse_multipart(WolfConnCtx* ctx,
+                                         const char* ct_header,
+                                         const char* body, size_t body_len) {
+    WolfArena* a = ctx->arena;
+    if (!a || !body || body_len == 0) return;
+
+    /* Extract boundary string from "multipart/form-data; boundary=XXX" */
+    const char* bp = strstr(ct_header, "boundary=");
+    if (!bp) return;
+    bp += 9;
+    /* Strip optional surrounding quotes */
+    char boundary[256];
+    size_t bi = 0;
+    while (*bp && *bp != ';' && *bp != '\r' && *bp != '\n' && bi < 254) {
+        if (*bp != '"') { boundary[bi++] = *bp; }
+        bp++;
+    }
+    boundary[bi] = '\0';
+    if (bi == 0) return;
+
+    /* Full boundary delimiter: "--" + boundary */
+    char delim[260];
+    snprintf(delim, sizeof(delim), "--%s", boundary);
+    size_t delim_len = strlen(delim);
+
+    const char* p   = body;
+    const char* end = body + body_len;
+
+    while (p < end && ctx->upload_count < WOLF_MAX_UPLOADS) {
+        /* Find next boundary using memmem (POSIX) */
+        const char* part_start = (const char*)memmem(p, (size_t)(end - p), delim, delim_len);
+        if (!part_start) break;
+        p = part_start + delim_len;
+
+        /* End-of-multipart marker: "--" immediately after boundary */
+        if (p + 2 <= end && p[0] == '-' && p[1] == '-') break;
+        /* Skip CRLF after boundary line */
+        if (p + 2 <= end && p[0] == '\r' && p[1] == '\n') p += 2;
+
+        /* Parse part headers until blank line */
+        const char* field_name   = NULL;
+        const char* filename     = NULL;
+        const char* part_ct      = "application/octet-stream";
+        const char* part_hdr_end = NULL;
+
+        const char* hp = p;
+        while (hp < end) {
+            /* Find CRLF end of header line */
+            const char* eol = NULL;
+            for (const char* s = hp; s + 1 < end; s++) {
+                if (s[0] == '\r' && s[1] == '\n') { eol = s; break; }
+            }
+            if (!eol) break;
+            if (eol == hp) { /* Blank line = end of part headers */
+                part_hdr_end = eol + 2;
+                break;
+            }
+
+            /* Copy header line into arena for in-place parsing */
+            size_t hlen = (size_t)(eol - hp);
+            char* hline = (char*)wolf_arena_alloc(a, hlen + 1);
+            if (!hline) break;
+            memcpy(hline, hp, hlen);
+            hline[hlen] = '\0';
+
+            /* Parse Content-Disposition: form-data; name="..."; filename="..." */
+            if (strncasecmp(hline, "Content-Disposition:", 20) == 0) {
+                char* np = strstr(hline, "name=");
+                if (np) {
+                    np += 5;
+                    int quoted = (*np == '"');
+                    if (quoted) np++;
+                    char* ne = np;
+                    while (*ne && (quoted ? *ne != '"' : (*ne != ';' && *ne != '\r'))) ne++;
+                    size_t nl = (size_t)(ne - np);
+                    char* nbuf = (char*)wolf_arena_alloc(a, nl + 1);
+                    if (nbuf) { memcpy(nbuf, np, nl); nbuf[nl] = '\0'; field_name = nbuf; }
+                }
+                char* fp = strstr(hline, "filename=");
+                if (fp) {
+                    fp += 9;
+                    int quoted = (*fp == '"');
+                    if (quoted) fp++;
+                    char* fe = fp;
+                    while (*fe && (quoted ? *fe != '"' : (*fe != ';' && *fe != '\r'))) fe++;
+                    size_t fl = (size_t)(fe - fp);
+                    char* fbuf = (char*)wolf_arena_alloc(a, fl + 1);
+                    if (fbuf) { memcpy(fbuf, fp, fl); fbuf[fl] = '\0'; filename = fbuf; }
+                }
+            }
+
+            /* Parse Content-Type of this part */
+            if (strncasecmp(hline, "Content-Type:", 13) == 0) {
+                char* ctv = hline + 13;
+                while (*ctv == ' ') ctv++;
+                part_ct = wolf_arena_strdup(a, ctv);
+            }
+
+            hp = eol + 2;
+        }
+
+        /* Skip parts without both field name and filename (not file uploads) */
+        if (!part_hdr_end || !field_name || !filename) {
+            p = part_hdr_end ? part_hdr_end : hp;
+            continue;
+        }
+
+        /* Part body: from part_hdr_end until next delimiter (preceded by CRLF) */
+        const char* data_start = part_hdr_end;
+        const char* data_end   = end;
+        for (const char* s = data_start; s + delim_len + 2 <= end; s++) {
+            if (s[0] == '\r' && s[1] == '\n' && memcmp(s + 2, delim, delim_len) == 0) {
+                data_end = s;
+                break;
+            }
+        }
+
+        size_t data_size = (size_t)(data_end - data_start);
+        char*  data_buf  = (char*)wolf_arena_alloc(a, data_size + 1);
+        if (!data_buf) break;
+        memcpy(data_buf, data_start, data_size);
+        data_buf[data_size] = '\0';
+
+        /* Sanitize filename (basename only — prevent path traversal) */
+        const char* safe_name = wolf_file_basename(filename);
+
+        wolf_upload_t* up = &ctx->uploads[ctx->upload_count++];
+        up->field_name   = field_name;
+        up->filename     = wolf_arena_strdup(a, safe_name);
+        up->content_type = part_ct;
+        up->data         = data_buf;
+        up->size         = data_size;
+
+        p = data_end;
+    }
+}
+
 static void wolf_engine_parse_request(WolfConnCtx* ctx, char* raw, size_t len) {
     WolfArena* a = ctx->arena;
 
     /* Find header/body boundary */
     char* body_start = NULL;
+    size_t body_len  = 0;
     for (size_t i = 0; i + 3 < len; i++) {
         if (raw[i]=='\r' && raw[i+1]=='\n' && raw[i+2]=='\r' && raw[i+3]=='\n') {
             raw[i] = '\0';
             body_start = raw + i + 4;
+            body_len   = len - (i + 4);
             break;
         }
     }
@@ -596,8 +740,9 @@ static void wolf_engine_parse_request(WolfConnCtx* ctx, char* raw, size_t len) {
     }
 
     /* Parse headers */
-    const char* upgrade_val = NULL;
-    const char* ws_key_val  = NULL;
+    const char* upgrade_val      = NULL;
+    const char* ws_key_val       = NULL;
+    const char* content_type_val = NULL;
 
     while ((line = strtok_r(NULL, "\r\n", &saveptr))) {
         char* colon = strchr(line, ':');
@@ -607,8 +752,9 @@ static void wolf_engine_parse_request(WolfConnCtx* ctx, char* raw, size_t len) {
             while (*val == ' ') val++;
             ctx->header_keys[ctx->header_count] = wolf_arena_strdup(a, line);
             ctx->header_vals[ctx->header_count] = wolf_arena_strdup(a, val);
-            if (strcasecmp(line, "Upgrade") == 0) upgrade_val = ctx->header_vals[ctx->header_count];
-            if (strcasecmp(line, "Sec-WebSocket-Key") == 0) ws_key_val = ctx->header_vals[ctx->header_count];
+            if (strcasecmp(line, "Upgrade") == 0)          upgrade_val      = ctx->header_vals[ctx->header_count];
+            if (strcasecmp(line, "Sec-WebSocket-Key") == 0) ws_key_val       = ctx->header_vals[ctx->header_count];
+            if (strcasecmp(line, "Content-Type") == 0)      content_type_val = ctx->header_vals[ctx->header_count];
             ctx->header_count++;
         }
     }
@@ -616,6 +762,12 @@ static void wolf_engine_parse_request(WolfConnCtx* ctx, char* raw, size_t len) {
     if (upgrade_val && strcasecmp(upgrade_val, "websocket") == 0 && ws_key_val) {
         ctx->is_websocket = 1;
         ctx->ws_key = wolf_arena_strdup(a, ws_key_val);
+    }
+
+    /* Parse multipart/form-data uploads if present */
+    if (body_start && body_len > 0 && content_type_val &&
+        strstr(content_type_val, "multipart/form-data")) {
+        wolf_engine_parse_multipart(ctx, content_type_val, body_start, body_len);
     }
 }
 
@@ -991,7 +1143,14 @@ static void* wolf_core_thread(void* arg) {
                 goto send_and_cleanup;
             }
 
-            fn(closure->env, ctx_id, ctx_id);
+            ctx->oom_triggered = 0;
+            if (setjmp(ctx->oom_jump) == 0) {
+                fn(closure->env, ctx_id, ctx_id);
+            } else {
+                fprintf(stderr, "[WOLF-ENGINE] OOM exception caught on core %d, returning 500\n", core->core_id);
+                ctx->status_code = 500;
+                ctx->res_body = "500 Internal Server Error (OOM)";
+            }
 
             /* Clear active marker */
             __atomic_store_n(&wolf_active_ctx, NULL, __ATOMIC_RELEASE);

@@ -83,7 +83,7 @@ func TestGracefulShutdown(t *testing.T) {
 	go func() {
 		for stderrScanner.Scan() {
 			line := stderrScanner.Text()
-			if strings.Contains(line, "Shutdown signal received") {
+			if strings.Contains(line, "Shutdown initiated") || strings.Contains(line, "Shutdown signal received") {
 				shutdownFound = true
 			}
 			if strings.Contains(line, "Pool destroyed") {

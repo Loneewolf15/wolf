@@ -29,6 +29,34 @@
 #include <sys/stat.h>
 #include <errno.h>
 
+#ifdef _WIN32
+#include <windows.h>
+
+#ifdef _WIN32
+static WCHAR* wolf_utf8_to_utf16(const char* utf8) {
+    if (!utf8) return NULL;
+    int len = MultiByteToWideChar(CP_UTF8, 0, utf8, -1, NULL, 0);
+    if (len == 0) return NULL;
+    WCHAR* utf16 = (WCHAR*)wolf_req_alloc(len * sizeof(WCHAR));
+    MultiByteToWideChar(CP_UTF8, 0, utf8, -1, utf16, len);
+    return utf16;
+}
+
+static char* wolf_utf16_to_utf8(const WCHAR* utf16) {
+    if (!utf16) return NULL;
+    int len = WideCharToMultiByte(CP_UTF8, 0, utf16, -1, NULL, 0, NULL, NULL);
+    if (len == 0) return NULL;
+    char* utf8 = (char*)wolf_req_alloc(len);
+    WideCharToMultiByte(CP_UTF8, 0, utf16, -1, utf8, len, NULL, NULL);
+    return utf8;
+}
+#endif
+#include <direct.h>
+#ifndef S_ISDIR
+#define S_ISDIR(mode)  (((mode) & S_IFMT) == S_IFDIR)
+#endif
+#endif
+
 /* --- Server / OS-dependent headers (stripped on bare-metal targets) --- */
 #ifndef WOLF_FREESTANDING
 #include <sys/socket.h>
@@ -2097,6 +2125,7 @@ const char* wolf_strings_upper(const char* s)   { return wolf_strtoupper(s); }
 const char* wolf_strings_title(const char* s)   { return wolf_ucwords(s); }
 const char* wolf_strings_trimleft(const char* s, const char* cutset)  { (void)cutset; return wolf_ltrim(s); }
 const char* wolf_strings_trimright(const char* s, const char* cutset) { (void)cutset; return wolf_rtrim(s); }
+const char* wolf_strings_trim(const char* s) { return wolf_rtrim(wolf_ltrim(s)); }
 
 const char* wolf_strings_split(const char* s, const char* sep) { (void)sep; return s; }
 
@@ -2122,6 +2151,8 @@ typedef struct {
 typedef struct {
     char**  keys;
     void**  values;
+    int32_t* buckets;
+    int32_t* next;
     int64_t size;
     int64_t capacity;
 } wolf_map_t;
@@ -6494,7 +6525,11 @@ const char* wolf_file_dirname(const char* path) {
 }
 int wolf_dir_exists(const char* path) {
     if (!path) return 0;
+#ifdef WOLF_FREESTANDING
+    return 0;
+#else
     struct stat st; return (stat(path,&st)==0&&S_ISDIR(st.st_mode));
+#endif
 }
 
 /* ========== STDLIB-07 — File System Extensions ========== */
@@ -6535,29 +6570,68 @@ int wolf_file_move(const char* src, const char* dst) {
  * Creates all intermediate directories (equivalent to mkdir -p).   */
 int wolf_dir_create(const char* path) {
     if (!path || !*path) return 0;
+#ifdef WOLF_FREESTANDING
+    return 0;
+#else
     char tmp[4096];
     snprintf(tmp, sizeof(tmp), "%s", path);
     size_t len = strlen(tmp);
-    if (tmp[len - 1] == '/') tmp[len - 1] = '\0';
+    if (tmp[len - 1] == '/' || tmp[len - 1] == '\\') tmp[len - 1] = '\0';
     for (char* p = tmp + 1; *p; p++) {
-        if (*p == '/') {
+        if (*p == '/' || *p == '\\') {
+            char sep = *p;
             *p = '\0';
+#ifdef _WIN32
+            WCHAR* wTmp = wolf_utf8_to_utf16(tmp);
+            if (_wmkdir(wTmp) != 0 && errno != EEXIST) return 0;
+#else
             if (mkdir(tmp, 0755) != 0 && errno != EEXIST) return 0;
-            *p = '/';
+#endif
+            *p = sep;
         }
     }
+#ifdef _WIN32
+    WCHAR* wTmp2 = wolf_utf8_to_utf16(tmp);
+    return (_wmkdir(wTmp2) == 0 || errno == EEXIST) ? 1 : 0;
+#else
     return (mkdir(tmp, 0755) == 0 || errno == EEXIST) ? 1 : 0;
+#endif
+#endif
 }
 
-/* wolf_path_join(a, b) → "a/b" — smart slash joining, arena-allocated. */
+/* wolf_path_dir(path) - returns directory of path, arena-allocated. */
+const char* wolf_path_dir(const char* path) {
+    if (!path) return NULL;
+    const char* last_slash = strrchr(path, '/');
+#ifdef _WIN32
+    const char* last_backslash = strrchr(path, '\\');
+    if (last_backslash > last_slash) last_slash = last_backslash;
+#endif
+    if (!last_slash) return "."; // No slash, it's just a file in current dir
+    
+    size_t len = last_slash - path;
+    if (len == 0) return "/"; // Root directory
+    
+    char* out = (char*)wolf_req_alloc(len + 1);
+    memcpy(out, path, len);
+    out[len] = '\0';
+    return out;
+}
+
+/* wolf_path_join(a, b) — smart slash joining, arena-allocated. */
 const char* wolf_path_join(const char* a, const char* b) {
     if (!a) a = "";
     if (!b) b = "";
+#ifdef _WIN32
+    char sep = '\\';
+#else
+    char sep = '/';
+#endif
     size_t la = strlen(a), lb = strlen(b);
-    int needs_slash = (la > 0 && a[la-1] != '/' && (lb == 0 || b[0] != '/'));
+    int needs_slash = (la > 0 && a[la-1] != '/' && a[la-1] != '\\' && (lb == 0 || (b[0] != '/' && b[0] != '\\')));
     char* r = (char*)wolf_req_alloc(la + lb + 2);
     memcpy(r, a, la);
-    if (needs_slash) r[la++] = '/';
+    if (needs_slash) r[la++] = sep;
     memcpy(r + la, b, lb);
     r[la + lb] = '\0';
     return r;
@@ -6567,35 +6641,64 @@ const char* wolf_path_join(const char* a, const char* b) {
  * Returns "[]" on error or empty directory.
  * Uses POSIX opendir/readdir — wraps in #ifndef WOLF_FREESTANDING.  */
 #ifndef WOLF_FREESTANDING
+#ifndef _WIN32
 #include <dirent.h>
+#endif
 const char* wolf_scan_dir(const char* path) {
     if (!path) return wolf_req_strdup("[]");
-    DIR* dir = opendir(path);
-    if (!dir) return wolf_req_strdup("[]");
-
+    
     /* Build JSON array incrementally in a large arena buffer */
     char* buf = (char*)wolf_req_alloc(65536);
     size_t pos = 0;
     buf[pos++] = '[';
     int first = 1;
 
-    struct dirent* entry;
-    while ((entry = readdir(dir)) != NULL) {
-        if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0)
-            continue;
-        if (!first) buf[pos++] = ',';
-        first = 0;
-        /* JSON-quote the filename */
-        buf[pos++] = '"';
-        const char* name = entry->d_name;
-        while (*name) {
-            if (*name == '"' || *name == '\\') buf[pos++] = '\\';
-            buf[pos++] = *name++;
-            if (pos > 65000) break; /* safety — truncate on huge dirs */
-        }
-        buf[pos++] = '"';
+#ifdef _WIN32
+    WIN32_FIND_DATAW findFileData;
+    char searchPath[4096];
+    snprintf(searchPath, sizeof(searchPath), "%s\\*", path);
+    WCHAR* wSearchPath = wolf_utf8_to_utf16(searchPath);
+    HANDLE hFind = FindFirstFileW(wSearchPath, &findFileData);
+    if (hFind != INVALID_HANDLE_VALUE) {
+        do {
+            if (wcscmp(findFileData.cFileName, L".") == 0 || wcscmp(findFileData.cFileName, L"..") == 0)
+                continue;
+            if (!first) buf[pos++] = ',';
+            first = 0;
+            buf[pos++] = '"';
+            char* utf8Name = wolf_utf16_to_utf8(findFileData.cFileName);
+            const char* name = utf8Name;
+            while (*name) {
+                if (*name == '"' || *name == '\\') buf[pos++] = '\\';
+                buf[pos++] = *name++;
+                if (pos > 65000) break;
+            }
+            buf[pos++] = '"';
+        } while (FindNextFileW(hFind, &findFileData) != 0);
+        FindClose(hFind);
     }
-    closedir(dir);
+#else
+    DIR* dir = opendir(path);
+    if (dir) {
+        struct dirent* entry;
+        while ((entry = readdir(dir)) != NULL) {
+            if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0)
+                continue;
+            if (!first) buf[pos++] = ',';
+            first = 0;
+            /* JSON-quote the filename */
+            buf[pos++] = '"';
+            const char* name = entry->d_name;
+            while (*name) {
+                if (*name == '"' || *name == '\\') buf[pos++] = '\\';
+                buf[pos++] = *name++;
+                if (pos > 65000) break; /* safety — truncate on huge dirs */
+            }
+            buf[pos++] = '"';
+        }
+        closedir(dir);
+    }
+#endif
     buf[pos++] = ']';
     buf[pos] = '\0';
     return buf;
@@ -6604,19 +6707,48 @@ const char* wolf_scan_dir(const char* path) {
 const char* wolf_scan_dir(const char* path) { (void)path; return wolf_req_strdup("[]"); }
 #endif /* WOLF_FREESTANDING */
 
+#ifndef WOLF_FREESTANDING
+static int wolf_compare_strings(const void* a, const void* b) {
+    const char* str_a = *(const char**)a;
+    const char* str_b = *(const char**)b;
+    return strcmp(str_a, str_b);
+}
+#endif
+
 void* wolf_file_list_dir(const char* path) {
     void* arr = wolf_array_create();
     if (!path) return arr;
 #ifndef WOLF_FREESTANDING
-    DIR* dir = opendir(path);
-    if (!dir) return arr;
-    struct dirent* entry;
-    while ((entry = readdir(dir)) != NULL) {
-        if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0)
-            continue;
-        wolf_array_push(arr, wolf_req_strdup(entry->d_name));
+#ifdef _WIN32
+    WIN32_FIND_DATAA findFileData;
+    char searchPath[4096];
+    snprintf(searchPath, sizeof(searchPath), "%s\\*", path);
+    HANDLE hFind = FindFirstFileA(searchPath, &findFileData);
+    if (hFind != INVALID_HANDLE_VALUE) {
+        do {
+            if (strcmp(findFileData.cFileName, ".") == 0 || strcmp(findFileData.cFileName, "..") == 0)
+                continue;
+            wolf_array_push(arr, wolf_req_strdup(findFileData.cFileName));
+        } while (FindNextFileW(hFind, &findFileData) != 0);
+        FindClose(hFind);
     }
-    closedir(dir);
+#else
+    DIR* dir = opendir(path);
+    if (dir) {
+        struct dirent* entry;
+        while ((entry = readdir(dir)) != NULL) {
+            if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0)
+                continue;
+            wolf_array_push(arr, wolf_req_strdup(entry->d_name));
+        }
+        closedir(dir);
+    }
+#endif
+    // Enforce alphabetical sorting for deterministic cross-platform behavior
+    wolf_array_t* warr = (wolf_array_t*)arr;
+    if (warr->length > 1) {
+        qsort(warr->items, warr->length, sizeof(void*), wolf_compare_strings);
+    }
 #endif
     return arr;
 }

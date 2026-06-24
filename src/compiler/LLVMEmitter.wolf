@@ -1,0 +1,95 @@
+// src/compiler/LLVMEmitter.wolf
+// Converts WIR Module to LLVM IR text format (.ll) natively
+
+class LLVMEmitter {
+    public $module = nil
+
+    public func __construct($module) {
+        $this->module = $module
+    }
+
+    public func emit() {
+        var $out = "; ModuleID = '" .. $this->module->name .. "'\n"
+        $out = $out .. "source_filename = \"" .. $this->module->name .. "\"\n"
+        $out = $out .. "target datalayout = \"e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128\"\n\n"
+
+        var $i = 0
+        while ($i < count($this->module->functions)) {
+            $out = $out .. $this->emitFunction($this->module->functions[$i])
+            $i = intval($i) + 1
+        }
+        return $out
+    }
+
+    public func emitFunction($fn) {
+        var $out = "define " .. $fn->retType .. " @" .. $fn->name .. "("
+        var $i = 0
+        while ($i < count($fn->params)) {
+            $out = $out .. $fn->params[$i]
+            if (intval($i) + 1 < count($fn->params)) {
+                $out = $out .. ", "
+            }
+            $i = intval($i) + 1
+        }
+        $out = $out .. ") {\n"
+        
+        $i = 0
+        while ($i < count($fn->blocks)) {
+            var $block = $fn->blocks[$i]
+            $out = $out .. $this->emitBlock($block)
+            $i = intval($i) + 1
+        }
+        $out = $out .. "}\n\n"
+        return $out
+    }
+
+    public func emitBlock($block) {
+        var $out = $block->label .. ":\n"
+        var $i = 0
+        while ($i < count($block->instructions)) {
+            var $inst = $block->instructions[$i]
+            $out = $out .. "  " .. $this->emitInstruction($inst) .. "\n"
+            $i = intval($i) + 1
+        }
+        return $out
+    }
+
+    public func emitInstruction($inst) {
+        if ($inst->opcode == "alloca") {
+            return $inst->dest .. " = alloca " .. $inst->type
+        }
+        if ($inst->opcode == "store") {
+            return "store " .. $inst->type .. " " .. $inst->op1 .. ", ptr " .. $inst->op2
+        }
+        if ($inst->opcode == "load") {
+            return $inst->dest .. " = load " .. $inst->type .. ", ptr " .. $inst->op1
+        }
+        if ($inst->opcode == "add") {
+            return $inst->dest .. " = add " .. $inst->type .. " " .. $inst->op1 .. ", " .. $inst->op2
+        }
+        if ($inst->opcode == "sub") {
+            return $inst->dest .. " = sub " .. $inst->type .. " " .. $inst->op1 .. ", " .. $inst->op2
+        }
+        if ($inst->opcode == "mul") {
+            return $inst->dest .. " = mul " .. $inst->type .. " " .. $inst->op1 .. ", " .. $inst->op2
+        }
+        if ($inst->opcode == "div") {
+            return $inst->dest .. " = sdiv " .. $inst->type .. " " .. $inst->op1 .. ", " .. $inst->op2
+        }
+        if ($inst->opcode == "ret") {
+            return "ret " .. $inst->type .. " " .. $inst->op1
+        }
+        if ($inst->opcode == "br") {
+            return "br label %" .. $inst->op1
+        }
+        if ($inst->opcode == "cond_br") {
+            var $tL = $inst->op2
+            var $fL = $inst->type
+            return "br i1 " .. $inst->op1 .. ", label %" .. $tL .. ", label %" .. $fL
+        }
+        if ($inst->opcode == "cmp") {
+            return $inst->dest .. " = icmp " .. $inst->type .. " i64 " .. $inst->op1 .. ", " .. $inst->op2
+        }
+        return "; unknown instruction: " .. $inst->opcode
+    }
+}

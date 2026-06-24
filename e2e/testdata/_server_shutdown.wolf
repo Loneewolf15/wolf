@@ -3,4 +3,5 @@ func handler($req_id: int, $res_id: int) {
     wolf_http_res_write($res_id, "OK")
 }
 
+print("Wolf HTTP Server running")
 wolf_http_serve(9999, handler)

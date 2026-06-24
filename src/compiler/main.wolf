@@ -8,20 +8,22 @@
 //                  resolve + typecheck the merged whole in a single pass.
 //                  This mirrors the Go bootstrap's AutoDiscover logic in
 //                  internal/compiler/autodiscovery.go exactly.
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Suffix helpers (replaces wolf_str_ends_with which is mapped but may not be
-// available on all emitter paths; using it directly is fine since it IS at
-// emitter line 3591, but keeping as named wrappers improves readability).
-// ─────────────────────────────────────────────────────────────────────────────
-
-func wolf_ends_with_wolf_ext($path) {
-    return wolf_str_ends_with($path, ".wolf")
-}
-
-func wolf_ends_with_test_ext($path) {
-    return wolf_str_ends_with($path, "_test.wolf")
-}
+//
+// Hardening (Session 34):
+//   - wolf_file_list_dir returns OS readdir order (non-deterministic).
+//     We call sort($entries) after listing so discovery order is alphabetical,
+//     matching Go's os.ReadDir sorted output for bootstrap parity.
+//   - Visited-path tracking prevents infinite recursion on circular symlinks.
+//   - Error bubbling: wolf_file_read failures emit a named warning, not silent skip.
+//   - Non-.wolf artifact filtering confirmed in place (emitter, .go, .md all skipped).
+//
+// ABI note (why wolf_str_ends_with is safe here):
+//   Both arguments at every call site are known-string (ptr):
+//     - $fullPath is always a wolf_path_join result (ptr)
+//     - ".wolf" / "_test.wolf" are string literals (ptr)
+//   No type ambiguity at call sites. Return type i1 is unambiguous.
+//   Contrast with the Strings::Contains crash: that was call-site argument
+//   type ambiguity (integer-boxed ptr passed to strstr). Different root cause.
 
 // ─────────────────────────────────────────────────────────────────────────────
 // WolfCompiler
@@ -38,74 +40,6 @@ class WolfCompiler {
         $this->source     = $source
         $this->strict     = $strict
         $this->projectDir = $projectDir
-    }
-
-    // ─── AutoDiscover ──────────────────────────────────────────────────────
-    // Recursively walk $dir, lex+parse every .wolf file that is not a test
-    // and not the main file, and return an array of Program ASTs.
-    // Matches the Go bootstrap walk in autodiscovery.go:
-    //   - Includes all .wolf files (no hidden-entry filter — Go's Walk does not skip them)
-    //   - Excludes _test.wolf
-    //   - Excludes the main file itself (compared by string path)
-    //   - Does NOT skip subdirectories explicitly — wolf_file_list_dir returns
-    //     entries; directories are recurse-detected via wolf_dir_exists.
-
-    public func AutoDiscover($dir, $mainFile) {
-        var $discovered = []
-
-        var $entries = wolf_file_list_dir($dir)
-        if ($entries == nil) {
-            return $discovered
-        }
-
-        var $n = count($entries)
-        var $i = 0
-        while ($i < $n) {
-            var $entry = $entries[$i]
-            $i = intval($i) + 1
-
-            // Build full path
-            var $fullPath = wolf_path_join($dir, $entry)
-
-            // If this entry is a directory — recurse into it
-            if (wolf_dir_exists($fullPath)) {
-                var $sub = $this->AutoDiscover($fullPath, $mainFile)
-                var $j = 0
-                var $subLen = count($sub)
-                while ($j < $subLen) {
-                    Arrays::array_push($discovered, $sub[$j])
-                    $j = intval($j) + 1
-                }
-                // Move to next entry
-            } else {
-                // Must end in .wolf
-                if (!wolf_ends_with_wolf_ext($fullPath)) {
-                    // Not a wolf file — skip
-                } else {
-                    // Exclude _test.wolf
-                    if (wolf_ends_with_test_ext($fullPath)) {
-                        // Test file — skip
-                    } else {
-                        // Exclude the main file itself
-                        if ($fullPath == $mainFile) {
-                            // Self — skip
-                        } else {
-                            // Valid discovered file — lex + parse
-                            var $src = wolf_file_read($fullPath)
-                            if ($src != nil) {
-                                var $lx = new Lexer($src, $fullPath)
-                                var $toks = $lx->Tokenize()
-                                var $pr = new Parser($toks, $fullPath, $src)
-                                var $fileAst = $pr->Parse()
-                                Arrays::array_push($discovered, $fileAst)
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        return $discovered
     }
 
     // ─── Compile ───────────────────────────────────────────────────────────
@@ -139,11 +73,12 @@ class WolfCompiler {
             throw("wolf: parse failed — " .. $this->file)
         }
 
-        // Phase 2.5 — AutoDiscover
+        // Phase 2.5 — AutoDiscover via BuildRunner
         // Only runs when --project was passed.
         if ($this->projectDir != "") {
             if (wolf_dir_exists($this->projectDir)) {
-                var $discoveredAsts = $this->AutoDiscover($this->projectDir, $this->file)
+                var $buildRunner = new BuildRunner()
+                var $discoveredAsts = $buildRunner->AutoDiscover($this->projectDir, $this->file)
                 var $discoveredCount = count($discoveredAsts)
 
                 if ($discoveredCount > 0) {
@@ -152,7 +87,6 @@ class WolfCompiler {
                     var $di = 0
                     while ($di < $discoveredCount) {
                         var $dAst = $discoveredAsts[$di]
-                        // Each $dAst is a Program with ->statements
                         var $dStmts = $dAst->statements
                         var $si = 0
                         while ($si < count($dStmts)) {
@@ -162,8 +96,11 @@ class WolfCompiler {
                         $di = intval($di) + 1
                     }
 
-                    // Prepend discovered statements before main AST statements
-                    // (mirrors: program.Statements = append(allDiscovered, program.Statements...))
+                    // Prepend discovered statements before main AST statements.
+                    // This is the critical merged-program pattern:
+                    // program.Statements = append(allDiscovered, program.Statements...)
+                    // Without this, Resolver->hoistTopLevel runs per-file and
+                    // misses cross-file class declarations ("undefined class: Token").
                     var $merged = []
                     var $mi = 0
                     while ($mi < count($allDiscovered)) {

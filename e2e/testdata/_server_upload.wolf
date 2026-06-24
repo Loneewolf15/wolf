@@ -8,15 +8,11 @@ func handler($req_id: int, $res_id: int) {
     $path   = wolf_http_req_path($req_id)
 
     if ($method == "POST" && $path == "/upload") {
-        $ct = wolf_http_req_header($req_id, "Content-Type")
-        $body = wolf_http_req_body($req_id)
-        $len = count($body)
-        print("Upload CT: {$ct}, Body Len: {$len}")
-
         $file = wolf_http_req_file($req_id, "avatar")
         if ($file == "") {
+            $ct = wolf_http_req_header($req_id, "Content-Type")
             wolf_http_res_status($res_id, 400)
-            wolf_http_res_write($res_id, "{\"error\":\"no file, CT={$ct}, len={$len}\"}")
+            wolf_http_res_write($res_id, "{\"error\":\"no file uploaded, CT={$ct}\"}")
         } else {
             $meta = json_decode($file)
             $name = $meta["name"]

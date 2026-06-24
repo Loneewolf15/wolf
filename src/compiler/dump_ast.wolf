@@ -1,0 +1,11 @@
+import "./Lexer.wolf"
+import "./Token.wolf"
+func main() {
+    var $lexer = new Lexer("$x > 5", "test")
+    var $tokens = $lexer->Tokenize()
+    var $i = 0
+    while ($i < count($tokens)) {
+        print($tokens[$i]->type)
+        $i = intval($i) + 1
+    }
+}

@@ -1,0 +1,14 @@
+// M1: Control flow evaluation
+$x = 10
+if ($x > 5) {
+    $x = 20
+} else {
+    $x = 30
+}
+while ($x > 0) {
+    $x = $x - 1
+}
+for ($i = 0; $i < 5; $i = $i + 1) {
+    $x = $x + 10
+}
+print($x)

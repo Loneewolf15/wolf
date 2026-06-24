@@ -1,0 +1,226 @@
+// src/compiler/WIRBuilder.wolf
+// Converts an AST into WolfIR (WIR)
+
+class WIRBuilder {
+    public $module = nil
+    public $currentBlock = nil
+    public $currentFunc = nil
+    public $regCounter = 0
+    public $labelCounter = 0
+
+    public func __construct() {
+        $this->module = new WIRModule("main")
+    }
+
+    public func nextReg() {
+        var $r = "%" .. $this->regCounter
+        $this->regCounter = intval($this->regCounter) + 1
+        return $r
+    }
+
+    public func nextLabel($prefix) {
+        var $L = $prefix .. $this->labelCounter
+        $this->labelCounter = intval($this->labelCounter) + 1
+        return $L
+    }
+
+    public func build($program) {
+        // Initialize an entrypoint function for top-level statements
+        $this->currentFunc = new WIRFunction("main", [], "i64")
+        $this->currentBlock = new WIRBlock("entry")
+        $this->currentFunc->addBlock($this->currentBlock)
+
+        var $i = 0
+        while ($i < count($program->statements)) {
+            $this->buildStmt($program->statements[$i])
+            $i = intval($i) + 1
+        }
+
+        // Add return 0
+        $this->currentBlock->addInstruction(new WIRInstruction("ret", "", "0", "", "i64"))
+        $this->module->addFunction($this->currentFunc)
+
+        return $this->module
+    }
+
+    public func buildStmt($stmt) {
+        if ($stmt->type == "VarDecl") {
+            var $val = $this->buildExpr($stmt->value)
+            // For now, treat all vars as dynamically typed ptrs
+            $this->currentBlock->addInstruction(new WIRInstruction("alloca", "%" .. $stmt->name, "", "", "ptr"))
+            $this->currentBlock->addInstruction(new WIRInstruction("store", "", $val, "%" .. $stmt->name, "ptr"))
+        } else if ($stmt->type == "AssignStmt") {
+            var $val = $this->buildExpr($stmt->value)
+            if ($stmt->target->type == "DollarIdent") {
+                $this->currentBlock->addInstruction(new WIRInstruction("store", "", $val, "%" .. $stmt->target->name, "ptr"))
+            }
+        } else if ($stmt->type == "BlockStmt") {
+            var $k = 0
+            while ($k < count($stmt->stmts)) {
+                $this->buildStmt($stmt->stmts[$k])
+                $k = intval($k) + 1
+            }
+        } else if ($stmt->type == "IfStmt") {
+            var $condReg = $this->buildExpr($stmt->cond)
+            var $thenBlock = new WIRBlock($this->nextLabel("if.then"))
+            var $endBlock = new WIRBlock($this->nextLabel("if.end"))
+            var $elseBlock = $endBlock
+            
+            if ($stmt->elseBody != nil || count($stmt->elseIfs) > 0) {
+                $elseBlock = new WIRBlock($this->nextLabel("if.else"))
+            }
+            
+            $this->currentBlock->addInstruction(new WIRInstruction("cond_br", "", $condReg, $thenBlock->label, $elseBlock->label))
+            
+            $this->currentFunc->addBlock($thenBlock)
+            $this->currentBlock = $thenBlock
+            
+            if ($stmt->body != nil) {
+                $this->buildStmt($stmt->body)
+            }
+            
+            $this->currentBlock->addInstruction(new WIRInstruction("br", "", $endBlock->label, "", ""))
+            
+            if ($stmt->elseBody != nil) {
+                $this->currentFunc->addBlock($elseBlock)
+                $this->currentBlock = $elseBlock
+                $this->buildStmt($stmt->elseBody)
+                $this->currentBlock->addInstruction(new WIRInstruction("br", "", $endBlock->label, "", ""))
+            }
+            
+            $this->currentFunc->addBlock($endBlock)
+            $this->currentBlock = $endBlock
+        } else if ($stmt->type == "WhileStmt") {
+            var $condBlock = new WIRBlock($this->nextLabel("while.cond"))
+            var $bodyBlock = new WIRBlock($this->nextLabel("while.body"))
+            var $endBlock = new WIRBlock($this->nextLabel("while.end"))
+            
+            $this->currentBlock->addInstruction(new WIRInstruction("br", "", $condBlock->label, "", ""))
+            
+            $this->currentFunc->addBlock($condBlock)
+            $this->currentBlock = $condBlock
+            var $condReg = $this->buildExpr($stmt->cond)
+            $this->currentBlock->addInstruction(new WIRInstruction("cond_br", "", $condReg, $bodyBlock->label, $endBlock->label))
+            
+            $this->currentFunc->addBlock($bodyBlock)
+            $this->currentBlock = $bodyBlock
+            if ($stmt->body != nil) {
+                $this->buildStmt($stmt->body)
+            }
+            $this->currentBlock->addInstruction(new WIRInstruction("br", "", $condBlock->label, "", ""))
+            
+            $this->currentFunc->addBlock($endBlock)
+            $this->currentBlock = $endBlock
+        } else if ($stmt->type == "ForStmt") {
+            // for (init; cond; update) { body }
+            if ($stmt->init != nil) {
+                $this->buildStmt($stmt->init)
+            }
+            
+            var $condBlock = new WIRBlock($this->nextLabel("for.cond"))
+            var $bodyBlock = new WIRBlock($this->nextLabel("for.body"))
+            var $updateBlock = new WIRBlock($this->nextLabel("for.update"))
+            var $endBlock = new WIRBlock($this->nextLabel("for.end"))
+            
+            $this->currentBlock->addInstruction(new WIRInstruction("br", "", $condBlock->label, "", ""))
+            
+            $this->currentFunc->addBlock($condBlock)
+            $this->currentBlock = $condBlock
+            if ($stmt->cond != nil) {
+                var $condReg = $this->buildExpr($stmt->cond)
+                $this->currentBlock->addInstruction(new WIRInstruction("cond_br", "", $condReg, $bodyBlock->label, $endBlock->label))
+            } else {
+                $this->currentBlock->addInstruction(new WIRInstruction("br", "", $bodyBlock->label, "", ""))
+            }
+            
+            $this->currentFunc->addBlock($bodyBlock)
+            $this->currentBlock = $bodyBlock
+            if ($stmt->body != nil) {
+                $this->buildStmt($stmt->body)
+            }
+            $this->currentBlock->addInstruction(new WIRInstruction("br", "", $updateBlock->label, "", ""))
+            
+            $this->currentFunc->addBlock($updateBlock)
+            $this->currentBlock = $updateBlock
+            if ($stmt->update != nil) {
+                $this->buildStmt($stmt->update)
+            }
+            $this->currentBlock->addInstruction(new WIRInstruction("br", "", $condBlock->label, "", ""))
+            
+            $this->currentFunc->addBlock($endBlock)
+            $this->currentBlock = $endBlock
+        } else if ($stmt->type == "ExpressionStmt") {
+            $this->buildExpr($stmt->expr)
+        }
+    }
+
+    public func buildExpr($expr) {
+        if ($expr == nil) {
+            return "nil"
+        }
+        if ($expr->type == "IntLiteral") {
+            return $expr->value
+        }
+        if ($expr->type == "StringLiteral") {
+            var $strReg = $this->nextReg()
+            $this->currentBlock->addInstruction(new WIRInstruction("const_string", $strReg, "\"" .. $expr->value .. "\"", "", "ptr"))
+            return $strReg
+        }
+        if ($expr->type == "DollarIdent") {
+            var $loadReg = $this->nextReg()
+            $this->currentBlock->addInstruction(new WIRInstruction("load", $loadReg, "%" .. $expr->name, "", "ptr"))
+            return $loadReg
+        }
+        if ($expr->type == "BinaryExpr") {
+            var $left = $this->buildExpr($expr->left)
+            var $right = $this->buildExpr($expr->right)
+            var $res = $this->nextReg()
+            var $op = ""
+            var $isCmp = false
+            
+            if ($expr->op == "+") { $op = "add" }
+            else if ($expr->op == "-") { $op = "sub" }
+            else if ($expr->op == "*") { $op = "mul" }
+            else if ($expr->op == "/") { $op = "div" }
+            else if ($expr->op == "==") { 
+                $op = "eq"
+                $isCmp = true 
+            }
+            else if ($expr->op == "!=") { 
+                $op = "ne"
+                $isCmp = true 
+            }
+            else if ($expr->op == ">")  { 
+                $op = "sgt"
+                $isCmp = true 
+            }
+            else if ($expr->op == "<")  { 
+                $op = "slt"
+                $isCmp = true 
+            }
+            else if ($expr->op == ">=") { 
+                $op = "sge"
+                $isCmp = true 
+            }
+            else if ($expr->op == "<=") { 
+                $op = "sle"
+                $isCmp = true 
+            }
+            
+            if ($expr->op == "=") {
+                // If it's an assignment, the left side is usually a DollarIdent.
+                // We emit a store instruction.
+                $this->currentBlock->addInstruction(new WIRInstruction("store", "", $right, "%" .. $expr->left->name, "ptr"))
+                return $right
+            }
+            
+            if ($isCmp) {
+                $this->currentBlock->addInstruction(new WIRInstruction("cmp", $res, $left, $right, $op))
+            } else {
+                $this->currentBlock->addInstruction(new WIRInstruction($op, $res, $left, $right, "i64"))
+            }
+            return $res
+        }
+        return "nil"
+    }
+}

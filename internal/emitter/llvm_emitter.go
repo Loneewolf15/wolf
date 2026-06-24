@@ -267,12 +267,26 @@ func (e *LLVMEmitter) Emit(program *ir.Program) string {
 	//   • All parameters have no explicit type annotation (Wolf default) AND
 	//     every use inside the body is an integer arithmetic/comparison context.
 	//   • Every return statement returns an integer-typed expression.
-	// We do a conservative approximation: if inferExprType of every return value
-	// in the body is i64 AND no parameter ever appears as a ptr argument to a
-	// call that expects ptr (e.g. wolf_map_set, string concat), mark it pure.
+	// We use a fixed-point iteration: assume all functions with no explicit
+	// non-int params might be pure, then iteratively remove those that fail.
+
+	// Step 1: Optimistic assumption (everyone might be pure)
 	for _, fn := range program.Functions {
-		if isFuncIntegerPure(fn, e.funcSigs) {
-			e.intUnboxFuncs[fn.Name] = true
+		e.intUnboxFuncs[fn.Name] = true
+	}
+
+	// Step 2: Fixed-point elimination
+	changed := true
+	for changed {
+		changed = false
+		for _, fn := range program.Functions {
+			if !e.intUnboxFuncs[fn.Name] {
+				continue
+			}
+			if !isFuncIntegerPure(fn, e.intUnboxFuncs) {
+				e.intUnboxFuncs[fn.Name] = false
+				changed = true
+			}
 		}
 	}
 
@@ -475,6 +489,7 @@ func (e *LLVMEmitter) Emit(program *ir.Program) string {
 	e.writeln("declare ptr @wolf_strings_split(ptr, ptr)")
 	e.writeln("declare ptr @wolf_strings_trimleft(ptr, ptr)")
 	e.writeln("declare ptr @wolf_strings_trimright(ptr, ptr)")
+	e.writeln("declare ptr @wolf_strings_trim(ptr)")
 	e.writeln("declare ptr @wolf_strings_join(ptr, ptr)")
 	e.writeln("declare ptr @wolf_json_encode(ptr)")
 	e.writeln("")
@@ -734,6 +749,7 @@ func (e *LLVMEmitter) Emit(program *ir.Program) string {
 	e.writeln("declare i1 @wolf_file_move(ptr, ptr)")
 	e.writeln("declare i1 @wolf_dir_create(ptr)")
 	e.writeln("declare ptr @wolf_path_join(ptr, ptr)")
+	e.writeln("declare ptr @wolf_path_dir(ptr)")
 	e.writeln("declare ptr @wolf_scan_dir(ptr)")
 	e.writeln("declare ptr @wolf_file_list_dir(ptr)")
 	e.writeln("declare ptr @wolf_sys_getenv(ptr)")
@@ -3578,7 +3594,7 @@ func (e *LLVMEmitter) emitCallExpr(call *ir.CallExpr) string {
 			retType = "ptr"
 		case "wolf_http_get", "wolf_http_post", "wolf_http_put", "wolf_http_delete", "wolf_http_patch", "wolf_http_set_header":
 			retType = "ptr"
-		case "wolf_path_join", "wolf_scan_dir", "wolf_file_list_dir", "wolf_sys_getenv", "wolf_os_exec":
+		case "wolf_path_join", "wolf_path_dir", "wolf_scan_dir", "wolf_file_list_dir", "wolf_sys_getenv", "wolf_os_exec":
 			retType = "ptr"
 		case "wolf_typeof", "wolf_settype", "wolf_money_format", "wolf_pluralise", "wolf_phone_format":
 			retType = "ptr"

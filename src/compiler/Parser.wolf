@@ -81,12 +81,16 @@ class Parser {
         var $tt = $tok->type
 
         if ($tt == TokenType::VAR)       { return $this->parseVarDecl() }
+        if ($tt == TokenType::IMPORT)    { return $this->parseImportStmt() }
         if ($tt == TokenType::IF)        { return $this->parseIfStmt() }
         if ($tt == TokenType::FOR)       { return $this->parseForStmt() }
         if ($tt == TokenType::FOREACH)   { return $this->parseForeachStmt() }
         if ($tt == TokenType::WHILE)     { return $this->parseWhileStmt() }
         if ($tt == TokenType::RETURN)    { return $this->parseReturnStmt() }
         if ($tt == TokenType::CLASS)     { return $this->parseClassDecl() }
+        if ($tt == TokenType::INTERFACE) { return $this->parseInterfaceDecl() }
+        if ($tt == TokenType::ENUM)      { return $this->parseEnumDecl() }
+        if ($tt == TokenType::TRY)       { return $this->parseTryCatchStmt() }
         if ($tt == TokenType::FUNC)      { return $this->parseFuncDecl("", false, false) }
         if ($tt == TokenType::MATCH)     { return $this->parseMatchStmt() }
         if ($tt == TokenType::PUBLIC || $tt == TokenType::PRIVATE || $tt == TokenType::PROTECTED) {
@@ -200,6 +204,27 @@ class Parser {
         $this->expect(TokenType::RBRACE, "expected '}'")
         return new BlockStmt($stmts)
     }
+
+    public func parseImportStmt() {
+        var $stmt = new ImportStmt()
+        $this->advance() // consume 'import'
+        
+        var $pathTok = $this->expect(TokenType::STRING, "Expected string path after 'import'")
+        var $rawPath = $this->getTokenText($pathTok)
+        // Strip quotes
+        $stmt->path = Strings::Substring($rawPath, 1, Strings::Length($rawPath) - 1)
+        
+        if ($this->check(TokenType::AS)) {
+            $this->advance()
+            var $aliasTok = $this->expect(TokenType::IDENT, "Expected identifier after 'as'")
+            $stmt->alias = $this->getTokenText($aliasTok)
+        }
+        
+        $this->consumeSemicolon()
+        return $stmt
+    }
+
+    // ========== Advanced Declarations ==========
 
     // ========== Control Flow ==========
 
@@ -389,6 +414,121 @@ class Parser {
             }
         }
         return $params
+    }
+
+    // ========== Enum Declaration ==========
+
+    public func parseEnumDecl() {
+        $this->advance() // consume 'enum'
+
+        var $nameTok = $this->expect(TokenType::IDENT, "expected enum name")
+        var $name = $this->getTokenText($nameTok)
+
+        if ($this->currentNamespace != "") {
+            $name = $this->currentNamespace .. "_" .. $name
+        }
+
+        $this->expect(TokenType::LBRACE, "expected '{' after enum name")
+
+        var $variants = []
+        while (!$this->check(TokenType::RBRACE) && !$this->isAtEnd()) {
+            if ($this->check(TokenType::IDENT)) {
+                var $vTok = $this->advance()
+                Arrays::array_push($variants, $this->getTokenText($vTok))
+            } else {
+                $this->addError("expected enum variant identifier")
+                $this->advance()
+            }
+            if ($this->check(TokenType::COMMA)) {
+                $this->advance()
+            }
+        }
+        $this->expect(TokenType::RBRACE, "expected '}' to close enum body")
+
+        var $node = new EnumDecl($name)
+        $node->variants = $variants
+        return $node
+    }
+
+    // ========== Interface Declaration ==========
+
+    public func parseInterfaceDecl() {
+        $this->advance() // consume 'interface'
+
+        var $nameTok = $this->expect(TokenType::IDENT, "expected interface name")
+        var $name = $this->getTokenText($nameTok)
+
+        if ($this->currentNamespace != "") {
+            $name = $this->currentNamespace .. "_" .. $name
+        }
+
+        $this->expect(TokenType::LBRACE, "expected '{' after interface name")
+
+        var $methods = []
+        while (!$this->check(TokenType::RBRACE) && !$this->isAtEnd()) {
+            if ($this->check(TokenType::FUNC)) {
+                var $m = $this->parseInterfaceMethod()
+                Arrays::array_push($methods, $m)
+            } else {
+                $this->addError("expected method signature in interface body")
+                $this->advance()
+            }
+        }
+        $this->expect(TokenType::RBRACE, "expected '}' to close interface body")
+
+        var $node = new InterfaceDecl($name)
+        $node->methods = $methods
+        return $node
+    }
+
+    public func parseInterfaceMethod() {
+        $this->advance() // consume 'func'
+
+        var $name = ""
+        if ($this->check(TokenType::IDENT)) {
+            var $tok = $this->advance()
+            $name = $this->getTokenText($tok)
+        } else {
+            $this->addError("expected method name in interface")
+        }
+
+        var $params = $this->parseParamList()
+        
+        // Return type ignored for now in untyped wolf compiler
+        if ($this->check(TokenType::ARROW)) {
+            $this->advance() // consume arrow
+            // We just advance past the return type token for now if there is one
+            $this->advance()
+        }
+
+        var $node = new InterfaceMethod($name)
+        $node->params = $params
+        return $node
+    }
+
+    // ========== Try/Catch Statement ==========
+
+    public func parseTryCatchStmt() {
+        $this->advance() // consume 'try'
+
+        var $tryBody = $this->parseBlock()
+
+        $this->expect(TokenType::CATCH, "expected 'catch' after try block")
+
+        var $catchVar = ""
+        if ($this->check(TokenType::LPAREN)) {
+            $this->advance()
+            if ($this->check(TokenType::DOLLAR_IDENT)) {
+                var $vTok = $this->advance()
+                $catchVar = $this->getTokenText($vTok)
+            }
+            $this->expect(TokenType::RPAREN, "expected ')' after catch variable")
+        }
+
+        var $catchBody = $this->parseBlock()
+
+        var $node = new TryCatchStmt($tryBody, $catchVar, $catchBody)
+        return $node
     }
 
     // ========== Class Declaration ==========

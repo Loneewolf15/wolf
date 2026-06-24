@@ -14,6 +14,20 @@
 - **Fix:** Added `print("Wolf HTTP Server running")` to `e2e/testdata/_server_upload.wolf`. The test now correctly initiates the request (although it currently hits a 400 Bad Request error due to pointer mismatch in the C-runtime `wolf_http_req_file` signature, but it fails fast in ~20s instead of 10m).
 - **File:** `e2e/testdata/_server_upload.wolf`
 
+### BUG-088: `TestFileUpload` returns 400 — multipart uploads never parsed in new HTTP engine
+- **Class:** P0 🔴 Runtime / Correctness (E2E test blocker)
+- **Root cause (triple bug):**
+  1. **Missing multipart parsing in new engine:** `wolf_engine_parse_request()` in `wolf_http_engine.c` parsed headers and body but never called multipart parsing. Uploads were parsed by the old `wolf_parse_multipart()` into `http_contexts[]`, but `wolf_http_req_file()` reads from `wolf_core_ctxs[]` (the new engine's context). The upload data was written to the wrong context array — a complete miss. `ctx->upload_count` always stayed 0, so `wolf_http_req_file` always returned `""`.
+  2. **Stale compiled object cache:** `runtimeCacheKey()` only hashed `wolf_runtime.c`, but `wolf_http_engine.c` is `#include`d by it. Changing `wolf_http_engine.c` didn't change the cache key, so the stale `.o` from `/tmp/wolf_rt_cache/` was reused silently — making it appear the runtime fix had no effect.
+  3. **Debug `print()` inside HTTP handler:** A debugging `print("Upload CT: ...")` inside the Wolf test server's HTTP handler wrote its output to `ctx->res_body`, prepending it to the JSON response and making it invalid JSON.
+- **Fix:**
+  1. Added `wolf_engine_parse_multipart()` to `runtime/wolf_http_engine.c` — a self-contained multipart parser using `memmem()` (POSIX) for boundary search and `wolf_arena_alloc()`/`wolf_arena_strdup()` for arena-backed string storage. Populates `WolfConnCtx.uploads[]` and `ctx->upload_count`. Called at the end of `wolf_engine_parse_request()` when `Content-Type: multipart/form-data` is detected. Also added `body_len` computation and `content_type_val` tracking to `wolf_engine_parse_request()`.
+  2. Updated `runtimeCacheKey()` in `internal/compiler/compiler.go` to also hash `wolf_http_engine.c` alongside `wolf_runtime.c`, ensuring cache invalidation when either file changes.
+  3. Removed debug `print()` and its associated unused variables (`$ct`, `$body`, `$len`) from the HTTP handler in `e2e/testdata/_server_upload.wolf`. Moved `$ct` into the error branch only.
+- **Result:** `TestFileUpload` passes with `{"received":true,"name":"test_photo.jpg","size":26}` ✅
+- **Files:** `runtime/wolf_http_engine.c`, `internal/compiler/compiler.go`, `e2e/testdata/_server_upload.wolf`
+
+
 ## Session 2026-06-22 (Session 32 — Self-Hosting Compiler Milestone)
 
 ### BUG-084: Parser `namespace` keyword collision on property access
@@ -369,8 +383,8 @@
 
 ## Status Ledger
 
-- Total bugs fixed: **60** (BUG-001 through BUG-085, including N-series omissions)
-- E2E tests: **10/10 Phase 2 tests passing** (`01_hello`, `14_classes`, `36_closures`, `39_interfaces`, `41_enums`, `42_try_catch`, `43_visibility`, `44_package_system`, `52_supervise`, `54_cpu_preempt`)
+- Total bugs fixed: **62** (BUG-001 through BUG-088, including N-series omissions)
+- E2E tests: **10/10 Phase 2 tests passing** (`01_hello`, `14_classes`, `36_closures`, `39_interfaces`, `41_enums`, `42_try_catch`, `43_visibility`, `44_package_system`, `52_supervise`, `54_cpu_preempt`) + `TestFileUpload` ✅ + `TestGracefulShutdown` ✅
 - Open: **None** (BUG-052 closed ✅)
 - Next Bloodhound Sweep: Monitor for `libcurl` multi-handle leakage if we move from synchronous `easy` interface to asynchronous.
 ---

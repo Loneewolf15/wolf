@@ -47,6 +47,17 @@ func (s *ExpressionStmt) nodeType() string    { return "ExpressionStmt" }
 func (s *ExpressionStmt) Pos() lexer.Position { return s.Pos_ }
 func (s *ExpressionStmt) stmtNode()           {}
 
+// ImportStmt represents import "path" or import "path" as alias
+type ImportStmt struct {
+	Path  string
+	Alias string // may be empty
+	Pos_  lexer.Position
+}
+
+func (s *ImportStmt) nodeType() string    { return "ImportStmt" }
+func (s *ImportStmt) Pos() lexer.Position { return s.Pos_ }
+func (s *ImportStmt) stmtNode()           {}
+
 // VarDecl represents a typed variable declaration: var $x: int = 42
 type VarDecl struct {
 	Name     string     // variable name including $

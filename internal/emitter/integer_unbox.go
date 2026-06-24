@@ -33,7 +33,7 @@ import (
 //     evaluates to i64 (IntLit, integer binary op, or call to another Wolf
 //     user function — which may also be integer-pure after the same analysis).
 //  4. No parameter escapes to a ptr context (string concat, map ops, print).
-func isFuncIntegerPure(fn *ir.Function, funcSigs map[string]*ir.Function) bool {
+func isFuncIntegerPure(fn *ir.Function, pureFuncs map[string]bool) bool {
 	if len(fn.Params) == 0 {
 		return false
 	}
@@ -48,14 +48,14 @@ func isFuncIntegerPure(fn *ir.Function, funcSigs map[string]*ir.Function) bool {
 
 	// Scan body: all return values must be integer-pure, no ptr escapes.
 	hasReturn := false
-	if !isBodyIntegerPure(fn.Body, fn.Params, funcSigs, &hasReturn) {
+	if !isBodyIntegerPure(fn.Body, fn.Params, pureFuncs, &hasReturn) {
 		return false
 	}
 	return hasReturn // must have at least one return with an integer value
 }
 
 // isBodyIntegerPure recursively walks stmts checking for integer purity.
-func isBodyIntegerPure(stmts []ir.Stmt, params []*ir.Param, funcSigs map[string]*ir.Function, hasReturn *bool) bool {
+func isBodyIntegerPure(stmts []ir.Stmt, params []*ir.Param, pureFuncs map[string]bool, hasReturn *bool) bool {
 	for _, stmt := range stmts {
 		switch s := stmt.(type) {
 		case *ir.ReturnStmt:
@@ -63,43 +63,74 @@ func isBodyIntegerPure(stmts []ir.Stmt, params []*ir.Param, funcSigs map[string]
 				continue
 			}
 			for _, v := range s.Values {
-				if !isExprIntegerPure(v, funcSigs) {
+				if !isExprIntegerPure(v, pureFuncs) {
 					return false
 				}
 			}
 			*hasReturn = true
 
 		case *ir.IfStmt:
-			if !isBodyIntegerPure(s.Body, params, funcSigs, hasReturn) {
+			if !isBodyIntegerPure(s.Body, params, pureFuncs, hasReturn) {
 				return false
 			}
 			for _, elif := range s.ElseIfs {
-				if !isBodyIntegerPure(elif.Body, params, funcSigs, hasReturn) {
+				if !isBodyIntegerPure(elif.Body, params, pureFuncs, hasReturn) {
 					return false
 				}
 			}
-			if !isBodyIntegerPure(s.ElseBody, params, funcSigs, hasReturn) {
+			if !isBodyIntegerPure(s.ElseBody, params, pureFuncs, hasReturn) {
 				return false
 			}
 
 		case *ir.ForStmt:
-			if !isBodyIntegerPure(s.Body, params, funcSigs, hasReturn) {
+			if !isBodyIntegerPure(s.Body, params, pureFuncs, hasReturn) {
 				return false
 			}
 
 		case *ir.BlockStmt:
-			if !isBodyIntegerPure(s.Stmts, params, funcSigs, hasReturn) {
+			if !isBodyIntegerPure(s.Stmts, params, pureFuncs, hasReturn) {
+				return false
+			}
+
+		case *ir.TryCatchStmt:
+			// BUG-083 fix: try/catch body MUST be scanned.
+			// Functions with try blocks were previously not scanned,
+			// causing them to be wrongly promoted to i64 return type
+			// even when the try body calls string-returning functions.
+			if !isBodyIntegerPure(s.TryBody, params, pureFuncs, hasReturn) {
+				return false
+			}
+			if !isBodyIntegerPure(s.CatchBody, params, pureFuncs, hasReturn) {
 				return false
 			}
 
 		case *ir.VarDeclStmt:
-			// Local variable declarations are allowed even if non-integer.
-			// We only care that *return values* and *param usages* stay integer.
-			_ = s
+			// Check if the RHS is a non-integer call — if so, this
+			// function assigns a ptr result to a local, disqualifying
+			// the function from integer promotion.
+			if s.Value != nil {
+				if call, ok := s.Value.(*ir.CallExpr); ok {
+					if ident, ok2 := call.Callee.(*ir.Ident); ok2 {
+						if !pureFuncs[ident.Name] {
+							return false
+						}
+					}
+				}
+			}
 
 		case *ir.AssignStmt:
-			// Assignments allowed; we don't trace escape through locals here.
-			_ = s
+			// Check if the RHS is a non-integer call — if so, this
+			// function assigns a ptr result to a local, disqualifying
+			// the function from integer promotion.
+			if s.Value != nil {
+				if call, ok := s.Value.(*ir.CallExpr); ok {
+					if ident, ok2 := call.Callee.(*ir.Ident); ok2 {
+						if !pureFuncs[ident.Name] {
+							return false
+						}
+					}
+				}
+			}
 
 		case *ir.ExprStmt:
 			// Side-effect expressions (e.g. println) allowed.
@@ -111,7 +142,7 @@ func isBodyIntegerPure(stmts []ir.Stmt, params []*ir.Param, funcSigs map[string]
 
 // isExprIntegerPure returns true when expr statically evaluates to i64 and
 // does not require boxing any value as a ptr.
-func isExprIntegerPure(expr ir.Expr, funcSigs map[string]*ir.Function) bool {
+func isExprIntegerPure(expr ir.Expr, pureFuncs map[string]bool) bool {
 	if expr == nil {
 		return false
 	}
@@ -129,33 +160,28 @@ func isExprIntegerPure(expr ir.Expr, funcSigs map[string]*ir.Function) bool {
 		switch ex.Op {
 		case "+", "-", "*", "/", "%":
 			// Arithmetic: both operands must be integer-pure
-			return isExprIntegerPure(ex.Left, funcSigs) &&
-				isExprIntegerPure(ex.Right, funcSigs)
+			return isExprIntegerPure(ex.Left, pureFuncs) &&
+				isExprIntegerPure(ex.Right, pureFuncs)
 		case "==", "!=", "<", ">", "<=", ">=":
 			// Comparison: operands must be integer-pure; result is i1 (boolean),
 			// which we allow as a sub-expression in a conditional (not as a
 			// return value directly — that case is handled in isBodyIntegerPure).
-			return isExprIntegerPure(ex.Left, funcSigs) &&
-				isExprIntegerPure(ex.Right, funcSigs)
+			return isExprIntegerPure(ex.Left, pureFuncs) &&
+				isExprIntegerPure(ex.Right, pureFuncs)
 		default:
 			return false
 		}
 
 	case *ir.UnaryExpr:
 		if ex.Op == "-" {
-			return isExprIntegerPure(ex.Operand, funcSigs)
+			return isExprIntegerPure(ex.Operand, pureFuncs)
 		}
 		return false
 
 	case *ir.CallExpr:
 		// Recursive or mutual call to a user-defined Wolf function.
-		// We allow it conservatively: if it's in funcSigs it's a Wolf function
-		// (not a runtime ptr-returning stdlib call). After the full pre-pass,
-		// callee functions that are also integer-pure will be promoted too.
 		if ident, ok := ex.Callee.(*ir.Ident); ok {
-			if _, found := funcSigs[ident.Name]; found {
-				return true // user Wolf function — may be pure; allow optimistically
-			}
+			return pureFuncs[ident.Name]
 		}
 		return false
 

@@ -1,0 +1,42 @@
+import "./Lexer.wolf"
+import "./Token.wolf"
+import "./Parser.wolf"
+import "./AST.wolf"
+import "./WIR.wolf"
+import "./WIRBuilder.wolf"
+import "./WIRInterpreter.wolf"
+import "./LLVMEmitter.wolf"
+
+func main() {
+    var $source = "var $x = 10; var $y = $x + 20;"
+    
+    print("Lexing...")
+    var $lexer = new Lexer($source, "test")
+    var $tokens = $lexer->Tokenize()
+
+    print("Parsing...")
+    var $parser = new Parser($tokens, "test", $source)
+    var $ast = $parser->Parse()
+
+    if (count($parser->Errors()) > 0) {
+        print("Parse errors found!")
+        wolf_system_exit(1)
+    }
+
+    print("Building WIR...")
+    var $builder = new WIRBuilder()
+    var $module = $builder->build($ast)
+
+    print("--- WIR Output ---")
+    print($module->to_string())
+
+    print("--- Interpreter Run ---")
+    var $interpreter = new WIRInterpreter()
+    var $ret = $interpreter->runModule($module)
+    print("Return value: " .. $ret)
+    print("Variable y value in registers: " .. $interpreter->registers["%y"])
+
+    print("--- LLVM IR Output ---")
+    var $llvmemitter = new LLVMEmitter($module)
+    print($llvmemitter->emit())
+}

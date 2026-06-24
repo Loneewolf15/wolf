@@ -27,6 +27,7 @@ const (
 	TOKEN_STRING_LITERAL_PART // literal text segment inside interpolated string
 
 	// Keywords
+	TOKEN_IMPORT     // import
 	TOKEN_FUNC       // func / howl / function (all three are valid — see keywords map)
 	TOKEN_CLASS      // class
 	TOKEN_NEW        // new
@@ -143,6 +144,7 @@ var tokenTypeNames = map[TokenType]string{
 	TOKEN_STRING_INTERP_START: "STRING_INTERP_START",
 	TOKEN_STRING_INTERP_END:   "STRING_INTERP_END",
 	TOKEN_STRING_LITERAL_PART: "STRING_LITERAL_PART",
+	TOKEN_IMPORT:              "IMPORT",
 	TOKEN_FUNC:                "FUNC", // matched by: func, howl, function
 	TOKEN_CLASS:               "CLASS",
 	TOKEN_NEW:                 "NEW",
@@ -236,6 +238,7 @@ var keywords = map[string]TokenType{
 	// func     = Go-style (legacy, backward compat)
 	// howl     = Wolf-branded (unique identity)
 	// function = PHP/JS-familiar (zero relearning for PHP devs)
+	"import":     TOKEN_IMPORT,
 	"func":       TOKEN_FUNC,
 	"howl":       TOKEN_FUNC,
 	"function":   TOKEN_FUNC,

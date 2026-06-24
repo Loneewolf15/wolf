@@ -1,6 +1,10 @@
-$files = wolf_file_list_dir("src/compiler")
-$i = 0
-while ($i < count($files)) {
-    print($files[$i])
-    $i = $i + 1
+func might_fail($fail) {
+    if ($fail) {
+        error("Intentional failure!")
+    }
+    return "Success"
+}
+func nested_call($fail) {
+    $res = might_fail($fail)
+    return $res
 }

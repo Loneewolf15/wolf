@@ -22,7 +22,8 @@ import (
 func isHTTPTest(name string) bool {
 	return strings.HasPrefix(name, "30_") ||
 		strings.HasPrefix(name, "31_") ||
-		name == "37_http_client.wolf"
+		name == "37_http_client.wolf" ||
+		name == "58_sockets.wolf"
 }
 
 func TestEndToEnd(t *testing.T) {
