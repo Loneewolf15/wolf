@@ -73,6 +73,10 @@ class BuildRunner {
                                 var $toks = $lx->Tokenize()
                                 var $pr = new Parser($toks, $fullPath, $src)
                                 var $fileAst = $pr->Parse()
+                                if (count($pr->Errors()) > 0) {
+                                    print("PARSE ERROR in " .. $fullPath .. ": " .. $pr->Errors()[0]["message"])
+                                    wolf_system_exit(1)
+                                }
                                 Arrays::array_push($discovered, $fileAst)
                             }
                         }
