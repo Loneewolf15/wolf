@@ -2,18 +2,18 @@
 
 > Updated every session via `/wrap-up`. Read via `/resume`.
 
-## Current Sprint: Sprint 11 — Language Completeness & StdLib Polish 🚀
+## Current Sprint: Sprint 11 — Language Completeness & StdLib Polish ✅
 
 ### Active Tasks
 | Task | Status | Blocking |
 |------|--------|---------|
-| True Lexical Closures (Variable Capture) | ⏳ Pending | Phase 4 (Pattern Matching) |
-| Stdlib Polish (`slug`, `truncate`) | ⏳ Pending | Phase 2 Completion |
-| Higher-Order Utilities (`pipeline`, `retry`) | ⏳ Pending | — |
+| True Lexical Closures (Variable Capture) | ✅ Done | — |
+| Stdlib Polish (`slug`, `truncate`) | ✅ Done | — |
+| Higher-Order Utilities (`pipeline`, `retry`) | ✅ Done | — |
 | `wolf dev` Hot Reload Server | ⏳ Pending | — |
 
 ### Queen's Ruling — Sprint 11 Charter
-> Sprint 10 is officially complete (Test Runner, Compiler Explain CLI, and E2E Hardening). The Swarm's next primary directive is Sprint 11. We must close out **Phase 4 (Language Completeness)** by implementing True Lexical Closures (heap-captured environments for first-class functions). Simultaneously, we will finalize **Phase 2 (StdLib Completion)** by implementing the remaining unblocked utilities (`slug`, `truncate`, `pipeline`). No production release happens without true closures.
+> Sprint 11 is complete. All three language completeness tasks are shipped and committed (`3e728da`). The next sprint must address: (1) `wolf dev` hot reload, (2) first-class static method references as values (enabling `pipeline(val, [Strings::trim])` without lambda wrappers), and (3) Wolf LSP + VS Code foundation.
 
 ## Completed Sprints
 - [x] **Sprint 9: Package Registry MVP** — 2026-06-21
@@ -46,12 +46,25 @@ graph TD
 ```
 
 ### Next Unblocked Tasks
-1. `wolf-self --project <dir>` Project mode for self-hosted compiler.
-2. `__class` key filtering in `wolf_json_encode_map`.
-3. `wolf install` package registry specs.
-4. Wolf LSP + VS Code foundation.
+1. `wolf dev` hot reload server (watch mode, recompile on change).
+2. First-class static method references as values (`[Strings::trim, Strings::slug]` in arrays).
+3. `__class` key filtering in `wolf_json_encode_map`.
+4. `wolf install` package registry specs.
+5. Wolf LSP + VS Code foundation.
 
 ## Session History
+
+### 2026-06-26 (Session 34 — Sprint 11: Closures + StdLib Polish)
+**Done:**
+- Verified True Lexical Closures are complete: `escape_analysis.go` (escape analysis, heap-lifts captured vars via `wolf_req_alloc`) is integrated into the LLVM emitter.
+- Added E2E test `45_closures_mutation.wolf` — two closures mutate the same outer `$counter`, final value confirmed 5. Compiles and executes correctly via native LLVM.
+- Added `wolf_strings_slug` and `wolf_strings_truncate` to `wolf_runtime.c` as first-class native C implementations.
+- Added Go fallback `Slug()` and `Truncate()` to `stdlib/strings.go` for the interpreter path.
+- Wired LLVM header declarations in `llvm_emitter.go` (`declare ptr @wolf_strings_slug`, `declare ptr @wolf_strings_truncate`).
+- Added `stdlib/higher_order.wolf` (`pipeline`, `retry`) to git tracking and integrated it by extending the `legacyAutoDiscover` scan dirs to include `stdlib/`.
+- Added E2E test `46_stdlib_polish.wolf` — `slug`, `truncate`, and `pipeline` (via lambda closures) all pass.
+- All `go test ./internal/... ./stdlib/...` tests pass (18 packages, 0 failures).
+- Committed: `3e728da feat(sprint-11): lexical closures + stdlib polish`
 
 ### 2026-06-22 (Session 33 — CLI UX & Project Mode Planning)
 **Done:**
