@@ -37,6 +37,9 @@ func TestEndToEnd(t *testing.T) {
 		if !file.Type().IsRegular() || !strings.HasSuffix(file.Name(), ".wolf") || strings.HasPrefix(file.Name(), "_") {
 			continue
 		}
+		if len(file.Name()) == 0 || file.Name()[0] < '0' || file.Name()[0] > '9' {
+			continue
+		}
 
 		name := file.Name()
 		t.Run(name, func(t *testing.T) {

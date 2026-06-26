@@ -1,0 +1,22 @@
+// 45_closures_mutation.wolf
+var $counter = 0
+
+var $increment = func() {
+    $counter = $counter + 1
+    return $counter
+}
+
+var $add = func($amount) {
+    $counter = $counter + $amount
+    return $counter
+}
+
+$increment()
+$increment()
+$add(3)
+
+if ($counter != 5) {
+    println("FAILED: counter is not 5, got " .. $counter)
+} else {
+    println("OK: Closure mutated outer scope variable correctly")
+}

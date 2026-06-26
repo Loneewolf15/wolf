@@ -87,6 +87,11 @@ func isBodyIntegerPure(stmts []ir.Stmt, params []*ir.Param, pureFuncs map[string
 				return false
 			}
 
+		case *ir.RangeStmt:
+			// A foreach loop implies the iterable is an array (ptr), which disqualifies
+			// the function from being integer-pure.
+			return false
+
 		case *ir.BlockStmt:
 			if !isBodyIntegerPure(s.Stmts, params, pureFuncs, hasReturn) {
 				return false

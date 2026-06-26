@@ -1,0 +1,27 @@
+// 46_stdlib_polish.wolf
+
+// Test string slug
+var $slugged = Strings::slug("  Hello World! 123  ")
+if ($slugged != "hello-world-123") {
+    println("FAILED: slug=" .. $slugged)
+} else {
+    println("OK: slug works")
+}
+
+// Test string truncate
+var $trunc = Strings::truncate("Hello World", 5, "...")
+if ($trunc != "Hello...") {
+    println("FAILED: truncate=" .. $trunc)
+} else {
+    println("OK: truncate works")
+}
+
+// Test pipeline with lambda wrappers (static method refs as first-class values are a future feature)
+var $trim_fn = func($s) { return Strings::trim($s) }
+var $slug_fn = func($s) { return Strings::slug($s) }
+var $res = pipeline("  wolf lang  ", [$trim_fn, $slug_fn])
+if ($res != "wolf-lang") {
+    println("FAILED: pipeline=" .. $res)
+} else {
+    println("OK: pipeline works")
+}

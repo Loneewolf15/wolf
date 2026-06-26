@@ -1,0 +1,32 @@
+// Higher-Order Utility Functions for Wolf StdLib
+
+// pipeline() pipes a value through a sequence of functions.
+// Example:
+//   $result = pipeline(" hello ", trim, upper, slug)
+func pipeline($value, $funcs) {
+    $result = $value
+    foreach $funcs as $fn {
+        $result = $fn($result)
+    }
+    return $result
+}
+
+// retry() executes a function and retries it up to maxAttempts times if it fails.
+// Note: Currently assumes wolf_retry_sleep() exists or we can just use sleep().
+func retry($maxAttempts, $fn) {
+    $attempt = 0
+    while $attempt < $maxAttempts {
+        try {
+            $result = $fn()
+            return $result
+        } catch ($e) {
+            $attempt++
+            if $attempt >= $maxAttempts {
+                return nil // Or we could re-throw if Wolf had 'throw'
+            }
+            // Sleep for exponential backoff (e.g. 1 second)
+            sleep(1)
+        }
+    }
+    return nil
+}

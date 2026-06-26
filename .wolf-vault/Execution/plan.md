@@ -2,23 +2,18 @@
 
 > Updated every session via `/wrap-up`. Read via `/resume`.
 
-## Current Sprint: Sprint 10 — Ecosystem & Observability 🔄
+## Current Sprint: Sprint 11 — Language Completeness & StdLib Polish 🚀
 
 ### Active Tasks
 | Task | Status | Blocking |
 |------|--------|---------|
-| `wolf install` (Package Registry MVP) | ✅ Completed | — |
-| Geometric Block-Growth Allocator (Phase 3) | ✅ Completed | — |
-| `localhost:8081` Visual Dashboard overhaul | ✅ Completed | — |
-| `wolf docker init` | ✅ Completed | — |
-| Compiler Parser Refactoring (Pratt Parser) | ✅ Completed | — |
-| Partial Self-Hosting Milestone | ✅ Completed | — |
-| `wolf test` built-in test runner | 🔄 Pending | — |
-| `wolf explain` AI error diagnostic tool | 🔄 Pending | — |
-| Wolf LSP + VS Code foundation | ⏸ Deferred to Phase 11 | — |
+| True Lexical Closures (Variable Capture) | ⏳ Pending | Phase 4 (Pattern Matching) |
+| Stdlib Polish (`slug`, `truncate`) | ⏳ Pending | Phase 2 Completion |
+| Higher-Order Utilities (`pipeline`, `retry`) | ⏳ Pending | — |
+| `wolf dev` Hot Reload Server | ⏳ Pending | — |
 
-### Queen's Ruling — Sprint 10 Charter
-> Ecosystem and observability foundations are set. The next immediate focus should be Compiler Parser Refactoring to implement proper expression precedence (Pratt Parser) for robust grammar parsing.
+### Queen's Ruling — Sprint 11 Charter
+> Sprint 10 is officially complete (Test Runner, Compiler Explain CLI, and E2E Hardening). The Swarm's next primary directive is Sprint 11. We must close out **Phase 4 (Language Completeness)** by implementing True Lexical Closures (heap-captured environments for first-class functions). Simultaneously, we will finalize **Phase 2 (StdLib Completion)** by implementing the remaining unblocked utilities (`slug`, `truncate`, `pipeline`). No production release happens without true closures.
 
 ## Completed Sprints
 - [x] **Sprint 9: Package Registry MVP** — 2026-06-21

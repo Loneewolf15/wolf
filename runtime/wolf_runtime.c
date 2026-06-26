@@ -2990,6 +2990,46 @@ int64_t wolf_strings_charcode_at(const char* s, int64_t index) {
     return (int64_t)(unsigned char)s[index];
 }
 
+const char* wolf_strings_slug(const char* s) {
+    if (!s) return "";
+    int len = strlen(s);
+    char* result = (char*)wolf_req_alloc(len + 1);
+    int j = 0;
+    int last_was_dash = 1; // prevent leading dash
+    for (int i = 0; i < len; i++) {
+        char c = s[i];
+        if (isalnum((unsigned char)c)) {
+            result[j++] = tolower((unsigned char)c);
+            last_was_dash = 0;
+        } else if (c == ' ' || c == '-' || c == '_') {
+            if (!last_was_dash) {
+                result[j++] = '-';
+                last_was_dash = 1;
+            }
+        }
+    }
+    // prevent trailing dash
+    if (j > 0 && result[j-1] == '-') {
+        j--;
+    }
+    result[j] = '\0';
+    return result;
+}
+
+const char* wolf_strings_truncate(const char* s, int64_t length, const char* appendStr) {
+    if (!s) return "";
+    int len = strlen(s);
+    if (len <= length) {
+        return s;
+    }
+    if (!appendStr) appendStr = "";
+    int appendLen = strlen(appendStr);
+    char* result = (char*)wolf_req_alloc(length + appendLen + 1);
+    strncpy(result, s, length);
+    strcpy(result + length, appendStr);
+    return result;
+}
+
 const char* wolf_http_query(const char* key) {
     if (wolf_current_req_id < 0) return "";
     return wolf_http_req_query(wolf_current_req_id, key);

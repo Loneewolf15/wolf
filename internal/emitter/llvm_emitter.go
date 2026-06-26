@@ -27,6 +27,7 @@ type LLVMEmitter struct {
 	propClass       map[string]string // propName → ClassName from model factory
 	classExtends    map[string]string // ClassName → ParentClassName
 	funcSigs        map[string]*ir.Function
+	capturedVars    map[string]bool
 	currentRetType  string
 	declaredExterns map[string]bool
 	emittedTypes    map[string]string // register → actual LLVM type emitted
@@ -56,6 +57,7 @@ func NewLLVMEmitter() *LLVMEmitter {
 		stringConsts:    make(map[string]string),
 		varTypes:        make(map[string]string),
 		varClass:        make(map[string]string),
+		capturedVars:    make(map[string]bool),
 		propClass:       make(map[string]string),
 		classExtends:    make(map[string]string),
 		funcSigs:        make(map[string]*ir.Function),
@@ -490,6 +492,8 @@ func (e *LLVMEmitter) Emit(program *ir.Program) string {
 	e.writeln("declare ptr @wolf_strings_trimleft(ptr, ptr)")
 	e.writeln("declare ptr @wolf_strings_trimright(ptr, ptr)")
 	e.writeln("declare ptr @wolf_strings_trim(ptr)")
+	e.writeln("declare ptr @wolf_strings_slug(ptr)")
+	e.writeln("declare ptr @wolf_strings_truncate(ptr, i64, ptr)")
 	e.writeln("declare ptr @wolf_strings_join(ptr, ptr)")
 	e.writeln("declare ptr @wolf_json_encode(ptr)")
 	e.writeln("")
@@ -655,6 +659,7 @@ func (e *LLVMEmitter) Emit(program *ir.Program) string {
 	e.writeln("declare i64 @wolf_time_now()")
 	e.writeln("declare ptr @wolf_time_date(ptr, i64)")
 	e.writeln("declare i64 @wolf_time_strtotime(ptr)")
+	e.writeln("declare ptr @wolf_req_alloc(i64)")
 	e.writeln("declare void @wolf_system_sleep(i64)")
 	e.writeln("declare void @wolf_system_exit(i64)")
 	e.writeln("declare void @wolf_system_die(ptr)")
@@ -1068,9 +1073,20 @@ func (e *LLVMEmitter) emitFunction(fn *ir.Function) {
 	// Pre-scan statements to find all local vars and determine their types
 	e.collectLocalVars(fn.Body)
 
+	e.capturedVars = make(map[string]bool)
+	scanCaptured(fn.Body, e.varTypes, e.capturedVars)
+
 	// Emit allocas in entry block
 	for name, llType := range e.varTypes {
-		e.writelnIndent(fmt.Sprintf("%%%s = alloca %s", name, llType))
+		if e.capturedVars[name] {
+			size := 8
+			if llType == "i1" {
+				size = 1
+			}
+			e.writelnIndent(fmt.Sprintf("%%%s = call ptr @wolf_req_alloc(i64 %d)", name, size))
+		} else {
+			e.writelnIndent(fmt.Sprintf("%%%s = alloca %s", name, llType))
+		}
 	}
 
 	// Store args into parameter allocas — use the promoted type
@@ -1135,12 +1151,23 @@ func (e *LLVMEmitter) emitConstructor(fn *ir.Function, className string) {
 	// Pre-scan statements to find all local vars and determine their types
 	e.collectLocalVars(fn.Body)
 
+	e.capturedVars = make(map[string]bool)
+	scanCaptured(fn.Body, e.varTypes, e.capturedVars)
+
 	// Add special 'this' variable implicitly for constructor
 	e.varTypes["this"] = "ptr"
 
 	// Emit allocas in entry block
 	for name, llType := range e.varTypes {
-		e.writelnIndent(fmt.Sprintf("%%%s = alloca %s", name, llType))
+		if e.capturedVars[name] {
+			size := 8
+			if llType == "i1" {
+				size = 1
+			}
+			e.writelnIndent(fmt.Sprintf("%%%s = call ptr @wolf_req_alloc(i64 %d)", name, size))
+		} else {
+			e.writelnIndent(fmt.Sprintf("%%%s = alloca %s", name, llType))
+		}
 	}
 
 	// Store args into parameter allocas
@@ -4225,27 +4252,7 @@ func (e *LLVMEmitter) emitFuncLit(fl *ir.FuncLit) string {
 	e.writelnIndent(fmt.Sprintf("%s = call ptr @wolf_closure_create(ptr @%s, i64 %d)", closureReg, closureName, len(captures)))
 
 	for i, name := range captures {
-		typ := captureTypes[i]
-		val := e.nextLocal()
-		e.writelnIndent(fmt.Sprintf("%s = load %s, ptr %%%s", val, typ, name))
-
-		ptrVal := val
-		if typ == "i64" {
-			ptrVal = e.nextLocal()
-			e.writelnIndent(fmt.Sprintf("%s = inttoptr i64 %s to ptr", ptrVal, val))
-		} else if typ == "double" {
-			i64Val := e.nextLocal()
-			e.writelnIndent(fmt.Sprintf("%s = bitcast double %s to i64", i64Val, val))
-			ptrVal = e.nextLocal()
-			e.writelnIndent(fmt.Sprintf("%s = inttoptr i64 %s to ptr", ptrVal, i64Val))
-		} else if typ == "i1" {
-			i64Val := e.nextLocal()
-			e.writelnIndent(fmt.Sprintf("%s = zext i1 %s to i64", i64Val, val))
-			ptrVal = e.nextLocal()
-			e.writelnIndent(fmt.Sprintf("%s = inttoptr i64 %s to ptr", ptrVal, i64Val))
-		}
-
-		e.writelnIndent(fmt.Sprintf("call void @wolf_closure_set_env(ptr %s, i64 %d, ptr %s)", closureReg, i, ptrVal))
+		e.writelnIndent(fmt.Sprintf("call void @wolf_closure_set_env(ptr %s, i64 %d, ptr %%%s)", closureReg, i, name))
 	}
 
 	var paramParts []string
@@ -4282,8 +4289,24 @@ func (e *LLVMEmitter) emitFuncLit(fl *ir.FuncLit) string {
 
 	e.collectLocalVars(fl.Body)
 
+	// Don't alloca captured variables inside the closure, they will be initialized from environment!
 	for name, llType := range e.varTypes {
-		e.writelnIndent(fmt.Sprintf("%%%s = alloca %s", name, llType))
+		isCaptured := false
+		for _, capName := range captures {
+			if capName == name {
+				isCaptured = true
+				break
+			}
+		}
+		if !isCaptured {
+			if e.capturedVars[name] {
+				size := 8
+				if llType == "i1" { size = 1 }
+				e.writelnIndent(fmt.Sprintf("%%%s = call ptr @wolf_req_alloc(i64 %d)", name, size))
+			} else {
+				e.writelnIndent(fmt.Sprintf("%%%s = alloca %s", name, llType))
+			}
+		}
 	}
 
 	for _, p := range fl.Params {
@@ -4291,26 +4314,7 @@ func (e *LLVMEmitter) emitFuncLit(fl *ir.FuncLit) string {
 	}
 
 	for i, name := range captures {
-		typ := captureTypes[i]
-		val := e.nextLocal()
-		e.writelnIndent(fmt.Sprintf("%s = call ptr @wolf_closure_get_env(ptr %%__env_closure_ptr, i64 %d)", val, i))
-
-		unboxed := val
-		if typ == "i64" {
-			unboxed = e.nextLocal()
-			e.writelnIndent(fmt.Sprintf("%s = ptrtoint ptr %s to i64", unboxed, val))
-		} else if typ == "double" {
-			i64Val := e.nextLocal()
-			e.writelnIndent(fmt.Sprintf("%s = ptrtoint ptr %s to i64", i64Val, val))
-			unboxed = e.nextLocal()
-			e.writelnIndent(fmt.Sprintf("%s = bitcast i64 %s to double", unboxed, i64Val))
-		} else if typ == "i1" {
-			i64Val := e.nextLocal()
-			e.writelnIndent(fmt.Sprintf("%s = ptrtoint ptr %s to i64", i64Val, val))
-			unboxed = e.nextLocal()
-			e.writelnIndent(fmt.Sprintf("%s = trunc i64 %s to i1", unboxed, i64Val))
-		}
-		e.writelnIndent(fmt.Sprintf("store %s %s, ptr %%%s", typ, unboxed, name))
+		e.writelnIndent(fmt.Sprintf("%%%s = call ptr @wolf_closure_get_env(ptr %%__env_closure_ptr, i64 %d)", name, i))
 	}
 
 	for _, stmt := range fl.Body {

@@ -154,3 +154,32 @@ func (WolfStrings) IsAlpha(s string) bool {
 func (WolfStrings) Title(s string) string {
 	return strings.Title(s)
 }
+
+// Slug converts a string to a URL-friendly slug.
+func (WolfStrings) Slug(s string) string {
+	s = strings.ToLower(strings.TrimSpace(s))
+	var result strings.Builder
+	for _, r := range s {
+		if unicode.IsLetter(r) || unicode.IsDigit(r) {
+			result.WriteRune(r)
+		} else if r == ' ' || r == '-' || r == '_' {
+			result.WriteRune('-')
+		}
+	}
+	// collapse multiple hyphens
+	out := result.String()
+	for strings.Contains(out, "--") {
+		out = strings.ReplaceAll(out, "--", "-")
+	}
+	out = strings.Trim(out, "-")
+	return out
+}
+
+// Truncate shortens a string to the specified length, appending a suffix if it was shortened.
+func (WolfStrings) Truncate(s string, length int, appendStr string) string {
+	runes := []rune(s)
+	if len(runes) <= length {
+		return s
+	}
+	return string(runes[:length]) + appendStr
+}
