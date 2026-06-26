@@ -12,6 +12,7 @@ import (
 	"github.com/wolflang/wolf/internal/compiler"
 	"github.com/wolflang/wolf/internal/config"
 	"github.com/wolflang/wolf/internal/dashboard"
+	"github.com/wolflang/wolf/internal/explain"
 	"github.com/wolflang/wolf/internal/migrate"
 	"github.com/wolflang/wolf/internal/packager"
 	"github.com/wolflang/wolf/internal/pythonenv"
@@ -99,6 +100,9 @@ database layer, and embeds CPython for native ML library access.`,
 
 			result, err := c.Build(string(source), filename)
 			if err != nil {
+				// Write explain cache for 'wolf explain' to consume.
+				phase := detectPhase(result.Errors)
+				explain.WriteCache(projectRoot, filename, phase, result.Errors)
 				if jsonOutput {
 					b, _ := json.Marshal(map[string]interface{}{"success": false, "errors": result.Errors})
 					fmt.Println(string(b))
@@ -107,6 +111,7 @@ database layer, and embeds CPython for native ML library access.`,
 				for _, e := range result.Errors {
 					fmt.Fprintln(os.Stderr, e)
 				}
+				fmt.Fprintln(os.Stderr, "\nRun 'wolf explain' to get a detailed explanation of the error above.")
 				return err
 			}
 
@@ -614,7 +619,35 @@ database layer, and embeds CPython for native ML library access.`,
 		},
 	}
 
-	rootCmd.AddCommand(buildCmd, runCmd, checkCmd, fmtCmd, testCmd, pythonCmd, newCmd, generateCmd, migrateCmd, tokensCmd, skillsCmd, devCmd, installCmd, dockerCmd)
+	// ==================== wolf explain ====================
+	explainCmd := &cobra.Command{
+		Use:   "explain",
+		Short: "Explain the last build error in human-readable terms",
+		Long: `wolf explain reads the error cache written by the last failed 'wolf build'
+and produces a Rust-style, human-readable explanation with a description,
+root cause, and actionable fix suggestion.
+
+Run 'wolf build <file.wolf>' first to capture an error, then 'wolf explain'.`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			projectRoot, err := os.Getwd()
+			if err != nil {
+				return fmt.Errorf("wolf explain: cannot determine working directory: %w", err)
+			}
+
+			ex := explain.New()
+			results, err := ex.ExplainCache(projectRoot)
+			if err != nil {
+				return fmt.Errorf("wolf explain: %w", err)
+			}
+
+			for i, r := range results {
+				fmt.Print(explain.Format(r, i+1, len(results)))
+			}
+			return nil
+		},
+	}
+
+	rootCmd.AddCommand(buildCmd, runCmd, checkCmd, fmtCmd, testCmd, pythonCmd, newCmd, generateCmd, migrateCmd, tokensCmd, skillsCmd, devCmd, installCmd, dockerCmd, explainCmd)
 
 	if err := rootCmd.Execute(); err != nil {
 		os.Exit(1)
@@ -663,4 +696,27 @@ func promptProjectType() (string, error) {
 	default:
 		return "", fmt.Errorf("wolf: invalid selection %q — choose 1 (API), 2 (Script), or 3 (MCU)", input)
 	}
+}
+
+// detectPhase infers the compiler phase from error message content.
+// It is a best-effort heuristic used to annotate the explain cache.
+func detectPhase(errors []string) string {
+	for _, e := range errors {
+		el := strings.ToLower(e)
+		switch {
+		case strings.Contains(el, "lexer error") || strings.Contains(el, "unterminated") || strings.Contains(el, "unexpected character"):
+			return "lex"
+		case strings.Contains(el, "parser error") || strings.Contains(el, "parse error") || strings.Contains(el, "syntax error") || strings.Contains(el, "expected"):
+			return "parse"
+		case strings.Contains(el, "resolver error") || strings.Contains(el, "undefined") || strings.Contains(el, "undeclared"):
+			return "resolve"
+		case strings.Contains(el, "type error") || strings.Contains(el, "type mismatch") || strings.Contains(el, "cannot assign"):
+			return "typecheck"
+		case strings.Contains(el, "llvm") || strings.Contains(el, "ir error") || strings.Contains(el, "emission"):
+			return "llvm"
+		case strings.Contains(el, "linker") || strings.Contains(el, "undefined reference") || strings.Contains(el, "ld error"):
+			return "link"
+		}
+	}
+	return "unknown"
 }
