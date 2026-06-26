@@ -45,3 +45,9 @@ benchmarks/*.txt
 .DS_Store
 *.swp
 *.swo
+
+# Scratch exploration files — not source
+scratch/
+patch_main.py
+# Wolf compiler bak files
+src/compiler/*.bak

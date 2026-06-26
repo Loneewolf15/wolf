@@ -1,13 +1,20 @@
 // src/compiler/main.wolf
 // Wolf Self-Hosted Compiler — Partial Self-Hosting Entry Point
-// Phases 1-4 run in Wolf. Phase 5 (LLVM emission) runs in Go bootstrap.
-// Self-hosting milestone: Wolf compiler can analyze itself.
+// Phases 1-5 run natively in Wolf.
+// Self-hosting milestone: Wolf compiler can analyze AND emit LLVM IR natively.
 //
 // --project <dir>  AutoDiscovery: scan <dir> recursively for .wolf files,
 //                  lex+parse each, merge all ASTs into one program, then
 //                  resolve + typecheck the merged whole in a single pass.
 //                  This mirrors the Go bootstrap's AutoDiscover logic in
 //                  internal/compiler/autodiscovery.go exactly.
+//
+// --dump-wir       Print the WolfIR (WIR) text representation to stdout
+//                  (human-readable SSA-form IR, for debugging and verification).
+//
+// --emit-llvm      Lower WIR to LLVM IR text format (.ll) and print to stdout.
+//                  Phase 6 of the native compilation pipeline (ADR-027).
+//                  Pipe to a file: wolf-self <file.wolf> --emit-llvm > out.ll
 //
 // Hardening (Session 34):
 //   - wolf_file_list_dir returns OS readdir order (non-deterministic).
@@ -29,17 +36,22 @@
 // WolfCompiler
 // ─────────────────────────────────────────────────────────────────────────────
 
+
 class WolfCompiler {
     public $file = ""
     public $source = ""
     public $strict = false
     public $projectDir = ""
+    public $dumpWIR = false
+    public $emitLLVM = false
 
-    public func __construct($file, $source, $strict, $projectDir) {
+    public func __construct($file, $source, $strict, $projectDir, $dumpWIR, $emitLLVM) {
         $this->file       = $file
         $this->source     = $source
         $this->strict     = $strict
         $this->projectDir = $projectDir
+        $this->dumpWIR    = $dumpWIR
+        $this->emitLLVM   = $emitLLVM
     }
 
     // ─── Compile ───────────────────────────────────────────────────────────
@@ -78,7 +90,7 @@ class WolfCompiler {
         if ($this->projectDir != "") {
             if (wolf_dir_exists($this->projectDir)) {
                 var $buildRunner = new BuildRunner()
-                var $discoveredAsts = $buildRunner->AutoDiscover($this->projectDir, $this->file)
+                var $discoveredAsts = $buildRunner->AutoDiscover($this->projectDir, $this->file, $ast)
                 var $discoveredCount = count($discoveredAsts)
 
                 if ($discoveredCount > 0) {
@@ -142,9 +154,21 @@ class WolfCompiler {
         }
         $checker->Check($ast)
 
-        // Phase 5 — LLVM emission handled by Go bootstrap
-        // Boundary: Wolf hands resolved, type-checked AST back to Go.
-        // Remove this comment when emitter.wolf exists.
+        // Phase 5 — WIR Builder: lower AST to Wolf Intermediate Representation
+        var $builder = new WIRBuilder()
+        var $module = $builder->build($ast)
+
+        if ($this->dumpWIR) {
+            print($module->to_string())
+        }
+
+        // Phase 6 — LLVM IR Emission (ADR-027): lower WIR → LLVM text format (.ll)
+        if ($this->emitLLVM) {
+            var $llvmEmitter = new LLVMEmitter($module)
+            var $llvmIR = $llvmEmitter->emit()
+            print($llvmIR)
+        }
+
         print("wolf: analysis complete — " .. $this->file)
         if ($this->projectDir != "") {
             print("wolf: --project mode, dir: " .. $this->projectDir)
@@ -154,19 +178,21 @@ class WolfCompiler {
 
 // ─────────────────────────────────────────────────────────────────────────────
 // CLI entry point
-// Usage: wolf-self <file.wolf> [--strict] [--project <dir>]
+// Usage: wolf-self <file.wolf> [--strict] [--project <dir>] [--dump-wir] [--emit-llvm]
 // ─────────────────────────────────────────────────────────────────────────────
 func main() {
     var $argc = wolf_argc()
 
     if ($argc < 2) {
-        print("usage: wolf-self <file.wolf> [--strict] [--project <dir>]")
+        print("usage: wolf-self <file.wolf> [--strict] [--project <dir>] [--dump-wir] [--emit-llvm]")
         wolf_system_exit(1)
     }
 
     var $file       = wolf_argv(1)
     var $strict     = false
     var $projectDir = ""
+    var $dumpWIR    = false
+    var $emitLLVM   = false
 
     // Parse remaining flags
     var $argi = 2
@@ -184,6 +210,14 @@ func main() {
                     print("wolf: --project requires a directory argument")
                     wolf_system_exit(1)
                 }
+            } else {
+                if ($arg == "--dump-wir") {
+                    $dumpWIR = true
+                } else {
+                    if ($arg == "--emit-llvm") {
+                        $emitLLVM = true
+                    }
+                }
             }
         }
         $argi = intval($argi) + 1
@@ -196,6 +230,6 @@ func main() {
         wolf_system_exit(1)
     }
 
-    var $compiler = new WolfCompiler($file, $source, $strict, $projectDir)
+    var $compiler = new WolfCompiler($file, $source, $strict, $projectDir, $dumpWIR, $emitLLVM)
     $compiler->Compile()
 }

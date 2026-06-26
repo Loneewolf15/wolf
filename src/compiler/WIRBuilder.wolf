@@ -56,12 +56,12 @@ class WIRBuilder {
             }
         } else if ($stmt->type == "BlockStmt") {
             var $k = 0
-            while ($k < count($stmt->stmts)) {
-                $this->buildStmt($stmt->stmts[$k])
+            while ($k < count($stmt->statements)) {
+                $this->buildStmt($stmt->statements[$k])
                 $k = intval($k) + 1
             }
         } else if ($stmt->type == "IfStmt") {
-            var $condReg = $this->buildExpr($stmt->cond)
+            var $condReg = $this->buildExpr($stmt->condition)
             var $thenBlock = new WIRBlock($this->nextLabel("if.then"))
             var $endBlock = new WIRBlock($this->nextLabel("if.end"))
             var $elseBlock = $endBlock
@@ -99,7 +99,7 @@ class WIRBuilder {
             
             $this->currentFunc->addBlock($condBlock)
             $this->currentBlock = $condBlock
-            var $condReg = $this->buildExpr($stmt->cond)
+            var $condReg = $this->buildExpr($stmt->condition)
             $this->currentBlock->addInstruction(new WIRInstruction("cond_br", "", $condReg, $bodyBlock->label, $endBlock->label))
             
             $this->currentFunc->addBlock($bodyBlock)
@@ -126,8 +126,8 @@ class WIRBuilder {
             
             $this->currentFunc->addBlock($condBlock)
             $this->currentBlock = $condBlock
-            if ($stmt->cond != nil) {
-                var $condReg = $this->buildExpr($stmt->cond)
+            if ($stmt->condition != nil) {
+                var $condReg = $this->buildExpr($stmt->condition)
                 $this->currentBlock->addInstruction(new WIRInstruction("cond_br", "", $condReg, $bodyBlock->label, $endBlock->label))
             } else {
                 $this->currentBlock->addInstruction(new WIRInstruction("br", "", $bodyBlock->label, "", ""))

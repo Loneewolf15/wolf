@@ -1,0 +1,13 @@
+var $a = 10
+var $b = 20
+var $c = 0
+
+if ($a < $b) {
+    $c = $a + $b
+} else {
+    $c = $a - $b
+}
+
+while ($c > 0) {
+    $c = $c - 1
+}
