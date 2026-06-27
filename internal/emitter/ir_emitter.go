@@ -765,6 +765,27 @@ func (e *IREmitter) emitExpr(expr parser.Expression) ir.Expr {
 	case *parser.ArrayLiteral:
 		var elems []ir.Expr
 		for _, elem := range ex.Elements {
+			// Auto-promote static method references used as values in array position.
+			// If a StaticCall appears with zero arguments, treat it as a method reference
+			// and wrap it in a FuncLit: func($v) { return Class::Method($v) }
+			// This makes [Strings::trim, Strings::slug] work as first-class closures.
+			if sc, ok := elem.(*parser.StaticCall); ok && len(sc.Args) == 0 {
+				wrapped := &ir.FuncLit{
+					Params:      []*ir.Param{{Name: "_ref_arg", Type: "interface{}"}},
+					ReturnTypes: []string{"interface{}"},
+					Body: []ir.Stmt{
+						&ir.ReturnStmt{Values: []ir.Expr{
+							&ir.StaticCall{
+								Class:  sc.Class,
+								Method: sc.Method,
+								Args:   []ir.Expr{&ir.Ident{Name: "_ref_arg"}},
+							},
+						}},
+					},
+				}
+				elems = append(elems, wrapped)
+				continue
+			}
 			elems = append(elems, e.emitExpr(elem))
 		}
 		return &ir.SliceLit{ElemType: "interface{}", Elements: elems}
