@@ -1,0 +1,46 @@
+{
+    "name": "wolf-language-server",
+    "displayName": "Wolf Language Server",
+    "description": "Language support for Wolf",
+    "version": "0.1.0",
+    "publisher": "wolflang",
+    "engines": {
+        "vscode": "^1.75.0"
+    },
+    "categories": [
+        "Programming Languages"
+    ],
+    "activationEvents": [
+        "onLanguage:wolf"
+    ],
+    "main": "./out/extension.js",
+    "contributes": {
+        "languages": [
+            {
+                "id": "wolf",
+                "aliases": [
+                    "Wolf",
+                    "wolf"
+                ],
+                "extensions": [
+                    ".wolf"
+                ],
+                "configuration": "./language-configuration.json"
+            }
+        ]
+    },
+    "scripts": {
+        "vscode:prepublish": "npm run compile",
+        "compile": "tsc -b",
+        "watch": "tsc -b -w",
+        "postinstall": "npm install vscode-languageclient"
+    },
+    "devDependencies": {
+        "@types/node": "^16.11.7",
+        "@types/vscode": "^1.75.0",
+        "typescript": "^4.9.4"
+    },
+    "dependencies": {
+        "vscode-languageclient": "^8.1.0"
+    }
+}

@@ -10,7 +10,7 @@
 | True Lexical Closures (Variable Capture) | ✅ Done | — |
 | Stdlib Polish (`slug`, `truncate`) | ✅ Done | — |
 | Higher-Order Utilities (`pipeline`, `retry`) | ✅ Done | — |
-| `wolf dev` Hot Reload Server | ⏳ Pending | — |
+| `wolf dev` Hot Reload Server | ✅ Done | — |
 
 ### Queen's Ruling — Sprint 11 Charter
 > Sprint 11 is complete. All three language completeness tasks are shipped and committed (`3e728da`). The next sprint must address: (1) `wolf dev` hot reload, (2) first-class static method references as values (enabling `pipeline(val, [Strings::trim])` without lambda wrappers), and (3) Wolf LSP + VS Code foundation.
@@ -46,11 +46,8 @@ graph TD
 ```
 
 ### Next Unblocked Tasks
-1. `wolf dev` hot reload server (watch mode, recompile on change).
-2. First-class static method references as values (`[Strings::trim, Strings::slug]` in arrays).
-3. `__class` key filtering in `wolf_json_encode_map`.
-4. `wolf install` package registry specs.
-5. Wolf LSP + VS Code foundation.
+1. `wolf install` package registry specs.
+2. Wolf LSP + VS Code foundation.
 
 ## Session History
 

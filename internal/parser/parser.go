@@ -806,7 +806,7 @@ func (p *Parser) parseImportStmt() *ImportStmt {
 		return &ImportStmt{Pos_: pos}
 	}
 	pathTok := p.advance()
-	
+
 	// Strip quotes from string literal
 	rawPath := pathTok.Literal
 	if len(rawPath) >= 2 && rawPath[0] == '"' && rawPath[len(rawPath)-1] == '"' {

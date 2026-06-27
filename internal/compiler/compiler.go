@@ -29,6 +29,7 @@ type Compiler struct {
 	Config      *config.WolfConfig // loaded from wolf.config + env vars
 	ProjectRoot string             // Root directory of the project for autodiscovery
 	GoPlugins   []string           // Discovered .go files for Zero-Friction C/Go interop
+	VFS         map[string]string  // Virtual File System for LSP unsaved file content
 }
 
 // New creates a Compiler with defaults and no config file.
@@ -57,11 +58,14 @@ func NewWithConfig(projectRoot string) (*Compiler, error) {
 
 // CompileResult holds the output of a compilation.
 type CompileResult struct {
-	LLVMSource    string   // generated LLVM IR
-	OutputPath    string   // path to compiled binary
-	Errors        []string // compilation errors (human-readable)
-	RequiresCurl  bool     // AST auto-linking flag for HTTP features
-	RequiresRedis bool     // AST auto-linking flag for Redis features
+	LLVMSource    string              // generated LLVM IR
+	OutputPath    string              // path to compiled binary
+	Errors        []string            // compilation errors (human-readable)
+	Diagnostics   []*lexer.WolfError  // structured errors for LSP
+	Program       *parser.Program     // for LSP AST walking
+	Resolver      *resolver.Resolver  // for LSP scope checking
+	RequiresCurl  bool                // AST auto-linking flag for HTTP features
+	RequiresRedis bool                // AST auto-linking flag for Redis features
 }
 
 // Compile runs the full pipeline: source → tokens → AST → resolve → typecheck → WIR → LLVM IR.
@@ -193,8 +197,9 @@ func (c *Compiler) Compile(source, filename string) (*CompileResult, error) {
 // Check runs the compiler pipeline up to Phase 4 (Type Checking) and returns errors if any.
 func (c *Compiler) Check(source, filename string) (*CompileResult, error) {
 	result := &CompileResult{
-		OutputPath: "",
-		Errors:     []string{},
+		OutputPath:  "",
+		Errors:      []string{},
+		Diagnostics: []*lexer.WolfError{},
 	}
 
 	fmt.Printf(">> Phase 1: Lexing %s\n", filename)
@@ -203,6 +208,7 @@ func (c *Compiler) Check(source, filename string) (*CompileResult, error) {
 	if len(lexErrs) > 0 {
 		for _, e := range lexErrs {
 			result.Errors = append(result.Errors, e.Error())
+			result.Diagnostics = append(result.Diagnostics, e)
 		}
 		return result, fmt.Errorf("lex errors: %d errors found", len(lexErrs))
 	}
@@ -213,6 +219,7 @@ func (c *Compiler) Check(source, filename string) (*CompileResult, error) {
 	if len(parseErrs) > 0 {
 		for _, e := range parseErrs {
 			result.Errors = append(result.Errors, e.Error())
+			result.Diagnostics = append(result.Diagnostics, e)
 		}
 		return result, fmt.Errorf("parse errors: %d errors found", len(parseErrs))
 	}
@@ -246,6 +253,7 @@ func (c *Compiler) Check(source, filename string) (*CompileResult, error) {
 	if len(resolveErrors) > 0 {
 		for _, e := range resolveErrors {
 			result.Errors = append(result.Errors, e.Error())
+			result.Diagnostics = append(result.Diagnostics, e)
 		}
 		return result, fmt.Errorf("resolver errors: %d errors found", len(resolveErrors))
 	}
@@ -256,6 +264,7 @@ func (c *Compiler) Check(source, filename string) (*CompileResult, error) {
 	typeErrors := tc.Check(program)
 	var hardTypeErrors []*lexer.WolfError
 	for _, e := range typeErrors {
+		result.Diagnostics = append(result.Diagnostics, e)
 		if e.IsWarning {
 			fmt.Fprintf(os.Stderr, "%s\n", e.Error())
 		} else {
@@ -266,6 +275,9 @@ func (c *Compiler) Check(source, filename string) (*CompileResult, error) {
 	if len(hardTypeErrors) > 0 {
 		return result, fmt.Errorf("type errors: %d errors found", len(hardTypeErrors))
 	}
+
+	result.Program = program
+	result.Resolver = res
 
 	return result, nil
 }

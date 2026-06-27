@@ -20,9 +20,29 @@ func NewFetcher(projectRoot string) *Fetcher {
 	}
 }
 
-func (f *Fetcher) Fetch(pkgURL, version string) (string, error) {
-	if err := f.validateURL(pkgURL); err != nil {
-		return "", fmt.Errorf("invalid package URL %q: %w", pkgURL, err)
+func (f *Fetcher) GetTags(repoURL string) ([]string, error) {
+	cmd := exec.Command("git", "ls-remote", "--tags", "--refs", repoURL)
+	out, err := cmd.Output()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get tags for %s: %w", repoURL, err)
+	}
+
+	lines := strings.Split(string(out), "\n")
+	var tags []string
+	for _, line := range lines {
+		parts := strings.Fields(line)
+		if len(parts) >= 2 {
+			ref := parts[1]
+			tag := strings.TrimPrefix(ref, "refs/tags/")
+			tags = append(tags, tag)
+		}
+	}
+	return tags, nil
+}
+
+func (f *Fetcher) Fetch(pkgName, repoURL, version string) (string, error) {
+	if err := f.validateURL(repoURL); err != nil {
+		return "", fmt.Errorf("invalid repository URL %q: %w", repoURL, err)
 	}
 
 	// Create .wolf_modules if it doesn't exist
@@ -30,8 +50,8 @@ func (f *Fetcher) Fetch(pkgURL, version string) (string, error) {
 		return "", err
 	}
 
-	// Determine target directory
-	pkgDir := filepath.Join(f.ModulesDir, filepath.Base(pkgURL))
+	// Determine target directory using pkgName, NOT repoURL
+	pkgDir := filepath.Join(f.ModulesDir, filepath.FromSlash(pkgName))
 
 	// If it already exists, remove it (force clean install)
 	if _, err := os.Stat(pkgDir); err == nil {
@@ -39,12 +59,16 @@ func (f *Fetcher) Fetch(pkgURL, version string) (string, error) {
 	}
 
 	// Normalize URL for git clone
-	gitURL := pkgURL
-	if !strings.HasPrefix(gitURL, "https://") && !strings.HasPrefix(gitURL, "git@") && !strings.HasPrefix(gitURL, "file://") {
+	gitURL := repoURL
+	if strings.HasPrefix(gitURL, "/") || strings.HasPrefix(gitURL, "./") || strings.HasPrefix(gitURL, "../") {
+		// Local path; use absolute file:// URI
+		absPath, _ := filepath.Abs(gitURL)
+		gitURL = "file://" + absPath
+	} else if !strings.HasPrefix(gitURL, "https://") && !strings.HasPrefix(gitURL, "git@") && !strings.HasPrefix(gitURL, "file://") {
 		gitURL = "https://" + gitURL
 	}
 
-	fmt.Printf("wolf install: cloning %s @ %s...\n", pkgURL, version)
+	fmt.Printf("wolf install: cloning %s (%s) @ %s...\n", pkgName, gitURL, version)
 
 	// Execute git clone
 	cmd := exec.Command("git", "clone", "--depth", "1", "--branch", version, gitURL, pkgDir)
@@ -52,7 +76,7 @@ func (f *Fetcher) Fetch(pkgURL, version string) (string, error) {
 	cmd.Stdout = &out
 	cmd.Stderr = &out
 	if err := cmd.Run(); err != nil {
-		return "", fmt.Errorf("git clone failed for %s: %w\n%s", pkgURL, err, out.String())
+		return "", fmt.Errorf("git clone failed for %s: %w\n%s", pkgName, err, out.String())
 	}
 
 	// Get the commit SHA
@@ -60,7 +84,7 @@ func (f *Fetcher) Fetch(pkgURL, version string) (string, error) {
 	shaCmd.Dir = pkgDir
 	shaOut, err := shaCmd.Output()
 	if err != nil {
-		return "", fmt.Errorf("failed to get commit SHA for %s: %w", pkgURL, err)
+		return "", fmt.Errorf("failed to get commit SHA for %s: %w", pkgName, err)
 	}
 
 	sha := strings.TrimSpace(string(shaOut))

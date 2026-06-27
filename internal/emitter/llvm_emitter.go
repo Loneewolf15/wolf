@@ -4301,7 +4301,9 @@ func (e *LLVMEmitter) emitFuncLit(fl *ir.FuncLit) string {
 		if !isCaptured {
 			if e.capturedVars[name] {
 				size := 8
-				if llType == "i1" { size = 1 }
+				if llType == "i1" {
+					size = 1
+				}
 				e.writelnIndent(fmt.Sprintf("%%%s = call ptr @wolf_req_alloc(i64 %d)", name, size))
 			} else {
 				e.writelnIndent(fmt.Sprintf("%%%s = alloca %s", name, llType))

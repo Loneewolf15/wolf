@@ -13,6 +13,7 @@ import (
 	"github.com/wolflang/wolf/internal/config"
 	"github.com/wolflang/wolf/internal/dashboard"
 	"github.com/wolflang/wolf/internal/explain"
+	"github.com/wolflang/wolf/internal/lsp"
 	"github.com/wolflang/wolf/internal/migrate"
 	"github.com/wolflang/wolf/internal/packager"
 	"github.com/wolflang/wolf/internal/pythonenv"
@@ -595,9 +596,73 @@ database layer, and embeds CPython for native ML library access.`,
 	}
 	skillsCmd.AddCommand(skillsGetCmd)
 
+	initCmd := &cobra.Command{
+		Use:   "init",
+		Short: "Interactively generate a wolf.json manifest",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			projectRoot, err := os.Getwd()
+			if err != nil {
+				return err
+			}
+			manifestPath := filepath.Join(projectRoot, "wolf.json")
+			if _, err := os.Stat(manifestPath); err == nil {
+				return fmt.Errorf("wolf.json already exists")
+			}
+			m := &packager.Manifest{
+				Name:         "github.com/myorg/myapp",
+				Version:      "1.0.0",
+				Dependencies: make(map[string]string),
+			}
+			if err := packager.WriteManifest(manifestPath, m); err != nil {
+				return err
+			}
+			fmt.Println("wolf init: generated wolf.json ✓")
+			return nil
+		},
+	}
+
+	addCmd := &cobra.Command{
+		Use:   "add <pkg> [version]",
+		Short: "Add a dependency to wolf.json and install it",
+		Args:  cobra.RangeArgs(1, 2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			pkg := args[0]
+			version := "main"
+			if len(args) > 1 {
+				version = args[1]
+			}
+
+			projectRoot, err := os.Getwd()
+			if err != nil {
+				return err
+			}
+			manifestPath := filepath.Join(projectRoot, "wolf.json")
+			m, err := packager.ParseManifest(manifestPath)
+			if err != nil {
+				if os.IsNotExist(err) {
+					fmt.Println("wolf.json not found, running init...")
+					if err := initCmd.RunE(cmd, []string{}); err != nil {
+						return err
+					}
+					m, _ = packager.ParseManifest(manifestPath)
+				} else {
+					return err
+				}
+			}
+
+			m.Dependencies[pkg] = version
+			if err := packager.WriteManifest(manifestPath, m); err != nil {
+				return err
+			}
+
+			fmt.Printf("wolf add: added %s @ %s\n", pkg, version)
+			return packager.Install(projectRoot)
+		},
+	}
+
 	installCmd := &cobra.Command{
 		Use:   "install",
-		Short: "Install dependencies defined in wolf.mod",
+		Short: "Install dependencies defined in wolf.json",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			projectRoot, err := os.Getwd()
 			if err != nil {
@@ -647,7 +712,17 @@ Run 'wolf build <file.wolf>' first to capture an error, then 'wolf explain'.`,
 		},
 	}
 
-	rootCmd.AddCommand(buildCmd, runCmd, checkCmd, fmtCmd, testCmd, pythonCmd, newCmd, generateCmd, migrateCmd, tokensCmd, skillsCmd, devCmd, installCmd, dockerCmd, explainCmd)
+	lspCmd := &cobra.Command{
+		Use:    "lsp",
+		Short:  "Start the Wolf Language Server",
+		Hidden: true, // For editors, not humans
+		Run: func(cmd *cobra.Command, args []string) {
+			s := lsp.NewServer()
+			s.Start()
+		},
+	}
+
+	rootCmd.AddCommand(buildCmd, runCmd, checkCmd, fmtCmd, testCmd, pythonCmd, newCmd, generateCmd, migrateCmd, tokensCmd, skillsCmd, devCmd, initCmd, addCmd, installCmd, dockerCmd, explainCmd, lspCmd)
 
 	if err := rootCmd.Execute(); err != nil {
 		os.Exit(1)

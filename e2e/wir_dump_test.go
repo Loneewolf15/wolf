@@ -8,26 +8,26 @@ import (
 
 func TestWIRDump(t *testing.T) {
 	cmd := exec.Command("../wolf_out/main", "testdata/phase7_wir.wolf", "--dump-wir")
-	
+
 	output, err := cmd.CombinedOutput()
 	outStr := string(output)
-	
+
 	if err != nil {
 		t.Fatalf("Native compiler failed: %v\nOutput: %s", err, outStr)
 	}
-	
+
 	// Assert structural equivalence of WIR generated natively
-	
+
 	// 1. Should have the main function
 	if !strings.Contains(outStr, "func main() -> i64") {
 		t.Errorf("Expected WIR to contain 'func main() -> i64'")
 	}
-	
+
 	// 2. Should have variable allocations
 	if !strings.Contains(outStr, "%a = alloca ptr") {
 		t.Errorf("Expected WIR to contain '%%a = alloca ptr'")
 	}
-	
+
 	// 3. Should have binary op 'add' and 'slt' instruction
 	if !strings.Contains(outStr, "add i64") {
 		t.Errorf("Expected WIR to contain 'add i64' instruction")
@@ -35,12 +35,12 @@ func TestWIRDump(t *testing.T) {
 	if !strings.Contains(outStr, "slt") {
 		t.Errorf("Expected WIR to contain 'slt' instruction for <")
 	}
-	
+
 	// 4. Should have branch instructions
 	if !strings.Contains(outStr, "cond_br") {
 		t.Errorf("Expected WIR to contain 'cond_br' instruction")
 	}
-	
+
 	t.Logf("WIR structural equivalence passed. Output excerpt:\n%s", outStr)
 }
 

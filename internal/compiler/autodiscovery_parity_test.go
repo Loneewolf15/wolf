@@ -229,8 +229,8 @@ func TestManualSuffixCheck(t *testing.T) {
 		{"main.wolf", true, false},
 		{"autodiscovery.go", false, false},
 		{"README.md", false, false},
-		{"wolf", false, false},    // no extension
-		{".wolf", true, false},    // edge: just the extension
+		{"wolf", false, false},     // no extension
+		{".wolf", true, false},     // edge: just the extension
 		{"_test.wolf", true, true}, // edge: only the test suffix
 		{"lexer_test.wolf", true, true},
 		{"TypeChecker.wolf", true, false},
@@ -255,8 +255,9 @@ func TestManualSuffixCheck(t *testing.T) {
 // Verifies that file discovery returns entries in alphabetical order,
 // matching Go's os.ReadDir sorted output.
 // This tests the sort($entries) call added in Session 34 hardening:
-//   wolf_file_list_dir returns readdir() hash-table order (non-deterministic).
-//   sort() brings it to alphabetical, matching os.ReadDir.
+//
+//	wolf_file_list_dir returns readdir() hash-table order (non-deterministic).
+//	sort() brings it to alphabetical, matching os.ReadDir.
 func TestAutoDiscoverySortOrder(t *testing.T) {
 	root := projectRoot(t)
 	projectDir := filepath.Join(root, "src", "compiler")

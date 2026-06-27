@@ -74,9 +74,15 @@ func (c *Compiler) crawlImports(projectRoot string, mainFilename string, mainAST
 			// Mark as visiting
 			importStack[absResolved] = true
 
-			source, readErr := os.ReadFile(absResolved)
-			if readErr != nil {
-				return fmt.Errorf("failed to read imported file %s: %w", absResolved, readErr)
+			var source []byte
+			if vfsSrc, ok := c.VFS[absResolved]; ok {
+				source = []byte(vfsSrc)
+			} else {
+				var readErr error
+				source, readErr = os.ReadFile(absResolved)
+				if readErr != nil {
+					return fmt.Errorf("failed to read imported file %s: %w", absResolved, readErr)
+				}
 			}
 
 			if c.Verbose {
@@ -118,7 +124,7 @@ func (c *Compiler) crawlImports(projectRoot string, mainFilename string, mainAST
 
 func (c *Compiler) resolveImportPath(projectRoot, currentDir, importPath string) string {
 	wolfRoot := os.Getenv("WOLF_ROOT")
-	
+
 	if strings.HasPrefix(importPath, "wolf/std/") {
 		if wolfRoot != "" {
 			stdPath := strings.TrimPrefix(importPath, "wolf/std/")
@@ -204,9 +210,15 @@ func (c *Compiler) legacyAutoDiscover(projectRoot string, filename string) ([]*p
 						fmt.Printf("wolf: auto-discovered %s\n", path)
 					}
 
-					source, readErr := os.ReadFile(path)
-					if readErr != nil {
-						return fmt.Errorf("failed to read %s: %w", path, readErr)
+					var source []byte
+					if vfsSrc, ok := c.VFS[absPath]; ok {
+						source = []byte(vfsSrc)
+					} else {
+						var readErr error
+						source, readErr = os.ReadFile(absPath)
+						if readErr != nil {
+							return fmt.Errorf("failed to read %s: %w", absPath, readErr)
+						}
 					}
 
 					l := lexer.New(string(source), info.Name())
