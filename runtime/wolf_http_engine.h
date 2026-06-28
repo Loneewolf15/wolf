@@ -56,7 +56,7 @@ void          wolf_sentinel_destroy(WolfSentinel* s);
  * ================================================================ */
 
 #ifndef WOLF_ARENA_POOL_SIZE
-#  define WOLF_ARENA_POOL_SIZE 128   /* arenas pre-allocated per core */
+#  define WOLF_ARENA_POOL_SIZE 256   /* arenas pre-allocated per core */
 #endif
 
 #ifndef WOLF_ARENA_SLAB_SIZE

@@ -168,6 +168,7 @@ WolfSentinel* wolf_sentinel_create(int core_id) {
 
 /* Context storage for callbacks — maps fd → callback+ctx */
 #define WOLF_SENTINEL_MAX_FDS 4096
+#define WOLF_MAX_FD 65536
 
 typedef struct {
     int                fd;
@@ -175,28 +176,24 @@ typedef struct {
     void*              ctx;
 } WolfFDEntry;
 
-static __thread WolfFDEntry wolf_fd_table[WOLF_SENTINEL_MAX_FDS];
-static __thread int         wolf_fd_table_count = 0;
+static __thread WolfFDEntry wolf_fd_table[WOLF_MAX_FD];
 
 static WolfFDEntry* wolf_fd_find(int fd) {
-    for (int i = 0; i < wolf_fd_table_count; i++)
-        if (wolf_fd_table[i].fd == fd) return &wolf_fd_table[i];
-    return NULL;
+    if (fd < 0 || fd >= WOLF_MAX_FD || !wolf_fd_table[fd].cb) return NULL;
+    return &wolf_fd_table[fd];
 }
 
 static WolfFDEntry* wolf_fd_alloc(int fd, wolf_io_callback_t cb, void* ctx) {
-    if (wolf_fd_table_count >= WOLF_SENTINEL_MAX_FDS) return NULL;
-    WolfFDEntry* e = &wolf_fd_table[wolf_fd_table_count++];
+    if (fd < 0 || fd >= WOLF_MAX_FD) return NULL;
+    WolfFDEntry* e = &wolf_fd_table[fd];
     e->fd = fd; e->cb = cb; e->ctx = ctx;
     return e;
 }
 
 static void wolf_fd_remove_entry(int fd) {
-    for (int i = 0; i < wolf_fd_table_count; i++) {
-        if (wolf_fd_table[i].fd == fd) {
-            wolf_fd_table[i] = wolf_fd_table[--wolf_fd_table_count];
-            return;
-        }
+    if (fd >= 0 && fd < WOLF_MAX_FD) {
+        wolf_fd_table[fd].cb = NULL;
+        wolf_fd_table[fd].ctx = NULL;
     }
 }
 
@@ -793,26 +790,41 @@ static int wolf_engine_send_response(WolfConnCtx* ctx) {
         default:  break;
     }
 
-    char header_buf[4096];
-    int hlen = snprintf(header_buf, sizeof(header_buf),
-        "HTTP/1.1 %d %s\r\n", ctx->status_code, status_text);
-
-    if (write(ctx->client_fd, header_buf, hlen) < 0) return -1;
-
-    for (int i = 0; i < ctx->res_header_count; i++) {
-        int n = snprintf(header_buf, sizeof(header_buf), "%s: %s\r\n",
-                         ctx->res_header_keys[i], ctx->res_header_vals[i]);
-        if (write(ctx->client_fd, header_buf, n) < 0) return -1;
-    }
-
     int body_len = ctx->res_body ? (int)strlen(ctx->res_body) : 0;
-    int n = snprintf(header_buf, sizeof(header_buf),
-                     "Content-Length: %d\r\nConnection: keep-alive\r\n\r\n", body_len);
-    if (write(ctx->client_fd, header_buf, n) < 0) return -1;
-
-    if (body_len > 0) {
-        if (write(ctx->client_fd, ctx->res_body, body_len) < 0) return -1;
+    
+    // Estimate total size to allocate from arena
+    int total_size = 128; // Space for HTTP/1.1 status line, Content-Length and Connection headers
+    for (int i = 0; i < ctx->res_header_count; i++) {
+        total_size += strlen(ctx->res_header_keys[i]) + strlen(ctx->res_header_vals[i]) + 4;
     }
+    total_size += body_len;
+
+    char* response = (char*)wolf_arena_alloc(ctx->arena, total_size + 64); // +64 safety margin
+    if (!response) return -1;
+    
+    char* ptr = response;
+    
+    // Build status line
+    ptr += snprintf(ptr, 128, "HTTP/1.1 %d %s\r\n", ctx->status_code, status_text);
+    
+    // Build headers
+    for (int i = 0; i < ctx->res_header_count; i++) {
+        ptr += sprintf(ptr, "%s: %s\r\n", ctx->res_header_keys[i], ctx->res_header_vals[i]);
+    }
+    
+    // Build fixed headers & empty line separator
+    ptr += sprintf(ptr, "Content-Length: %d\r\nConnection: keep-alive\r\n\r\n", body_len);
+    
+    // Build body
+    if (body_len > 0) {
+        memcpy(ptr, ctx->res_body, body_len);
+        ptr += body_len;
+    }
+    
+    int final_len = ptr - response;
+    
+    // Single write syscall for the entire response
+    if (write(ctx->client_fd, response, final_len) < 0) return -1;
     
     return 0;
 }
@@ -936,23 +948,7 @@ extern int wolf_engine_register_ws_fd(int fd, const char* method, const char* pa
                                       const char* query, const char* ws_key, 
                                       const char* client_ip);
 
-static void wolf_engine_watchdog_handler(int sig) {
-    (void)sig;
-    /* Release-Acquire: ensure we see the correct started_at/client_fd */
-    WolfConnCtx* ctx = __atomic_load_n(&wolf_active_ctx, __ATOMIC_ACQUIRE);
-    if (ctx && ctx->active && ctx->client_fd > 0) {
-        struct timespec now;
-        clock_gettime(CLOCK_MONOTONIC, &now);
-        double delta = (now.tv_sec - ctx->started_at.tv_sec) + 
-                       (now.tv_nsec - ctx->started_at.tv_nsec) / 1e9;
-        
-        if (delta > WOLF_REQUEST_TIMEOUT_SEC) {
-            /* Soft kill: force blocking I/O to fail. 
-             * This unblocks the core thread and triggers normal cleanup. */
-            shutdown(ctx->client_fd, SHUT_RDWR);
-        }
-    }
-}
+
 
 static void* wolf_core_thread(void* arg) {
     WolfCoreArgs* args = (WolfCoreArgs*)arg;
@@ -1307,13 +1303,7 @@ int wolf_engine_start(WolfEngine* engine, wolf_http_handler_t handler, wolf_ws_h
     sigaction(SIGINT,  &sa, NULL);
     signal(SIGPIPE, SIG_IGN);
     
-    /* Sysmon watchdog handler */
-    struct sigaction sw;
-    memset(&sw, 0, sizeof(sw));
-    sw.sa_handler = wolf_engine_watchdog_handler;
-    sigfillset(&sw.sa_mask);
-    sw.sa_flags = SA_RESTART;
-    sigaction(SIGURG, &sw, NULL);
+    /* (SIGURG sysmon watchdog removed for performance) */
 
     printf("🐺 Wolf HTTP Engine — %d cores, port %d\n",
            engine->core_count, engine->port);
@@ -1365,15 +1355,9 @@ int wolf_engine_start(WolfEngine* engine, wolf_http_handler_t handler, wolf_ws_h
         }
     }
 
-    /* Main thread acts as sysmon, sending SIGURG preemption signals to cores every 10ms */
+    /* Main thread wait loop */
     while (!wolf_engine_shutdown_flag) {
-        usleep(10000);
-        for (int i = 0; i < engine->core_count; i++) {
-            WolfCore* core = engine->cores[i];
-            if (core && core->thread && __atomic_load_n(&core->ready, __ATOMIC_ACQUIRE)) {
-                pthread_kill(core->thread, SIGURG);
-            }
-        }
+        usleep(100000); // 100ms
     }
 
     wolf_engine_shutdown(engine);
