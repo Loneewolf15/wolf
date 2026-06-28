@@ -43,3 +43,10 @@ chore(pre-sprint-13): stage LSP, packager, bench results, vscode extension, and 
 - `e2e/testdata/63_middleware_auth.wolf` — T2-05 server
 - `e2e/t2_http_test.go` — T2 Go test driver
 - `bench/run_tier3_benchmarks.sh` — T3 load test suite
+
+## HTTP Engine Performance Optimizations
+Implemented four major bottleneck fixes identified via engine review:
+1. **Removed `SIGURG` sysmon** from `wolf_engine_start` which was blasting worker threads every 10ms and causing excessive syscall interruptions on the I/O hot path.
+2. **Rewrote `wolf_engine_send_response`** to construct the entire HTTP response (status line, headers, content-length, connection, and body) within the request's pre-allocated `wolf_arena`, enabling the entire response to be dispatched via a single `write()` syscall instead of 4-5 discrete syscalls.
+3. **Refactored `wolf_fd_find`** from an `O(N)` linear scan (looping up to 4096 times per event) to an `O(1)` direct array index using `WOLF_MAX_FD` mapping.
+4. **Doubled `WOLF_ARENA_POOL_SIZE`** (from 128 to 256) to drastically reduce the likelihood of the engine falling back to heap `malloc()` under sudden concurrent load spikes.
