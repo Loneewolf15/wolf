@@ -35,10 +35,11 @@ type InitializeResult struct {
 }
 
 type ServerCapabilities struct {
-	TextDocumentSync   int  `json:"textDocumentSync"`
-	HoverProvider      bool `json:"hoverProvider"`
-	DefinitionProvider bool `json:"definitionProvider"`
-	CompletionProvider *CompletionOptions `json:"completionProvider,omitempty"`
+	TextDocumentSync       int  `json:"textDocumentSync"`
+	HoverProvider          bool `json:"hoverProvider"`
+	DefinitionProvider     bool `json:"definitionProvider"`
+	DocumentSymbolProvider bool `json:"documentSymbolProvider,omitempty"`
+	CompletionProvider     *CompletionOptions `json:"completionProvider,omitempty"`
 }
 
 type CompletionOptions struct {
@@ -162,3 +163,45 @@ type CompletionItem struct {
 	Documentation string `json:"documentation,omitempty"`
 	InsertText    string `json:"insertText,omitempty"`
 }
+
+type DocumentSymbolParams struct {
+	TextDocument TextDocumentIdentifier `json:"textDocument"`
+}
+
+type DocumentSymbol struct {
+	Name           string           `json:"name"`
+	Detail         string           `json:"detail,omitempty"`
+	Kind           int              `json:"kind"`
+	Range          Range            `json:"range"`
+	SelectionRange Range            `json:"selectionRange"`
+	Children       []DocumentSymbol `json:"children,omitempty"`
+}
+
+const (
+	SymbolKindFile        = 1
+	SymbolKindModule      = 2
+	SymbolKindNamespace   = 3
+	SymbolKindPackage     = 4
+	SymbolKindClass       = 5
+	SymbolKindMethod      = 6
+	SymbolKindProperty    = 7
+	SymbolKindField       = 8
+	SymbolKindConstructor = 9
+	SymbolKindEnum        = 10
+	SymbolKindInterface   = 11
+	SymbolKindFunction    = 12
+	SymbolKindVariable    = 13
+	SymbolKindConstant    = 14
+	SymbolKindString      = 15
+	SymbolKindNumber      = 16
+	SymbolKindBoolean     = 17
+	SymbolKindArray       = 18
+	SymbolKindObject      = 19
+	SymbolKindKey         = 20
+	SymbolKindNull        = 21
+	SymbolKindEnumMember  = 22
+	SymbolKindStruct      = 23
+	SymbolKindEvent       = 24
+	SymbolKindOperator    = 25
+	SymbolKindTypeParameter = 26
+)

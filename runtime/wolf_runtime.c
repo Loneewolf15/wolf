@@ -7329,7 +7329,6 @@ void* wolf_qb_create(void* conn, const char* table) {
     qb->poisoned    = (conn == NULL) ? 1 : 0;
     if (qb->poisoned) {
         wolf_throw("[WOLF-QB] wolf_qb_create: NULL connection — QB poisoned, all operations will abort");
-        fprintf(stderr, "[WOLF-QB] wolf_qb_create called with NULL conn — QB poisoned\n");
     }
     return qb;
 }
@@ -7353,7 +7352,6 @@ void* wolf_qb_where(void* qb_ptr, const char* col, const char* val, const char* 
      * This prevents silent empty-string values from building up and eventually
      * being interpolated into a live SQL query. */
     if (qb->poisoned) {
-        fprintf(stderr, "[WOLF-QB] wolf_qb_where: QB is poisoned (NULL conn) — ignoring WHERE clause\n");
         return qb_ptr;
     }
     if (qb->where_count >= WOLF_QB_MAX_WHERE) return qb_ptr;
@@ -7401,7 +7399,6 @@ void* wolf_qb_get(void* qb_ptr) {
     wolf_qb_t* qb = (wolf_qb_t*)qb_ptr;
     /* BUG-052: abort on poisoned QB or NULL conn */
     if (!qb || !qb->conn || qb->poisoned) {
-        fprintf(stderr, "[WOLF-QB] wolf_qb_get: aborted — QB poisoned or no connection\n");
         return wolf_array_create();
     }
 
@@ -7763,8 +7760,12 @@ static void* supervise_thread_func(void* arg) {
 	return NULL;
 }
 
+static __thread int wolf_yield_counter = 0;
 void wolf_thread_yield(void) {
-	sched_yield();
+	if (++wolf_yield_counter >= 1024) {
+		wolf_yield_counter = 0;
+		sched_yield();
+	}
 }
 
 void wolf_spawn_supervised_thread(void* handler, const char* strategy, int64_t max_retries) {

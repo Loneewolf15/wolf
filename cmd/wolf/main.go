@@ -672,6 +672,18 @@ database layer, and embeds CPython for native ML library access.`,
 		},
 	}
 
+	publishCmd := &cobra.Command{
+		Use:   "publish",
+		Short: "Publish the current package to the Wolf registry",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			projectRoot, err := os.Getwd()
+			if err != nil {
+				return fmt.Errorf("cannot determine working directory: %w", err)
+			}
+			return packager.Publish(projectRoot)
+		},
+	}
+
 	devCmd := &cobra.Command{
 		Use:   "dev",
 		Short: "Start the Wolf development server and observability dashboard",
@@ -722,7 +734,7 @@ Run 'wolf build <file.wolf>' first to capture an error, then 'wolf explain'.`,
 		},
 	}
 
-	rootCmd.AddCommand(buildCmd, runCmd, checkCmd, fmtCmd, testCmd, pythonCmd, newCmd, generateCmd, migrateCmd, tokensCmd, skillsCmd, devCmd, initCmd, addCmd, installCmd, dockerCmd, explainCmd, lspCmd)
+	rootCmd.AddCommand(buildCmd, runCmd, checkCmd, fmtCmd, testCmd, pythonCmd, newCmd, generateCmd, migrateCmd, tokensCmd, skillsCmd, devCmd, initCmd, addCmd, installCmd, publishCmd, dockerCmd, explainCmd, lspCmd)
 
 	if err := rootCmd.Execute(); err != nil {
 		os.Exit(1)

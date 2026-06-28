@@ -1,0 +1,68 @@
+{
+  "name": "vscode-wolf",
+  "displayName": "Wolf Language Support",
+  "description": "Official VS Code extension for the Wolf programming language",
+  "version": "0.1.0",
+  "publisher": "wolflang",
+  "engines": {
+    "vscode": "^1.75.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "main": "./out/extension.js",
+  "activationEvents": [
+    "onLanguage:wolf"
+  ],
+  "contributes": {
+    "languages": [
+      {
+        "id": "wolf",
+        "aliases": [
+          "Wolf",
+          "wolf"
+        ],
+        "extensions": [
+          ".wolf"
+        ],
+        "icon": {
+          "light": "./icons/wolf-icon.svg",
+          "dark": "./icons/wolf-icon.svg"
+        },
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "wolf",
+        "scopeName": "source.wolf",
+        "path": "./syntaxes/wolf.tmLanguage.json"
+      }
+    ],
+    "configuration": {
+      "type": "object",
+      "title": "Wolf",
+      "properties": {
+        "wolf.path": {
+          "type": "string",
+          "default": "wolf",
+          "description": "Path to the wolf executable. If 'wolf' is in your PATH, leave this as 'wolf'."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "package": "vsce package"
+  },
+  "dependencies": {
+    "vscode-languageclient": "^8.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^16.18.34",
+    "@types/vscode": "^1.75.0",
+    "typescript": "^5.0.4"
+  }
+}

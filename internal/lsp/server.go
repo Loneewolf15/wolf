@@ -78,6 +78,12 @@ func (s *Server) handleRequest(msg []byte, id int, method string) {
 		}
 		json.Unmarshal(msg, &req)
 		result = s.handler.Completion(req.Params)
+	case "textDocument/documentSymbol":
+		var req struct {
+			Params DocumentSymbolParams `json:"params"`
+		}
+		json.Unmarshal(msg, &req)
+		result = s.handler.DocumentSymbol(req.Params)
 	case "shutdown":
 		result = nil
 	default:

@@ -56,6 +56,7 @@
  * Detect CPU count
  * ================================================================ */
 
+
 static int wolf_detect_nproc(void) {
 #if defined(__linux__)
     cpu_set_t cs;

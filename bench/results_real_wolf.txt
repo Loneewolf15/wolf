@@ -1,5 +1,10 @@
 Running load test: 100000 reqs across 150 workers targeting http://127.0.0.1:8084/
-Completed 100000 requests in 2m18.001753329s
-Success: 99669, Failed: 231
-Req/s: 724.63
-Avg Latency: 54.465963ms, Max Latency: 5.069624332s
+Completed 100000 requests in 56.698523376s
+Success: 98670, Failed: 1230
+Req/s: 1763.71
+Avg Latency: 83.805829ms, Max Latency: 664.461885ms
+
+Failure Breakdown:
+- [1210] Get "http://127.0.0.1:8084/": EOF
+- [19] Get "http://127.0.0.1:8084/": http: server closed idle connection
+- [1] Get "http://127.0.0.1:8084/": read tcp 127.0.0.1:35142->127.0.0.1:8084: read: connection reset by peer

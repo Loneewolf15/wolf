@@ -26,6 +26,7 @@ func (h *Handler) Initialize(params InitializeParams) InitializeResult {
 			TextDocumentSync: TextDocumentSyncKindFull,
 			HoverProvider:    true,
 			DefinitionProvider: true,
+			DocumentSymbolProvider: true,
 			CompletionProvider: &CompletionOptions{
 				ResolveProvider:   false,
 				TriggerCharacters: []string{".", ":", ">", "$"},
@@ -275,4 +276,49 @@ func uriToPath(uri string) string {
 
 func pathToURI(path string) string {
 	return "file://" + path
+}
+
+func (h *Handler) DocumentSymbol(params DocumentSymbolParams) []DocumentSymbol {
+	if h.program == nil {
+		return nil
+	}
+
+	var symbols []DocumentSymbol
+
+	for _, stmt := range h.program.Statements {
+		if fd, ok := stmt.(*parser.FuncDecl); ok && fd.Name != "" {
+			symbols = append(symbols, DocumentSymbol{
+				Name:           fd.Name,
+				Kind:           SymbolKindFunction,
+				Range:          Range{Start: ConvertPos(fd.Pos()), End: ConvertPos(fd.Pos())},
+				SelectionRange: Range{Start: ConvertPos(fd.Pos()), End: ConvertPos(fd.Pos())},
+			})
+		} else if cd, ok := stmt.(*parser.ClassDecl); ok && cd.Name != "" {
+			var children []DocumentSymbol
+			for _, m := range cd.Methods {
+				children = append(children, DocumentSymbol{
+					Name:           m.Name,
+					Kind:           SymbolKindMethod,
+					Range:          Range{Start: ConvertPos(m.Pos()), End: ConvertPos(m.Pos())},
+					SelectionRange: Range{Start: ConvertPos(m.Pos()), End: ConvertPos(m.Pos())},
+				})
+			}
+			symbols = append(symbols, DocumentSymbol{
+				Name:           cd.Name,
+				Kind:           SymbolKindClass,
+				Range:          Range{Start: ConvertPos(cd.Pos()), End: ConvertPos(cd.Pos())},
+				SelectionRange: Range{Start: ConvertPos(cd.Pos()), End: ConvertPos(cd.Pos())},
+				Children:       children,
+			})
+		} else if vd, ok := stmt.(*parser.VarDecl); ok && vd.Name != "" {
+			symbols = append(symbols, DocumentSymbol{
+				Name:           vd.Name,
+				Kind:           SymbolKindVariable,
+				Range:          Range{Start: ConvertPos(vd.Pos()), End: ConvertPos(vd.Pos())},
+				SelectionRange: Range{Start: ConvertPos(vd.Pos()), End: ConvertPos(vd.Pos())},
+			})
+		}
+	}
+
+	return symbols
 }

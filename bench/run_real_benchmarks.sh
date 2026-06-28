@@ -29,10 +29,28 @@ kill $PY_PID || true
 
 echo "--- 4. Wolf ---"
 ./wolf build bench/real.wolf
-./wolf_out/real &
+./wolf_out/real 2>/dev/null &
 WOLF_PID=$!
 sleep 2
 ./bench/load_tester -c 150 -n 100000 -url http://127.0.0.1:8084/ > bench/results_real_wolf.txt
 kill $WOLF_PID || true
+
+echo "--- 5. Rust ---"
+cd bench/real_rust
+cargo build --release
+./target/release/real_rust &
+RUST_PID=$!
+cd ../..
+sleep 2
+./bench/load_tester -c 150 -n 100000 -url http://127.0.0.1:8085/ > bench/results_real_rust.txt
+kill $RUST_PID || true
+
+echo "--- 6. C (POSIX Pthreads) ---"
+gcc -O3 -pthread bench/real.c -o bench/real_c
+./bench/real_c &
+C_PID=$!
+sleep 2
+./bench/load_tester -c 150 -n 100000 -url http://127.0.0.1:8086/ > bench/results_real_c.txt
+kill $C_PID || true
 
 echo "=== Done ==="

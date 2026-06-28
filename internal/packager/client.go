@@ -16,7 +16,7 @@ type RegistryResponse struct {
 	Versions   []string `json:"versions"`
 }
 
-var RegistryURL = "https://registry.wolf-lang.org/pkg"
+var RegistryURL = "https://raw.githubusercontent.com/wolflang/registry/main/packages"
 var httpClient = &http.Client{Timeout: 10 * time.Second}
 
 // ResolvePackage attempts to resolve a package name into a Git repository and version list.
@@ -32,7 +32,7 @@ func ResolvePackage(pkgName string) (*RegistryResponse, error) {
 		}, nil
 	}
 
-	url := fmt.Sprintf("%s/%s", RegistryURL, pkgName)
+	url := fmt.Sprintf("%s/%s.json", RegistryURL, pkgName)
 	resp, err := httpClient.Get(url)
 	if err != nil {
 		return nil, fmt.Errorf("registry network error for %s: %w", pkgName, err)
