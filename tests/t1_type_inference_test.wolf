@@ -1,0 +1,55 @@
+// T1-01: Type Inference Correctness
+// Proves the compiler correctly infers primitive types from literals.
+
+func test_int_inference() {
+    $x = 42
+    $doubled = $x * 2
+    if $doubled != 84 {
+        error("T1-01: int inference failed — expected 84, got: {$doubled}")
+    }
+}
+
+func test_float_inference() {
+    $y = 3.14
+    $scaled = $y * 2.0
+    // 3.14 * 2.0 = 6.28 — must be > 6.0
+    if $scaled <= 6.0 {
+        error("T1-01: float inference failed — expected > 6.0")
+    }
+}
+
+func test_string_inference() {
+    $z = "hello"
+    $upper = strtoupper($z)
+    if $upper != "HELLO" {
+        error("T1-01: string inference failed — expected HELLO, got: {$upper}")
+    }
+}
+
+func test_bool_inference() {
+    $flag = true
+    if !$flag {
+        error("T1-01: bool inference failed — flag should be true")
+    }
+    $flag2 = false
+    if $flag2 {
+        error("T1-01: bool inference failed — flag2 should be false")
+    }
+}
+
+func test_type_isolation() {
+    // Each type should not bleed into another
+    $n = 100
+    $s = "100"
+    // They are different: one is an integer, one is a string
+    // Concatenating string with string should work
+    $combined = $s .. "px"
+    if $combined != "100px" {
+        error("T1-01: type isolation failed — expected 100px, got: {$combined}")
+    }
+    // Integer arithmetic should work
+    $n2 = $n + 1
+    if $n2 != 101 {
+        error("T1-01: int arithmetic failed — expected 101, got: {$n2}")
+    }
+}

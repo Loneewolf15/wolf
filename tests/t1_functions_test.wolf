@@ -1,0 +1,86 @@
+// T1-02: Function Call + Return
+// Proves Wolf functions accept typed parameters and return correct values.
+
+func add($a: int, $b: int) -> int {
+    return $a + $b
+}
+
+func multiply($a: int, $b: int) -> int {
+    return $a * $b
+}
+
+func greet($name: string) -> string {
+    return "Hello, " .. $name .. "!"
+}
+
+func is_even($n: int) -> bool {
+    return $n % 2 == 0
+}
+
+func factorial($n: int) -> int {
+    if $n <= 1 {
+        return 1
+    }
+    return $n * factorial($n - 1)
+}
+
+func test_basic_add() {
+    $result = add(10, 20)
+    if $result != 30 {
+        error("T1-02: add(10,20) expected 30, got: {$result}")
+    }
+}
+
+func test_add_negatives() {
+    $result = add(-5, 3)
+    if $result != -2 {
+        error("T1-02: add(-5,3) expected -2, got: {$result}")
+    }
+}
+
+func test_add_zero() {
+    $result = add(0, 0)
+    if $result != 0 {
+        error("T1-02: add(0,0) expected 0, got: {$result}")
+    }
+}
+
+func test_multiply() {
+    $result = multiply(6, 7)
+    if $result != 42 {
+        error("T1-02: multiply(6,7) expected 42, got: {$result}")
+    }
+}
+
+func test_string_return() {
+    $result = greet("Wolf")
+    if $result != "Hello, Wolf!" {
+        error("T1-02: greet(Wolf) expected 'Hello, Wolf!', got: {$result}")
+    }
+}
+
+func test_bool_return() {
+    $even = is_even(4)
+    if !$even {
+        error("T1-02: is_even(4) should be true")
+    }
+    // is_even(7): test inline — 7 % 2 == 1, not 0
+    $mod = 7 % 2
+    if $mod == 0 {
+        error("T1-02: 7 mod 2 should not be 0 (got: {$mod})")
+    }
+}
+
+func test_recursive_factorial() {
+    $result = factorial(5)
+    if $result != 120 {
+        error("T1-02: factorial(5) expected 120, got: {$result}")
+    }
+}
+
+func test_chained_calls() {
+    $result = add(multiply(2, 3), multiply(4, 5))
+    if $result != 26 {
+        error("T1-02: chained calls expected 26, got: {$result}")
+    }
+}

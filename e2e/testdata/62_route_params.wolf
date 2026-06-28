@@ -1,0 +1,43 @@
+// T2-02: Route param extraction
+// GET /users/:id — extracts the id segment and echoes it back as JSON.
+// Valid numeric id → 200 {"id": N}
+// Non-numeric id (e.g. /users/abc) → 400 {"error":"invalid id"}
+
+func handler($req_id: int, $res_id: int) {
+    $path = wolf_http_req_path($req_id)
+
+    // Match /users/<segment>
+    $prefix = "/users/"
+    $prefix_len = strlen($prefix)
+    $path_len = strlen($path)
+
+    if $path_len > $prefix_len {
+        $id_str = substr($path, $prefix_len, $path_len - $prefix_len)
+
+        // Validate: must be all digits (intval of non-numeric = 0)
+        $id_val = intval($id_str)
+        $is_valid = false
+
+        if $id_val > 0 {
+            $is_valid = true
+        } else if $id_str == "0" {
+            $is_valid = true
+        }
+
+        if $is_valid {
+            wolf_http_res_status($res_id, 200)
+            wolf_http_res_header($res_id, "Content-Type", "application/json")
+            wolf_http_res_write($res_id, "{\"id\":" .. $id_str .. "}")
+        } else {
+            wolf_http_res_status($res_id, 400)
+            wolf_http_res_header($res_id, "Content-Type", "application/json")
+            wolf_http_res_write($res_id, "{\"error\":\"invalid id\"}")
+        }
+        return
+    }
+
+    wolf_http_res_status($res_id, 404)
+    wolf_http_res_write($res_id, "{\"error\":\"not found\"}")
+}
+
+wolf_http_serve(19062, handler)

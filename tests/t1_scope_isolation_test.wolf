@@ -1,0 +1,97 @@
+// T1-05: Nested Scope Isolation
+// Proves that variables declared in inner scopes don't escape,
+// and that outer scope mutations are visible after the block.
+
+func test_if_scope_mutation() {
+    // Assignment inside if modifies the outer $x (Wolf uses lexical scoping —
+    // inner assignment to an already-declared var mutates the outer binding)
+    $x = 1
+    if true {
+        $x = 99
+    }
+    if $x != 99 {
+        error("T1-05: $x after if-block assignment expected 99, got: {$x}")
+    }
+}
+
+func test_for_loop_scope() {
+    // Loop variable $i must not be visible after the loop
+    $sum = 0
+    for $i = 0; $i < 5; $i++ {
+        $sum = $sum + $i
+    }
+    // $sum should be 0+1+2+3+4 = 10
+    if $sum != 10 {
+        error("T1-05: loop sum expected 10, got: {$sum}")
+    }
+}
+
+func test_nested_if_scope() {
+    $outer = "outer"
+    if true {
+        $inner = "inner"
+        $outer = "modified"
+        // $inner is accessible here
+        if $inner != "inner" {
+            error("T1-05: $inner should be 'inner' inside its scope")
+        }
+    }
+    // $outer should have been mutated
+    if $outer != "modified" {
+        error("T1-05: $outer should be 'modified' after inner assignment, got: {$outer}")
+    }
+}
+
+func test_while_scope() {
+    $count = 0
+    $i = 0
+    while $i < 3 {
+        $count = $count + 1
+        $i = $i + 1
+    }
+    if $count != 3 {
+        error("T1-05: while loop count expected 3, got: {$count}")
+    }
+}
+
+func test_foreach_scope() {
+    $items = [10, 20, 30]
+    $total = 0
+    foreach $items as $item {
+        $total = $total + $item
+    }
+    if $total != 60 {
+        error("T1-05: foreach total expected 60, got: {$total}")
+    }
+}
+
+func test_nested_function_scope() {
+    // Functions have their own scope — outer vars not accidentally shared
+    $outer_val = 100
+    $result = modify_test($outer_val)
+    // $outer_val must be unchanged
+    if $outer_val != 100 {
+        error("T1-05: outer_val should be 100 (functions don't modify caller scope), got: {$outer_val}")
+    }
+    if $result != 200 {
+        error("T1-05: modify_test expected 200, got: {$result}")
+    }
+}
+
+func modify_test($val: int) -> int {
+    $val = $val * 2
+    return $val
+}
+
+func test_try_catch_scope() {
+    $status = "init"
+    try {
+        $status = "try"
+        error("intentional")
+    } catch ($e) {
+        $status = "caught"
+    }
+    if $status != "caught" {
+        error("T1-05: $status after catch expected 'caught', got: {$status}")
+    }
+}

@@ -1,0 +1,46 @@
+// T2-05: Middleware chain — auth token validation
+// Request hits auth check → sets context → reaches handler
+// Valid token (Bearer wolf-secret-token) → 200 {"user":"wolf-user"}
+// Missing or malformed token → 401 {"error":"unauthorized"}
+// Handler body MUST NOT execute on auth failure.
+
+func check_auth($req_id: int) -> bool {
+    $auth = wolf_http_req_header($req_id, "Authorization")
+    if $auth == "Bearer wolf-secret-token" {
+        return true
+    }
+    return false
+}
+
+func handler($req_id: int, $res_id: int) {
+    $path = wolf_http_req_path($req_id)
+
+    // Public route — no auth required
+    if $path == "/public" {
+        wolf_http_res_status($res_id, 200)
+        wolf_http_res_header($res_id, "Content-Type", "application/json")
+        wolf_http_res_write($res_id, "{\"public\":true}")
+        return
+    }
+
+    // Protected route — auth required
+    if $path == "/protected" {
+        $authed = check_auth($req_id)
+        if !$authed {
+            wolf_http_res_status($res_id, 401)
+            wolf_http_res_header($res_id, "Content-Type", "application/json")
+            wolf_http_res_write($res_id, "{\"error\":\"unauthorized\"}")
+            return
+        }
+        // Handler body — must not execute if auth failed
+        wolf_http_res_status($res_id, 200)
+        wolf_http_res_header($res_id, "Content-Type", "application/json")
+        wolf_http_res_write($res_id, "{\"user\":\"wolf-user\"}")
+        return
+    }
+
+    wolf_http_res_status($res_id, 404)
+    wolf_http_res_write($res_id, "{\"error\":\"not found\"}")
+}
+
+wolf_http_serve(19063, handler)

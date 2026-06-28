@@ -1,0 +1,19 @@
+// T2-01: Route registration + JSON response
+// GET /ping returns {"status":"ok"}
+// This Wolf server is started by the Go E2E test harness and tested with net/http.
+
+func handler($req_id: int, $res_id: int) {
+    $path = wolf_http_req_path($req_id)
+
+    if $path == "/ping" {
+        wolf_http_res_status($res_id, 200)
+        wolf_http_res_header($res_id, "Content-Type", "application/json")
+        wolf_http_res_write($res_id, "{\"status\":\"ok\"}")
+        return
+    }
+
+    wolf_http_res_status($res_id, 404)
+    wolf_http_res_write($res_id, "{\"error\":\"not found\"}")
+}
+
+wolf_http_serve(19061, handler)
