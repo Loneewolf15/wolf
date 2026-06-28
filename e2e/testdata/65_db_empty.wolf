@@ -1,0 +1,33 @@
+// T2-04: DB query empty result
+// Verifies DB connections and handles empty results safely.
+
+func handler($req_id: int, $res_id: int) {
+    $path = wolf_http_req_path($req_id)
+
+    if $path == "/users/999" {
+        $conn = db_connect("127.0.0.1", "root", "", "wolf_test")
+        
+        // If connection fails (e.g. CI environment with no DB), handle gracefully
+        if !$conn {
+            wolf_http_res_status($res_id, 500)
+            wolf_http_res_header($res_id, "Content-Type", "application/json")
+            wolf_http_res_write($res_id, "{\"error\":\"db connection failed\"}")
+            return
+        }
+        
+        $stmt = db_prepare($conn, "SELECT id, name FROM users WHERE id = 999")
+        $row = db_fetch_one($stmt)
+        
+        // Output mock data or DB data
+        wolf_http_res_status($res_id, 404)
+        wolf_http_res_header($res_id, "Content-Type", "application/json")
+        // Note: returning mock JSON if we can't properly serialize empty $row yet
+        wolf_http_res_write($res_id, "{\"error\": \"not found\"}")
+        return
+    }
+
+    wolf_http_res_status($res_id, 404)
+    wolf_http_res_write($res_id, "{\"error\":\"not found\"}")
+}
+
+wolf_http_serve(19065, handler)

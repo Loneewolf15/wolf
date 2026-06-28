@@ -1543,8 +1543,10 @@ static WolfDBConn* wolf_pool_acquire(void) {
     wolf_pool_init_locked();
 
     while (1) {
+        int all_in_use = 1;
         for (int i = 0; i < WOLF_DB_POOL_SIZE; i++) {
             if (!wolf_pool[i].in_use) {
+                all_in_use = 0;
                 if (wolf_pool[i].conn && WOLF_DB_PING(wolf_pool[i].conn) != 0) {
                     WOLF_LOG("[WOLF-POOL] slot %d stale, reconnecting\n", i);
                     WOLF_DB_CLOSE(wolf_pool[i].conn);
@@ -1559,6 +1561,11 @@ static WolfDBConn* wolf_pool_acquire(void) {
                     return wolf_pool[i].conn;
                 }
             }
+        }
+        if (!all_in_use) {
+            fprintf(stderr, "[WOLF-POOL] unable to connect to database\n");
+            WOLF_POOL_UNLOCK();
+            return NULL;
         }
         int rc = WOLF_POOL_TIMEDWAIT(&deadline);
         if (rc == ETIMEDOUT) {
