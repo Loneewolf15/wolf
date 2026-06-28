@@ -4,122 +4,122 @@
 target triple = "x86_64-pc-linux-gnu"
 
 ; --- String Constants ---
-@.str.99 = private unnamed_addr constant [34 x i8] c"\E2\9D\8C test_foreach_scope - FAILED: \00"
-@.str.100 = private unnamed_addr constant [31 x i8] c"\E2\9C\85 test_nested_function_scope\00"
-@.str.28 = private unnamed_addr constant [9 x i8] c"modified\00"
-@.str.42 = private unnamed_addr constant [6 x i8] c"hello\00"
-@.str.52 = private unnamed_addr constant [8 x i8] c"Counter\00"
-@.str.71 = private unnamed_addr constant [36 x i8] c"\E2\9D\8C test_bounded_counter - FAILED: \00"
-@.str.13 = private unnamed_addr constant [37 x i8] c"T1-02: add(10,20) expected 30, got: \00"
-@.str.63 = private unnamed_addr constant [45 x i8] c"\E2\9D\8C test_counter_triple_increment - FAILED: \00"
-@.str.65 = private unnamed_addr constant [38 x i8] c"\E2\9D\8C test_counter_decrement - FAILED: \00"
-@.str.87 = private unnamed_addr constant [40 x i8] c"\E2\9D\8C test_recursive_factorial - FAILED: \00"
-@.str.93 = private unnamed_addr constant [35 x i8] c"\E2\9D\8C test_for_loop_scope - FAILED: \00"
-@.str.97 = private unnamed_addr constant [32 x i8] c"\E2\9D\8C test_while_scope - FAILED: \00"
-@.str.105 = private unnamed_addr constant [34 x i8] c"\E2\9D\8C test_int_inference - FAILED: \00"
-@.str.54 = private unnamed_addr constant [12 x i8] c"NamedEntity\00"
-@.str.66 = private unnamed_addr constant [23 x i8] c"\E2\9C\85 test_counter_reset\00"
-@.str.67 = private unnamed_addr constant [34 x i8] c"\E2\9D\8C test_counter_reset - FAILED: \00"
-@.str.106 = private unnamed_addr constant [25 x i8] c"\E2\9C\85 test_float_inference\00"
-@.str.14 = private unnamed_addr constant [36 x i8] c"T1-02: add(-5,3) expected -2, got: \00"
-@.str.15 = private unnamed_addr constant [34 x i8] c"T1-02: add(0,0) expected 0, got: \00"
-@.str.24 = private unnamed_addr constant [55 x i8] c"T1-05: $x after if-block assignment expected 99, got: \00"
-@.str.31 = private unnamed_addr constant [42 x i8] c"T1-05: while loop count expected 3, got: \00"
-@.str.10 = private unnamed_addr constant [51 x i8] c"T1-03: NamedEntity label expected 'Wolf#42', got: \00"
-@.str.38 = private unnamed_addr constant [7 x i8] c"caught\00"
-@.str.76 = private unnamed_addr constant [23 x i8] c"\E2\9C\85 test_add_negatives\00"
-@.str.69 = private unnamed_addr constant [41 x i8] c"\E2\9D\8C test_counter_independence - FAILED: \00"
-@.str.78 = private unnamed_addr constant [18 x i8] c"\E2\9C\85 test_add_zero\00"
-@.str.98 = private unnamed_addr constant [23 x i8] c"\E2\9C\85 test_foreach_scope\00"
-@.str.43 = private unnamed_addr constant [6 x i8] c"HELLO\00"
-@.str.49 = private unnamed_addr constant [6 x i8] c"100px\00"
-@.str.72 = private unnamed_addr constant [22 x i8] c"\E2\9C\85 test_named_entity\00"
-@.str.75 = private unnamed_addr constant [30 x i8] c"\E2\9D\8C test_basic_add - FAILED: \00"
-@.str.8 = private unnamed_addr constant [5 x i8] c"Wolf\00"
-@.str.35 = private unnamed_addr constant [5 x i8] c"init\00"
-@.str.46 = private unnamed_addr constant [55 x i8] c"T1-01: bool inference failed \E2\80\94 flag2 should be false\00"
-@.str.51 = private unnamed_addr constant [53 x i8] c"T1-01: int arithmetic failed \E2\80\94 expected 101, got: \00"
-@.str.102 = private unnamed_addr constant [25 x i8] c"\E2\9C\85 test_try_catch_scope\00"
-@.str.4 = private unnamed_addr constant [45 x i8] c"T1-03: Counter after reset expected 0, got: \00"
-@.str.74 = private unnamed_addr constant [19 x i8] c"\E2\9C\85 test_basic_add\00"
-@.str.92 = private unnamed_addr constant [24 x i8] c"\E2\9C\85 test_for_loop_scope\00"
-@.str.90 = private unnamed_addr constant [27 x i8] c"\E2\9C\85 test_if_scope_mutation\00"
-@.str.6 = private unnamed_addr constant [28 x i8] c"T1-03: c2 expected 1, got: \00"
-@.str.27 = private unnamed_addr constant [6 x i8] c"inner\00"
-@.str.36 = private unnamed_addr constant [4 x i8] c"try\00"
-@.str.68 = private unnamed_addr constant [30 x i8] c"\E2\9C\85 test_counter_independence\00"
-@.str.109 = private unnamed_addr constant [37 x i8] c"\E2\9D\8C test_string_inference - FAILED: \00"
-@.str.110 = private unnamed_addr constant [24 x i8] c"\E2\9C\85 test_bool_inference\00"
-@.str.11 = private unnamed_addr constant [8 x i8] c"Hello, \00"
-@.str.59 = private unnamed_addr constant [2 x i8] c"#\00"
-@.str.88 = private unnamed_addr constant [23 x i8] c"\E2\9C\85 test_chained_calls\00"
-@.str.107 = private unnamed_addr constant [36 x i8] c"\E2\9D\8C test_float_inference - FAILED: \00"
-@.str.12 = private unnamed_addr constant [2 x i8] c"!\00"
-@.str.94 = private unnamed_addr constant [25 x i8] c"\E2\9C\85 test_nested_if_scope\00"
-@.str.23 = private unnamed_addr constant [40 x i8] c"T1-02: chained calls expected 26, got: \00"
-@.str.26 = private unnamed_addr constant [6 x i8] c"outer\00"
-@.str.39 = private unnamed_addr constant [52 x i8] c"T1-05: $status after catch expected 'caught', got: \00"
-@.str.55 = private unnamed_addr constant [6 x i8] c"count\00"
-@.str.7 = private unnamed_addr constant [62 x i8] c"T1-03: BoundedCounter(3) after 5 increments expected 3, got: \00"
-@.str.111 = private unnamed_addr constant [35 x i8] c"\E2\9D\8C test_bool_inference - FAILED: \00"
-@.str.33 = private unnamed_addr constant [76 x i8] c"T1-05: outer_val should be 100 (functions don't modify caller scope), got: \00"
-@.str.85 = private unnamed_addr constant [32 x i8] c"\E2\9D\8C test_bool_return - FAILED: \00"
-@.str.91 = private unnamed_addr constant [38 x i8] c"\E2\9D\8C test_if_scope_mutation - FAILED: \00"
-@.str.50 = private unnamed_addr constant [55 x i8] c"T1-01: type isolation failed \E2\80\94 expected 100px, got: \00"
-@.str.9 = private unnamed_addr constant [8 x i8] c"Wolf#42\00"
-@.str.25 = private unnamed_addr constant [35 x i8] c"T1-05: loop sum expected 10, got: \00"
-@.str.40 = private unnamed_addr constant [51 x i8] c"T1-01: int inference failed \E2\80\94 expected 84, got: \00"
-@.str.45 = private unnamed_addr constant [53 x i8] c"T1-01: bool inference failed \E2\80\94 flag should be true\00"
-@.str.18 = private unnamed_addr constant [50 x i8] c"T1-02: greet(Wolf) expected 'Hello, Wolf!', got: \00"
-@.str.44 = private unnamed_addr constant [57 x i8] c"T1-01: string inference failed \E2\80\94 expected HELLO, got: \00"
-@.str.61 = private unnamed_addr constant [34 x i8] c"\E2\9D\8C test_counter_basic - FAILED: \00"
-@.str.60 = private unnamed_addr constant [23 x i8] c"\E2\9C\85 test_counter_basic\00"
-@.str.77 = private unnamed_addr constant [34 x i8] c"\E2\9D\8C test_add_negatives - FAILED: \00"
-@.str.101 = private unnamed_addr constant [42 x i8] c"\E2\9D\8C test_nested_function_scope - FAILED: \00"
-@.str.3 = private unnamed_addr constant [66 x i8] c"T1-03: Counter after 3 increments + 1 decrement expected 2, got: \00"
-@.str.21 = private unnamed_addr constant [2 x i8] c")\00"
-@.str.83 = private unnamed_addr constant [34 x i8] c"\E2\9D\8C test_string_return - FAILED: \00"
-@.str.89 = private unnamed_addr constant [34 x i8] c"\E2\9D\8C test_chained_calls - FAILED: \00"
-@.str.80 = private unnamed_addr constant [18 x i8] c"\E2\9C\85 test_multiply\00"
-@.str.32 = private unnamed_addr constant [40 x i8] c"T1-05: foreach total expected 60, got: \00"
-@.str.73 = private unnamed_addr constant [33 x i8] c"\E2\9D\8C test_named_entity - FAILED: \00"
-@.str.86 = private unnamed_addr constant [29 x i8] c"\E2\9C\85 test_recursive_factorial\00"
-@.str.108 = private unnamed_addr constant [26 x i8] c"\E2\9C\85 test_string_inference\00"
-@.str.34 = private unnamed_addr constant [39 x i8] c"T1-05: modify_test expected 200, got: \00"
-@.str.48 = private unnamed_addr constant [3 x i8] c"px\00"
-@.str.62 = private unnamed_addr constant [34 x i8] c"\E2\9C\85 test_counter_triple_increment\00"
-@.str.5 = private unnamed_addr constant [28 x i8] c"T1-03: c1 expected 2, got: \00"
-@.str.57 = private unnamed_addr constant [3 x i8] c"id\00"
-@.str.96 = private unnamed_addr constant [21 x i8] c"\E2\9C\85 test_while_scope\00"
-@.str.95 = private unnamed_addr constant [36 x i8] c"\E2\9D\8C test_nested_if_scope - FAILED: \00"
-@.str.17 = private unnamed_addr constant [13 x i8] c"Hello, Wolf!\00"
-@.str.22 = private unnamed_addr constant [40 x i8] c"T1-02: factorial(5) expected 120, got: \00"
-@.str.29 = private unnamed_addr constant [49 x i8] c"T1-05: $inner should be 'inner' inside its scope\00"
-@.str.53 = private unnamed_addr constant [15 x i8] c"BoundedCounter\00"
-@.str.2 = private unnamed_addr constant [52 x i8] c"T1-03: Counter after 3 increments expected 3, got: \00"
-@.str.104 = private unnamed_addr constant [23 x i8] c"\E2\9C\85 test_int_inference\00"
-@.str.116 = private unnamed_addr constant [8 x i8] c" failed\00"
-@.str.103 = private unnamed_addr constant [36 x i8] c"\E2\9D\8C test_try_catch_scope - FAILED: \00"
-@.str.16 = private unnamed_addr constant [40 x i8] c"T1-02: multiply(6,7) expected 42, got: \00"
 @.str.20 = private unnamed_addr constant [38 x i8] c"T1-02: 7 mod 2 should not be 0 (got: \00"
-@.str.114 = private unnamed_addr constant [9 x i8] c"\0ATests: \00"
-@.str.112 = private unnamed_addr constant [24 x i8] c"\E2\9C\85 test_type_isolation\00"
-@.str.115 = private unnamed_addr constant [10 x i8] c" passed, \00"
-@.str.30 = private unnamed_addr constant [65 x i8] c"T1-05: $outer should be 'modified' after inner assignment, got: \00"
-@.str.47 = private unnamed_addr constant [4 x i8] c"100\00"
-@.str.58 = private unnamed_addr constant [5 x i8] c"name\00"
-@.str.64 = private unnamed_addr constant [27 x i8] c"\E2\9C\85 test_counter_decrement\00"
-@.str.1 = private unnamed_addr constant [52 x i8] c"T1-03: Counter after 2 increments expected 2, got: \00"
-@.str.19 = private unnamed_addr constant [33 x i8] c"T1-02: is_even(4) should be true\00"
+@.str.105 = private unnamed_addr constant [34 x i8] c"\E2\9D\8C test_int_inference - FAILED: \00"
+@.str.102 = private unnamed_addr constant [25 x i8] c"\E2\9C\85 test_try_catch_scope\00"
+@.str.108 = private unnamed_addr constant [26 x i8] c"\E2\9C\85 test_string_inference\00"
+@.str.35 = private unnamed_addr constant [5 x i8] c"init\00"
 @.str.37 = private unnamed_addr constant [12 x i8] c"intentional\00"
+@.str.85 = private unnamed_addr constant [32 x i8] c"\E2\9D\8C test_bool_return - FAILED: \00"
+@.str.100 = private unnamed_addr constant [31 x i8] c"\E2\9C\85 test_nested_function_scope\00"
+@.str.15 = private unnamed_addr constant [34 x i8] c"T1-02: add(0,0) expected 0, got: \00"
+@.str.49 = private unnamed_addr constant [6 x i8] c"100px\00"
+@.str.111 = private unnamed_addr constant [35 x i8] c"\E2\9D\8C test_bool_inference - FAILED: \00"
+@.str.11 = private unnamed_addr constant [8 x i8] c"Hello, \00"
+@.str.48 = private unnamed_addr constant [3 x i8] c"px\00"
+@.str.90 = private unnamed_addr constant [27 x i8] c"\E2\9C\85 test_if_scope_mutation\00"
+@.str.93 = private unnamed_addr constant [35 x i8] c"\E2\9D\8C test_for_loop_scope - FAILED: \00"
+@.str.16 = private unnamed_addr constant [40 x i8] c"T1-02: multiply(6,7) expected 42, got: \00"
+@.str.57 = private unnamed_addr constant [3 x i8] c"id\00"
+@.str.91 = private unnamed_addr constant [38 x i8] c"\E2\9D\8C test_if_scope_mutation - FAILED: \00"
+@.str.103 = private unnamed_addr constant [36 x i8] c"\E2\9D\8C test_try_catch_scope - FAILED: \00"
+@.str.110 = private unnamed_addr constant [24 x i8] c"\E2\9C\85 test_bool_inference\00"
+@.str.10 = private unnamed_addr constant [51 x i8] c"T1-03: NamedEntity label expected 'Wolf#42', got: \00"
+@.str.27 = private unnamed_addr constant [6 x i8] c"inner\00"
+@.str.55 = private unnamed_addr constant [6 x i8] c"count\00"
+@.str.65 = private unnamed_addr constant [38 x i8] c"\E2\9D\8C test_counter_decrement - FAILED: \00"
+@.str.60 = private unnamed_addr constant [23 x i8] c"\E2\9C\85 test_counter_basic\00"
+@.str.1 = private unnamed_addr constant [52 x i8] c"T1-03: Counter after 2 increments expected 2, got: \00"
+@.str.2 = private unnamed_addr constant [52 x i8] c"T1-03: Counter after 3 increments expected 3, got: \00"
+@.str.5 = private unnamed_addr constant [28 x i8] c"T1-03: c1 expected 2, got: \00"
+@.str.18 = private unnamed_addr constant [50 x i8] c"T1-02: greet(Wolf) expected 'Hello, Wolf!', got: \00"
+@.str.50 = private unnamed_addr constant [55 x i8] c"T1-01: type isolation failed \E2\80\94 expected 100px, got: \00"
+@.str.66 = private unnamed_addr constant [23 x i8] c"\E2\9C\85 test_counter_reset\00"
+@.str.72 = private unnamed_addr constant [22 x i8] c"\E2\9C\85 test_named_entity\00"
+@.str.77 = private unnamed_addr constant [34 x i8] c"\E2\9D\8C test_add_negatives - FAILED: \00"
+@.str.54 = private unnamed_addr constant [12 x i8] c"NamedEntity\00"
+@.str.78 = private unnamed_addr constant [18 x i8] c"\E2\9C\85 test_add_zero\00"
+@.str.9 = private unnamed_addr constant [8 x i8] c"Wolf#42\00"
+@.str.23 = private unnamed_addr constant [40 x i8] c"T1-02: chained calls expected 26, got: \00"
+@.str.36 = private unnamed_addr constant [4 x i8] c"try\00"
+@.str.38 = private unnamed_addr constant [7 x i8] c"caught\00"
+@.str.4 = private unnamed_addr constant [45 x i8] c"T1-03: Counter after reset expected 0, got: \00"
+@.str.42 = private unnamed_addr constant [6 x i8] c"hello\00"
+@.str.58 = private unnamed_addr constant [5 x i8] c"name\00"
+@.str.98 = private unnamed_addr constant [23 x i8] c"\E2\9C\85 test_foreach_scope\00"
+@.str.29 = private unnamed_addr constant [49 x i8] c"T1-05: $inner should be 'inner' inside its scope\00"
+@.str.39 = private unnamed_addr constant [52 x i8] c"T1-05: $status after catch expected 'caught', got: \00"
 @.str.70 = private unnamed_addr constant [25 x i8] c"\E2\9C\85 test_bounded_counter\00"
-@.str.82 = private unnamed_addr constant [23 x i8] c"\E2\9C\85 test_string_return\00"
-@.str.84 = private unnamed_addr constant [21 x i8] c"\E2\9C\85 test_bool_return\00"
 @.str.113 = private unnamed_addr constant [35 x i8] c"\E2\9D\8C test_type_isolation - FAILED: \00"
-@.str.41 = private unnamed_addr constant [49 x i8] c"T1-01: float inference failed \E2\80\94 expected > 6.0\00"
+@.str.75 = private unnamed_addr constant [30 x i8] c"\E2\9D\8C test_basic_add - FAILED: \00"
+@.str.94 = private unnamed_addr constant [25 x i8] c"\E2\9C\85 test_nested_if_scope\00"
+@.str.19 = private unnamed_addr constant [33 x i8] c"T1-02: is_even(4) should be true\00"
+@.str.106 = private unnamed_addr constant [25 x i8] c"\E2\9C\85 test_float_inference\00"
+@.str.116 = private unnamed_addr constant [8 x i8] c" failed\00"
+@.str.14 = private unnamed_addr constant [36 x i8] c"T1-02: add(-5,3) expected -2, got: \00"
+@.str.40 = private unnamed_addr constant [51 x i8] c"T1-01: int inference failed \E2\80\94 expected 84, got: \00"
+@.str.86 = private unnamed_addr constant [29 x i8] c"\E2\9C\85 test_recursive_factorial\00"
+@.str.101 = private unnamed_addr constant [42 x i8] c"\E2\9D\8C test_nested_function_scope - FAILED: \00"
 @.str.56 = private unnamed_addr constant [4 x i8] c"max\00"
-@.str.79 = private unnamed_addr constant [29 x i8] c"\E2\9D\8C test_add_zero - FAILED: \00"
+@.str.115 = private unnamed_addr constant [10 x i8] c" passed, \00"
+@.str.21 = private unnamed_addr constant [2 x i8] c")\00"
+@.str.25 = private unnamed_addr constant [35 x i8] c"T1-05: loop sum expected 10, got: \00"
+@.str.44 = private unnamed_addr constant [57 x i8] c"T1-01: string inference failed \E2\80\94 expected HELLO, got: \00"
+@.str.53 = private unnamed_addr constant [15 x i8] c"BoundedCounter\00"
+@.str.12 = private unnamed_addr constant [2 x i8] c"!\00"
 @.str.81 = private unnamed_addr constant [29 x i8] c"\E2\9D\8C test_multiply - FAILED: \00"
+@.str.82 = private unnamed_addr constant [23 x i8] c"\E2\9C\85 test_string_return\00"
+@.str.97 = private unnamed_addr constant [32 x i8] c"\E2\9D\8C test_while_scope - FAILED: \00"
+@.str.99 = private unnamed_addr constant [34 x i8] c"\E2\9D\8C test_foreach_scope - FAILED: \00"
+@.str.8 = private unnamed_addr constant [5 x i8] c"Wolf\00"
+@.str.59 = private unnamed_addr constant [2 x i8] c"#\00"
+@.str.63 = private unnamed_addr constant [45 x i8] c"\E2\9D\8C test_counter_triple_increment - FAILED: \00"
+@.str.71 = private unnamed_addr constant [36 x i8] c"\E2\9D\8C test_bounded_counter - FAILED: \00"
+@.str.17 = private unnamed_addr constant [13 x i8] c"Hello, Wolf!\00"
+@.str.28 = private unnamed_addr constant [9 x i8] c"modified\00"
+@.str.41 = private unnamed_addr constant [49 x i8] c"T1-01: float inference failed \E2\80\94 expected > 6.0\00"
+@.str.68 = private unnamed_addr constant [30 x i8] c"\E2\9C\85 test_counter_independence\00"
+@.str.52 = private unnamed_addr constant [8 x i8] c"Counter\00"
+@.str.79 = private unnamed_addr constant [29 x i8] c"\E2\9D\8C test_add_zero - FAILED: \00"
+@.str.112 = private unnamed_addr constant [24 x i8] c"\E2\9C\85 test_type_isolation\00"
+@.str.33 = private unnamed_addr constant [76 x i8] c"T1-05: outer_val should be 100 (functions don't modify caller scope), got: \00"
+@.str.61 = private unnamed_addr constant [34 x i8] c"\E2\9D\8C test_counter_basic - FAILED: \00"
+@.str.114 = private unnamed_addr constant [9 x i8] c"\0ATests: \00"
+@.str.7 = private unnamed_addr constant [62 x i8] c"T1-03: BoundedCounter(3) after 5 increments expected 3, got: \00"
+@.str.67 = private unnamed_addr constant [34 x i8] c"\E2\9D\8C test_counter_reset - FAILED: \00"
+@.str.6 = private unnamed_addr constant [28 x i8] c"T1-03: c2 expected 1, got: \00"
+@.str.22 = private unnamed_addr constant [40 x i8] c"T1-02: factorial(5) expected 120, got: \00"
+@.str.26 = private unnamed_addr constant [6 x i8] c"outer\00"
+@.str.34 = private unnamed_addr constant [39 x i8] c"T1-05: modify_test expected 200, got: \00"
+@.str.43 = private unnamed_addr constant [6 x i8] c"HELLO\00"
+@.str.47 = private unnamed_addr constant [4 x i8] c"100\00"
+@.str.73 = private unnamed_addr constant [33 x i8] c"\E2\9D\8C test_named_entity - FAILED: \00"
+@.str.84 = private unnamed_addr constant [21 x i8] c"\E2\9C\85 test_bool_return\00"
+@.str.107 = private unnamed_addr constant [36 x i8] c"\E2\9D\8C test_float_inference - FAILED: \00"
+@.str.51 = private unnamed_addr constant [53 x i8] c"T1-01: int arithmetic failed \E2\80\94 expected 101, got: \00"
+@.str.64 = private unnamed_addr constant [27 x i8] c"\E2\9C\85 test_counter_decrement\00"
+@.str.89 = private unnamed_addr constant [34 x i8] c"\E2\9D\8C test_chained_calls - FAILED: \00"
+@.str.95 = private unnamed_addr constant [36 x i8] c"\E2\9D\8C test_nested_if_scope - FAILED: \00"
+@.str.3 = private unnamed_addr constant [66 x i8] c"T1-03: Counter after 3 increments + 1 decrement expected 2, got: \00"
+@.str.13 = private unnamed_addr constant [37 x i8] c"T1-02: add(10,20) expected 30, got: \00"
+@.str.30 = private unnamed_addr constant [65 x i8] c"T1-05: $outer should be 'modified' after inner assignment, got: \00"
+@.str.45 = private unnamed_addr constant [53 x i8] c"T1-01: bool inference failed \E2\80\94 flag should be true\00"
+@.str.24 = private unnamed_addr constant [55 x i8] c"T1-05: $x after if-block assignment expected 99, got: \00"
+@.str.87 = private unnamed_addr constant [40 x i8] c"\E2\9D\8C test_recursive_factorial - FAILED: \00"
+@.str.96 = private unnamed_addr constant [21 x i8] c"\E2\9C\85 test_while_scope\00"
+@.str.69 = private unnamed_addr constant [41 x i8] c"\E2\9D\8C test_counter_independence - FAILED: \00"
+@.str.76 = private unnamed_addr constant [23 x i8] c"\E2\9C\85 test_add_negatives\00"
+@.str.83 = private unnamed_addr constant [34 x i8] c"\E2\9D\8C test_string_return - FAILED: \00"
+@.str.92 = private unnamed_addr constant [24 x i8] c"\E2\9C\85 test_for_loop_scope\00"
+@.str.32 = private unnamed_addr constant [40 x i8] c"T1-05: foreach total expected 60, got: \00"
+@.str.46 = private unnamed_addr constant [55 x i8] c"T1-01: bool inference failed \E2\80\94 flag2 should be false\00"
+@.str.104 = private unnamed_addr constant [23 x i8] c"\E2\9C\85 test_int_inference\00"
+@.str.109 = private unnamed_addr constant [37 x i8] c"\E2\9D\8C test_string_inference - FAILED: \00"
+@.str.88 = private unnamed_addr constant [23 x i8] c"\E2\9C\85 test_chained_calls\00"
+@.str.31 = private unnamed_addr constant [42 x i8] c"T1-05: while loop count expected 3, got: \00"
+@.str.62 = private unnamed_addr constant [34 x i8] c"\E2\9C\85 test_counter_triple_increment\00"
+@.str.74 = private unnamed_addr constant [19 x i8] c"\E2\9C\85 test_basic_add\00"
+@.str.80 = private unnamed_addr constant [18 x i8] c"\E2\9C\85 test_multiply\00"
 
 ; --- External Runtime Functions ---
 declare void @wolf_print_str(ptr)
@@ -577,8 +577,8 @@ declare void @wolf_socket_close(i64)
 
 define void @wolf_assert(i1 %cond.arg, ptr %msg.arg) {
 entry:
-  %cond = call ptr @wolf_req_alloc(i64 1)
   %msg = alloca ptr
+  %cond = call ptr @wolf_req_alloc(i64 1)
   store i1 %cond.arg, ptr %cond
   store ptr %msg.arg, ptr %msg
   %t1 = load i1, ptr %cond
@@ -601,8 +601,8 @@ if.end.2:
 
 define void @wolf_test_counter_basic() {
 entry:
-  %c = call ptr @wolf_req_alloc(i64 8)
   %val = call ptr @wolf_req_alloc(i64 8)
+  %c = call ptr @wolf_req_alloc(i64 8)
   ; DEBUG AssignStmt target type: *ir.Ident
   %t5 = call ptr @wolf_NewCounter()
   %t6 = call i1 @wolf_has_error()
@@ -671,8 +671,8 @@ if.end.14:
 
 define void @wolf_test_counter_triple_increment() {
 entry:
-  %val = call ptr @wolf_req_alloc(i64 8)
   %c = call ptr @wolf_req_alloc(i64 8)
+  %val = call ptr @wolf_req_alloc(i64 8)
   ; DEBUG AssignStmt target type: *ir.Ident
   %t23 = call ptr @wolf_NewCounter()
   %t24 = call i1 @wolf_has_error()
@@ -1202,8 +1202,8 @@ if.end.106:
 
 define i64 @wolf_add(i64 %a.arg, i64 %b.arg) {
 entry:
-  %a = call ptr @wolf_req_alloc(i64 8)
   %b = call ptr @wolf_req_alloc(i64 8)
+  %a = call ptr @wolf_req_alloc(i64 8)
   store i64 %a.arg, ptr %a
   store i64 %b.arg, ptr %b
   %t163 = load i64, ptr %a
@@ -1550,8 +1550,8 @@ if.end.152:
 
 define void @wolf_test_for_loop_scope() {
 entry:
-  %sum = call ptr @wolf_req_alloc(i64 8)
   %i = call ptr @wolf_req_alloc(i64 8)
+  %sum = call ptr @wolf_req_alloc(i64 8)
   ; DEBUG AssignStmt target type: *ir.Ident
   store i64 0, ptr %sum
   ; DEBUG AssignStmt target type: *ir.Ident
@@ -1598,8 +1598,8 @@ if.end.160:
 
 define void @wolf_test_nested_if_scope() {
 entry:
-  %inner = call ptr @wolf_req_alloc(i64 8)
   %outer = call ptr @wolf_req_alloc(i64 8)
+  %inner = call ptr @wolf_req_alloc(i64 8)
   ; DEBUG AssignStmt target type: *ir.Ident
   %t284 = getelementptr [6 x i8], ptr @.str.26, i64 0, i64 0
   store ptr %t284, ptr %outer
@@ -1702,10 +1702,10 @@ if.end.178:
 
 define void @wolf_test_foreach_scope() {
 entry:
-  %item = call ptr @wolf_req_alloc(i64 8)
   %_ = alloca ptr
   %items = call ptr @wolf_req_alloc(i64 8)
   %total = call ptr @wolf_req_alloc(i64 8)
+  %item = call ptr @wolf_req_alloc(i64 8)
   ; DEBUG AssignStmt target type: *ir.Ident
   %t314 = call ptr @wolf_array_create()
   %t315 = call ptr @wolf_val_int(i64 10)
@@ -1824,8 +1824,8 @@ entry:
 
 define void @wolf_test_try_catch_scope() {
 entry:
-  %e = alloca ptr
   %status = call ptr @wolf_req_alloc(i64 8)
+  %e = alloca ptr
   ; DEBUG AssignStmt target type: *ir.Ident
   %t356 = getelementptr [5 x i8], ptr @.str.35, i64 0, i64 0
   store ptr %t356, ptr %status
@@ -1908,8 +1908,8 @@ if.end.205:
 
 define void @wolf_test_float_inference() {
 entry:
-  %y = call ptr @wolf_req_alloc(i64 8)
   %scaled = call ptr @wolf_req_alloc(i64 8)
+  %y = call ptr @wolf_req_alloc(i64 8)
   ; DEBUG AssignStmt target type: *ir.Ident
   store double 3.14, ptr %y
   ; DEBUG AssignStmt target type: *ir.Ident
@@ -2286,9 +2286,9 @@ entry:
 
 define ptr @wolf_NewNamedEntity(i64 %id.arg, ptr %name.arg) {
 entry:
-  %this = alloca ptr
   %id = call ptr @wolf_req_alloc(i64 8)
   %name = call ptr @wolf_req_alloc(i64 8)
+  %this = alloca ptr
   store i64 %id.arg, ptr %id
   store ptr %name.arg, ptr %name
   %NamedEntity.name_var = getelementptr [12 x i8], ptr @.str.54, i64 0, i64 0
