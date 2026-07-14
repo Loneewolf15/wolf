@@ -155,6 +155,38 @@ class LLVMEmitter {
                 return "call " .. $inst->type .. " @" .. $inst->op1 .. "(" .. $inst->op2 .. ")"
             }
         }
+        if ($inst->opcode == "call_method") {
+            // e.g. dest = call ptr @wolf_method_call(...)
+            if ($inst->dest != "") {
+                return $inst->dest .. " = call " .. $inst->type .. " @wolf_method_call(" .. $inst->op2 .. ")"
+            }
+            return "call " .. $inst->type .. " @wolf_method_call(" .. $inst->op2 .. ")"
+        }
+        if ($inst->opcode == "getelementptr") {
+            return $inst->dest .. " = getelementptr " .. $inst->type .. ", " .. $inst->op1 .. ", " .. $inst->op2
+        }
+        if ($inst->opcode == "bitcast") {
+            return $inst->dest .. " = bitcast " .. $inst->op1 .. " to " .. $inst->type
+        }
+        if ($inst->opcode == "inttoptr") {
+            return $inst->dest .. " = inttoptr " .. $inst->op1 .. " to " .. $inst->type
+        }
+        if ($inst->opcode == "ptrtoint") {
+            return $inst->dest .. " = ptrtoint " .. $inst->op1 .. " to " .. $inst->type
+        }
+        if ($inst->opcode == "new") {
+            var $className = $inst->op1
+            if ($inst->dest != "") {
+                return $inst->dest .. " = call ptr @" .. $className .. "_new(" .. $inst->op2 .. ")"
+            }
+            return "call ptr @" .. $className .. "_new(" .. $inst->op2 .. ")"
+        }
+        if ($inst->opcode == "get_property") {
+            if ($inst->dest != "") {
+                return $inst->dest .. " = call ptr @wolf_map_get(" .. $inst->op1 .. ", ptr " .. $inst->op2 .. ")"
+            }
+            return "call ptr @wolf_map_get(" .. $inst->op1 .. ", ptr " .. $inst->op2 .. ")"
+        }
         return "; unknown instruction: " .. $inst->opcode
     }
 }

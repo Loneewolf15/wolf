@@ -151,6 +151,80 @@ class WIRBuilder {
             
             $this->currentFunc->addBlock($endBlock)
             $this->currentBlock = $endBlock
+        } else if ($stmt->type == "FuncDecl") {
+            var $savedFunc = $this->currentFunc
+            var $savedBlock = $this->currentBlock
+            
+            var $params = []
+            var $i = 0
+            while ($i < count($stmt->params)) {
+                var $p = $stmt->params[$i]
+                Arrays::array_push($params, "ptr %" .. $p->name)
+                $i = intval($i) + 1
+            }
+            
+            $this->currentFunc = new WIRFunction($stmt->name, $params, "ptr")
+            $this->currentBlock = new WIRBlock("entry")
+            $this->currentFunc->addBlock($this->currentBlock)
+            
+            if ($stmt->body != nil) {
+                $this->buildStmt($stmt->body)
+            } else if ($stmt->arrowExpr != nil) {
+                var $retVal = $this->buildExpr($stmt->arrowExpr)
+                $this->currentBlock->addInstruction(new WIRInstruction("ret", "", $retVal, "", "ptr"))
+            }
+            
+            $this->currentBlock->addInstruction(new WIRInstruction("ret", "", "nil", "", "ptr"))
+            $this->module->addFunction($this->currentFunc)
+            
+            $this->currentFunc = $savedFunc
+            $this->currentBlock = $savedBlock
+        } else if ($stmt->type == "ClassDecl") {
+            var $i = 0
+            while ($i < count($stmt->methods)) {
+                var $m = $stmt->methods[$i]
+                var $mName = $stmt->name .. "::" .. $m->name
+                var $savedFunc = $this->currentFunc
+                var $savedBlock = $this->currentBlock
+                
+                var $params = []
+                Arrays::array_push($params, "ptr %this")
+                var $pIdx = 0
+                while ($pIdx < count($m->params)) {
+                    var $p = $m->params[$pIdx]
+                    Arrays::array_push($params, "ptr %" .. $p->name)
+                    $pIdx = intval($pIdx) + 1
+                }
+                
+                $this->currentFunc = new WIRFunction($mName, $params, "ptr")
+                $this->currentBlock = new WIRBlock("entry")
+                $this->currentFunc->addBlock($this->currentBlock)
+                
+                if ($m->body != nil) {
+                    $this->buildStmt($m->body)
+                } else if ($m->arrowExpr != nil) {
+                    var $retVal = $this->buildExpr($m->arrowExpr)
+                    $this->currentBlock->addInstruction(new WIRInstruction("ret", "", $retVal, "", "ptr"))
+                }
+                
+                $this->currentBlock->addInstruction(new WIRInstruction("ret", "", "nil", "", "ptr"))
+                $this->module->addFunction($this->currentFunc)
+                
+                $this->currentFunc = $savedFunc
+                $this->currentBlock = $savedBlock
+                
+                $i = intval($i) + 1
+            }
+        } else if ($stmt->type == "ReturnStmt") {
+            var $retVal = "nil"
+            if (count($stmt->values) > 0) {
+                $retVal = $this->buildExpr($stmt->values[0])
+            }
+            $this->currentBlock->addInstruction(new WIRInstruction("ret", "", $retVal, "", "ptr"))
+        } else if ($stmt->type == "TryCatchStmt") {
+            if ($stmt->tryBody != nil) {
+                $this->buildStmt($stmt->tryBody)
+            }
         } else if ($stmt->type == "ExpressionStmt") {
             $this->buildExpr($stmt->expr)
         }
@@ -246,6 +320,56 @@ class WIRBuilder {
                 $calleeName = $expr->callee->name
             }
             $this->currentBlock->addInstruction(new WIRInstruction("call", $res, $calleeName, $argsList, "ptr"))
+            return $res
+        }
+        if ($expr->type == "MethodCall") {
+            var $objReg = $this->buildExpr($expr->object)
+            var $argsList = "ptr " .. $objReg
+            var $i = 0
+            while ($i < count($expr->args)) {
+                var $argVal = $this->buildExpr($expr->args[$i])
+                $argsList = $argsList .. ", ptr " .. $argVal
+                $i = intval($i) + 1
+            }
+            var $res = $this->nextReg()
+            $this->currentBlock->addInstruction(new WIRInstruction("call_method", $res, $objReg, "\"" .. $expr->method .. "\", " .. $argsList, "ptr"))
+            return $res
+        }
+        if ($expr->type == "StaticCall") {
+            var $argsList = ""
+            var $i = 0
+            while ($i < count($expr->args)) {
+                var $argVal = $this->buildExpr($expr->args[$i])
+                if ($i > 0) { $argsList = $argsList .. ", " }
+                $argsList = $argsList .. "ptr " .. $argVal
+                $i = intval($i) + 1
+            }
+            var $res = $this->nextReg()
+            var $calleeName = $expr->className .. "::" .. $expr->method
+            $this->currentBlock->addInstruction(new WIRInstruction("call", $res, $calleeName, $argsList, "ptr"))
+            return $res
+        }
+        if ($expr->type == "PropertyAccess") {
+            var $objReg = $this->buildExpr($expr->object)
+            var $res = $this->nextReg()
+            $this->currentBlock->addInstruction(new WIRInstruction("get_property", $res, $objReg, "\"" .. $expr->property .. "\"", "ptr"))
+            return $res
+        }
+        if ($expr->type == "NewExpr") {
+            var $argsList = ""
+            var $i = 0
+            while ($i < count($expr->args)) {
+                var $argVal = $this->buildExpr($expr->args[$i])
+                if ($i > 0) { $argsList = $argsList .. ", " }
+                $argsList = $argsList .. "ptr " .. $argVal
+                $i = intval($i) + 1
+            }
+            var $res = $this->nextReg()
+            var $className = ""
+            if ($expr->classExpr->type == "Identifier") {
+                $className = $expr->classExpr->name
+            }
+            $this->currentBlock->addInstruction(new WIRInstruction("new", $res, $className, $argsList, "ptr"))
             return $res
         }
         return "nil"
