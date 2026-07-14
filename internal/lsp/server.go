@@ -134,7 +134,7 @@ func SendNotification(method string, params interface{}) {
 	}
 	bParams, _ := json.Marshal(params)
 	notif.Params = bParams
-	
+
 	// manually build so params is not double encoded if we don't want, wait params is []byte in struct
 	// let's do a map
 	msg := map[string]interface{}{

@@ -1742,6 +1742,17 @@ func (e *LLVMEmitter) emitReturn(s *ir.ReturnStmt) {
 		llType := e.inferExprType(s.Values[0])
 		val := e.emitExpr(s.Values[0], llType)
 
+		// BUG-089 FIX: inferExprType can be wrong — it follows varTypes which tracks
+		// declared/assigned types, not the actual LLVM type that emitExpr produced.
+		// Example: `return $n % 2 == 0` where $n is ptr-tracked: inferExprType returns
+		// "ptr" but emitExpr emits `icmp eq i64 -> i1`. Without this correction,
+		// emitReturn sees llType="ptr", skips all coercions, and emits `ret ptr %icmp_reg`
+		// which returns the raw 0/1 integer as a pointer address (raw memory address).
+		// Use emittedTypes as ground truth — it is written by emitExpr after actual emission.
+		if actual, ok := e.emittedTypes[val]; ok {
+			llType = actual
+		}
+
 		// BUG-072 FIX: void functions must always emit "ret void" regardless of
 		// what the return expression evaluates to. Emitting "ret ptr %x" inside
 		// "define void @f()" is an LLVM type mismatch error. This happens in void
@@ -1758,7 +1769,10 @@ func (e *LLVMEmitter) emitReturn(s *ir.ReturnStmt) {
 		if e.currentRetType == "ptr" {
 			if llType == "i1" {
 				casted := e.nextLocal()
-				e.writelnIndent(fmt.Sprintf("%s = call ptr @wolf_bool_to_string(i1 %s)", casted, val))
+				// Use wolf_val_bool (not wolf_bool_to_string) — wolf_val_bool boxes i1
+				// into the Wolf tagged-value system. wolf_bool_to_string produces a string
+				// literal "true"/"false" which breaks boolean comparisons downstream.
+				e.writelnIndent(fmt.Sprintf("%s = call ptr @wolf_val_bool(i1 %s)", casted, val))
 				val = casted
 				llType = "ptr"
 			} else if llType == "i64" {
@@ -1777,9 +1791,24 @@ func (e *LLVMEmitter) emitReturn(s *ir.ReturnStmt) {
 			e.writelnIndent(fmt.Sprintf("%s = call i64 @wolf_intval(ptr %s)", casted, val))
 			val = casted
 			llType = "i64"
+		} else if e.currentRetType == "i64" && llType == "i1" {
+			// BUG-089 companion: intUnboxFuncs promotes return type to i64 but the
+			// body returned an icmp (i1). Zero-extend i1→i64 so the signature matches.
+			// Example: `function is_even($n) { return $n % 2 == 0 }` gets i64 return
+			// type from intUnboxFuncs, but `srem i64; icmp eq → i1`.
+			casted := e.nextLocal()
+			e.writelnIndent(fmt.Sprintf("%s = zext i1 %s to i64", casted, val))
+			val = casted
+			llType = "i64"
 		} else if e.currentRetType == "double" && llType == "ptr" {
 			casted := e.nextLocal()
 			e.writelnIndent(fmt.Sprintf("%s = call double @wolf_floatval(ptr %s)", casted, val))
+			val = casted
+			llType = "double"
+		} else if e.currentRetType == "double" && llType == "i1" {
+			// Bool-to-double: uitofp i1→double (0.0 or 1.0)
+			casted := e.nextLocal()
+			e.writelnIndent(fmt.Sprintf("%s = uitofp i1 %s to double", casted, val))
 			val = casted
 			llType = "double"
 		} else if e.currentRetType == "i1" && llType == "ptr" {

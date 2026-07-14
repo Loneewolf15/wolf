@@ -108,6 +108,10 @@ void* wolf_class_create(const char* name);
  * wolf_closure_valid() checks it at dispatch time in O(1). */
 #define WOLF_CLOSURE_MAGIC 0xC105F105U  /* "CLOS-FLOS" — wolf closure sentinel */
 
+#ifndef WOLF_KEEPALIVE_MAX_REQUESTS
+#define WOLF_KEEPALIVE_MAX_REQUESTS 1000
+#endif
+
 typedef struct {
     uint32_t magic;     /* must equal WOLF_CLOSURE_MAGIC — set in wolf_closure_create */
     void*   fn;

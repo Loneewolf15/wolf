@@ -1,0 +1,8 @@
+🐺 Wolf HTTP Engine — 4 cores, port 19090
+   Architecture: Thread-Per-Core + io_uring (Phase 2)
+   Arena pool: 256 × 64KB per core
+   Send SIGTERM or Ctrl+C to shut down gracefully.
+[WOLF-ENGINE] Core 0 started (tid=140075605432000)
+[WOLF-ENGINE] Core 3 started (tid=140075580253888)
+[WOLF-ENGINE] Core 1 started (tid=140075597039296)
+[WOLF-ENGINE] Core 2 started (tid=140075588646592)

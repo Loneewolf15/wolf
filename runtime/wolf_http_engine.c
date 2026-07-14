@@ -42,6 +42,7 @@
 
 #if defined(__linux__)
 #  include <sys/epoll.h>
+#  include <sys/eventfd.h>  /* eventfd() — per-core completion wakeup */
 #  include <sched.h>        /* CPU_SET, sched_setaffinity */
 #  define WOLF_HAS_EPOLL 1
 #elif defined(__APPLE__)
@@ -140,7 +141,7 @@ WolfSentinel* wolf_sentinel_create(int core_id) {
 
 #if defined(WOLF_HAS_IO_URING)
     s->backend = WOLF_IO_IOURING;
-    s->uring = wolf_uring_create(64, 1); // 64 entries, SQPOLL enabled
+    s->uring = wolf_uring_create(4096, 1); // 4096 entries, SQPOLL enabled
     if (!s->uring) {
         fprintf(stderr, "[WOLF-ENGINE] io_uring init failed, falling back\n");
         // Fallthrough macro logic here requires careful handling, but for now we just exit
@@ -361,24 +362,44 @@ WolfArena* wolf_arena_acquire(WolfArenaPool* pool) {
             return &pool->arenas[i];
         }
     }
-    /* All arenas busy — allocate a temporary one (fallback, tagged for cleanup) */
-    WolfArena* tmp = (WolfArena*)calloc(1, sizeof(WolfArena));
-    if (!tmp) return NULL;
-    tmp->base_slab   = (char*)malloc(WOLF_ARENA_SLAB_SIZE);
-    tmp->base_cap    = WOLF_ARENA_SLAB_SIZE;
-    tmp->active_slab = tmp->base_slab;
-    tmp->cap         = WOLF_ARENA_SLAB_SIZE;
-    tmp->pos         = 0;
-    tmp->total_allocated = 0;
-    tmp->fallback_blocks = NULL;
-    tmp->in_use      = 1;
-    tmp->is_overflow = 1;  /* must be freed, not returned to pool */
-    tmp->refcount    = 1;
-    if (!tmp->base_slab) { free(tmp); return NULL; }
-    __atomic_fetch_add((volatile int*)&tmp->in_use, 0, __ATOMIC_RELAXED); /* fence */
-    fprintf(stderr, "[WOLF-ENGINE] WARN: arena pool exhausted on core — using overflow arena\n");
-    return tmp;
+    /* All arenas busy — return NULL to enforce hard backpressure and prevent OOM under load */
+    fprintf(stderr, "[WOLF-ENGINE] WARN: arena pool exhausted on core — dropping connection for backpressure\n");
+    return NULL;
 }
+
+/* Header hash table helpers — guarded so they are not redefined when
+ * this file is unity-built into wolf_runtime.c (which defines them first). */
+#ifndef WOLF_HEADER_HASH_SLOTS
+#define WOLF_HEADER_HASH_SLOTS 64
+static inline uint32_t wolf_header_hash(const char* key) {
+    uint32_t h = 2166136261u;
+    for (const unsigned char* p = (const unsigned char*)key; *p; p++) {
+        h ^= (uint8_t)(*p | 0x20);
+        h *= 16777619u;
+    }
+    return h;
+}
+static inline void wolf_header_htab_insert(int8_t* htab, int idx, const char* key) {
+    uint32_t h = wolf_header_hash(key);
+    for (int i = 0; i < WOLF_HEADER_HASH_SLOTS; i++) {
+        int slot = (int)((h + (uint32_t)i) & (WOLF_HEADER_HASH_SLOTS - 1));
+        if (htab[slot] < 0) { htab[slot] = (int8_t)idx; return; }
+    }
+}
+static inline const char* wolf_header_htab_get(const int8_t* htab,
+                                                char* const* keys,
+                                                char* const* vals,
+                                                const char* key) {
+    uint32_t h = wolf_header_hash(key);
+    for (int i = 0; i < WOLF_HEADER_HASH_SLOTS; i++) {
+        int slot = (int)((h + (uint32_t)i) & (WOLF_HEADER_HASH_SLOTS - 1));
+        int8_t idx = htab[slot];
+        if (idx < 0) return "";
+        if (strcasecmp(keys[(int)idx], key) == 0) return vals[(int)idx];
+    }
+    return "";
+}
+#endif /* WOLF_HEADER_HASH_SLOTS */
 
 typedef struct {
     int     active;
@@ -393,6 +414,7 @@ typedef struct {
     char*   header_keys[32];
     char*   header_vals[32];
     int     header_count;
+    int8_t  header_htab[WOLF_HEADER_HASH_SLOTS]; /* O(1) lookup: -1=empty, else index */
 
     /* Response */
     int     status_code;
@@ -413,6 +435,11 @@ typedef struct {
     /* Arena for this request */
     WolfArena* arena;
 
+    /* io_uring async state */
+    char* read_buf;
+    ssize_t bytes_in;
+    struct WolfCore* core;
+
     /* Timing */
     struct timespec started_at;
     jmp_buf oom_jump;
@@ -420,6 +447,9 @@ typedef struct {
     int64_t request_id;
     int64_t arena_used;
     int64_t arena_cap;
+
+    /* Keep-alive request counter — close connection after WOLF_KEEPALIVE_MAX_REQUESTS */
+    int keep_alive_count;
 } WolfConnCtx;
 
 extern __thread void* wolf_active_ctx;
@@ -495,6 +525,12 @@ void wolf_arena_unref(WolfArena* arena) {
     if (!arena) return;
     if (__atomic_sub_fetch(&arena->refcount, 1, __ATOMIC_SEQ_CST) == 0) {
         wolf_arena_reset(arena);
+        if (arena->is_overflow) {
+            free(arena->base_slab);
+            free(arena);
+        } else {
+            arena->in_use = 0;
+        }
     }
 }
 
@@ -511,22 +547,11 @@ void wolf_arena_reset(WolfArena* arena) {
     }
     arena->fallback_blocks = NULL;
 
-    if (arena->is_overflow) {
-        /* Fallback arena struct itself — free the base slab and struct */
-        free(arena->base_slab);
-        arena->base_slab   = NULL;
-        arena->active_slab = NULL;
-        arena->in_use = 0;
-        free(arena);  /* the struct itself was malloc'd in wolf_arena_acquire */
-        return;
-    }
-    
     /* Restore to base state for O(1) reuse */
     arena->active_slab = arena->base_slab;
     arena->cap         = arena->base_cap;
     arena->pos         = 0;  /* O(1) — just reset the pointer */
     arena->total_allocated = 0;
-    arena->in_use      = 0;
 }
 
 void wolf_arena_pool_destroy(WolfArenaPool* pool) {
@@ -753,6 +778,7 @@ static void wolf_engine_parse_request(WolfConnCtx* ctx, char* raw, size_t len) {
             if (strcasecmp(line, "Upgrade") == 0)          upgrade_val      = ctx->header_vals[ctx->header_count];
             if (strcasecmp(line, "Sec-WebSocket-Key") == 0) ws_key_val       = ctx->header_vals[ctx->header_count];
             if (strcasecmp(line, "Content-Type") == 0)      content_type_val = ctx->header_vals[ctx->header_count];
+            wolf_header_htab_insert(ctx->header_htab, ctx->header_count, line);
             ctx->header_count++;
         }
     }
@@ -773,7 +799,7 @@ static void wolf_engine_parse_request(WolfConnCtx* ctx, char* raw, size_t len) {
  * HTTP Response Writer
  * ================================================================ */
 
-static int wolf_engine_send_response(WolfConnCtx* ctx) {
+static int wolf_engine_build_response(WolfConnCtx* ctx, char** out_buf, int* out_len) {
     const char* status_text = "OK";
     switch (ctx->status_code) {
         case 201: status_text = "Created"; break;
@@ -792,8 +818,10 @@ static int wolf_engine_send_response(WolfConnCtx* ctx) {
 
     int body_len = ctx->res_body ? (int)strlen(ctx->res_body) : 0;
     
-    // Estimate total size to allocate from arena
-    int total_size = 128; // Space for HTTP/1.1 status line, Content-Length and Connection headers
+    // Estimate total size to allocate from arena.
+    // 128 = HTTP/1.1 status line + Content-Length + Connection headers baseline.
+    // 256 = headroom for the 4 automatic security headers injected per response.
+    int total_size = 128 + 256;
     for (int i = 0; i < ctx->res_header_count; i++) {
         total_size += strlen(ctx->res_header_keys[i]) + strlen(ctx->res_header_vals[i]) + 4;
     }
@@ -809,11 +837,47 @@ static int wolf_engine_send_response(WolfConnCtx* ctx) {
     
     // Build headers
     for (int i = 0; i < ctx->res_header_count; i++) {
-        ptr += sprintf(ptr, "%s: %s\r\n", ctx->res_header_keys[i], ctx->res_header_vals[i]);
+        int remaining = (response + total_size + 64) - ptr;
+        int written = snprintf(ptr, remaining, "%s: %s\r\n", ctx->res_header_keys[i], ctx->res_header_vals[i]);
+        if (written < 0 || written >= remaining) {
+            fprintf(stderr, "[DEBUG] Header loop overflow: written=%d remaining=%d\n", written, remaining);
+            return -1; // Overflow or encoding error
+        }
+        ptr += written;
     }
-    
-    // Build fixed headers & empty line separator
-    ptr += sprintf(ptr, "Content-Length: %d\r\nConnection: keep-alive\r\n\r\n", body_len);
+
+    // Build fixed headers & empty line separator.
+    const char* security_headers[][2] = {
+        {"X-Content-Type-Options",  "nosniff"},
+        {"X-Frame-Options",         "DENY"},
+        {"X-XSS-Protection",        "1; mode=block"},
+        {"Referrer-Policy",         "strict-origin-when-cross-origin"},
+    };
+    int n_sec = (int)(sizeof(security_headers) / sizeof(security_headers[0]));
+    for (int s = 0; s < n_sec; s++) {
+        /* Only inject if the user hasn't already set this header */
+        int already_set = 0;
+        for (int h = 0; h < ctx->res_header_count; h++) {
+            if (ctx->res_header_keys[h] && strcasecmp(ctx->res_header_keys[h], security_headers[s][0]) == 0) {
+                already_set = 1;
+                break;
+            }
+        }
+        if (!already_set) {
+            int rem2 = (response + total_size + 64) - ptr;
+            int w2   = snprintf(ptr, rem2, "%s: %s\r\n",
+                                security_headers[s][0], security_headers[s][1]);
+            if (w2 > 0 && w2 < rem2) ptr += w2;
+        }
+    }
+
+    int remaining = (response + total_size + 64) - ptr;
+    int written = snprintf(ptr, remaining, "Content-Length: %d\r\nConnection: keep-alive\r\n\r\n", body_len);
+    if (written < 0 || written >= remaining) {
+        fprintf(stderr, "[DEBUG] Fixed headers overflow: written=%d remaining=%d\n", written, remaining);
+        return -1;
+    }
+    ptr += written;
     
     // Build body
     if (body_len > 0) {
@@ -823,8 +887,8 @@ static int wolf_engine_send_response(WolfConnCtx* ctx) {
     
     int final_len = ptr - response;
     
-    // Single write syscall for the entire response
-    if (write(ctx->client_fd, response, final_len) < 0) return -1;
+    if (out_buf) *out_buf = response;
+    if (out_len) *out_len = final_len;
     
     return 0;
 }
@@ -916,6 +980,7 @@ static WolfConnCtx* wolf_core_alloc_ctx(WolfCore* core, int client_fd, WolfArena
     WolfConnCtx* ctx = &wolf_core_ctxs[idx];
 
     memset(ctx, 0, sizeof(WolfConnCtx));
+    memset(ctx->header_htab, -1, sizeof(ctx->header_htab));
     ctx->active      = 1;
     ctx->client_fd   = client_fd;
     ctx->core_id     = core->core_id;
@@ -928,9 +993,17 @@ static WolfConnCtx* wolf_core_alloc_ctx(WolfCore* core, int client_fd, WolfArena
 
 static void wolf_core_free_ctx(WolfConnCtx* ctx) {
     if (!ctx) return;
+    if (ctx->active == 0) {
+        fprintf(stderr, "[WOLF-ENGINE] DOUBLE FREE DETECTED for ctx_id: %d\n", (int)(ctx - wolf_core_ctxs));
+        return;
+    }
     if (ctx->arena) {
         wolf_arena_unref(ctx->arena);  /* W1 Fix: decrements ref, frees if 0 */
         ctx->arena = NULL;             /* prevent dangling pointer on overflow arenas */
+    }
+    if (ctx->read_buf) {
+        free(ctx->read_buf);
+        ctx->read_buf = NULL;
     }
     ctx->active = 0;
 
@@ -950,14 +1023,651 @@ extern int wolf_engine_register_ws_fd(int fd, const char* method, const char* pa
 
 
 
+/* ================================================================
+ * Worker → Poller completion ring support
+ *
+ * wolf_engine_handle_offloaded — called by a worker thread.
+ *   Executes the Wolf handler, builds the HTTP response, then posts
+ *   the result to ctx->core->complete_ring and writes the eventfd to
+ *   wake the owning poller thread.
+ *
+ * wolf_core_drain_completions — called by the poller thread.
+ *   Drains all pending entries from the core's completion ring and
+ *   submits the corresponding io_uring sends (or direct writes in the
+ *   epoll fallback path).
+ *
+ * on_eventfd_ready — io_uring callback fired when notify_fd is readable.
+ *   Drains completions and re-arms the multishot poll so future writes
+ *   to the eventfd continue to generate CQEs.
+ * ================================================================ */
+
+static void on_send_complete(int client_fd, void* ctx_ptr, int bytes_written); /* fwd */
+
+static void wolf_engine_handle_offloaded(void* ctx_ptr) {
+    WolfConnCtx*  ctx  = (WolfConnCtx*)ctx_ptr;
+    WolfCore*     core = ctx->core;
+    WolfCoreArgs* args = (WolfCoreArgs*)core->args;
+
+    if (args && args->http_handler) {
+        int64_t ctx_id = ctx->request_id;
+        extern void wolf_set_current_context(void*, void*);
+        wolf_set_current_context((void*)(intptr_t)ctx_id, (void*)(intptr_t)ctx_id);
+        __atomic_store_n(&wolf_active_ctx, ctx, __ATOMIC_RELEASE);
+
+        extern void wolf_req_arena_init(void);
+        wolf_req_arena_init();
+
+        /* ── Wolf Core Guarantee #6: Auto-intercept GET /health ──────────────────
+         * Every Wolf binary responds to GET /health with a JSON status document.
+         * This is injected at the engine level — the user's handler never sees it.
+         * Required for Kubernetes liveness/readiness probes and Docker HEALTHCHECK.
+         * ---------------------------------------------------------------------- */
+        if (ctx->method && ctx->path &&
+            strcmp(ctx->method, "GET") == 0 &&
+            strcmp(ctx->path, "/health") == 0) {
+            ctx->status_code = 200;
+            ctx->res_body = wolf_arena_alloc(ctx->arena, 64);
+            if (ctx->res_body) {
+                snprintf((char*)ctx->res_body, 64, "{\"status\":\"ok\"}");
+            } else {
+                ctx->res_body = "{\"status\":\"ok\"}";
+            }
+            /* Set Content-Type for health response */
+            if (ctx->res_header_count < 32) {
+                ctx->res_header_keys[ctx->res_header_count] = "Content-Type";
+                ctx->res_header_vals[ctx->res_header_count] = "application/json";
+                ctx->res_header_count++;
+            }
+            __atomic_store_n(&wolf_active_ctx, NULL, __ATOMIC_RELEASE);
+            goto build_and_send;
+        }
+
+        wolf_closure_t* closure = (wolf_closure_t*)args->http_handler;
+        typedef void* (*wolf_closure_fn_t)(void* env, int64_t req_id, int64_t res_id);
+        wolf_closure_fn_t fn = (wolf_closure_fn_t)closure->fn;
+
+        ctx->oom_triggered = 0;
+        if (!wolf_closure_valid(closure)) {
+            ctx->status_code = 500;
+        } else if (setjmp(ctx->oom_jump) == 0) {
+            fn(closure->env, ctx_id, ctx_id);
+        } else {
+            ctx->status_code = 500;
+            ctx->res_body = "500 Internal Server Error (OOM)";
+        }
+
+        __atomic_store_n(&wolf_active_ctx, NULL, __ATOMIC_RELEASE);
+
+        extern int  wolf_req_oom_check(void);
+        extern void wolf_req_oom_clear(void);
+        if (wolf_req_oom_check()) {
+            ctx->status_code = 503;
+            if (!ctx->res_body) ctx->res_body = "Service Unavailable";
+            wolf_req_oom_clear();
+        }
+    } else {
+        ctx->status_code = 500;
+    }
+
+build_and_send:
+    ;
+
+    char* out_buf = NULL;
+    int   out_len = 0;
+    wolf_engine_build_response(ctx, &out_buf, &out_len);
+
+    extern void wolf_req_arena_flush(void);
+    wolf_req_arena_flush();
+
+    /* Post to the core's completion ring --------------------------------- */
+    WolfCoreCompleteRing* ring = &core->complete_ring;
+    int t = atomic_load_explicit(&ring->tail, memory_order_relaxed);
+
+    /* Spin-wait if ring is full (rare: ring holds 512 in-flight responses) */
+    int spins = 0;
+    while (1) {
+        int h = atomic_load_explicit(&ring->head, memory_order_acquire);
+        if ((t - h) < WOLF_CORE_COMPLETE_SIZE) break;
+        if (++spins > 2000) {
+            /* Last-resort fallback: send directly, skip arena lifecycle */
+            if (out_buf && out_len > 0) {
+                ssize_t n = write(ctx->client_fd, out_buf, out_len);
+                (void)n;
+            }
+            on_send_complete(ctx->client_fd, ctx, out_len > 0 ? out_len : -1);
+            return;
+        }
+        sched_yield();
+    }
+
+    ring->entries[t & WOLF_CORE_COMPLETE_MASK] =
+        (WolfCoreCompletion){ ctx, out_buf, out_len };
+    atomic_store_explicit(&ring->tail, t + 1, memory_order_release);
+
+    /* Wake the poller via eventfd */
+    if (ring->notify_fd >= 0) {
+        uint64_t v = 1;
+        ssize_t n = write(ring->notify_fd, &v, sizeof(v));
+        (void)n;
+    }
+}
+
+/* Drain all ready completions from the ring and submit sends.
+ * Must be called from the owning poller thread. */
+static void wolf_core_drain_completions(WolfCore* core) {
+    WolfCoreCompleteRing* ring = &core->complete_ring;
+
+    /* Clear the wakeup counter so the fd re-arms for the next worker write.
+     * io_uring + epoll paths: notify_fd is an eventfd (EFD_NONBLOCK).
+     * kqueue path: notify_fd is the write-end of a pipe; the poller reads
+     *              the read-end directly in the kevent loop — skip here. */
+#if !defined(WOLF_HAS_KQUEUE)
+    if (ring->notify_fd >= 0) {
+        uint64_t v;
+        ssize_t n = read(ring->notify_fd, &v, sizeof(v)); /* EFD_NONBLOCK: EAGAIN if empty */
+        (void)n;
+    }
+#endif
+
+    for (;;) {
+        int h = atomic_load_explicit(&ring->head, memory_order_acquire);
+        int t = atomic_load_explicit(&ring->tail, memory_order_acquire);
+        if (h == t) break;
+
+        WolfCoreCompletion comp = ring->entries[h & WOLF_CORE_COMPLETE_MASK];
+        atomic_store_explicit(&ring->head, h + 1, memory_order_release);
+
+        WolfConnCtx* ctx = (WolfConnCtx*)comp.ctx;
+
+#if defined(WOLF_HAS_IO_URING)
+        if (comp.out_buf && comp.out_len > 0) {
+            if (core->use_send_zc) {
+                /* Zero-copy: kernel pins the arena buffer directly.
+                 * on_send_complete fires only after the kernel releases it
+                 * (IORING_CQE_F_MORE gone), so arena reset is always safe. */
+                wolf_uring_submit_send_zc(core->sentinel->uring, ctx->client_fd,
+                                          comp.out_buf, comp.out_len,
+                                          on_send_complete, ctx, ctx->arena);
+            } else {
+                wolf_uring_submit_send(core->sentinel->uring, ctx->client_fd,
+                                       comp.out_buf, comp.out_len,
+                                       on_send_complete, ctx, ctx->arena);
+            }
+        } else {
+            on_send_complete(ctx->client_fd, ctx, -1);
+        }
+        wolf_uring_flush(core->sentinel->uring);
+#else
+        /* epoll / kqueue / poll fallback send path */
+        if (comp.out_buf && comp.out_len > 0) {
+            ssize_t n = send(ctx->client_fd, comp.out_buf, comp.out_len, MSG_DONTWAIT);
+            if (n > 0) __atomic_fetch_add(&core->requests_total, 1, __ATOMIC_RELAXED);
+        }
+        __atomic_fetch_sub(&core->requests_active, 1, __ATOMIC_RELAXED);
+
+        /* Remove from epoll / kqueue before closing */
+#if defined(WOLF_HAS_EPOLL)
+        if (core->epoll_fd >= 0)
+            epoll_ctl(core->epoll_fd, EPOLL_CTL_DEL, ctx->client_fd, NULL);
+#elif defined(WOLF_HAS_KQUEUE)
+        if (core->sentinel && core->sentinel->poll_fd >= 0) {
+            struct kevent ev;
+            EV_SET(&ev, ctx->client_fd, EVFILT_READ, EV_DELETE, 0, 0, NULL);
+            kevent(core->sentinel->poll_fd, &ev, 1, NULL, 0, NULL);
+        }
+#endif
+        wolf_fd_remove_entry(ctx->client_fd);
+        close(ctx->client_fd);
+        wolf_core_free_ctx(ctx);
+#endif
+    }
+}
+
+#if defined(WOLF_HAS_IO_URING)
+/* io_uring callback: fired when notify_fd is readable (worker posted a result).
+ * Drain completions and re-arm the persistent poll so future writes continue
+ * to generate CQEs without requiring a re-submit from the application. */
+static void on_eventfd_ready(int fd, void* core_ptr, int res) {
+    (void)res;
+    WolfCore* core = (WolfCore*)core_ptr;
+    wolf_core_drain_completions(core);
+    /* Re-arm: IORING_POLL_ADD_MULTI keeps the poll alive if the kernel supports it.
+     * For older kernels that fire once, re-submit here. */
+    wolf_uring_poll_fd(core->sentinel->uring, fd, on_eventfd_ready, core);
+    wolf_uring_flush(core->sentinel->uring);
+}
+#endif
+
+#if defined(WOLF_HAS_IO_URING)
+static void on_recv_complete(int client_fd, void* ctx_ptr, int bytes_read);
+
+static void on_send_complete(int client_fd, void* ctx_ptr, int bytes_written) {
+    WolfConnCtx* ctx = (WolfConnCtx*)ctx_ptr;
+    WolfCore* core = ctx->core;
+
+    /* Every send completion (success or failure) ends one request cycle. */
+    __atomic_fetch_sub(&core->requests_active, 1, __ATOMIC_RELAXED);
+
+    if (bytes_written >= 0) {
+        __atomic_fetch_add(&core->requests_total, 1, __ATOMIC_RELAXED);
+        __atomic_fetch_add(&core->bytes_in,  ctx->bytes_in,                              __ATOMIC_RELAXED);
+        __atomic_fetch_add(&core->bytes_out, ctx->res_body ? strlen(ctx->res_body) : 0, __ATOMIC_RELAXED);
+    }
+
+    if (bytes_written > 0) {
+        ctx->keep_alive_count++;
+
+        if (ctx->keep_alive_count >= WOLF_KEEPALIVE_MAX_REQUESTS) {
+            /* Hard limit reached: close gracefully to prevent connection hogging. */
+            close(client_fd);
+            wolf_core_free_ctx(ctx);
+            return;
+        }
+
+        /* Keep-alive: reset arena and connection state, wait for next request. */
+        wolf_arena_reset(ctx->arena);
+
+        ctx->method           = NULL;
+        ctx->path             = NULL;
+        ctx->query            = NULL;
+        ctx->body             = NULL;
+        ctx->header_count     = 0;
+        memset(ctx->header_htab, -1, sizeof(ctx->header_htab));
+        ctx->status_code      = 200;
+        ctx->res_body         = NULL;
+        ctx->res_header_count = 0;
+        ctx->is_websocket     = 0;
+        ctx->ws_key           = NULL;
+        ctx->upload_count     = 0;
+        ctx->bytes_in         = 0;
+        /* read_buf is malloc'd once at accept; reuse it for the lifetime of the connection. */
+
+        wolf_uring_submit_recv(core->sentinel->uring, client_fd, ctx->read_buf,
+                               WOLF_MAX_REQUEST_SIZE - 1, on_recv_complete, ctx, ctx->arena);
+    } else {
+        /* Connection closed or send error: tear down. */
+        close(client_fd);
+        wolf_core_free_ctx(ctx);
+    }
+}
+
+static void on_recv_complete(int client_fd, void* ctx_ptr, int bytes_read) {
+    WolfConnCtx* ctx = (WolfConnCtx*)ctx_ptr;
+    WolfCore* core = ctx->core;
+    WolfCoreArgs* args = (WolfCoreArgs*)core->args;
+
+    if (bytes_read <= 0) {
+        if (bytes_read < 0 && (errno == EAGAIN || errno == EWOULDBLOCK || bytes_read == -ETIME)) {
+            const char* timeout_resp = "HTTP/1.1 408 Request Timeout\r\nContent-Length: 0\r\nConnection: close\r\n\r\n";
+            write(client_fd, timeout_resp, strlen(timeout_resp));
+        }
+        close(client_fd);
+        wolf_core_free_ctx(ctx);
+        return;
+    }
+    ctx->bytes_in = bytes_read;
+    ctx->read_buf[bytes_read] = '\0';
+    
+    wolf_engine_parse_request(ctx, ctx->read_buf, bytes_read);
+
+    /* GET /health Observability Bypass */
+    if (ctx->method && strcmp(ctx->method, "GET") == 0 && ctx->path && strcmp(ctx->path, "/health") == 0) {
+        char health_buf[4096];
+        extern int wolf_get_active_requests(void);
+        int active = wolf_get_active_requests();
+        
+        int n = snprintf(health_buf, sizeof(health_buf), "{\"status\":\"ok\",\"active_requests\":%d,\"metrics\":{", active);
+        
+        int first = 1;
+        extern wolf_metric_t wolf_metrics_registry[];
+        for (int i = 0; i < WOLF_MAX_METRICS; i++) {
+            const char* k = atomic_load(&wolf_metrics_registry[i].key_ptr);
+            if (k) {
+                if (!first) {
+                    if (n < sizeof(health_buf) - 1) health_buf[n++] = ',';
+                }
+                first = 0;
+                n += snprintf(health_buf + n, sizeof(health_buf) - n, "\"%s\":%lld", 
+                              wolf_metrics_registry[i].name, 
+                              (long long)atomic_load(&wolf_metrics_registry[i].count));
+            }
+        }
+        n += snprintf(health_buf + n, sizeof(health_buf) - n, "}}");
+        
+        ctx->res_body = wolf_arena_strdup(ctx->arena, health_buf);
+        ctx->status_code = 200;
+        ctx->res_header_keys[0] = "Content-Type";
+        ctx->res_header_vals[0] = "application/json";
+        ctx->res_header_keys[1] = "Access-Control-Allow-Origin";
+        ctx->res_header_vals[1] = "*";
+        ctx->res_header_count = 2;
+        /* Send health response inline (no handler needed) */
+        {
+            char* hbuf = NULL; int hlen = 0;
+            wolf_engine_build_response(ctx, &hbuf, &hlen);
+            if (hbuf && hlen > 0)
+                wolf_uring_submit_send(core->sentinel->uring, client_fd, hbuf, hlen, on_send_complete, ctx, ctx->arena);
+            else
+                on_send_complete(client_fd, ctx, -1);
+        }
+        return;
+    }
+
+    if (ctx->is_websocket) {
+        wolf_engine_ws_handshake(ctx);
+        extern int wolf_engine_register_ws_fd(int, const char*, const char*, const char*, const char*, const char*);
+        wolf_engine_register_ws_fd(ctx->client_fd,
+                                   ctx->method, ctx->path, ctx->query,
+                                   ctx->ws_key,
+                                   ctx->client_ip);
+        ctx->client_fd = -1;
+        wolf_core_free_ctx(ctx);
+        return;
+    }
+
+    int64_t ctx_id = (int64_t)(ctx - wolf_core_ctxs);
+    ctx->request_id = ctx_id;
+    ctx->oom_triggered = 0;
+    ctx->arena_used = ctx->arena ? ctx->arena->total_allocated + ctx->arena->pos : 0;
+    ctx->arena_cap = WOLF_MAX_REQUEST_MEMORY;
+
+    __atomic_fetch_add(&core->requests_active, 1, __ATOMIC_RELAXED);
+
+    if (args->http_handler) {
+        /* Offload handler to the worker pool.
+         * The poller returns immediately and continues accepting/receiving
+         * while a worker thread executes the handler. The worker posts the
+         * response to core->complete_ring; the poller picks it up on the
+         * next wolf_core_drain_completions() call and submits the send. */
+        wolf_task_t task = {
+            .type      = WOLF_TASK_ENGINE_HTTP,
+            .id        = ctx_id,
+            .payload   = (char*)ctx,
+            .engine_fn = wolf_engine_handle_offloaded,
+        };
+        if (wolf_task_push(task)) return; /* poller free — worker handles response */
+
+        /* Fallback: worker pool full — run handler inline (should be very rare) */
+        wolf_engine_handle_offloaded(ctx);
+        wolf_core_drain_completions(core);  /* pick up the result we just posted */
+        return;
+    }
+
+    /* No handler configured — send 500 directly */
+    ctx->status_code = 500;
+    char* out_buf = NULL;
+    int out_len = 0;
+    wolf_engine_build_response(ctx, &out_buf, &out_len);
+    if (out_buf && out_len > 0) {
+        wolf_uring_submit_send(core->sentinel->uring, client_fd, out_buf, out_len, on_send_complete, ctx, ctx->arena);
+    } else {
+        on_send_complete(client_fd, ctx, -1);
+    }
+}
+
+static void on_accept_complete(int server_fd, void* core_ptr, int client_fd) {
+    if (client_fd < 0) return;
+    WolfCore* core = (WolfCore*)core_ptr;
+    
+    struct timeval tv = { WOLF_REQUEST_TIMEOUT_SEC, 0 };
+    setsockopt(client_fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
+    int opt = 1;
+    setsockopt(client_fd, IPPROTO_TCP, TCP_NODELAY, &opt, sizeof(opt));
+    
+    WolfArena* arena = wolf_arena_acquire(core->arena_pool);
+    WolfConnCtx* ctx = arena ? wolf_core_alloc_ctx(core, client_fd, arena) : NULL;
+    if (!ctx) {
+        close(client_fd);
+        if (arena) {
+            wolf_arena_reset(arena);
+            wolf_arena_unref(arena);
+        }
+        return;
+    }
+    /*
+     * Do NOT touch requests_active or requests_total here.
+     * requests_active is incremented in on_recv_complete when a request actually
+     * arrives, and decremented in on_send_complete when the response is sent.
+     * requests_total is incremented in on_send_complete per completed request.
+     * Counting at accept would double-count both stats.
+     */
+
+    ctx->core = core;
+    ctx->read_buf = (char*)malloc(WOLF_MAX_REQUEST_SIZE);
+    
+    wolf_uring_submit_recv(core->sentinel->uring, client_fd, ctx->read_buf, WOLF_MAX_REQUEST_SIZE - 1, on_recv_complete, ctx, arena);
+    wolf_uring_flush(core->sentinel->uring);
+}
+#endif
+
+/* ================================================================
+ * Event-driven epoll helpers (Linux non-io_uring path)
+ * Mirrors the io_uring callback chain: accept → recv → [worker] → send
+ * ================================================================ */
+#if defined(WOLF_HAS_EPOLL) && !defined(WOLF_HAS_IO_URING)
+
+/* Accept all pending connections and register each with epoll ONESHOT. */
+static void wolf_epoll_accept_all(WolfCore* core) {
+    WolfCoreArgs* args = (WolfCoreArgs*)core->args;
+    for (;;) {
+        struct sockaddr_in addr;
+        socklen_t alen = sizeof(addr);
+        int client_fd = accept4(core->server_fd, (struct sockaddr*)&addr, &alen, SOCK_NONBLOCK);
+        if (client_fd < 0) {
+            if (errno == EAGAIN || errno == EWOULDBLOCK) break;
+            if (errno == EINTR) continue;
+            break;
+        }
+
+        int opt = 1;
+        setsockopt(client_fd, IPPROTO_TCP, TCP_NODELAY, &opt, sizeof(opt));
+        WolfArena*   arena = wolf_arena_acquire(core->arena_pool);
+        WolfConnCtx* ctx   = arena ? wolf_core_alloc_ctx(core, client_fd, arena) : NULL;
+        if (!ctx) {
+            close(client_fd);
+            if (arena) {
+                wolf_arena_reset(arena);
+                wolf_arena_unref(arena);
+            }
+            continue;
+        }
+        ctx->core     = core;
+        ctx->read_buf = (char*)malloc(WOLF_MAX_REQUEST_SIZE);
+        (void)args;
+
+        /* Register with epoll: ONESHOT prevents handling the same fd concurrently
+         * while a worker thread is processing the request. */
+        wolf_fd_alloc(client_fd, NULL, ctx);
+        struct epoll_event ev;
+        ev.events   = EPOLLIN | EPOLLONESHOT;
+        ev.data.fd  = client_fd;
+        epoll_ctl(core->epoll_fd, EPOLL_CTL_ADD, client_fd, &ev);
+    }
+}
+
+/* Handle a readable client fd: recv, parse, offload to worker. */
+static void wolf_epoll_recv_client(WolfCore* core, int client_fd) {
+    WolfFDEntry*  e   = wolf_fd_find(client_fd);
+    WolfCoreArgs* args = (WolfCoreArgs*)core->args;
+    if (!e) { close(client_fd); return; }
+    WolfConnCtx* ctx = (WolfConnCtx*)e->ctx;
+
+    ssize_t bytes = recv(client_fd, ctx->read_buf, WOLF_MAX_REQUEST_SIZE - 1, MSG_DONTWAIT);
+    if (bytes <= 0) {
+        if (bytes < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
+            /* Spurious wakeup — re-arm */
+            struct epoll_event ev;
+            ev.events  = EPOLLIN | EPOLLONESHOT;
+            ev.data.fd = client_fd;
+            epoll_ctl(core->epoll_fd, EPOLL_CTL_MOD, client_fd, &ev);
+            return;
+        }
+        epoll_ctl(core->epoll_fd, EPOLL_CTL_DEL, client_fd, NULL);
+        wolf_fd_remove_entry(client_fd);
+        close(client_fd);
+        wolf_core_free_ctx(ctx);
+        return;
+    }
+    ctx->read_buf[bytes] = '\0';
+    ctx->bytes_in        = bytes;
+
+    wolf_engine_parse_request(ctx, ctx->read_buf, bytes);
+
+    /* Health endpoint — answer inline without going through the worker pool */
+    if (ctx->method && strcmp(ctx->method, "GET") == 0 &&
+        ctx->path   && strcmp(ctx->path,   "/health") == 0) {
+        char hbuf[4096];
+        int  hlen = snprintf(hbuf, sizeof(hbuf),
+                             "{\"status\":\"ok\",\"active_requests\":%lld}",
+                             (long long)core->requests_active);
+        ctx->res_body        = wolf_arena_strdup(ctx->arena, hbuf);
+        ctx->status_code     = 200;
+        char* out = NULL; int olen = 0;
+        wolf_engine_build_response(ctx, &out, &olen);
+        if (out && olen > 0) {
+            ssize_t n = send(client_fd, out, olen, MSG_DONTWAIT);
+            (void)n;
+            __atomic_fetch_add(&core->requests_total, 1, __ATOMIC_RELAXED);
+        }
+        epoll_ctl(core->epoll_fd, EPOLL_CTL_DEL, client_fd, NULL);
+        wolf_fd_remove_entry(client_fd);
+        close(client_fd);
+        wolf_core_free_ctx(ctx);
+        return;
+    }
+
+    /* WebSocket upgrade */
+    if (ctx->is_websocket) {
+        wolf_engine_ws_handshake(ctx);
+        extern int wolf_engine_register_ws_fd(int, const char*, const char*, const char*, const char*, const char*);
+        wolf_engine_register_ws_fd(client_fd, ctx->method, ctx->path, ctx->query,
+                                   ctx->ws_key, ctx->client_ip);
+        epoll_ctl(core->epoll_fd, EPOLL_CTL_DEL, client_fd, NULL);
+        wolf_fd_remove_entry(client_fd);
+        ctx->client_fd = -1;
+        wolf_core_free_ctx(ctx);
+        return;
+    }
+
+    int64_t ctx_id = (int64_t)(ctx - wolf_core_ctxs);
+    ctx->request_id    = ctx_id;
+    ctx->oom_triggered = 0;
+    ctx->arena_used    = ctx->arena ? ctx->arena->total_allocated + ctx->arena->pos : 0;
+    ctx->arena_cap     = WOLF_MAX_REQUEST_MEMORY;
+
+    __atomic_fetch_add(&core->requests_active, 1, __ATOMIC_RELAXED);
+
+    if (args->http_handler) {
+        wolf_task_t task = {
+            .type      = WOLF_TASK_ENGINE_HTTP,
+            .id        = ctx_id,
+            .payload   = (char*)ctx,
+            .engine_fn = wolf_engine_handle_offloaded,
+        };
+        if (wolf_task_push(task)) return; /* worker will drain completion ring + notify via eventfd */
+        /* Fallback: task queue full — run handler inline */
+        wolf_engine_handle_offloaded(ctx);
+        wolf_core_drain_completions(core);
+    }
+}
+#endif /* WOLF_HAS_EPOLL && !WOLF_HAS_IO_URING */
+
+/* ================================================================
+ * Event-driven kqueue helpers (macOS / BSD non-io_uring path)
+ * ================================================================ */
+#if defined(WOLF_HAS_KQUEUE)
+
+static void wolf_kqueue_accept_all(WolfCore* core) {
+    WolfCoreArgs* args = (WolfCoreArgs*)core->args;
+    (void)args;
+    for (;;) {
+        struct sockaddr_in addr;
+        socklen_t alen = sizeof(addr);
+        int client_fd = accept(core->server_fd, (struct sockaddr*)&addr, &alen);
+        if (client_fd < 0) {
+            if (errno == EAGAIN || errno == EWOULDBLOCK) break;
+            if (errno == EINTR) continue;
+            break;
+        }
+        /* Make non-blocking */
+        int flags = fcntl(client_fd, F_GETFL, 0);
+        fcntl(client_fd, F_SETFL, flags | O_NONBLOCK);
+        int opt = 1;
+        setsockopt(client_fd, IPPROTO_TCP, TCP_NODELAY, &opt, sizeof(opt));
+
+        WolfArena*   arena = wolf_arena_acquire(core->arena_pool);
+        WolfConnCtx* ctx   = arena ? wolf_core_alloc_ctx(core, client_fd, arena) : NULL;
+        if (!ctx) {
+            close(client_fd);
+            if (arena) {
+                wolf_arena_reset(arena);
+                wolf_arena_unref(arena);
+            }
+            continue;
+        }
+        ctx->core     = core;
+        ctx->read_buf = (char*)malloc(WOLF_MAX_REQUEST_SIZE);
+
+        wolf_fd_alloc(client_fd, NULL, ctx);
+        /* Register with kqueue: EV_ADD | EV_ONESHOT */
+        struct kevent ev;
+        EV_SET(&ev, client_fd, EVFILT_READ, EV_ADD | EV_ONESHOT, 0, 0, (void*)(intptr_t)client_fd);
+        kevent(core->sentinel->poll_fd, &ev, 1, NULL, 0, NULL);
+    }
+}
+
+static void wolf_kqueue_recv_client(WolfCore* core, int client_fd) {
+    WolfFDEntry*  e    = wolf_fd_find(client_fd);
+    WolfCoreArgs* args = (WolfCoreArgs*)core->args;
+    if (!e) { close(client_fd); return; }
+    WolfConnCtx* ctx = (WolfConnCtx*)e->ctx;
+
+    ssize_t bytes = recv(client_fd, ctx->read_buf, WOLF_MAX_REQUEST_SIZE - 1, MSG_DONTWAIT);
+    if (bytes <= 0) {
+        if (bytes < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
+            struct kevent ev;
+            EV_SET(&ev, client_fd, EVFILT_READ, EV_ADD | EV_ONESHOT, 0, 0, (void*)(intptr_t)client_fd);
+            kevent(core->sentinel->poll_fd, &ev, 1, NULL, 0, NULL);
+            return;
+        }
+        wolf_fd_remove_entry(client_fd);
+        close(client_fd);
+        wolf_core_free_ctx(ctx);
+        return;
+    }
+    ctx->read_buf[bytes] = '\0';
+    ctx->bytes_in        = bytes;
+
+    wolf_engine_parse_request(ctx, ctx->read_buf, bytes);
+
+    int64_t ctx_id = (int64_t)(ctx - wolf_core_ctxs);
+    ctx->request_id    = ctx_id;
+    ctx->oom_triggered = 0;
+    ctx->arena_used    = ctx->arena ? ctx->arena->total_allocated + ctx->arena->pos : 0;
+    ctx->arena_cap     = WOLF_MAX_REQUEST_MEMORY;
+
+    __atomic_fetch_add(&core->requests_active, 1, __ATOMIC_RELAXED);
+    if (args->http_handler) {
+        wolf_task_t task = {
+            .type      = WOLF_TASK_ENGINE_HTTP,
+            .id        = ctx_id,
+            .payload   = (char*)ctx,
+            .engine_fn = wolf_engine_handle_offloaded,
+        };
+        if (wolf_task_push(task)) return;
+        wolf_engine_handle_offloaded(ctx);
+        wolf_core_drain_completions(core);
+    }
+}
+#endif /* WOLF_HAS_KQUEUE */
+
 static void* wolf_core_thread(void* arg) {
     WolfCoreArgs* args = (WolfCoreArgs*)arg;
     WolfCore*     core = args->core;
+    core->args = args;
 
-    /* Initialize O(1) context free-list for this thread (Fix 3) */
     wolf_ctx_freelist_init();
 
-    /* Set up sigaltstack for this specific thread */
     stack_t altstack;
     altstack.ss_sp = malloc(SIGSTKSZ);
     if (altstack.ss_sp) {
@@ -966,217 +1676,203 @@ static void* wolf_core_thread(void* arg) {
         sigaltstack(&altstack, NULL);
     }
 
-    /* Pin to core */
     wolf_pin_to_core(core->core_id);
 
     fprintf(stderr, "[WOLF-ENGINE] Core %d started (tid=%lu)\n",
             core->core_id, (unsigned long)pthread_self());
 
-    /* Add server fd to sentinel for edge-triggered accept */
-    wolf_sentinel_add(core->sentinel, core->server_fd, NULL, NULL);
+#if defined(WOLF_HAS_IO_URING)
+    /* Initialize per-core completion ring and eventfd */
+    {
+        atomic_store_explicit(&core->complete_ring.head, 0, memory_order_relaxed);
+        atomic_store_explicit(&core->complete_ring.tail, 0, memory_order_relaxed);
+#if defined(__linux__)
+        core->complete_ring.notify_fd = eventfd(0, EFD_NONBLOCK | EFD_SEMAPHORE);
+        if (core->complete_ring.notify_fd >= 0) {
+            /* Register persistent POLLIN on notify_fd so worker writes wake us */
+            wolf_uring_poll_fd(core->sentinel->uring, core->complete_ring.notify_fd,
+                               on_eventfd_ready, core);
+        }
+#else
+        core->complete_ring.notify_fd = -1;
+#endif
+    }
 
-    /* Signal to sysmon that this thread is fully initialized */
+    // 1. Submit the multishot accept SQE once
+    wolf_uring_submit_accept(core->sentinel->uring, core->server_fd, on_accept_complete, core, NULL);
+    wolf_uring_flush(core->sentinel->uring);
+
     __atomic_store_n(&core->ready, 1, __ATOMIC_RELEASE);
 
-    char read_buf[WOLF_MAX_REQUEST_SIZE];
-
+    // 2. Poll for completions; drain worker→poller completions before each wait
     while (!wolf_engine_shutdown_flag) {
-        /* Try to accept a connection */
-        struct sockaddr_in client_addr;
-        socklen_t client_len = sizeof(client_addr);
+        wolf_core_drain_completions(core);
+        wolf_uring_poll(core->sentinel->uring, 5); /* 5ms max wait — reduced from 100ms */
+    }
+#elif defined(WOLF_HAS_EPOLL)
+    /* ── Event-driven epoll path ────────────────────────────────────────────
+     * Mirrors the io_uring path: accept→recv→[worker pool]→send, all driven
+     * by epoll_wait events.  Concurrent connections per core = no serialisation.
+     * notify_fd (eventfd) wakes the poller when a worker posts a completion. */
+    {
+        atomic_store_explicit(&core->complete_ring.head, 0, memory_order_relaxed);
+        atomic_store_explicit(&core->complete_ring.tail, 0, memory_order_relaxed);
 
-        int client_fd = accept(core->server_fd,
-                               (struct sockaddr*)&client_addr, &client_len);
+        int efd = epoll_create1(EPOLL_CLOEXEC);
+        core->epoll_fd = efd;
 
-        if (client_fd < 0) {
-            if (errno == EAGAIN || errno == EWOULDBLOCK) {
-                /* No connection ready — poll for up to 1ms then retry */
-                wolf_sentinel_poll(core->sentinel, 1);
-                continue;
-            }
-            if (errno == EINTR) continue;
-            perror("accept");
-            continue;
+        /* notify_fd: worker writes 1 → epoll wakes → drain completions + send */
+        int nfd = eventfd(0, EFD_NONBLOCK | EFD_SEMAPHORE);
+        core->complete_ring.notify_fd = nfd;
+
+        /* Server fd: edge-triggered, no ONESHOT (persistent) */
+        {
+            struct epoll_event ev;
+            ev.events  = EPOLLIN | EPOLLET;
+            ev.data.fd = core->server_fd;
+            epoll_ctl(efd, EPOLL_CTL_ADD, core->server_fd, &ev);
+        }
+        /* Notify fd: edge-triggered */
+        {
+            struct epoll_event ev;
+            ev.events  = EPOLLIN | EPOLLET;
+            ev.data.fd = nfd;
+            epoll_ctl(efd, EPOLL_CTL_ADD, nfd, &ev);
         }
 
-        /* Set receive timeout */
-        struct timeval tv = { WOLF_REQUEST_TIMEOUT_SEC, 0 };
-        setsockopt(client_fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
+        __atomic_store_n(&core->ready, 1, __ATOMIC_RELEASE);
 
-        /* TCP_NODELAY on client socket too */
-        int opt = 1;
-        setsockopt(client_fd, IPPROTO_TCP, TCP_NODELAY, &opt, sizeof(opt));
-
-        /* Acquire arena from pool — O(1), no malloc */
-        WolfArena* arena = wolf_arena_acquire(core->arena_pool);
-
-        /* Allocate connection context in arena */
-        WolfConnCtx* ctx = wolf_core_alloc_ctx(core, client_fd, arena);
-        if (!ctx) {
-            /* All slots full — 503 */
-            const char* busy =
-                "HTTP/1.1 503 Service Unavailable\r\n"
-                "Content-Length: 0\r\n\r\n";
-            write(client_fd, busy, strlen(busy));
-            close(client_fd);
-            wolf_arena_reset(arena);  /* frees if overflow */
-            arena = NULL;
-            __atomic_fetch_add(&core->requests_total, 1, __ATOMIC_RELAXED);
-            continue;
-        }
-
-        /* Read request */
-        ssize_t bytes = read(client_fd, read_buf, sizeof(read_buf) - 1);
-        if (bytes <= 0) {
-            if (bytes < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
-                /* Timeout */
-                const char* timeout_resp =
-                    "HTTP/1.1 408 Request Timeout\r\n"
-                    "Content-Length: 0\r\nConnection: close\r\n\r\n";
-                write(client_fd, timeout_resp, strlen(timeout_resp));
-            }
-            close(client_fd);
-            wolf_core_free_ctx(ctx);
-            continue;
-        }
-        read_buf[bytes] = '\0';
-
-        /* Parse into arena memory */
-        wolf_engine_parse_request(ctx, read_buf, bytes);
-
-        /* GET /health Observability Bypass */
-        if (ctx->method && strcmp(ctx->method, "GET") == 0 && ctx->path && strcmp(ctx->path, "/health") == 0) {
-            char health_buf[4096];
-            extern int wolf_get_active_requests(void);
-            int active = wolf_get_active_requests();
-            
-            /* Dump lock-free metrics + active requests */
-            int n = snprintf(health_buf, sizeof(health_buf), "{\"status\":\"ok\",\"active_requests\":%d,\"metrics\":{", active);
-            
-            int first = 1;
-            extern wolf_metric_t wolf_metrics_registry[];
-            for (int i = 0; i < WOLF_MAX_METRICS; i++) {
-                const char* k = atomic_load(&wolf_metrics_registry[i].key_ptr);
-                if (k) {
-                    if (!first) {
-                        if (n < sizeof(health_buf) - 1) health_buf[n++] = ',';
-                    }
-                    first = 0;
-                    n += snprintf(health_buf + n, sizeof(health_buf) - n, "\"%s\":%lld", 
-                                  wolf_metrics_registry[i].name, 
-                                  (long long)atomic_load(&wolf_metrics_registry[i].count));
+        struct epoll_event evs[256];
+        while (!wolf_engine_shutdown_flag) {
+            int n = epoll_wait(efd, evs, 256, 5);
+            for (int i = 0; i < n; i++) {
+                int fd = evs[i].data.fd;
+                if (fd == core->server_fd) {
+                    wolf_epoll_accept_all(core);
+                } else if (fd == nfd) {
+                    /* Drain eventfd counter (EFD_SEMAPHORE: one read = decrement by 1) */
+                    uint64_t v;
+                    while (read(nfd, &v, sizeof(v)) == sizeof(v)) {}
+                    wolf_core_drain_completions(core);
+                } else {
+                    wolf_epoll_recv_client(core, fd);
                 }
             }
-            n += snprintf(health_buf + n, sizeof(health_buf) - n, "}}");
-            
-            ctx->res_body = wolf_arena_strdup(ctx->arena, health_buf);
-            ctx->status_code = 200;
-            ctx->res_header_keys[0] = "Content-Type";
-            ctx->res_header_vals[0] = "application/json";
-            ctx->res_header_keys[1] = "Access-Control-Allow-Origin";
-            ctx->res_header_vals[1] = "*";
-            ctx->res_header_count = 2;
-            goto send_and_cleanup;
         }
-
-
-
-        /* WebSocket upgrade */
-        if (ctx->is_websocket) {
-            wolf_engine_ws_handshake(ctx);
-
-            /* Transfer fd ownership to the legacy WS poller (wolf_runtime.c).
-             * The poller manages the connection lifecycle from here.
-             * We must NOT close client_fd — the poller owns it now.
-             * We MUST free our engine ctx (its arena is no longer needed;
-             * the poller uses its own http_contexts[] storage). */
-            wolf_engine_register_ws_fd(ctx->client_fd,
-                                       ctx->method, ctx->path, ctx->query,
-                                       ctx->ws_key,
-                                       ctx->client_ip);
-
-            /* Release engine ctx but do NOT close client_fd */
-            ctx->client_fd = -1;  /* prevent wolf_core_free_ctx from closing it */
-            wolf_core_free_ctx(ctx);
-            continue;
-        }
-
-        /* Set thread-local request context (legacy API compatibility) */
-        int64_t ctx_id = (int64_t)(ctx - wolf_core_ctxs);
-        ctx->request_id = ctx_id;
-        ctx->oom_triggered = 0;
-        ctx->arena_used = ctx->arena ? ctx->arena->total_allocated + ctx->arena->pos : 0;
-        ctx->arena_cap = WOLF_MAX_REQUEST_MEMORY;
-        wolf_set_current_context((void*)(intptr_t)ctx_id, (void*)(intptr_t)ctx_id);
-
-        /* Test crash endpoint for SIGSEGV handling */
-        if (ctx->method && strcmp(ctx->method, "GET") == 0 && ctx->path && strcmp(ctx->path, "/crash") == 0) {
-            __atomic_store_n(&wolf_active_ctx, ctx, __ATOMIC_RELEASE);
-            fprintf(stderr, "Triggering deliberate crash on core %d for test...\n", core->core_id);
-            int* ptr = NULL;
-            *ptr = 42;
-        }
-
-        /* Call Wolf HTTP handler */
-        __atomic_fetch_add(&core->requests_active, 1, __ATOMIC_RELAXED);
-        if (args->http_handler) {
-            /* Mark active for watchdog (Release-Acquire sync) */
-            __atomic_store_n(&wolf_active_ctx, ctx, __ATOMIC_RELEASE);
-
-            wolf_req_arena_init();
-            wolf_closure_t* closure = (wolf_closure_t*)args->http_handler;
-            typedef void* (*wolf_closure_fn_t)(void* env, int64_t req_id, int64_t res_id);
-            wolf_closure_fn_t fn = (wolf_closure_fn_t)closure->fn;
-
-            if (!wolf_closure_valid(closure)) {
-                fprintf(stderr, "[WOLF-ENGINE] CORRUPTED closure on core %d: "
-                        "closure=%p magic=0x%08X fn=%p — dropping request\n",
-                        core->core_id, (void*)closure,
-                        closure ? closure->magic : 0,
-                        (void*)(uintptr_t)fn);
-                fflush(stderr);
-                ctx->status_code = 500;
-                __atomic_store_n(&wolf_active_ctx, NULL, __ATOMIC_RELEASE);
-                goto send_and_cleanup;
-            }
-
-            ctx->oom_triggered = 0;
-            if (setjmp(ctx->oom_jump) == 0) {
-                fn(closure->env, ctx_id, ctx_id);
-            } else {
-                fprintf(stderr, "[WOLF-ENGINE] OOM exception caught on core %d, returning 500\n", core->core_id);
-                ctx->status_code = 500;
-                ctx->res_body = "500 Internal Server Error (OOM)";
-            }
-
-            /* Clear active marker */
-            __atomic_store_n(&wolf_active_ctx, NULL, __ATOMIC_RELEASE);
-
-            if (wolf_req_oom_check()) {
-                ctx->status_code = 503;
-                if (!ctx->res_body) ctx->res_body = "Service Unavailable";
-                wolf_req_oom_clear();
-            }
-        }
-
-send_and_cleanup:
-        __atomic_fetch_sub(&core->requests_active, 1, __ATOMIC_RELAXED);
-
-        /* Send response */
-        int send_ok = wolf_engine_send_response(ctx);
-
-        /* Stats (only increment if client didn't timeout/disconnect) */
-        if (send_ok == 0) {
-            __atomic_fetch_add(&core->requests_total, 1, __ATOMIC_RELAXED);
-            __atomic_fetch_add(&core->bytes_in,  bytes,                              __ATOMIC_RELAXED);
-            __atomic_fetch_add(&core->bytes_out, ctx->res_body ? strlen(ctx->res_body) : 0, __ATOMIC_RELAXED);
-        }
-
-        /* Close and release — arena_reset is O(1) pointer reset */
-        close(client_fd);
-        wolf_req_arena_flush();
-        wolf_core_free_ctx(ctx);   /* resets arena */
+        close(nfd);
+        close(efd);
     }
+
+#elif defined(WOLF_HAS_KQUEUE)
+    /* ── Event-driven kqueue path (macOS / BSD) ─────────────────────────────
+     * Same callback model.  Uses pipe[2] for worker→poller wakeup since
+     * eventfd is Linux-only. */
+    {
+        atomic_store_explicit(&core->complete_ring.head, 0, memory_order_relaxed);
+        atomic_store_explicit(&core->complete_ring.tail, 0, memory_order_relaxed);
+
+        int kq = core->sentinel->poll_fd; /* already created in wolf_sentinel_create */
+
+        /* Notify pipe: worker writes 1 byte → kqueue wakes → drain ring */
+        int pipe_fds[2];
+        if (pipe(pipe_fds) == 0) {
+            int flags = fcntl(pipe_fds[0], F_GETFL, 0);
+            fcntl(pipe_fds[0], F_SETFL, flags | O_NONBLOCK);
+            core->kq_notify_rfd = pipe_fds[0];
+            core->complete_ring.notify_fd = pipe_fds[1]; /* worker writes here */
+
+            struct kevent ev;
+            EV_SET(&ev, pipe_fds[0], EVFILT_READ, EV_ADD | EV_ENABLE, 0, 0,
+                   (void*)(intptr_t)pipe_fds[0]);
+            kevent(kq, &ev, 1, NULL, 0, NULL);
+        } else {
+            core->kq_notify_rfd        = -1;
+            core->complete_ring.notify_fd = -1;
+        }
+
+        /* Server fd: persistent EVFILT_READ */
+        {
+            struct kevent ev;
+            EV_SET(&ev, core->server_fd, EVFILT_READ, EV_ADD | EV_ENABLE, 0, 0,
+                   (void*)(intptr_t)core->server_fd);
+            kevent(kq, &ev, 1, NULL, 0, NULL);
+        }
+
+        __atomic_store_n(&core->ready, 1, __ATOMIC_RELEASE);
+
+        struct kevent evs[256];
+        while (!wolf_engine_shutdown_flag) {
+            struct timespec ts = { 0, 5000000 }; /* 5ms */
+            int n = kevent(kq, NULL, 0, evs, 256, &ts);
+            for (int i = 0; i < n; i++) {
+                int fd = (int)(intptr_t)evs[i].udata;
+                if (fd == core->server_fd) {
+                    wolf_kqueue_accept_all(core);
+                } else if (fd == core->kq_notify_rfd) {
+                    /* Drain pipe */
+                    char tmp[64];
+                    while (read(fd, tmp, sizeof(tmp)) > 0) {}
+                    wolf_core_drain_completions(core);
+                } else {
+                    wolf_kqueue_recv_client(core, fd);
+                }
+            }
+        }
+        if (core->kq_notify_rfd >= 0) close(core->kq_notify_rfd);
+        if (core->complete_ring.notify_fd >= 0) close(core->complete_ring.notify_fd);
+    }
+
+#else
+    /* ── poll() fallback (rare: non-Linux, non-macOS) ───────────────────── */
+    {
+        atomic_store_explicit(&core->complete_ring.head, 0, memory_order_relaxed);
+        atomic_store_explicit(&core->complete_ring.tail, 0, memory_order_relaxed);
+        core->complete_ring.notify_fd = -1;
+        __atomic_store_n(&core->ready, 1, __ATOMIC_RELEASE);
+
+        char read_buf[WOLF_MAX_REQUEST_SIZE];
+        while (!wolf_engine_shutdown_flag) {
+            wolf_core_drain_completions(core);
+
+            struct sockaddr_in client_addr;
+            socklen_t client_len = sizeof(client_addr);
+            int client_fd = accept(core->server_fd,
+                                   (struct sockaddr*)&client_addr, &client_len);
+            if (client_fd < 0) {
+                if (errno == EAGAIN || errno == EWOULDBLOCK) {
+                    wolf_sentinel_poll(core->sentinel, 1);
+                    continue;
+                }
+                if (errno == EINTR) continue;
+                continue;
+            }
+
+            int opt = 1;
+            setsockopt(client_fd, IPPROTO_TCP, TCP_NODELAY, &opt, sizeof(opt));
+
+            WolfArena*   arena = wolf_arena_acquire(core->arena_pool);
+            WolfConnCtx* ctx   = arena ? wolf_core_alloc_ctx(core, client_fd, arena) : NULL;
+            if (!ctx) {
+                close(client_fd);
+                if (arena) {
+                    wolf_arena_reset(arena);
+                    wolf_arena_unref(arena);
+                }
+                continue;
+            }
+            ctx->core = core;
+            ssize_t bytes = read(client_fd, read_buf, sizeof(read_buf) - 1);
+            if (bytes <= 0) { close(client_fd); wolf_core_free_ctx(ctx); continue; }
+            read_buf[bytes] = '\0';
+            wolf_engine_parse_request(ctx, read_buf, bytes);
+            char* out_buf = NULL; int out_len = 0;
+            wolf_engine_build_response(ctx, &out_buf, &out_len);
+            if (out_buf && out_len > 0) write(client_fd, out_buf, out_len);
+            close(client_fd);
+            wolf_core_free_ctx(ctx);
+        }
+    }
+#endif
 
     fprintf(stderr, "[WOLF-ENGINE] Core %d shutting down (served %lld requests)\n",
             core->core_id, (long long)core->requests_total);
@@ -1217,28 +1913,13 @@ static void wolf_crash_handler(int sig, siginfo_t* info, void* ucontext) {
     (void)info;
     (void)ucontext;
 
-    wolf_safe_print("\n[WOLF-CRASH] Caught SIGSEGV (Segmentation Fault)\n");
-
-    /* Read thread-local context safely */
-    WolfConnCtx* ctx = __atomic_load_n(&wolf_active_ctx, __ATOMIC_ACQUIRE);
-    if (ctx) {
-        wolf_safe_print("  -> Request ID:   ");
-        wolf_safe_print_int((long long)ctx->request_id);
-        wolf_safe_print("\n  -> Endpoint:     ");
-        wolf_safe_print(ctx->path ? ctx->path : "unknown");
-        wolf_safe_print("\n  -> Arena Usage:  ");
-        wolf_safe_print_int((long long)ctx->arena_used);
-        wolf_safe_print(" bytes (cap: ");
-        wolf_safe_print_int((long long)ctx->arena_cap);
-        wolf_safe_print(")\n  -> OOM Triggered: ");
-        wolf_safe_print(ctx->oom_triggered ? "true\n" : "false\n");
-    } else {
-        wolf_safe_print("  -> Context:      No active request context\n");
+    int fd = open("/tmp/crash.log", O_WRONLY | O_CREAT | O_APPEND, 0666);
+    if (fd >= 0) {
+        const char* msg = "[WOLF-CRASH] Caught SIGSEGV. No backtrace (alt stack protection).\n";
+        write(fd, msg, strlen(msg));
+        close(fd);
     }
-
-    wolf_safe_print("[WOLF-CRASH] Re-raising signal to supervisor...\n");
-
-    /* Re-raise to ensure proper exit status and core dump */
+    
     signal(SIGSEGV, SIG_DFL);
     raise(SIGSEGV);
 }
@@ -1255,8 +1936,20 @@ WolfEngine* wolf_engine_create(int port, int core_count) {
     int max_recommended = hw_cores * 4;
 
     if (core_count <= 0) {
-        /* workers = 0 (auto) — use 4x physical cores for transitional oversubscription */
+#if defined(WOLF_HAS_IO_URING)
+        /*
+         * With SQPOLL, each io_uring instance spawns a kernel polling thread.
+         * N cores → N SQPOLL threads + N worker threads = 2N threads on N CPUs.
+         * Oversubscribing (4× = 16 cores on 4 CPUs) creates 16 SQPOLL threads
+         * competing for CPU time, which collapses throughput to near zero.
+         * Use exactly hw_cores: one worker per CPU, one SQPOLL thread per CPU.
+         */
+        core_count = hw_cores;
+#else
+        /* epoll/kqueue are pure user-space; 4× oversubscription is safe and
+         * helps saturate CPUs with I/O-bound workloads. */
         core_count = max_recommended;
+#endif
     } else if (core_count > max_recommended) {
         /* Configured workers exceed 4x physical cores — clamp and warn.
          * Extreme oversubscription causes context-switch overhead and memory exhaustion. */
@@ -1285,8 +1978,19 @@ WolfEngine* wolf_engine_create(int port, int core_count) {
             engine->cores[i] = NULL;
             continue;
         }
-        core->sentinel   = wolf_sentinel_create(i);
-        core->arena_pool = wolf_arena_pool_create(i);
+        core->sentinel    = wolf_sentinel_create(i);
+        core->arena_pool  = wolf_arena_pool_create(i);
+        core->epoll_fd    = -1;
+        core->kq_notify_rfd = -1;
+#if defined(WOLF_HAS_IO_URING)
+        /* Probe SEND_ZC support once per core (same uring instance, same kernel) */
+        core->use_send_zc = core->sentinel->uring
+                            ? wolf_uring_has_send_zc(core->sentinel->uring) : 0;
+        if (i == 0) {
+            fprintf(stderr, "[WOLF-ENGINE] SEND_ZC: %s\n",
+                    core->use_send_zc ? "enabled (kernel zero-copy)" : "disabled (fallback to copy-send)");
+        }
+#endif
         engine->cores[i] = core;
     }
 
@@ -1308,7 +2012,9 @@ int wolf_engine_start(WolfEngine* engine, wolf_http_handler_t handler, wolf_ws_h
     printf("🐺 Wolf HTTP Engine — %d cores, port %d\n",
            engine->core_count, engine->port);
     printf("   Architecture: Thread-Per-Core + %s\n",
-#if defined(WOLF_HAS_EPOLL)
+#if defined(WOLF_HAS_IO_URING)
+           "io_uring (Phase 2)"
+#elif defined(WOLF_HAS_EPOLL)
            "epoll (Phase 1)"
 #elif defined(WOLF_HAS_KQUEUE)
            "kqueue (Phase 1)"
@@ -1320,6 +2026,9 @@ int wolf_engine_start(WolfEngine* engine, wolf_http_handler_t handler, wolf_ws_h
            WOLF_ARENA_POOL_SIZE, (int)(WOLF_ARENA_SLAB_SIZE / 1024));
     printf("   Send SIGTERM or Ctrl+C to shut down gracefully.\n");
     fflush(stdout);
+
+    /* Start worker thread pool (handles WOLF_TASK_ENGINE_HTTP offloaded handlers) */
+    wolf_worker_pool_init();
 
     /* Start per-core threads */
     for (int i = 0; i < engine->core_count; i++) {

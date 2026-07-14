@@ -1,0 +1,34 @@
+[0;34m[T3][0m ╔══════════════════════════════════════════════════════════╗
+[0;34m[T3][0m ║         Wolf Language — Tier 3 Load Test Suite           ║
+[0;34m[T3][0m ║  Target: http://127.0.0.1:19090                        ║
+[0;34m[T3][0m ╚══════════════════════════════════════════════════════════╝
+[0;34m[T3][0m 
+[0;34m[T3][0m Building Wolf server: ./e2e/testdata/61_route_ping.wolf
+[0;34m[T3][0m Starting Wolf server on port 19090...
+[0;34m[T3][0m Server ready on port 19090 (pid 54948)
+[0;34m[T3][0m 
+[0;34m[T3][0m ── T3-01: Baseline Throughput (/ping, 4t/100c/30s) ──
+[0;34m[T3][0m Running T3-01: Baseline /ping throughput
+Running 30s test @ http://127.0.0.1:19090/ping
+  4 threads and 100 connections
+  Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency     9.76ms    2.90ms  14.50ms   63.33%
+    Req/Sec   200.67     95.92   260.00     66.67%
+  Latency Distribution
+     50%    9.23ms
+     75%   12.47ms
+     90%   12.95ms
+     99%   14.50ms
+  60 requests in 30.11s, 6.45KB read
+  Socket errors: connect 0, read 161, write 608192, timeout 0
+Requests/sec:      1.99
+Transfer/sec:     219.17B
+[0;31m❌ FAIL[0m T3-01: RPS 1.99 < required 40000
+[0;31m❌ FAIL[0m T3-01: p99 14.50ms > limit 5ms
+[0;32m✅ PASS[0m T3-01: 0 errors (zero errors expected)
+[0;34m[T3][0m 
+[0;34m[T3][0m ── T3-02: JSON Serialization Throughput (4t/100c/30s) ──
+[1;33m⚠️  WARN[0m T3-02 currently uses /ping (small JSON). Wire a /users/1 endpoint with 1KB JSON for full spec compliance.
+[0;34m[T3][0m Running T3-02: JSON payload throughput
+unable to connect to 127.0.0.1:19090 Connection refused
+[0;34m[T3][0m Server stopped (pid 54948)

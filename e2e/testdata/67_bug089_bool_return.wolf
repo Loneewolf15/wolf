@@ -1,0 +1,62 @@
+// E2E test for BUG-089: bool-returning-from-comparison functions
+// Previously is_even(7) returned a raw pointer address instead of false.
+// Root cause: inferExprType returned "ptr" for a BinaryExpr that emitExpr
+// actually emitted as i1. emitReturn now uses emittedTypes as ground truth.
+
+function is_even($n) {
+    return $n % 2 == 0
+}
+
+function is_positive($n) {
+    return $n > 0
+}
+
+function is_zero($n) {
+    return $n == 0
+}
+
+function has_remainder($a, $b) {
+    return $a % $b != 0
+}
+
+$result1 = is_even(7)
+if ($result1 == false) {
+    print("is_even(7) = false")
+} else {
+    print("BUG-089 REGRESSION: is_even(7)")
+}
+
+$result2 = is_even(4)
+if ($result2 == true) {
+    print("is_even(4) = true")
+} else {
+    print("BUG-089 REGRESSION: is_even(4)")
+}
+
+$result3 = is_positive(5)
+if ($result3 == true) {
+    print("is_positive(5) = true")
+} else {
+    print("BUG-089 REGRESSION: is_positive(5)")
+}
+
+$result4 = is_positive(-3)
+if ($result4 == false) {
+    print("is_positive(-3) = false")
+} else {
+    print("BUG-089 REGRESSION: is_positive(-3)")
+}
+
+$result5 = is_zero(0)
+if ($result5 == true) {
+    print("is_zero(0) = true")
+} else {
+    print("BUG-089 REGRESSION: is_zero(0)")
+}
+
+$result6 = has_remainder(10, 3)
+if ($result6 == true) {
+    print("has_remainder(10,3) = true")
+} else {
+    print("BUG-089 REGRESSION: has_remainder(10,3)")
+}

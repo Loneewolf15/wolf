@@ -1,0 +1,14 @@
+Running 30s test @ http://127.0.0.1:19090/ping
+  4 threads and 100 connections
+  Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency     9.86ms   10.53ms 131.05ms   88.20%
+    Req/Sec     2.93k     0.92k    8.68k    80.14%
+  Latency Distribution
+     50%    6.99ms
+     75%   13.34ms
+     90%   22.26ms
+     99%   50.08ms
+  350343 requests in 30.09s, 36.75MB read
+  Non-2xx or 3xx responses: 4
+Requests/sec:  11641.69
+Transfer/sec:      1.22MB

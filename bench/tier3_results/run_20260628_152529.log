@@ -1,0 +1,20 @@
+[0;34m[T3][0m ╔══════════════════════════════════════════════════════════╗
+[0;34m[T3][0m ║         Wolf Language — Tier 3 Load Test Suite           ║
+[0;34m[T3][0m ║  Target: http://127.0.0.1:19090                        ║
+[0;34m[T3][0m ╚══════════════════════════════════════════════════════════╝
+[0;34m[T3][0m 
+[1;33m⚠️  WARN[0m wrk not found. Install: apt install wrk / brew install wrk
+[1;33m⚠️  WARN[0m wrk not installed — skipping load tests T3-01, T3-02, T3-05
+[1;33m⚠️  WARN[0m Install: apt install wrk  OR  brew install wrk
+[0;34m[T3][0m 
+[0;34m[T3][0m ── T3-03: DB-bound Throughput — Manual Only ──
+[1;33m⚠️  WARN[0m T3-03 requires a live DB. Start a Wolf server with a SELECT route,
+[1;33m⚠️  WARN[0m then run: wrk -t4 -c150 -d60s http://localhost:PORT/users/1
+[1;33m⚠️  WARN[0m Pass criteria: >= 8,000 RPS, zero panics, connection pool holds.
+[1;33m⚠️  WARN[0m Current bench results are in bench/results_real_wolf.txt
+[0;34m[T3][0m 
+[0;34m[T3][0m ╔══════════════════════════════════════════════════════════╗
+[0;34m[T3][0m ║                    T3 Suite Summary                      ║
+[0;34m[T3][0m ║  Passed: 0  Failed: 0                                ║
+[0;34m[T3][0m ╚══════════════════════════════════════════════════════════╝
+[0;34m[T3][0m Full log: ./bench/tier3_results/run_20260628_152529.log

@@ -80,10 +80,43 @@ static char* wolf_utf16_to_utf8(const WCHAR* utf16) {
 #endif /* WOLF_FREESTANDING */
 
 
-/* Maximum HTTP requests per keep-alive connection (Rule 3) */
-#ifndef WOLF_KEEPALIVE_MAX_REQUESTS
-#define WOLF_KEEPALIVE_MAX_REQUESTS 1000
-#endif
+
+/* ========== HTTP Header Hash Table ========== */
+/* O(1) case-insensitive header lookup via open-addressed hash table.
+ * 64 slots for max 32 headers — worst-case load factor 0.5.
+ * Slot value: index into header_keys/header_vals arrays, or -1 (empty). */
+#define WOLF_HEADER_HASH_SLOTS 64
+
+static inline uint32_t wolf_header_hash(const char* key) {
+    uint32_t h = 2166136261u; /* FNV-1a offset basis */
+    for (const unsigned char* p = (const unsigned char*)key; *p; p++) {
+        h ^= (uint8_t)(*p | 0x20); /* cheap ASCII case-fold: A-Z → a-z */
+        h *= 16777619u;
+    }
+    return h;
+}
+
+static inline void wolf_header_htab_insert(int8_t* htab, int idx, const char* key) {
+    uint32_t h = wolf_header_hash(key);
+    for (int i = 0; i < WOLF_HEADER_HASH_SLOTS; i++) {
+        int slot = (int)((h + (uint32_t)i) & (WOLF_HEADER_HASH_SLOTS - 1));
+        if (htab[slot] < 0) { htab[slot] = (int8_t)idx; return; }
+    }
+}
+
+static inline const char* wolf_header_htab_get(const int8_t* htab,
+                                                char* const* keys,
+                                                char* const* vals,
+                                                const char* key) {
+    uint32_t h = wolf_header_hash(key);
+    for (int i = 0; i < WOLF_HEADER_HASH_SLOTS; i++) {
+        int slot = (int)((h + (uint32_t)i) & (WOLF_HEADER_HASH_SLOTS - 1));
+        int8_t idx = htab[slot];
+        if (idx < 0) return "";
+        if (strcasecmp(keys[(int)idx], key) == 0) return vals[(int)idx];
+    }
+    return "";
+}
 
 /* ========== Database Configuration & Headers ========== */
 #if defined(WOLF_DB_POSTGRES)
@@ -228,6 +261,7 @@ typedef struct {
     char*  header_keys[32];
     char*  header_vals[32];
     int    header_count;
+    int8_t header_htab[WOLF_HEADER_HASH_SLOTS]; /* O(1) lookup: -1=empty, else index */
     int    status_code;
     char*  res_header_keys[32];
     char*  res_header_vals[32];
@@ -242,7 +276,7 @@ typedef struct {
 
     /* WebSocket state for non-blocking poller */
     int           ws_state;       /* 0: header, 1: payload */
-    unsigned char ws_header[10];
+    unsigned char ws_header[14];  /* max WS header: 2 base + 8 ext-len + 4 mask */
     int           ws_header_pos;
     int           ws_header_len;
     uint64_t      ws_payload_len;
@@ -284,13 +318,15 @@ static wolf_ws_handler_t   global_ws_close_handler = NULL;
 typedef enum {
     WOLF_TASK_EMPTY,
     WOLF_TASK_HTTP,
-    WOLF_TASK_WS_EVENT
+    WOLF_TASK_WS_EVENT,
+    WOLF_TASK_ENGINE_HTTP   /* io_uring engine: handler offloaded to worker pool */
 } wolf_task_type_t;
 
 typedef struct {
     wolf_task_type_t type;
-    int64_t          id;      /* req_id or context_id */
-    char*            payload; /* for WS_EVENT */
+    int64_t          id;          /* req_id or context_id */
+    char*            payload;     /* WS_EVENT: message; ENGINE_HTTP: WolfConnCtx* */
+    void           (*engine_fn)(void* ctx); /* ENGINE_HTTP: handler dispatch fn */
 } wolf_task_t;
 
 #include <unistd.h>
@@ -429,13 +465,27 @@ static void* wolf_worker_thread_func(void* arg) {
             }
         }
 
-        /* 3. Nothing found — sleep 1ms to relinquish the core */
-        usleep(1000);
+        /* 3. Adaptive idle backoff:
+         *   iterations 0–63  : spin (hot — new tasks likely in-flight)
+         *   iterations 64–127: sched_yield (yield CPU without sleeping)
+         *   iterations 128+  : usleep(50µs) — 20× less latency than old 1ms */
+        if (spin < 64) {
+            spin++;
+        } else if (spin < 128) {
+            spin++;
+            sched_yield();
+        } else {
+            usleep(50);
+        }
         continue;
 
 dispatch:
+        spin = 0;
         if (task.type == WOLF_TASK_HTTP) {
             http_worker((void*)(intptr_t)task.id);
+        } else if (task.type == WOLF_TASK_ENGINE_HTTP) {
+            /* io_uring engine: run the offloaded handler then post completion */
+            if (task.engine_fn) task.engine_fn(task.payload);
         } else if (task.type == WOLF_TASK_WS_EVENT) {
             WOLF_LOG("[WOLF-WS] Worker %d popped WS task fd=%d, payload=%s\n", wid, (int)task.id, task.payload ? (char*)task.payload : "(null)");
             if (global_ws_handler) {
@@ -800,31 +850,25 @@ static void wolf_ws_handle_read_event(int id) {
         }
 
         if (ctx->ws_opcode == 0x01) { /* Text frame */
-            fprintf(stderr, "[WOLF-WS] Text frame id=%d payload='%s'\n", id, (char*)ctx->ws_payload_buf);
-            
-            /* Duplicate the payload using arena in the worker, but for handing off cross-thread we need a quick strdup or arena. 
-             * Since we want to eliminate malloc entirely, the task queue payload must be managed carefully. 
-             * Wait! The worker thread needs a pointer. If we pass ctx->ws_payload_buf, the worker can read it, but what if new frames overwrite it?
-             * Since we don't start reading the NEXT frame until the worker runs? No, epoll/kqueue keeps firing. 
-             * Actually, the safest way is a malloc specifically for the worker queue, BUT Sentinel rejects this.
-             * Let's change the task payload to NOT carry a string, but just the ID. The worker reads from ctx->ws_payload_buf directly!
-             * Wait, this introduces a race condition if another frame arrives.
-             * To safely pass it, we MUST pause epoll for this fd until the worker finishes, OR we simply use strdup to push it to the queue...
-             * Actually, for now we will string-duplicate here, and free in worker. Wait, Sentinel rejects malloc.
-             * So we pass NULL, but we copy into a struct...
-             */
-            char* payload_copy = strdup(ctx->ws_payload_buf);
-            wolf_task_t ws_task = {WOLF_TASK_WS_EVENT, (int64_t)id, payload_copy};
-            if (!wolf_task_push(ws_task)) {
-                free(payload_copy);
-                WOLF_LOG("[WOLF-WS] ring full — WS event dropped on fd=%d\n", ctx->client_fd);
+            /* Call the handler synchronously in the poller thread.
+             * This eliminates the strdup race: ws_payload_buf is a static
+             * per-context array, so no cross-thread ownership handoff is needed.
+             * The handler completes before the next epoll_wait iteration. */
+            if (global_ws_handler) {
+                wolf_req_arena_init();
+                int64_t tagged_id = (int64_t)id | WOLF_ID_TAG_WS;
+                wolf_set_current_context((void*)(intptr_t)tagged_id, (void*)(intptr_t)tagged_id);
+                global_ws_handler(tagged_id, ctx->ws_payload_buf);
+                wolf_req_arena_flush();
             }
         }
 
         /* Reset for next frame */
-        ctx->ws_state = 0;
+        ctx->ws_state      = 0;
         ctx->ws_header_pos = 0;
         ctx->ws_header_len = 2;
+        ctx->ws_payload_len = 0;
+        ctx->ws_payload_pos = 0;
     }
     return;
 
@@ -835,6 +879,13 @@ close_ws:
         global_ws_close_handler((int64_t)id, "close");
         wolf_req_arena_flush();
     }
+    /* Remove fd from the WS poller before closing to prevent stale events. */
+#ifdef WOLF_USE_EPOLL
+    epoll_ctl(wolf_ws_poller_fd, EPOLL_CTL_DEL, fd, NULL);
+#elif defined(WOLF_USE_KQUEUE)
+    { struct kevent _ev; EV_SET(&_ev, fd, EVFILT_READ, EV_DELETE, 0, 0, NULL);
+      kevent(wolf_ws_poller_fd, &_ev, 1, NULL, 0, NULL); }
+#endif
     close(fd);
     free_http_context(id);
 }
@@ -869,7 +920,7 @@ typedef struct WolfReqArena {
     int      count;
     int      cap;
     int      active;
-    volatile int refcount;
+    atomic_int refcount;
 } WolfReqArena;
 
 static __thread WolfReqArena* current_req_arena = NULL;
@@ -883,12 +934,12 @@ void wolf_req_arena_init(void) {
     }
     current_req_arena->count  = 0;
     current_req_arena->active = 1;
-    current_req_arena->refcount = 1;
+    atomic_store_explicit(&current_req_arena->refcount, 1, memory_order_relaxed);
 }
 
 void wolf_req_arena_ref(void) {
     if (current_req_arena) {
-        __atomic_fetch_add(&current_req_arena->refcount, 1, __ATOMIC_SEQ_CST);
+        atomic_fetch_add_explicit(&current_req_arena->refcount, 1, memory_order_seq_cst);
     }
 }
 
@@ -994,7 +1045,7 @@ void wolf_req_arena_flush(void) {
     if (!current_req_arena) return;
     current_req_arena->active = 0;
     
-    if (__atomic_sub_fetch(&current_req_arena->refcount, 1, __ATOMIC_SEQ_CST) == 0) {
+    if (atomic_fetch_sub_explicit(&current_req_arena->refcount, 1, memory_order_seq_cst) == 1) {
         free_req_arena(current_req_arena);
     } else {
         /* Detached tasks are still using this arena. Detach it from the thread 
@@ -1010,7 +1061,7 @@ void* wolf_req_arena_get_current(void) {
 void wolf_req_arena_unref_task(void* arena_ptr) {
     WolfReqArena* arena = (WolfReqArena*)arena_ptr;
     if (!arena) return;
-    if (__atomic_sub_fetch(&arena->refcount, 1, __ATOMIC_SEQ_CST) == 0) {
+    if (atomic_fetch_sub_explicit(&arena->refcount, 1, memory_order_seq_cst) == 1) {
         free_req_arena(arena);
         if (arena->ptrs) free(arena->ptrs);
         free(arena);
@@ -1663,11 +1714,89 @@ static char* wolf_internal_str_replace(const char* orig, const char* rep,
     return result;
 }
 
+/* ================================================================
+ * SQL template intern table
+ *
+ * SQL templates (e.g. "SELECT * FROM users WHERE id = :id") are
+ * compile-time constants that never change between requests. Calling
+ * wolf_req_strdup() on every wolf_db_prepare() wastes arena memory
+ * and adds unnecessary per-request work.
+ *
+ * wolf_sql_intern() stores each unique template once in process-lifetime
+ * memory (malloc). Subsequent calls with the same SQL return the cached
+ * pointer. wolf_db_bind() makes a request-arena copy before substituting
+ * parameters so the interned template stays immutable.
+ *
+ * Implementation: open-addressed hash table, 512 slots, FNV-1a hash,
+ * linear probing. At most WOLF_SQL_INTERN_SIZE/2 entries (50% load).
+ * Protected by a single mutex — prepare is not on the hot I/O path.
+ * ================================================================ */
+#define WOLF_SQL_INTERN_SIZE 512
+#define WOLF_SQL_INTERN_MASK (WOLF_SQL_INTERN_SIZE - 1)
+
+typedef struct {
+    uint32_t hash;
+    char*    tpl;   /* malloc'd, process-lifetime */
+} WolfSqlInternEntry;
+
+static WolfSqlInternEntry wolf_sql_intern_table[WOLF_SQL_INTERN_SIZE];
+static int                 wolf_sql_intern_count = 0;
+static pthread_mutex_t     wolf_sql_intern_mu    = PTHREAD_MUTEX_INITIALIZER;
+
+static uint32_t wolf_sql_fnv1a(const char* s) {
+    uint32_t h = 2166136261u;
+    while (*s) { h ^= (uint8_t)*s++; h *= 16777619u; }
+    return h;
+}
+
+static const char* wolf_sql_intern(const char* sql) {
+    if (!sql) sql = "";
+    uint32_t hash = wolf_sql_fnv1a(sql);
+
+    pthread_mutex_lock(&wolf_sql_intern_mu);
+
+    /* Search for existing entry */
+    uint32_t slot = hash & WOLF_SQL_INTERN_MASK;
+    for (int i = 0; i < WOLF_SQL_INTERN_SIZE; i++) {
+        WolfSqlInternEntry* e = &wolf_sql_intern_table[slot];
+        if (!e->tpl) break;                         /* empty slot — not found */
+        if (e->hash == hash && strcmp(e->tpl, sql) == 0) {
+            pthread_mutex_unlock(&wolf_sql_intern_mu);
+            return e->tpl;
+        }
+        slot = (slot + 1) & WOLF_SQL_INTERN_MASK;
+    }
+
+    /* Not found — insert if capacity allows (50% max load) */
+    if (wolf_sql_intern_count < WOLF_SQL_INTERN_SIZE / 2) {
+        char* copy = strdup(sql);   /* process-lifetime — intentional malloc */
+        if (copy) {
+            /* Find next empty slot for insert */
+            slot = hash & WOLF_SQL_INTERN_MASK;
+            while (wolf_sql_intern_table[slot].tpl) {
+                slot = (slot + 1) & WOLF_SQL_INTERN_MASK;
+            }
+            wolf_sql_intern_table[slot].hash = hash;
+            wolf_sql_intern_table[slot].tpl  = copy;
+            wolf_sql_intern_count++;
+            pthread_mutex_unlock(&wolf_sql_intern_mu);
+            return copy;
+        }
+    }
+
+    /* Table full or malloc failed — fall back to request-arena copy */
+    pthread_mutex_unlock(&wolf_sql_intern_mu);
+    return NULL;  /* caller will use wolf_req_strdup */
+}
+
 void* wolf_db_prepare(void* conn, const char* sql) {
     if (!conn) return NULL;
     WolfDBStmt* stmt = (WolfDBStmt*)wolf_req_alloc(sizeof(WolfDBStmt));
     stmt->conn = (WolfDBConn*)conn;
-    stmt->sql  = wolf_req_strdup(sql ? sql : "");
+    /* Use interned template when available — avoids per-request strdup of
+     * static SQL strings. wolf_db_bind will make a mutable arena copy. */
+    const char* interned = wolf_sql_intern(sql ? sql : "");
+    stmt->sql  = interned ? (char*)interned : wolf_req_strdup(sql ? sql : "");
     stmt->last_result = NULL;
     return stmt;
 }
@@ -1750,7 +1879,7 @@ void wolf_db_bind(void* stmt_ptr, const char* param, const char* value) {
     /* Delegate to the centralised escaping helper */
     char* escaped = wolf_db_escape(stmt->conn, value);
     char* quoted  = wolf_req_alloc(strlen(escaped) + 3);
-    sprintf(quoted, "'%s'", escaped);
+    snprintf(quoted, strlen(escaped) + 3, "'%s'", escaped);
     char* new_sql = wolf_internal_str_replace(stmt->sql, param, quoted, 1);
     if (new_sql) stmt->sql = new_sql;
 }
@@ -3032,8 +3161,8 @@ const char* wolf_strings_truncate(const char* s, int64_t length, const char* app
     if (!appendStr) appendStr = "";
     int appendLen = strlen(appendStr);
     char* result = (char*)wolf_req_alloc(length + appendLen + 1);
-    strncpy(result, s, length);
-    strcpy(result + length, appendStr);
+    memcpy(result, s, length);
+    memcpy(result + length, appendStr, appendLen + 1);
     return result;
 }
 
@@ -3219,6 +3348,7 @@ static void free_http_context(int id) {
     ctx->query  = NULL;
     ctx->body   = NULL;
     ctx->header_count = 0;
+    memset(ctx->header_htab, -1, sizeof(ctx->header_htab));
     ctx->res_header_count = 0;
     ctx->res_body = NULL;
     
@@ -3441,6 +3571,7 @@ static void parse_http_request(int id, char* raw_req, size_t len) {
             if (strcasecmp(line, "Content-Type") == 0) content_type_val = ctx->header_vals[ctx->header_count];
             if (strcasecmp(line, "Upgrade") == 0) upgrade_val = ctx->header_vals[ctx->header_count];
             if (strcasecmp(line, "Sec-WebSocket-Key") == 0) ws_key_val = ctx->header_vals[ctx->header_count];
+            wolf_header_htab_insert(ctx->header_htab, ctx->header_count, line);
             ctx->header_count++;
         }
     }
@@ -3829,22 +3960,29 @@ static void* http_worker(void* arg) {
         /* --- Intercept /dash for Telemetry Dashboard --- */
         if (ctx->path && strcmp(ctx->path, "/dash") == 0) {
             ctx->status_code = 200;
-            char* json = wolf_req_alloc(65536);
+            const size_t json_cap = 65536;
+            char* json = wolf_req_alloc(json_cap);
             if (json) {
-                strcpy(json, "[");
+                char* p = json;
+                char* end = json + json_cap - 1; /* reserve 1 byte for ']' + '\0' */
+                *p++ = '[';
                 int first = 1;
                 for (int i = 0; i < WOLF_MAX_METRICS; i++) {
                     if (atomic_load(&wolf_metrics_registry[i].key_ptr)) {
-                        if (!first) strcat(json, ",");
                         char buf[256];
-                        snprintf(buf, sizeof(buf), "{\"name\":\"%s\",\"count\":%ld}", 
-                            wolf_metrics_registry[i].name, 
+                        int n = snprintf(buf, sizeof(buf), "%s{\"name\":\"%s\",\"count\":%ld}",
+                            first ? "" : ",",
+                            wolf_metrics_registry[i].name,
                             (long)atomic_load(&wolf_metrics_registry[i].count));
-                        strcat(json, buf);
+                        if (n > 0 && p + n < end) {
+                            memcpy(p, buf, n);
+                            p += n;
+                        }
                         first = 0;
                     }
                 }
-                strcat(json, "]");
+                if (p < end) *p++ = ']';
+                *p = '\0';
                 ctx->res_body = json;
             } else {
                 ctx->res_body = "[]";
@@ -3942,8 +4080,12 @@ const char* wolf_http_req_method(int64_t req_id) {
         if (idx < 0 || idx >= MAX_CONCURRENT_REQUESTS) return "";
         return http_contexts[idx].method ? http_contexts[idx].method : "";
     }
-    if (req_id < 0 || req_id >= MAX_CONCURRENT_REQUESTS) return "";
-    return wolf_core_ctxs[req_id].method ? wolf_core_ctxs[req_id].method : "";
+    extern __thread void* wolf_active_ctx;
+    if (wolf_active_ctx) {
+        WolfConnCtx* ctx = (WolfConnCtx*)wolf_active_ctx;
+        return ctx->method ? ctx->method : "";
+    }
+    return "";
 }
 
 const char* wolf_http_req_client_ip(int64_t req_id) {
@@ -3952,8 +4094,12 @@ const char* wolf_http_req_client_ip(int64_t req_id) {
         if (idx < 0 || idx >= MAX_CONCURRENT_REQUESTS) return "";
         return http_contexts[idx].client_ip[0] ? http_contexts[idx].client_ip : "";
     }
-    if (req_id < 0 || req_id >= MAX_CONCURRENT_REQUESTS) return "";
-    return wolf_core_ctxs[req_id].client_ip[0] ? wolf_core_ctxs[req_id].client_ip : "";
+    extern __thread void* wolf_active_ctx;
+    if (wolf_active_ctx) {
+        WolfConnCtx* ctx = (WolfConnCtx*)wolf_active_ctx;
+        return ctx->client_ip[0] ? ctx->client_ip : "";
+    }
+    return "";
 }
 const char* wolf_http_req_path(int64_t req_id) {
     if (req_id & WOLF_ID_TAG_WS) {
@@ -3961,8 +4107,12 @@ const char* wolf_http_req_path(int64_t req_id) {
         if (idx < 0 || idx >= MAX_CONCURRENT_REQUESTS) return "";
         return http_contexts[idx].path ? http_contexts[idx].path : "";
     }
-    if (req_id < 0 || req_id >= MAX_CONCURRENT_REQUESTS) return "";
-    return wolf_core_ctxs[req_id].path ? wolf_core_ctxs[req_id].path : "";
+    extern __thread void* wolf_active_ctx;
+    if (wolf_active_ctx) {
+        WolfConnCtx* ctx = (WolfConnCtx*)wolf_active_ctx;
+        return ctx->path ? ctx->path : "";
+    }
+    return "";
 }
 const char* wolf_http_req_query(int64_t req_id, const char* key) {
     char* query = NULL;
@@ -3971,8 +4121,11 @@ const char* wolf_http_req_query(int64_t req_id, const char* key) {
         if (idx < 0 || idx >= MAX_CONCURRENT_REQUESTS || !key) return "";
         query = http_contexts[idx].query;
     } else {
-        if (req_id < 0 || req_id >= MAX_CONCURRENT_REQUESTS || !key) return "";
-        query = wolf_core_ctxs[req_id].query;
+        extern __thread void* wolf_active_ctx;
+        if (wolf_active_ctx) {
+            WolfConnCtx* ctx = (WolfConnCtx*)wolf_active_ctx;
+            query = ctx->query;
+        }
     }
 
     if (!query) return "";
@@ -3987,19 +4140,20 @@ const char* wolf_http_req_query(int64_t req_id, const char* key) {
     return "";
 }
 const char* wolf_http_req_header(int64_t req_id, const char* key) {
+    if (!key) return "";
     if (req_id & WOLF_ID_TAG_WS) {
         int64_t idx = req_id & ~WOLF_ID_TAG_WS;
-        if (idx < 0 || idx >= MAX_CONCURRENT_REQUESTS || !key) return "";
+        if (idx < 0 || idx >= MAX_CONCURRENT_REQUESTS) return "";
         wolf_http_context_t* ctx = &http_contexts[idx];
-        for (int i = 0; i < ctx->header_count; i++)
-            if (strcasecmp(ctx->header_keys[i], key) == 0) return ctx->header_vals[i];
+        return wolf_header_htab_get(ctx->header_htab, ctx->header_keys, ctx->header_vals, key);
     } else {
-        if (req_id < 0 || req_id >= MAX_CONCURRENT_REQUESTS || !key) return "";
-        WolfConnCtx* ctx = &wolf_core_ctxs[req_id];
-        for (int i = 0; i < ctx->header_count; i++)
-            if (strcasecmp(ctx->header_keys[i], key) == 0) return ctx->header_vals[i];
+        extern __thread void* wolf_active_ctx;
+        if (wolf_active_ctx) {
+            WolfConnCtx* ctx = (WolfConnCtx*)wolf_active_ctx;
+            return wolf_header_htab_get(ctx->header_htab, ctx->header_keys, ctx->header_vals, key);
+        }
+        return "";
     }
-    return "";
 }
 const char* wolf_http_req_body(int64_t req_id) {
     if (req_id & WOLF_ID_TAG_WS) {
@@ -4007,8 +4161,12 @@ const char* wolf_http_req_body(int64_t req_id) {
         if (idx < 0 || idx >= MAX_CONCURRENT_REQUESTS) return "";
         return http_contexts[idx].body ? http_contexts[idx].body : "";
     }
-    if (req_id < 0 || req_id >= MAX_CONCURRENT_REQUESTS) return "";
-    return wolf_core_ctxs[req_id].body ? wolf_core_ctxs[req_id].body : "";
+    extern __thread void* wolf_active_ctx;
+    if (wolf_active_ctx) {
+        WolfConnCtx* ctx = (WolfConnCtx*)wolf_active_ctx;
+        return ctx->body ? ctx->body : "";
+    }
+    return "";
 }
 
 static const char WOLF_B64_CHARS[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
@@ -4039,7 +4197,9 @@ const char* wolf_http_req_file(int64_t req_id, const char* field_name) {
     if (req_id < 0 || req_id >= MAX_CONCURRENT_REQUESTS || !field_name) {
         return "";
     }
-    WolfConnCtx* ctx = &wolf_core_ctxs[req_id];
+    extern __thread void* wolf_active_ctx;
+    if (!wolf_active_ctx) return "";
+    WolfConnCtx* ctx = (WolfConnCtx*)wolf_active_ctx;
     for (int i = 0; i < ctx->upload_count; i++) {
         wolf_upload_t* up = &ctx->uploads[i];
         if (strcmp(up->field_name, field_name) == 0) {
@@ -4065,8 +4225,12 @@ const char* wolf_http_req_file(int64_t req_id, const char* field_name) {
 int64_t wolf_http_req_file_count(int64_t req_id) {
     /* File uploads are only valid on standard HTTP (engine) contexts, not WS */
     if (req_id & WOLF_ID_TAG_WS) return 0;
-    if (req_id < 0 || req_id >= MAX_CONCURRENT_REQUESTS) return 0;
-    return (int64_t)wolf_core_ctxs[req_id].upload_count;
+    extern __thread void* wolf_active_ctx;
+    if (wolf_active_ctx) {
+        WolfConnCtx* ctx = (WolfConnCtx*)wolf_active_ctx;
+        return (int64_t)ctx->upload_count;
+    }
+    return 0;
 }
 
 /* --- Response API --- */
@@ -4085,12 +4249,14 @@ void wolf_http_res_header(int64_t res_id, const char* key, const char* value) {
         }
         return;
     }
-    if (res_id < 0 || res_id >= MAX_CONCURRENT_REQUESTS) return;
-    WolfConnCtx* ctx = &wolf_core_ctxs[res_id];
-    if (ctx->res_header_count < 32) {
-        ctx->res_header_keys[ctx->res_header_count] = wolf_req_strdup(key);
-        ctx->res_header_vals[ctx->res_header_count] = wolf_req_strdup(value);
-        ctx->res_header_count++;
+    extern __thread void* wolf_active_ctx;
+    if (wolf_active_ctx) {
+        WolfConnCtx* ctx = (WolfConnCtx*)wolf_active_ctx;
+        if (ctx->res_header_count < 32) {
+            ctx->res_header_keys[ctx->res_header_count] = wolf_arena_strdup(ctx->arena, key);
+            ctx->res_header_vals[ctx->res_header_count] = wolf_arena_strdup(ctx->arena, value);
+            ctx->res_header_count++;
+        }
     }
 }
 
@@ -4100,8 +4266,11 @@ void wolf_http_res_status(int64_t res_id, int64_t status_code) {
         if (idx < 0 || idx >= MAX_CONCURRENT_REQUESTS) return;
         http_contexts[idx].status_code = (int)status_code;
     } else {
-        if (res_id < 0 || res_id >= MAX_CONCURRENT_REQUESTS) return;
-        wolf_core_ctxs[res_id].status_code = (int)status_code;
+        extern __thread void* wolf_active_ctx;
+        if (wolf_active_ctx) {
+            WolfConnCtx* ctx = (WolfConnCtx*)wolf_active_ctx;
+            ctx->status_code = (int)status_code;
+        }
     }
 }
 
@@ -4115,24 +4284,28 @@ void wolf_http_res_write(int64_t res_id, const char* body) {
             size_t old_len = strlen(ctx->res_body);
             size_t new_len = strlen(body);
             char* new_body = wolf_req_alloc(old_len + new_len + 1);
-            strcpy(new_body, ctx->res_body);
-            strcat(new_body, body);
+            memcpy(new_body, ctx->res_body, old_len);
+            memcpy(new_body + old_len, body, new_len + 1);
             ctx->res_body = new_body;
         } else {
             ctx->res_body = wolf_req_strdup(body);
         }
     } else {
-        if (res_id < 0 || res_id >= MAX_CONCURRENT_REQUESTS) return;
-        WolfConnCtx* ctx = &wolf_core_ctxs[res_id];
-        if (ctx->res_body) {
-            size_t old_len = strlen(ctx->res_body);
-            size_t new_len = strlen(body);
-            char* new_body = wolf_req_alloc(old_len + new_len + 1);
-            strcpy(new_body, ctx->res_body);
-            strcat(new_body, body);
-            ctx->res_body = new_body;
-        } else {
-            ctx->res_body = wolf_req_strdup(body);
+        extern __thread void* wolf_active_ctx;
+        if (wolf_active_ctx) {
+            WolfConnCtx* ctx = (WolfConnCtx*)wolf_active_ctx;
+            if (ctx->res_body) {
+                size_t old_len = strlen(ctx->res_body);
+                size_t new_len = strlen(body);
+                char* new_body = (char*)wolf_arena_alloc(ctx->arena, old_len + new_len + 1);
+                if (new_body) {
+                    memcpy(new_body, ctx->res_body, old_len);
+                    memcpy(new_body + old_len, body, new_len + 1);
+                    ctx->res_body = new_body;
+                }
+            } else {
+                ctx->res_body = wolf_arena_strdup(ctx->arena, body);
+            }
         }
     }
 }
@@ -4227,8 +4400,9 @@ void* wolf_http_request(const char* method, const char* url, const char* body, v
                 const char* k = hm->keys[i];
                 const char* v = wolf_map_get_str(hm, k);
                 if (k && v) {
-                    char* hstr = wolf_req_alloc(strlen(k) + strlen(v) + 3);
-                    sprintf(hstr, "%s: %s", k, v);
+                    size_t hstr_len = strlen(k) + strlen(v) + 3;
+                    char* hstr = wolf_req_alloc(hstr_len);
+                    snprintf(hstr, hstr_len, "%s: %s", k, v);
                     curl_headers = curl_slist_append(curl_headers, hstr);
                 }
             }
@@ -4275,7 +4449,8 @@ void* wolf_http_request(const char* method, const char* url, const char* body, v
     
     if (state.body.data) {
         char* body_str = wolf_req_alloc(state.body.size + 1);
-        strcpy(body_str, state.body.data);
+        memcpy(body_str, state.body.data, state.body.size);
+        body_str[state.body.size] = '\0';
         free(state.body.data);
         wolf_map_set(map, "body", body_str);
     } else {
@@ -4446,7 +4621,7 @@ const char* wolf_dns_lookup(const char* hostname) {
     
     int success = ctx->success;
     char ip[INET_ADDRSTRLEN];
-    if (success) strcpy(ip, ctx->ip);
+    if (success) { strncpy(ip, ctx->ip, INET_ADDRSTRLEN - 1); ip[INET_ADDRSTRLEN - 1] = '\0'; }
     
     pthread_mutex_unlock(&ctx->mutex);
     pthread_mutex_destroy(&ctx->mutex);
@@ -4535,8 +4710,9 @@ void* wolf_url_parse(const char* url) {
     wolf_map_set(m, "port", wolf_req_strdup(port));
     
     if (slash) {
-        char* full_path = wolf_req_alloc(strlen(path) + 2);
-        sprintf(full_path, "/%s", path);
+        size_t full_path_len = strlen(path) + 2;
+        char* full_path = wolf_req_alloc(full_path_len);
+        snprintf(full_path, full_path_len, "/%s", path);
         wolf_map_set(m, "path", full_path);
     } else {
         wolf_map_set(m, "path", wolf_req_strdup(""));
@@ -4672,7 +4848,7 @@ const char* wolf_str_pad(const char* s, int64_t len, const char* pad) {
     size_t sl=strlen(s);
     if ((int64_t)sl>=len) return wolf_req_strdup(s);
     char* r=(char*)wolf_req_alloc(len+1);
-    strcpy(r,s);
+    memcpy(r, s, sl);
     size_t pl=strlen(pad);
     for (size_t pos=sl; (int64_t)pos<len; pos++) r[pos]=pad[(pos-sl)%pl];
     r[len]='\0'; return r;
@@ -5014,6 +5190,9 @@ const char* wolf_wordwrap(const char* s, int64_t width, const char* brk, int cut
     return result;
 }
 
+static const char wolf_hex_lower[] = "0123456789abcdef";
+static const char wolf_hex_upper[] = "0123456789ABCDEF";
+
 /* wolf_quoted_printable_encode — RFC 2045 quoted-printable encoding */
 const char* wolf_quoted_printable_encode(const char* s) {
     if (!s) return wolf_req_strdup("");
@@ -5045,8 +5224,7 @@ const char* wolf_quoted_printable_encode(const char* s) {
         } else {
             /* Encode as =XX */
             if (line_len >= 73) { *w++ = '='; *w++ = '\n'; line_len = 0; }
-            sprintf(w, "=%02X", c);
-            w += 3;
+            w[0]='='; w[1]=wolf_hex_upper[c>>4]; w[2]=wolf_hex_upper[c&0xf]; w+=3;
             line_len += 3;
         }
     }
@@ -5440,7 +5618,7 @@ const char* wolf_url_encode(const char* s) {
     for (size_t i=0;i<len;i++) {
         unsigned char c=(unsigned char)s[i];
         if (isalnum(c)||c=='-'||c=='_'||c=='.'||c=='~') *w++=c;
-        else { sprintf(w,"%%%02X",c); w+=3; }
+        else { w[0]='%'; w[1]=wolf_hex_upper[c>>4]; w[2]=wolf_hex_upper[c&0xf]; w+=3; }
     }
     *w='\0'; return r;
 }
@@ -5484,12 +5662,14 @@ static const char* wolf_evp_hash(const EVP_MD* md, const char* s) {
     EVP_DigestFinal_ex(ctx, digest, &digest_len);
     EVP_MD_CTX_free(ctx);
     char* hex = (char*)wolf_req_alloc(digest_len * 2 + 1);
-    for (unsigned int i = 0; i < digest_len; i++)
-        sprintf(hex + i * 2, "%02x", digest[i]);
+    for (unsigned int i = 0; i < digest_len; i++) {
+        hex[i*2]   = wolf_hex_lower[digest[i] >> 4];
+        hex[i*2+1] = wolf_hex_lower[digest[i] & 0xf];
+    }
     hex[digest_len * 2] = '\0';
     return hex;
 }
- 
+
 const char* wolf_md5(const char* s)    { return wolf_evp_hash(EVP_md5(),    s); }
 const char* wolf_sha256(const char* s) { return wolf_evp_hash(EVP_sha256(), s); }
 const char* wolf_sha512(const char* s) { return wolf_evp_hash(EVP_sha512(), s); }
@@ -5509,11 +5689,14 @@ const char* wolf_hash_hmac(const char* algo, const char* data, const char* key) 
     unsigned int  digest_len = 0;
     HMAC(md, key, strlen(key), (const unsigned char*)data, strlen(data), digest, &digest_len);
     char* hex = (char*)wolf_req_alloc(digest_len * 2 + 1);
-    for (unsigned int i = 0; i < digest_len; i++) sprintf(hex + i * 2, "%02x", digest[i]);
+    for (unsigned int i = 0; i < digest_len; i++) {
+        hex[i*2]   = wolf_hex_lower[digest[i] >> 4];
+        hex[i*2+1] = wolf_hex_lower[digest[i] & 0xf];
+    }
     hex[digest_len * 2] = '\0';
     return hex;
 }
- 
+
 int wolf_hash_equals(const char* known, const char* user) {
     if (!known || !user) return 0;
     size_t kl = strlen(known), ul = strlen(user);
@@ -5657,18 +5840,24 @@ const char* wolf_rand_bytes(int64_t length) {
     unsigned char* buf = (unsigned char*)wolf_req_alloc(length);
     randombytes_buf(buf, length);
     char* hex = (char*)wolf_req_alloc(length * 2 + 1);
-    for (int64_t i = 0; i < length; i++) sprintf(hex + i * 2, "%02x", buf[i]);
+    for (int64_t i = 0; i < length; i++) {
+        hex[i*2]   = wolf_hex_lower[buf[i] >> 4];
+        hex[i*2+1] = wolf_hex_lower[buf[i] & 0xf];
+    }
     hex[length * 2] = '\0';
     return hex;
 }
- 
+
 const char* wolf_rand_hex(int64_t length) {
     if (length <= 0) return wolf_req_strdup("");
     wolf_crypto_init();
     unsigned char* buf = (unsigned char*)wolf_req_alloc(length);
     randombytes_buf(buf, length);
     char* hex = (char*)wolf_req_alloc(length * 2 + 1);
-    for (int64_t i = 0; i < length; i++) sprintf(hex + i * 2, "%02x", buf[i]);
+    for (int64_t i = 0; i < length; i++) {
+        hex[i*2]   = wolf_hex_lower[buf[i] >> 4];
+        hex[i*2+1] = wolf_hex_lower[buf[i] & 0xf];
+    }
     hex[length * 2] = '\0';
     return hex;
 }
@@ -7207,8 +7396,9 @@ static void wolf_validate_field(wolf_validator_t* v, const char* field,
             }
 
         } else if (strcmp(rule, "confirmed") == 0) {
-            char* conf_key = wolf_req_alloc(strlen(field) + 14);
-            sprintf(conf_key, "%s_confirmation", field);
+            size_t conf_key_len = strlen(field) + 14;
+            char* conf_key = wolf_req_alloc(conf_key_len);
+            snprintf(conf_key, conf_key_len, "%s_confirmation", field);
             const char* conf_val = wolf_map_get_str(data, conf_key);
             if (!conf_val || strcmp(value, conf_val) != 0) {
                 wolf_map_set(v->errors, field,

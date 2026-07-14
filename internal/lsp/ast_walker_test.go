@@ -45,7 +45,7 @@ func TestFindNodeAtPosition(t *testing.T) {
 
 	// Query line 2, col 7
 	node := FindNodeAtPosition(program, 2, 7)
-	
+
 	if node == nil {
 		t.Fatalf("Expected a node, got nil")
 	}

@@ -35,10 +35,10 @@ type InitializeResult struct {
 }
 
 type ServerCapabilities struct {
-	TextDocumentSync       int  `json:"textDocumentSync"`
-	HoverProvider          bool `json:"hoverProvider"`
-	DefinitionProvider     bool `json:"definitionProvider"`
-	DocumentSymbolProvider bool `json:"documentSymbolProvider,omitempty"`
+	TextDocumentSync       int                `json:"textDocumentSync"`
+	HoverProvider          bool               `json:"hoverProvider"`
+	DefinitionProvider     bool               `json:"definitionProvider"`
+	DocumentSymbolProvider bool               `json:"documentSymbolProvider,omitempty"`
 	CompletionProvider     *CompletionOptions `json:"completionProvider,omitempty"`
 }
 
@@ -59,7 +59,7 @@ type TextDocumentItem struct {
 }
 
 type DidChangeTextDocumentParams struct {
-	TextDocument VersionedTextDocumentIdentifier  `json:"textDocument"`
+	TextDocument   VersionedTextDocumentIdentifier  `json:"textDocument"`
 	ContentChanges []TextDocumentContentChangeEvent `json:"contentChanges"`
 }
 
@@ -178,30 +178,30 @@ type DocumentSymbol struct {
 }
 
 const (
-	SymbolKindFile        = 1
-	SymbolKindModule      = 2
-	SymbolKindNamespace   = 3
-	SymbolKindPackage     = 4
-	SymbolKindClass       = 5
-	SymbolKindMethod      = 6
-	SymbolKindProperty    = 7
-	SymbolKindField       = 8
-	SymbolKindConstructor = 9
-	SymbolKindEnum        = 10
-	SymbolKindInterface   = 11
-	SymbolKindFunction    = 12
-	SymbolKindVariable    = 13
-	SymbolKindConstant    = 14
-	SymbolKindString      = 15
-	SymbolKindNumber      = 16
-	SymbolKindBoolean     = 17
-	SymbolKindArray       = 18
-	SymbolKindObject      = 19
-	SymbolKindKey         = 20
-	SymbolKindNull        = 21
-	SymbolKindEnumMember  = 22
-	SymbolKindStruct      = 23
-	SymbolKindEvent       = 24
-	SymbolKindOperator    = 25
+	SymbolKindFile          = 1
+	SymbolKindModule        = 2
+	SymbolKindNamespace     = 3
+	SymbolKindPackage       = 4
+	SymbolKindClass         = 5
+	SymbolKindMethod        = 6
+	SymbolKindProperty      = 7
+	SymbolKindField         = 8
+	SymbolKindConstructor   = 9
+	SymbolKindEnum          = 10
+	SymbolKindInterface     = 11
+	SymbolKindFunction      = 12
+	SymbolKindVariable      = 13
+	SymbolKindConstant      = 14
+	SymbolKindString        = 15
+	SymbolKindNumber        = 16
+	SymbolKindBoolean       = 17
+	SymbolKindArray         = 18
+	SymbolKindObject        = 19
+	SymbolKindKey           = 20
+	SymbolKindNull          = 21
+	SymbolKindEnumMember    = 22
+	SymbolKindStruct        = 23
+	SymbolKindEvent         = 24
+	SymbolKindOperator      = 25
 	SymbolKindTypeParameter = 26
 )

@@ -58,14 +58,14 @@ func NewWithConfig(projectRoot string) (*Compiler, error) {
 
 // CompileResult holds the output of a compilation.
 type CompileResult struct {
-	LLVMSource    string              // generated LLVM IR
-	OutputPath    string              // path to compiled binary
-	Errors        []string            // compilation errors (human-readable)
-	Diagnostics   []*lexer.WolfError  // structured errors for LSP
-	Program       *parser.Program     // for LSP AST walking
-	Resolver      *resolver.Resolver  // for LSP scope checking
-	RequiresCurl  bool                // AST auto-linking flag for HTTP features
-	RequiresRedis bool                // AST auto-linking flag for Redis features
+	LLVMSource    string             // generated LLVM IR
+	OutputPath    string             // path to compiled binary
+	Errors        []string           // compilation errors (human-readable)
+	Diagnostics   []*lexer.WolfError // structured errors for LSP
+	Program       *parser.Program    // for LSP AST walking
+	Resolver      *resolver.Resolver // for LSP scope checking
+	RequiresCurl  bool               // AST auto-linking flag for HTTP features
+	RequiresRedis bool               // AST auto-linking flag for Redis features
 }
 
 // Compile runs the full pipeline: source → tokens → AST → resolve → typecheck → WIR → LLVM IR.
@@ -540,6 +540,9 @@ func (c *Compiler) Build(source, filename string) (*CompileResult, error) {
 		optFlag = "-O0"
 	}
 	rtArgs := []string{"-c", optFlag, "-pthread", "-g"}
+	if runtime.GOOS == "linux" {
+		rtArgs = append(rtArgs, "-I/tmp/liburing/src/include")
+	}
 
 	// DB include flags
 	if dbCflags != "" {
@@ -637,7 +640,7 @@ func (c *Compiler) Build(source, filename string) (*CompileResult, error) {
 			linkArgs = append(linkArgs, "-undefined", "dynamic_lookup")
 		}
 	} else {
-		linkArgs = []string{"-o", binaryPath, objFile, runtimeObj, "-pthread", "-g"}
+		linkArgs = []string{"-o", binaryPath, objFile, runtimeObj, "-pthread", "-g", "-L/tmp/liburing/src", "-luring"}
 		if hasGoPlugin {
 			linkArgs = append(linkArgs, goPluginArchive)
 		}
@@ -685,7 +688,7 @@ func (c *Compiler) Build(source, filename string) (*CompileResult, error) {
 		// Also link wolf_host executable using just runtimeObj
 		hostPath := filepath.Join(outDir, "wolf_host")
 
-		hostLinkArgs := []string{"-o", hostPath, runtimeObj, "-pthread", "-g", "-rdynamic"}
+		hostLinkArgs := []string{"-o", hostPath, runtimeObj, "-pthread", "-g", "-rdynamic", "-L/tmp/liburing/src", "-luring"}
 		if runtime.GOOS == "darwin" {
 			// -rdynamic on mac is sometimes -Wl,-export_dynamic
 			// actually clang supports -rdynamic directly on macOS usually.

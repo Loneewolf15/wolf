@@ -26,9 +26,9 @@ func ResolvePackage(pkgName string) (*RegistryResponse, error) {
 		return &RegistryResponse{
 			Name:       pkgName,
 			Repository: "https://" + pkgName,
-			// For direct hostings, we don't know the versions ahead of time 
+			// For direct hostings, we don't know the versions ahead of time
 			// without `git ls-remote`. The fetcher will handle it.
-			Versions:   []string{},
+			Versions: []string{},
 		}, nil
 	}
 

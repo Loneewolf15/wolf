@@ -97,10 +97,17 @@ func TestT2_01_RoutePing(t *testing.T) {
 	}
 
 	wolfFile := filepath.Join("testdata", "61_route_ping.wolf")
-	port := 19061
+	port := 19090
 	compileAndStartServer(t, wolfFile, port)
 
 	url := fmt.Sprintf("http://127.0.0.1:%d/ping", port)
+	healthUrl := fmt.Sprintf("http://127.0.0.1:%d/health", port)
+	hresp, herr := http.Get(healthUrl)
+	if herr != nil {
+		t.Fatalf("GET /health failed: %v", herr)
+	}
+	hresp.Body.Close()
+
 	resp, err := http.Get(url)
 	if err != nil {
 		t.Fatalf("GET /ping failed: %v", err)
@@ -135,6 +142,32 @@ func TestT2_01_RoutePing(t *testing.T) {
 	resp404.Body.Close()
 	if resp404.StatusCode != 404 {
 		t.Errorf("unknown route: expected 404, got %d", resp404.StatusCode)
+	}
+
+	// Assert /health auto-intercept (Task 4.2)
+	healthResp, err := http.Get(fmt.Sprintf("http://127.0.0.1:%d/health", port))
+	if err != nil {
+		t.Fatalf("GET /health failed: %v", err)
+	}
+	defer healthResp.Body.Close()
+
+	if healthResp.StatusCode != 200 {
+		t.Errorf("expected /health status 200, got %d", healthResp.StatusCode)
+	}
+	var healthBody map[string]interface{}
+	if err := json.NewDecoder(healthResp.Body).Decode(&healthBody); err != nil {
+		t.Fatalf("decode health json: %v", err)
+	}
+	if healthBody["status"] != "ok" {
+		t.Errorf("expected health status=ok, got %v", healthBody["status"])
+	}
+
+	// Verify security headers (Task 2.2)
+	if healthResp.Header.Get("X-Content-Type-Options") != "nosniff" {
+		t.Errorf("expected security header X-Content-Type-Options: nosniff")
+	}
+	if healthResp.Header.Get("X-Frame-Options") != "DENY" {
+		t.Errorf("expected security header X-Frame-Options: DENY")
 	}
 }
 

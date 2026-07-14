@@ -12,7 +12,9 @@ import (
 // CRITICAL: If any of these pass without an error, Wolf has a soundness hole.
 
 // TestT1_04_UndeclaredVariable is the canonical T1-04 case from the test spec:
-//   $x = $undeclared + 1
+//
+//	$x = $undeclared + 1
+//
 // must emit a WolfError pointing at $undeclared — not compile or execute silently.
 func TestT1_04_UndeclaredVariable(t *testing.T) {
 	errors := compileAndExpectError(t, `$x = $undeclared + 1`)

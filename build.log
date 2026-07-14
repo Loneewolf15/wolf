@@ -1,0 +1,20 @@
+>> Build started: ./e2e/testdata/61_route_ping.wolf
+>> Phase 1: Lexing ./e2e/testdata/61_route_ping.wolf
+>> Phase 2: Parsing
+>> Phase 2.5: AutoDiscover
+>> Phase 2.8: Dispatchers
+>> Phase 3: Resolve
+>> Phase 4: Typecheck
+>> Phase 5: Emit WIR
+>> Phase 5.5: Build Go Plugins (c-archive)
+>> Phase 6: Emit LLVM
+>> Done returning
+>> Compile finished
+>> Running opt -O3 (.ll → .bc)
+>> opt finished
+>> Testing hasLLC
+>> Running llc
+>> llc finished
+>> Checking compiled
+>> Setting up wolf runtime args
+wolf: built → /home/askme/Pictures/wolf-lang/wolf_out/61_route_ping

@@ -17,8 +17,13 @@
 
 #include <stdint.h>
 #include <stddef.h>
-#include <pthread.h>
+#include "wolf_thread_compat.h"   /* pthread + Windows portability shims */
 #include "wolf_config_runtime.h"
+
+/* ── Platform capability detection ──────────────────────────────────────── */
+#if defined(_WIN32)
+#  define WOLF_HAS_IOCP 1
+#endif
 
 /* ================================================================
  * Sentinel — cross-platform I/O abstraction
@@ -40,7 +45,8 @@ typedef struct WolfSentinel {
     WolfIOBackend backend;
     int           poll_fd;    /* epoll fd or kqueue fd */
     int           core_id;
-    void*         uring;      /* WolfURing* for io_uring (void* to avoid header leak) */
+    void*         uring;      /* WolfURing*  — io_uring (Linux)  */
+    void*         iocp;       /* WolfIOCP*   — IOCP    (Windows) */
 } WolfSentinel;
 
 WolfSentinel* wolf_sentinel_create(int core_id);
@@ -116,6 +122,34 @@ void           wolf_arena_pool_destroy(WolfArenaPool* pool);
 typedef void (*wolf_http_handler_t)(int64_t req_id, int64_t res_id);
 typedef void (*wolf_ws_handler_t)(int64_t req_id, const char* message);
 
+/* ================================================================
+ * Per-core worker→poller completion ring
+ *
+ * When handler execution is offloaded to the worker pool, the worker
+ * posts the completed response here. The poller drains it at the top
+ * of every poll iteration and submits the async send via io_uring.
+ *
+ * SPSC ring: one producer (any one worker at a time, serialised by the
+ * ring's CAS-free tail advance) → one consumer (the owning poller).
+ * Head/tail on separate cache lines to eliminate false sharing.
+ * ================================================================ */
+
+#define WOLF_CORE_COMPLETE_SIZE 512          /* must be power of 2 */
+#define WOLF_CORE_COMPLETE_MASK (WOLF_CORE_COMPLETE_SIZE - 1)
+
+typedef struct {
+    void* ctx;       /* WolfConnCtx* — void* avoids circular header dep */
+    char* out_buf;
+    int   out_len;
+} WolfCoreCompletion;
+
+typedef struct {
+    WolfCoreCompletion entries[WOLF_CORE_COMPLETE_SIZE];
+    _Atomic int        head __attribute__((aligned(64)));
+    _Atomic int        tail __attribute__((aligned(64)));
+    int                notify_fd; /* eventfd — worker writes to wake poller */
+} WolfCoreCompleteRing;
+
 typedef struct WolfCore {
     int             core_id;
     int             server_fd;       /* SO_REUSEPORT socket for this core */
@@ -123,6 +157,7 @@ typedef struct WolfCore {
     WolfArenaPool*  arena_pool;
     pthread_t       thread;
     volatile int    ready;           /* set to 1 when thread enters its main loop */
+    void*           args;            /* pointer to original WolfCoreArgs */
 
     /* Per-core HTTP context table — no mutex needed, single thread owns it */
     void*           contexts;        /* wolf_http_context_t array */
@@ -137,6 +172,16 @@ typedef struct WolfCore {
     /* Handler pointers (set once at startup, read-only after) */
     wolf_http_handler_t http_handler;
     wolf_ws_handler_t   ws_handler;
+
+    /* Worker → poller completion handoff ring */
+    WolfCoreCompleteRing complete_ring;
+
+    /* Capability flags — set once at startup, read-only after */
+    int use_send_zc;   /* 1 = use IORING_OP_SEND_ZC (kernel >= 6.0 + liburing >= 2.3) */
+
+    /* Event-driven epoll/kqueue fds (set in wolf_core_thread, -1 elsewhere) */
+    int epoll_fd;       /* Linux epoll fd used by the event-driven loop */
+    int kq_notify_rfd;  /* macOS: pipe read-end for worker→poller wakeup */
 } WolfCore;
 
 /* ================================================================

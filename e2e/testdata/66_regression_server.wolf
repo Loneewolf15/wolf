@@ -1,0 +1,90 @@
+// T3 regression server — exercises paths fixed in the security/efficiency pass.
+//
+// Routes:
+//   /ping          — simple 200 {"status":"ok"}  (keep-alive + stress)
+//   /multi-write   — calls wolf_http_res_write 3× to test body-append memcpy fix
+//   /many-headers  — sets 20 response headers to test header buffer bounds
+//   /dash          — built into the runtime (metrics JSON)
+//   /echo-query    — echoes ?input= query param (injection surface test)
+//   /echo-header   — echoes value of X-Test-Header (injection surface test)
+//   /echo-body     — echoes request body verbatim (injection surface test)
+
+func handler($req_id: int, $res_id: int) {
+    $path = wolf_http_req_path($req_id)
+
+    if $path == "/ping" {
+        wolf_http_res_status($res_id, 200)
+        wolf_http_res_header($res_id, "Content-Type", "application/json")
+        wolf_http_res_write($res_id, "{\"status\":\"ok\"}")
+        return
+    }
+
+    if $path == "/multi-write" {
+        wolf_http_res_status($res_id, 200)
+        wolf_http_res_header($res_id, "Content-Type", "text/plain")
+        wolf_http_res_write($res_id, "alpha")
+        wolf_http_res_write($res_id, "beta")
+        wolf_http_res_write($res_id, "gamma")
+        return
+    }
+
+    if $path == "/many-headers" {
+        wolf_http_res_status($res_id, 200)
+        wolf_http_res_header($res_id, "Content-Type", "application/json")
+        wolf_http_res_header($res_id, "X-H01", "value-01")
+        wolf_http_res_header($res_id, "X-H02", "value-02")
+        wolf_http_res_header($res_id, "X-H03", "value-03")
+        wolf_http_res_header($res_id, "X-H04", "value-04")
+        wolf_http_res_header($res_id, "X-H05", "value-05")
+        wolf_http_res_header($res_id, "X-H06", "value-06")
+        wolf_http_res_header($res_id, "X-H07", "value-07")
+        wolf_http_res_header($res_id, "X-H08", "value-08")
+        wolf_http_res_header($res_id, "X-H09", "value-09")
+        wolf_http_res_header($res_id, "X-H10", "value-10")
+        wolf_http_res_header($res_id, "X-H11", "value-11")
+        wolf_http_res_header($res_id, "X-H12", "value-12")
+        wolf_http_res_header($res_id, "X-H13", "value-13")
+        wolf_http_res_header($res_id, "X-H14", "value-14")
+        wolf_http_res_header($res_id, "X-H15", "value-15")
+        wolf_http_res_header($res_id, "X-H16", "value-16")
+        wolf_http_res_header($res_id, "X-H17", "value-17")
+        wolf_http_res_header($res_id, "X-H18", "value-18")
+        wolf_http_res_header($res_id, "X-H19", "value-19")
+        wolf_http_res_header($res_id, "X-H20", "value-20")
+        wolf_http_res_write($res_id, "{\"headers\":20}")
+        return
+    }
+
+    // /echo-query: reflect ?input= query param as plain text
+    // Used to verify dangerous chars don't crash the server or corrupt response.
+    if $path == "/echo-query" {
+        $input = wolf_http_req_query($req_id, "input")
+        wolf_http_res_status($res_id, 200)
+        wolf_http_res_header($res_id, "Content-Type", "text/plain")
+        wolf_http_res_write($res_id, $input)
+        return
+    }
+
+    // /echo-header: reflect X-Test-Header value
+    if $path == "/echo-header" {
+        $hval = wolf_http_req_header($req_id, "X-Test-Header")
+        wolf_http_res_status($res_id, 200)
+        wolf_http_res_header($res_id, "Content-Type", "text/plain")
+        wolf_http_res_write($res_id, $hval)
+        return
+    }
+
+    // /echo-body: reflect request body verbatim
+    if $path == "/echo-body" {
+        $body = wolf_http_req_body($req_id)
+        wolf_http_res_status($res_id, 200)
+        wolf_http_res_header($res_id, "Content-Type", "text/plain")
+        wolf_http_res_write($res_id, $body)
+        return
+    }
+
+    wolf_http_res_status($res_id, 404)
+    wolf_http_res_write($res_id, "{\"error\":\"not found\"}")
+}
+
+wolf_http_serve(19070, handler)

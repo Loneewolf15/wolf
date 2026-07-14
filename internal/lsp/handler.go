@@ -23,9 +23,9 @@ func NewHandler() *Handler {
 func (h *Handler) Initialize(params InitializeParams) InitializeResult {
 	return InitializeResult{
 		Capabilities: ServerCapabilities{
-			TextDocumentSync: TextDocumentSyncKindFull,
-			HoverProvider:    true,
-			DefinitionProvider: true,
+			TextDocumentSync:       TextDocumentSyncKindFull,
+			HoverProvider:          true,
+			DefinitionProvider:     true,
 			DocumentSymbolProvider: true,
 			CompletionProvider: &CompletionOptions{
 				ResolveProvider:   false,

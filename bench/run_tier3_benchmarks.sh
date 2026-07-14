@@ -56,7 +56,8 @@ start_wolf_server() {
   local wolf_file="$1"
   local port="$2"
   log "Building Wolf server: $wolf_file"
-  "$WOLF_BIN" build "$wolf_file" -o "${RESULTS_DIR}/bench_server_${port}" 2>>"$LOG_FILE"
+  "$WOLF_BIN" build "$wolf_file" 2>>"$LOG_FILE"
+  mv ./wolf_out/$(basename "$wolf_file" .wolf) "${RESULTS_DIR}/bench_server_${port}"
   log "Starting Wolf server on port $port..."
   "${RESULTS_DIR}/bench_server_${port}" &
   SERVER_PID=$!
@@ -137,7 +138,7 @@ run_test() {
   log "Running $name: $label"
   local out_file="${RESULTS_DIR}/${name}_${TIMESTAMP}.txt"
 
-  wrk -t"$threads" -c"$connections" -d"${duration}s" \
+  /tmp/wrk/wrk -t"$threads" -c"$connections" -d"${duration}s" \
     --latency "$url" > "$out_file" 2>&1 || true
 
   cat "$out_file" | tee -a "$LOG_FILE"
@@ -231,7 +232,7 @@ if command -v wrk &>/dev/null; then
   log ""
   log "── T3-05: Overload Test (8t/500c/30s) ──"
   OVERLOAD_OUT="${RESULTS_DIR}/T3-05_${TIMESTAMP}.txt"
-  wrk -t8 -c500 -d30s --latency "${BASE_URL}/ping" > "$OVERLOAD_OUT" 2>&1 || true
+  /tmp/wrk/wrk -t8 -c500 -d30s --latency "${BASE_URL}/ping" > "$OVERLOAD_OUT" 2>&1 || true
   cat "$OVERLOAD_OUT" | tee -a "$LOG_FILE"
 
   TOTAL_REQS=$(grep "requests in" "$OVERLOAD_OUT" | awk '{print $1}' || echo "0")
@@ -268,7 +269,7 @@ if command -v wrk &>/dev/null; then
     MEM_OUT="${RESULTS_DIR}/rss_samples_${TIMESTAMP}.txt"
     LOAD_PID=""
     # Background load generator
-    wrk -t2 -c50 -d300s "${BASE_URL//$PORT/$((PORT+1))}/ping" > /dev/null 2>&1 &
+    /tmp/wrk/wrk -t2 -c50 -d300s "${BASE_URL//$PORT/$((PORT+1))}/ping" > /dev/null 2>&1 &
     LOAD_PID=$!
     echo "# timestamp rss_kb" > "$MEM_OUT"
     for i in $(seq 0 30); do
@@ -305,7 +306,7 @@ fi
 log ""
 log "── T3-03: DB-bound Throughput — Manual Only ──"
 warn "T3-03 requires a live DB. Start a Wolf server with a SELECT route,"
-warn "then run: wrk -t4 -c150 -d60s http://localhost:PORT/users/1"
+warn "then run: /tmp/wrk/wrk -t4 -c150 -d60s http://localhost:PORT/users/1"
 warn "Pass criteria: >= 8,000 RPS, zero panics, connection pool holds."
 warn "Current bench results are in bench/results_real_wolf.txt"
 

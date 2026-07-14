@@ -1,0 +1,18 @@
+[0;34m[T3][0m ╔══════════════════════════════════════════════════════════╗
+[0;34m[T3][0m ║         Wolf Language — Tier 3 Load Test Suite           ║
+[0;34m[T3][0m ║  Target: http://127.0.0.1:19090                        ║
+[0;34m[T3][0m ╚══════════════════════════════════════════════════════════╝
+[0;34m[T3][0m 
+[0;34m[T3][0m Building Wolf server: ./e2e/testdata/61_route_ping.wolf
+Error: unknown shorthand flag: 'o' in -o
+Usage:
+  wolf build [file] [flags]
+
+Flags:
+  -h, --help   help for build
+      --json   Output compiler diagnostics in structured JSON format
+
+Global Flags:
+      --strict    Enable strict type checking mode
+  -V, --verbose   Enable verbose output
+

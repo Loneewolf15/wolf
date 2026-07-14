@@ -1,0 +1,114 @@
+[0;34m[T3][0m ╔══════════════════════════════════════════════════════════╗
+[0;34m[T3][0m ║         Wolf Language — Tier 3 Load Test Suite           ║
+[0;34m[T3][0m ║  Target: http://127.0.0.1:19090                        ║
+[0;34m[T3][0m ╚══════════════════════════════════════════════════════════╝
+[0;34m[T3][0m 
+[0;34m[T3][0m Building Wolf server: ./e2e/testdata/61_route_ping.wolf
+
+Run 'wolf explain' to get a detailed explanation of the error above.
+Error: failed to compile wolf runtime: exit status 1
+In file included from /tmp/wolf_compiler_assets/runtime/wolf_runtime.c:3929:
+In file included from /tmp/wolf_compiler_assets/runtime/wolf_uring.c:1:
+/tmp/wolf_compiler_assets/runtime/wolf_uring.h:30:100: error: unknown type name 'WolfArena'; did you mean 'WolfReqArena'?
+int        wolf_uring_submit_accept(WolfURing* ring, int server_fd, wolf_uring_cb_t cb, void* ctx, WolfArena* arena);
+                                                                                                   ^~~~~~~~~
+                                                                                                   WolfReqArena
+/tmp/wolf_compiler_assets/runtime/wolf_runtime.c:873:3: note: 'WolfReqArena' declared here
+} WolfReqArena;
+  ^
+In file included from /tmp/wolf_compiler_assets/runtime/wolf_runtime.c:3929:
+In file included from /tmp/wolf_compiler_assets/runtime/wolf_uring.c:1:
+/tmp/wolf_compiler_assets/runtime/wolf_uring.h:31:121: error: unknown type name 'WolfArena'; did you mean 'WolfReqArena'?
+int        wolf_uring_submit_recv(WolfURing* ring, int client_fd, void* buf, size_t len, wolf_uring_cb_t cb, void* ctx, WolfArena* arena);
+                                                                                                                        ^~~~~~~~~
+                                                                                                                        WolfReqArena
+/tmp/wolf_compiler_assets/runtime/wolf_runtime.c:873:3: note: 'WolfReqArena' declared here
+} WolfReqArena;
+  ^
+In file included from /tmp/wolf_compiler_assets/runtime/wolf_runtime.c:3929:
+In file included from /tmp/wolf_compiler_assets/runtime/wolf_uring.c:1:
+/tmp/wolf_compiler_assets/runtime/wolf_uring.h:32:127: error: unknown type name 'WolfArena'; did you mean 'WolfReqArena'?
+int        wolf_uring_submit_send(WolfURing* ring, int client_fd, const void* buf, size_t len, wolf_uring_cb_t cb, void* ctx, WolfArena* arena);
+                                                                                                                              ^~~~~~~~~
+                                                                                                                              WolfReqArena
+/tmp/wolf_compiler_assets/runtime/wolf_runtime.c:873:3: note: 'WolfReqArena' declared here
+} WolfReqArena;
+  ^
+In file included from /tmp/wolf_compiler_assets/runtime/wolf_runtime.c:3929:
+/tmp/wolf_compiler_assets/runtime/wolf_uring.c:31:90: error: unknown type name 'WolfArena'; did you mean 'WolfReqArena'?
+int wolf_uring_submit_accept(WolfURing* r, int server_fd, wolf_uring_cb_t cb, void* ctx, WolfArena* arena) {
+                                                                                         ^~~~~~~~~
+                                                                                         WolfReqArena
+/tmp/wolf_compiler_assets/runtime/wolf_runtime.c:873:3: note: 'WolfReqArena' declared here
+} WolfReqArena;
+  ^
+In file included from /tmp/wolf_compiler_assets/runtime/wolf_runtime.c:3929:
+/tmp/wolf_compiler_assets/runtime/wolf_uring.c:36:56: warning: call to undeclared function 'wolf_arena_alloc'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration]
+    wolf_uring_req_t* req = arena ? (wolf_uring_req_t*)wolf_arena_alloc(arena, sizeof(wolf_uring_req_t)) 
+                                                       ^
+/tmp/wolf_compiler_assets/runtime/wolf_uring.c:36:37: warning: cast to 'wolf_uring_req_t *' from smaller integer type 'int' [-Wint-to-pointer-cast]
+    wolf_uring_req_t* req = arena ? (wolf_uring_req_t*)wolf_arena_alloc(arena, sizeof(wolf_uring_req_t)) 
+                                    ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/tmp/wolf_compiler_assets/runtime/wolf_uring.c:50:111: error: unknown type name 'WolfArena'; did you mean 'WolfReqArena'?
+int wolf_uring_submit_recv(WolfURing* r, int client_fd, void* buf, size_t len, wolf_uring_cb_t cb, void* ctx, WolfArena* arena) {
+                                                                                                              ^~~~~~~~~
+                                                                                                              WolfReqArena
+/tmp/wolf_compiler_assets/runtime/wolf_runtime.c:873:3: note: 'WolfReqArena' declared here
+} WolfReqArena;
+  ^
+In file included from /tmp/wolf_compiler_assets/runtime/wolf_runtime.c:3929:
+/tmp/wolf_compiler_assets/runtime/wolf_uring.c:54:48: warning: call to undeclared function 'wolf_arena_alloc'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration]
+    wolf_uring_req_t* req = (wolf_uring_req_t*)wolf_arena_alloc(arena, sizeof(wolf_uring_req_t));
+                                               ^
+/tmp/wolf_compiler_assets/runtime/wolf_uring.c:54:29: warning: cast to 'wolf_uring_req_t *' from smaller integer type 'int' [-Wint-to-pointer-cast]
+    wolf_uring_req_t* req = (wolf_uring_req_t*)wolf_arena_alloc(arena, sizeof(wolf_uring_req_t));
+                            ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/tmp/wolf_compiler_assets/runtime/wolf_uring.c:66:117: error: unknown type name 'WolfArena'; did you mean 'WolfReqArena'?
+int wolf_uring_submit_send(WolfURing* r, int client_fd, const void* buf, size_t len, wolf_uring_cb_t cb, void* ctx, WolfArena* arena) {
+                                                                                                                    ^~~~~~~~~
+                                                                                                                    WolfReqArena
+/tmp/wolf_compiler_assets/runtime/wolf_runtime.c:873:3: note: 'WolfReqArena' declared here
+} WolfReqArena;
+  ^
+In file included from /tmp/wolf_compiler_assets/runtime/wolf_runtime.c:3929:
+/tmp/wolf_compiler_assets/runtime/wolf_uring.c:70:48: warning: call to undeclared function 'wolf_arena_alloc'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration]
+    wolf_uring_req_t* req = (wolf_uring_req_t*)wolf_arena_alloc(arena, sizeof(wolf_uring_req_t));
+                                               ^
+/tmp/wolf_compiler_assets/runtime/wolf_uring.c:70:29: warning: cast to 'wolf_uring_req_t *' from smaller integer type 'int' [-Wint-to-pointer-cast]
+    wolf_uring_req_t* req = (wolf_uring_req_t*)wolf_arena_alloc(arena, sizeof(wolf_uring_req_t));
+                            ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+In file included from /tmp/wolf_compiler_assets/runtime/wolf_runtime.c:3930:
+In file included from /tmp/wolf_compiler_assets/runtime/wolf_http_engine.c:21:
+/tmp/wolf_compiler_assets/runtime/wolf_http_engine.h:101:16: error: conflicting types for 'wolf_arena_alloc'
+void*          wolf_arena_alloc(WolfArena* arena, size_t size);
+               ^
+/tmp/wolf_compiler_assets/runtime/wolf_uring.c:36:56: note: previous implicit declaration is here
+    wolf_uring_req_t* req = arena ? (wolf_uring_req_t*)wolf_arena_alloc(arena, sizeof(wolf_uring_req_t)) 
+                                                       ^
+In file included from /tmp/wolf_compiler_assets/runtime/wolf_runtime.c:3930:
+/tmp/wolf_compiler_assets/runtime/wolf_http_engine.c:1083:107: warning: incompatible pointer types passing 'WolfArena *' (aka 'struct WolfArena *') to parameter of type 'WolfReqArena *' (aka 'struct WolfReqArena *') [-Wincompatible-pointer-types]
+        wolf_uring_submit_send(core->sentinel->uring, client_fd, out_buf, out_len, on_send_complete, ctx, ctx->arena);
+                                                                                                          ^~~~~~~~~~
+/tmp/wolf_compiler_assets/runtime/wolf_uring.c:66:128: note: passing argument to parameter 'arena' here
+int wolf_uring_submit_send(WolfURing* r, int client_fd, const void* buf, size_t len, wolf_uring_cb_t cb, void* ctx, WolfArena* arena) {
+                                                                                                                               ^
+In file included from /tmp/wolf_compiler_assets/runtime/wolf_runtime.c:3930:
+/tmp/wolf_compiler_assets/runtime/wolf_http_engine.c:1113:127: warning: incompatible pointer types passing 'WolfArena *' (aka 'struct WolfArena *') to parameter of type 'WolfReqArena *' (aka 'struct WolfReqArena *') [-Wincompatible-pointer-types]
+    wolf_uring_submit_recv(core->sentinel->uring, client_fd, ctx->read_buf, WOLF_MAX_REQUEST_SIZE - 1, on_recv_complete, ctx, arena);
+                                                                                                                              ^~~~~
+/tmp/wolf_compiler_assets/runtime/wolf_uring.c:50:122: note: passing argument to parameter 'arena' here
+int wolf_uring_submit_recv(WolfURing* r, int client_fd, void* buf, size_t len, wolf_uring_cb_t cb, void* ctx, WolfArena* arena) {
+                                                                                                                         ^
+8 warnings and 7 errors generated.
+
+Usage:
+  wolf build [file] [flags]
+
+Flags:
+  -h, --help   help for build
+      --json   Output compiler diagnostics in structured JSON format
+
+Global Flags:
+      --strict    Enable strict type checking mode
+  -V, --verbose   Enable verbose output
+

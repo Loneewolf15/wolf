@@ -37,22 +37,34 @@ func ParseVersion(v string) (*Version, error) {
 
 func (v *Version) Compare(other *Version) int {
 	if v.Major != other.Major {
-		if v.Major > other.Major { return 1 }
+		if v.Major > other.Major {
+			return 1
+		}
 		return -1
 	}
 	if v.Minor != other.Minor {
-		if v.Minor > other.Minor { return 1 }
+		if v.Minor > other.Minor {
+			return 1
+		}
 		return -1
 	}
 	if v.Patch != other.Patch {
-		if v.Patch > other.Patch { return 1 }
+		if v.Patch > other.Patch {
+			return 1
+		}
 		return -1
 	}
 	// Simple pre-release comparison: pre-release < no pre-release
-	if v.Pre == "" && other.Pre != "" { return 1 }
-	if v.Pre != "" && other.Pre == "" { return -1 }
+	if v.Pre == "" && other.Pre != "" {
+		return 1
+	}
+	if v.Pre != "" && other.Pre == "" {
+		return -1
+	}
 	if v.Pre != other.Pre {
-		if v.Pre > other.Pre { return 1 }
+		if v.Pre > other.Pre {
+			return 1
+		}
 		return -1
 	}
 	return 0
@@ -74,7 +86,7 @@ func Satisfies(version, constraint string) bool {
 	}
 
 	constraint = strings.TrimSpace(constraint)
-	
+
 	if constraint == "latest" || constraint == "*" {
 		return v.Pre == "" // latest ignores pre-releases
 	}
@@ -85,10 +97,16 @@ func Satisfies(version, constraint string) bool {
 	}
 
 	if cv, err := ParseVersion(strings.TrimPrefix(constraint, "^")); err == nil {
-		if v.Pre != "" && cv.Pre == "" { return false }
-		if v.Major != cv.Major { return false }
+		if v.Pre != "" && cv.Pre == "" {
+			return false
+		}
+		if v.Major != cv.Major {
+			return false
+		}
 		if v.Major == 0 {
-			if v.Minor != cv.Minor { return false }
+			if v.Minor != cv.Minor {
+				return false
+			}
 			return v.Compare(cv) >= 0
 		}
 		return v.Compare(cv) >= 0
@@ -96,32 +114,44 @@ func Satisfies(version, constraint string) bool {
 
 	if strings.HasPrefix(constraint, "~") {
 		cv, err := ParseVersion(strings.TrimPrefix(constraint, "~"))
-		if err != nil { return false }
-		if v.Major != cv.Major || v.Minor != cv.Minor { return false }
+		if err != nil {
+			return false
+		}
+		if v.Major != cv.Major || v.Minor != cv.Minor {
+			return false
+		}
 		return v.Compare(cv) >= 0
 	}
 
 	if strings.HasPrefix(constraint, ">=") {
 		cv, err := ParseVersion(strings.TrimPrefix(constraint, ">="))
-		if err != nil { return false }
+		if err != nil {
+			return false
+		}
 		return v.Compare(cv) >= 0
 	}
 
 	if strings.HasPrefix(constraint, "<=") {
 		cv, err := ParseVersion(strings.TrimPrefix(constraint, "<="))
-		if err != nil { return false }
+		if err != nil {
+			return false
+		}
 		return v.Compare(cv) <= 0
 	}
 
 	if strings.HasPrefix(constraint, ">") {
 		cv, err := ParseVersion(strings.TrimPrefix(constraint, ">"))
-		if err != nil { return false }
+		if err != nil {
+			return false
+		}
 		return v.Compare(cv) > 0
 	}
 
 	if strings.HasPrefix(constraint, "<") {
 		cv, err := ParseVersion(strings.TrimPrefix(constraint, "<"))
-		if err != nil { return false }
+		if err != nil {
+			return false
+		}
 		return v.Compare(cv) < 0
 	}
 
@@ -135,7 +165,7 @@ func HighestCompatible(constraint string, tags []string) string {
 
 	// If exact match doesn't have semver semantics (like a branch name), just return it if it exists.
 	// But we only evaluate SemVer tags here.
-	
+
 	for _, tag := range tags {
 		if Satisfies(tag, constraint) {
 			v, _ := ParseVersion(tag)
@@ -145,7 +175,7 @@ func HighestCompatible(constraint string, tags []string) string {
 			}
 		}
 	}
-	
+
 	// Fallback for non-semver branch or exact tag if nothing found mathematically
 	if bestStr == "" {
 		for _, tag := range tags {
@@ -154,6 +184,6 @@ func HighestCompatible(constraint string, tags []string) string {
 			}
 		}
 	}
-	
+
 	return bestStr
 }
