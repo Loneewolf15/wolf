@@ -3,9 +3,12 @@
 
 class LLVMEmitter {
     public $module = nil
+    public $stringConsts = []
+    public $strCounter = 0
 
     public func __construct($module) {
         $this->module = $module
+        $this->stringConsts = []
     }
 
     public func emit() {
@@ -13,11 +16,45 @@ class LLVMEmitter {
         $out = $out .. "source_filename = \"" .. $this->module->name .. "\"\n"
         $out = $out .. "target datalayout = \"e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128\"\n\n"
 
+        var $funcsOut = ""
         var $i = 0
         while ($i < count($this->module->functions)) {
-            $out = $out .. $this->emitFunction($this->module->functions[$i])
+            $funcsOut = $funcsOut .. $this->emitFunction($this->module->functions[$i])
             $i = intval($i) + 1
         }
+        $out = $out .. $funcsOut
+
+        // Emit string constants
+        var $k = 0
+        while ($k < count($this->stringConsts)) {
+            var $strPair = $this->stringConsts[$k]
+            var $val = $strPair[0]
+            var $label = $strPair[1]
+            // We need to escape it properly, but for now we emit the raw bytes + \00
+            // $val already has "..." around it, so Strings::Length($val) includes the quotes
+            var $byteLen = intval(Strings::Length($val)) - 1
+            var $escaped = $val
+            // Since Wolf Strings::Replace doesn't exist yet, we just print the raw string + \00.
+            // Actually, we must remove the trailing quote to append \00", but wait.
+            // In LLVM `c"Hello\00"` the quotes must be around the string.
+            // If $val is `"Hello"`, we can just output `c` + $val + `\00"`.
+            // Wait, we need to inject \00 BEFORE the last quote.
+            // We can just construct it manually or rely on LLVM's parser handling string values.
+            // The Go bootstrap does `c"Hello\00"`.
+            // Let's implement a simple SubString to remove the last quote.
+            var $inner = Strings::SubString($val, 0, intval(Strings::Length($val)) - 1)
+            $out = $out .. $label .. " = private unnamed_addr constant [" .. $byteLen .. " x i8] c" .. $inner .. "\\00\"\n"
+            $k = intval($k) + 1
+        }
+
+        $out = $out .. "\n; --- External Runtime Functions ---\n"
+        $out = $out .. "declare void @wolf_print_str(ptr)\n"
+        $out = $out .. "declare void @wolf_println()\n"
+        $out = $out .. "declare ptr @int_to_string(i64)\n"
+        $out = $out .. "declare i64 @string_to_int(ptr)\n"
+        $out = $out .. "declare ptr @concat_strings(ptr, ptr)\n"
+        $out = $out .. "declare i1 @streq(ptr, ptr)\n"
+
         return $out
     }
 
@@ -89,6 +126,34 @@ class LLVMEmitter {
         }
         if ($inst->opcode == "cmp") {
             return $inst->dest .. " = icmp " .. $inst->type .. " i64 " .. $inst->op1 .. ", " .. $inst->op2
+        }
+        if ($inst->opcode == "const_string") {
+            var $val = $inst->op1
+            var $label = ""
+            var $found = false
+            var $k = 0
+            while ($k < count($this->stringConsts)) {
+                if ($this->stringConsts[$k][0] == $val) {
+                    $label = $this->stringConsts[$k][1]
+                    $found = true
+                    $k = count($this->stringConsts)
+                } else {
+                    $k = intval($k) + 1
+                }
+            }
+            if (!$found) {
+                $this->strCounter = intval($this->strCounter) + 1
+                $label = "@.str." .. $this->strCounter
+                Arrays::array_push($this->stringConsts, [$val, $label])
+            }
+            return $inst->dest .. " = bitcast ptr " .. $label .. " to ptr"
+        }
+        if ($inst->opcode == "call") {
+            if ($inst->dest != "") {
+                return $inst->dest .. " = call " .. $inst->type .. " @" .. $inst->op1 .. "(" .. $inst->op2 .. ")"
+            } else {
+                return "call " .. $inst->type .. " @" .. $inst->op1 .. "(" .. $inst->op2 .. ")"
+            }
         }
         return "; unknown instruction: " .. $inst->opcode
     }

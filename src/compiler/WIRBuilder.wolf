@@ -5,11 +5,13 @@ class WIRBuilder {
     public $module = nil
     public $currentBlock = nil
     public $currentFunc = nil
-    public $regCounter = 0
-    public $labelCounter = 0
+    public $regCounter = "0"
+    public $labelCounter = "0"
 
     public func __construct() {
         $this->module = new WIRModule("main")
+        $this->regCounter = "0"
+        $this->labelCounter = "0"
     }
 
     public func nextReg() {
@@ -219,6 +221,31 @@ class WIRBuilder {
             } else {
                 $this->currentBlock->addInstruction(new WIRInstruction($op, $res, $left, $right, "i64"))
             }
+            return $res
+        }
+        if ($expr->type == "PrintExpr") {
+            var $argVal = $this->buildExpr($expr->arg)
+            $this->currentBlock->addInstruction(new WIRInstruction("call", "", "wolf_print_str", "ptr " .. $argVal, "void"))
+            $this->currentBlock->addInstruction(new WIRInstruction("call", "", "wolf_println", "", "void"))
+            return ""
+        }
+        if ($expr->type == "CallExpr") {
+            var $argsList = ""
+            var $i = 0
+            while ($i < count($expr->args)) {
+                var $argVal = $this->buildExpr($expr->args[$i])
+                if ($i > 0) { $argsList = $argsList .. ", " }
+                $argsList = $argsList .. "ptr " .. $argVal
+                $i = intval($i) + 1
+            }
+            var $res = $this->nextReg()
+            var $calleeName = ""
+            if ($expr->callee->type == "Identifier") {
+                $calleeName = $expr->callee->name
+            } else if ($expr->callee->type == "DollarIdent") {
+                $calleeName = $expr->callee->name
+            }
+            $this->currentBlock->addInstruction(new WIRInstruction("call", $res, $calleeName, $argsList, "ptr"))
             return $res
         }
         return "nil"

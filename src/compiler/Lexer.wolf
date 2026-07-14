@@ -17,14 +17,18 @@ class Lexer {
     public $keywords = {}
 
     public func __construct($source, $file) {
-        print("entering constructor")
         $this->source = $source
         $this->file = $file
         $this->tokens = []
         $this->errors = []
+        $this->start = 0
+        $this->current = 0
+        $this->line = 1
+        $this->col = 1
+        $this->startLine = 1
+        $this->startCol = 1
         $this->sourceLen = Strings::Length($source)
         $this->keywords = compiler_lexerhelper_get_keywords()
-        print("leaving constructor")
     }
 
     public func Tokenize() {

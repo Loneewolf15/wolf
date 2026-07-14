@@ -169,9 +169,13 @@ class WolfCompiler {
             print($llvmIR)
         }
 
-        print("wolf: analysis complete — " .. $this->file)
-        if ($this->projectDir != "") {
-            print("wolf: --project mode, dir: " .. $this->projectDir)
+        if (!$this->emitLLVM) {
+            if (!$this->dumpWIR) {
+                print("wolf: analysis complete — " .. $this->file)
+                if ($this->projectDir != "") {
+                    print("wolf: --project mode, dir: " .. $this->projectDir)
+                }
+            }
         }
     }
 }

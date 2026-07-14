@@ -350,18 +350,50 @@ func (e *LLVMEmitter) Emit(program *ir.Program) string {
 			e.emitStmt(stmt)
 		}
 
+		if fn, hasFuncMain := e.funcSigs["main"]; hasFuncMain {
+			retType := "void"
+			if len(fn.ReturnTypes) > 0 {
+				retType = e.wolfTypeToLLVM(fn.ReturnTypes[0])
+			} else if functionHasReturnValue(fn.Body) {
+				retType = "ptr"
+				if e.intUnboxFuncs["main"] {
+					retType = "i64"
+				}
+			}
+			if retType == "void" {
+				e.writelnIndent("call void @wolf_main()")
+			} else {
+				e.writelnIndent(fmt.Sprintf("%%main.ret = call %s @wolf_main()", retType))
+			}
+		}
+
 		e.varTypes = oldVarTypes
 		e.writelnIndent("ret i32 0")
 		e.indent--
 		e.writeln("}")
-	} else if _, hasFuncMain := e.funcSigs["main"]; hasFuncMain {
+	} else if fn, hasFuncMain := e.funcSigs["main"]; hasFuncMain {
 		// Wolf file declares `func main() { ... }` — emit a C entry stub
 		// that calls @wolf_main() so the linker finds 'main' (or wolf_app_main).
 		e.writeln(fmt.Sprintf("define i32 @%s(i32 %%argc, ptr %%argv) {", mainFuncName))
 		e.writeln("entry:")
 		e.indent++
 		e.writelnIndent("call void @wolf_init_args(i32 %argc, ptr %argv)")
-		e.writelnIndent("call void @wolf_main()")
+
+		retType := "void"
+		if len(fn.ReturnTypes) > 0 {
+			retType = e.wolfTypeToLLVM(fn.ReturnTypes[0])
+		} else if functionHasReturnValue(fn.Body) {
+			retType = "ptr"
+			if e.intUnboxFuncs["main"] {
+				retType = "i64"
+			}
+		}
+		if retType == "void" {
+			e.writelnIndent("call void @wolf_main()")
+		} else {
+			e.writelnIndent(fmt.Sprintf("%%main.ret = call %s @wolf_main()", retType))
+		}
+
 		e.writelnIndent("ret i32 0")
 		e.indent--
 		e.writeln("}")
@@ -1769,10 +1801,10 @@ func (e *LLVMEmitter) emitReturn(s *ir.ReturnStmt) {
 		if e.currentRetType == "ptr" {
 			if llType == "i1" {
 				casted := e.nextLocal()
-				// Use wolf_val_bool (not wolf_bool_to_string) — wolf_val_bool boxes i1
-				// into the Wolf tagged-value system. wolf_bool_to_string produces a string
-				// literal "true"/"false" which breaks boolean comparisons downstream.
-				e.writelnIndent(fmt.Sprintf("%s = call ptr @wolf_val_bool(i1 %s)", casted, val))
+				// Use wolf_bool_to_string to box boolean returns into standard string representation
+				// ("true"/"false"). wolf_val_bool was incorrectly used here and it produced
+				// a tagged wolf_value_t* which broke wolf_boolval string-truthiness tests.
+				e.writelnIndent(fmt.Sprintf("%s = call ptr @wolf_bool_to_string(i1 %s)", casted, val))
 				val = casted
 				llType = "ptr"
 			} else if llType == "i64" {
