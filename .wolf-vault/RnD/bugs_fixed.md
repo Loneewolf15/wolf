@@ -1,5 +1,19 @@
 # Wolf Bugs Fixed — Cumulative Log
 
+## Session 2026-07-22 (Session 35 — Native Method Dispatch Fixes)
+
+### BUG-089: LLVM Emitter panics on duplicate method names across unrelated classes
+- **Class:** P0 🔴 Compiler Panic (LLVM `Could not statically resolve method`)
+- **Root cause:** The dynamic method dispatch logic in `src/compiler/LLVMEmitter.wolf` resolves method calls by searching for functions ending with `_$methodName`. If multiple unrelated classes define a method with the same name (e.g., `WIRInstruction.to_string()` and `WIRModule.to_string()`), the candidates count is >1 and the emitter panics, blocking compilation.
+- **Fix:** Mitigated by manually making method names universally unique across the codebase (e.g., `to_string_inst`, `to_string_module`, and renaming `Controller.getuserbyid` to `Controller.getCurrentUser`). A permanent fix requires implementing `varClass` type tracking in the native emitter so methods are dispatched against specific class prefixes.
+- **File:** `src/compiler/WIR.wolf`, `libraries/Controller.wolf`
+
+### BUG-090: Native test runner fails to emit IR due to syntax errors in libraries/
+- **Class:** P1 🟠 Compiler Panic (LLVM `failed to emit LLVM IR`)
+- **Root cause:** `AutoDiscover` in `BuildRunner.wolf` pulled in `libraries/` and `stdlib/` files containing legacy relaxed syntax (`if $x == 1 {` instead of `if ($x == 1) {`). The native parser strictly enforces condition parentheses, resulting in silent parsing errors that cascaded into missing LLVM IR outputs during `wolf test`.
+- **Fix:** Added missing parentheses to `if`, `while`, and `foreach` conditions across all standard libraries.
+- **File:** `libraries/Controller.wolf`, `libraries/Core.wolf`, `libraries/Redis.wolf`, `stdlib/higher_order.wolf`
+
 ## Session 2026-06-22 (Session 33 — CLI UX & Project Mode Planning)
 
 ### BUG-086: `wolf build` panics with Cobra usage text on missing arguments

@@ -51,6 +51,18 @@ graph TD
 
 ## Session History
 
+### 2026-07-22 (Session 35 — Native Method Dispatch Fixes & Test Suite Polish)
+**Done:**
+- Resolved a critical bug in `LLVMEmitter.wolf` where static method dispatch (`$candidates == 1`) crashes when multiple unrelated classes define methods with the same name.
+- Renamed `to_string` to `to_string_inst`, `to_string_block`, `to_string_func`, and `to_string_module` in `WIR.wolf` to mitigate the method collision.
+- Renamed `getuserbyid` to `getCurrentUser` in `Controller.wolf` to avoid colliding with `UserModel.wolf`'s `getuserbyid`.
+- Re-architected `BuildRunner.wolf` AutoDiscover filtering logic to correctly exclude `bench`, `test_api`, and `tests` directories during compiler build to avoid picking up non-project sources.
+- Fixed numerous widespread syntax errors (missing parentheses in `if/while/foreach` loops) across `libraries/Controller.wolf`, `libraries/Core.wolf`, `libraries/Redis.wolf`, and `stdlib/higher_order.wolf`.
+- The native test runner (`wolf test`) now successfully compiles and resolves 69 tests natively without syntax or LLVM IR emission errors.
+- Committed changes: `767ebcb fix(compiler): resolve static method dispatch collisions and syntax errors in stdlib/libraries`.
+- Note: E2E Go test suite hangs due to a timeout in `TestHTTPClient`.
+
+
 ### 2026-06-26 (Session 34 — Sprint 11: Closures + StdLib Polish)
 **Done:**
 - Verified True Lexical Closures are complete: `escape_analysis.go` (escape analysis, heap-lifts captured vars via `wolf_req_alloc`) is integrated into the LLVM emitter.
