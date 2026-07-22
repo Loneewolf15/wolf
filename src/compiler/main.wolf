@@ -159,7 +159,7 @@ class WolfCompiler {
         var $module = $builder->build($ast)
 
         if ($this->dumpWIR) {
-            print($module->to_string())
+            print($module->to_string_module())
         }
 
         // Phase 6 — LLVM IR Emission (ADR-027): lower WIR → LLVM text format (.ll)
@@ -188,11 +188,22 @@ func main() {
     var $argc = wolf_argc()
 
     if ($argc < 2) {
-        print("usage: wolf-self <file.wolf> [--strict] [--project <dir>] [--dump-wir] [--emit-llvm]")
+        print("usage: wolf-self <command|file.wolf> ...")
         wolf_system_exit(1)
     }
 
-    var $file       = wolf_argv(1)
+    var $cmdOrFile = wolf_argv(1)
+    if ($cmdOrFile == "test") {
+        var $projectDir = "."
+        if ($argc >= 3) {
+            $projectDir = wolf_argv(2)
+        }
+        var $runner = new TestRunner()
+        $runner->Run($projectDir)
+        wolf_system_exit(0)
+    }
+
+    var $file = $cmdOrFile
     var $strict     = false
     var $projectDir = ""
     var $dumpWIR    = false

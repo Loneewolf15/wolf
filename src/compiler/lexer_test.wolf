@@ -83,4 +83,29 @@ func test_lexer_keywords() {
     if ($tokens[2]->type != TokenType::RETURN) { throw("expected RETURN") }
     if ($tokens[3]->type != TokenType::CLASS) { throw("expected CLASS") }
     if ($tokens[4]->type != TokenType::FUNC) { throw("expected FUNC") }
+    print("PASS: test_lexer_keywords")
 }
+
+// ─── Test Runner (top-level invocations) ─────────────────────────────────────
+test_array_push()
+print("PASS: test_array_push")
+test_lexer_empty()
+print("PASS: test_lexer_empty")
+test_lexer_basic()
+print("PASS: test_lexer_basic")
+test_lexer_string()
+print("PASS: test_lexer_string")
+test_lexer_math()
+print("PASS: test_lexer_math")
+test_lexer_keywords()
+print("ALL LEXER TESTS PASSED ✓")
+
+
+// WOLF TEST RUNNER
+test_array_push()
+test_lexer_empty()
+test_lexer_basic()
+test_lexer_string()
+test_lexer_math()
+test_lexer_keywords()
+print("ALL TESTS PASSED IN lexer_test.wolf")

@@ -47,7 +47,9 @@ class BuildRunner {
 
             var $fullPath = wolf_path_join($dir, $dirEntry)
 
-            if (wolf_dir_exists($fullPath)) {
+            if ($dirEntry == ".git" || $dirEntry == ".wolf_modules" || $dirEntry == "wolf_out" || $dirEntry == "wolf_out_test_runner" || $dirEntry == "e2e" || $dirEntry == "examples" || $dirEntry == "tests" || $dirEntry == "scratch" || $dirEntry == "test_api" || $dirEntry == "bench") {
+                // skip directory
+            } else if (wolf_dir_exists($fullPath)) {
                 var $sub = $this->AutoDiscoverWithVisited($fullPath, $mainFile, $visited)
                 var $j = 0
                 var $subLen = count($sub)

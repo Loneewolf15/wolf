@@ -1,0 +1,161 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// TestRunner.wolf
+// Native Test Runner that mimics tester/runner.go.
+// Discovers *_test.wolf files, extracts test_* functions, generates a runner,
+// compiles it, and executes it.
+// ─────────────────────────────────────────────────────────────────────────────
+
+class TestRunner {
+    public func init() {
+    }
+
+    public func Run($projectRoot) {
+        var $testFiles = []
+        $this->DiscoverTestFiles($projectRoot, $projectRoot, $testFiles)
+
+        if (count($testFiles) == 0) {
+            print("wolf test: no test files found")
+            return nil
+        }
+
+        var $testFuncs = []
+        var $runnerContent = "var $passed: int = 0\nvar $failed: int = 0\n\nfunc assert($cond: bool, $msg: string) {\n    if (!$cond) {\n        error($msg)\n    }\n}\n"
+
+        var $i = 0
+        var $n = count($testFiles)
+        while ($i < $n) {
+            var $tf = $testFiles[$i]
+            $i = intval($i) + 1
+
+            var $src = wolf_file_read($tf)
+            if ($src != nil) {
+                $runnerContent = $runnerContent .. "\n// === FROM " .. wolf_file_basename($tf) .. " ===\n" .. $src .. "\n"
+
+                var $lx = new Lexer($src, $tf)
+                var $toks = $lx->Tokenize()
+                var $pr = new Parser($toks, $tf, $src)
+                var $ast = $pr->Parse()
+
+                if (count($pr->Errors()) > 0) {
+                    print("PARSE ERROR in " .. $tf .. ": " .. $pr->Errors()[0]["message"])
+                    wolf_system_exit(1)
+                }
+
+                var $j = 0
+                var $m = count($ast->statements)
+                while ($j < $m) {
+                    var $stmt = $ast->statements[$j]
+                    $j = intval($j) + 1
+                    if ($stmt->type == "FuncDecl") {
+                        var $fnName = $stmt->name
+                        var $isTest = false
+                        if (wolf_str_starts_with($fnName, "test_")) {
+                            $isTest = true
+                        } else if (wolf_str_contains($fnName, "::test_")) {
+                            $isTest = true
+                        } else if (wolf_str_contains($fnName, "_test_")) {
+                            $isTest = true
+                        }
+
+                        if ($isTest) {
+                            Arrays::array_push($testFuncs, $fnName)
+                        }
+                    }
+                }
+            }
+        }
+
+        if (count($testFuncs) == 0) {
+            print("wolf test: no test functions (starting with test_) found")
+            return nil
+        }
+
+        $runnerContent = $runnerContent .. "\n"
+
+        var $k = 0
+        var $numFuncs = count($testFuncs)
+        while ($k < $numFuncs) {
+            var $fnName = $testFuncs[$k]
+            $k = intval($k) + 1
+
+            $runnerContent = $runnerContent .. "try {\n"
+            $runnerContent = $runnerContent .. "    " .. $fnName .. "()\n"
+            $runnerContent = $runnerContent .. "    print(\"✅ " .. $fnName .. "\")\n"
+            $runnerContent = $runnerContent .. "    $passed = $passed + 1\n"
+            $runnerContent = $runnerContent .. "} catch ($e) {\n"
+            $runnerContent = $runnerContent .. "    print(\"❌ " .. $fnName .. " - FAILED: \" .. $e)\n"
+            $runnerContent = $runnerContent .. "    $failed = $failed + 1\n"
+            $runnerContent = $runnerContent .. "}\n"
+        }
+
+        $runnerContent = $runnerContent .. "\nprint(\"\\nTests: \" .. $passed .. \" passed, \" .. $failed .. \" failed\")\n"
+        $runnerContent = $runnerContent .. "if ($failed > 0) {\n    wolf_system_exit(1)\n}\n"
+
+        var $runnerPath = wolf_path_join($projectRoot, "_wolf_test_runner.wolf")
+        wolf_file_write($runnerPath, $runnerContent)
+
+        print("wolf test: Compiling " .. count($testFuncs) .. " tests...")
+        
+        var $outDir = wolf_path_join($projectRoot, "wolf_out_test_runner")
+        wolf_system_exec("rm -rf " .. $outDir)
+        wolf_system_exec("mkdir -p " .. $outDir)
+
+        var $llPath = wolf_path_join($outDir, "_wolf_test_runner.ll")
+        var $binPath = wolf_path_join($outDir, "_wolf_test_runner")
+        
+        var $cmd1 = "./wolf_out/main " .. $runnerPath .. " --project . --emit-llvm > " .. $llPath
+        var $compileRes: int = wolf_system_exec($cmd1)
+        if ($compileRes != 0) {
+            print("wolf test: failed to emit LLVM IR")
+            wolf_system_exit(1)
+        }
+
+        var $cmd2 = "clang -O0 -o " .. $binPath .. " " .. $llPath .. " runtime/wolf_runtime.c -lm -lssl -lcrypto -lsodium -lmysqlclient -lcurl -lsqlite3 -lpthread -ldl -luring"
+        var $linkRes: int = wolf_system_exec($cmd2)
+        if ($linkRes != 0) {
+            print("wolf test: clang linking failed")
+            wolf_system_exit(1)
+        }
+
+        wolf_file_delete($runnerPath)
+
+        print("wolf test: Running tests...\n")
+        var $exitCode: int = wolf_system_exec($binPath)
+        
+        if ($exitCode != 0) {
+            wolf_system_exit($exitCode)
+        }
+    }
+
+    private func DiscoverTestFiles($root, $dir, $testFiles) {
+        var $entries = wolf_file_list_dir($dir)
+        if ($entries == nil) {
+            return nil
+        }
+
+        var $i = 0
+        var $n = count($entries)
+        while ($i < $n) {
+            var $dirEntry = $entries[$i]
+            $i = intval($i) + 1
+            
+            // Skip hidden files/dirs and output dirs
+            if ($dirEntry == ".git" || $dirEntry == ".wolf_modules" || $dirEntry == "wolf_out" || $dirEntry == "wolf_out_test_runner") {
+            } else {
+                var $fullPath = wolf_path_join($dir, $dirEntry)
+                
+                if (wolf_dir_exists($fullPath)) {
+                    $this->DiscoverTestFiles($root, $fullPath, $testFiles)
+                } else {
+                    var $valid = false
+                    if (wolf_str_ends_with($dirEntry, "_test.wolf")) {
+                        $valid = true
+                    }
+                    if ($valid) {
+                        Arrays::array_push($testFiles, $fullPath)
+                    }
+                }
+            }
+        }
+    }
+}

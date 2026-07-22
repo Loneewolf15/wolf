@@ -386,6 +386,13 @@ class Parser {
         var $params = $this->parseParamList()
         $this->expect(TokenType::RPAREN, "expected ')' after parameters")
 
+        var $retType = ""
+        if ($this->check(TokenType::ARROW)) {
+            $this->advance()
+            var $retTok = $this->expect(TokenType::IDENT, "expected return type after '->'")
+            $retType = $this->getTokenText($retTok)
+        }
+
         var $node = new FuncDecl($name)
         $node->params = $params
         $node->body = $this->parseBlock()
@@ -520,7 +527,7 @@ class Parser {
             $this->advance()
             if ($this->check(TokenType::DOLLAR_IDENT)) {
                 var $vTok = $this->advance()
-                $catchVar = $this->getTokenText($vTok)
+                $catchVar = $this->getDollarIdentName($vTok)
             }
             $this->expect(TokenType::RPAREN, "expected ')' after catch variable")
         }
@@ -611,13 +618,19 @@ class Parser {
         if ($tt == TokenType::DOLLAR_IDENT) {
             var $pTok = $this->advance()
             var $pName = $this->getDollarIdentName($pTok)
+            var $pType = ""
+            if ($this->check(TokenType::COLON)) {
+                $this->advance()
+                var $typeTok = $this->expect(TokenType::IDENT, "expected type after ':'")
+                $pType = $this->getTokenText($typeTok)
+            }
             var $pVal = nil
             if ($this->check(TokenType::ASSIGN)) {
                 $this->advance()
                 $pVal = $this->parseExpression(0)
             }
             $this->consumeSemicolon()
-            var $prop = new VarDecl($pName, "", $pVal)
+            var $prop = new VarDecl($pName, $pType, $pVal)
             Arrays::array_push($classNode->properties, $prop)
             return nil
         }

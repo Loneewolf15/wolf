@@ -7,7 +7,7 @@ class Redis {
 
     func __construct() {
         $host = define_get("REDIS_HOST")
-        if $host == "" {
+        if ($host == "") {
             $host = "localhost"
         }
         $port = 6379

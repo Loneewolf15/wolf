@@ -141,7 +141,6 @@ func compiler_lexerhelper_get_keywords() {
         "nil": TokenType::NIL,
         "as": TokenType::AS,
         "in": TokenType::IN,
-        "error": TokenType::ERROR,
         "enum": TokenType::ENUM,
         "interface": TokenType::INTERFACE,
         "implements": TokenType::IMPLEMENTS

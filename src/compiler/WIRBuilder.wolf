@@ -7,6 +7,8 @@ class WIRBuilder {
     public $currentFunc = nil
     public $regCounter = "0"
     public $labelCounter = "0"
+    public $declaredVars = {}
+    public $varClass = {}
 
     public func __construct() {
         $this->module = new WIRModule("main")
@@ -28,6 +30,11 @@ class WIRBuilder {
 
     public func build($program) {
         // Initialize an entrypoint function for top-level statements
+        $this->regCounter = "0"
+        $this->labelCounter = "0"
+        $this->hasMainFunc = false
+        $this->declaredVars = {}
+        $this->varClass = {}
         $this->currentFunc = new WIRFunction("main", [], "i64")
         $this->currentBlock = new WIRBlock("entry")
         $this->currentFunc->addBlock($this->currentBlock)
@@ -36,6 +43,10 @@ class WIRBuilder {
         while ($i < count($program->statements)) {
             $this->buildStmt($program->statements[$i])
             $i = intval($i) + 1
+        }
+        // If the user defined func main(), call it at the end of the top-level script
+        if ($this->hasMainFunc) {
+            $this->currentBlock->addInstruction(new WIRInstruction("call", "", "wolf_main", "", "ptr"))
         }
 
         // Add return 0
@@ -48,13 +59,35 @@ class WIRBuilder {
     public func buildStmt($stmt) {
         if ($stmt->type == "VarDecl") {
             var $val = $this->buildExpr($stmt->value)
+            if ($stmt->value != nil) {
+                if ($stmt->value->type == "NewExpr") {
+                    $this->varClass[$stmt->name] = $stmt->value->classExpr->name
+                }
+            }
             // For now, treat all vars as dynamically typed ptrs
+            $this->declaredVars[$stmt->name] = true
             $this->currentBlock->addInstruction(new WIRInstruction("alloca", "%" .. $stmt->name, "", "", "ptr"))
             $this->currentBlock->addInstruction(new WIRInstruction("store", "", $val, "%" .. $stmt->name, "ptr"))
         } else if ($stmt->type == "AssignStmt") {
             var $val = $this->buildExpr($stmt->value)
+            if ($stmt->value != nil) {
+                if ($stmt->value->type == "NewExpr") {
+                    if ($stmt->target->type == "DollarIdent") {
+                        $this->varClass[$stmt->target->name] = $stmt->value->classExpr->name
+                    }
+                }
+            }
             if ($stmt->target->type == "DollarIdent") {
+                if ($this->declaredVars[$stmt->target->name] == nil) {
+                    $this->declaredVars[$stmt->target->name] = true
+                    $this->currentBlock->addInstruction(new WIRInstruction("alloca", "%" .. $stmt->target->name, "", "", "ptr"))
+                }
                 $this->currentBlock->addInstruction(new WIRInstruction("store", "", $val, "%" .. $stmt->target->name, "ptr"))
+            } else if ($stmt->target->type == "PropertyAccess") {
+                var $objReg = $this->buildExpr($stmt->target->object)
+                var $strReg = $this->nextReg()
+                $this->currentBlock->addInstruction(new WIRInstruction("const_string", $strReg, "\"" .. $stmt->target->property .. "\"", "", "ptr"))
+                $this->currentBlock->addInstruction(new WIRInstruction("set_property", "", $objReg, $strReg .. ", ptr " .. $val, "ptr"))
             }
         } else if ($stmt->type == "BlockStmt") {
             var $k = 0
@@ -64,6 +97,9 @@ class WIRBuilder {
             }
         } else if ($stmt->type == "IfStmt") {
             var $condReg = $this->buildExpr($stmt->condition)
+            // Unbox ptr → i1 for cond_br
+            var $condI1 = $this->nextReg()
+            $this->currentBlock->addInstruction(new WIRInstruction("boolval", $condI1, $condReg, "", "i1"))
             var $thenBlock = new WIRBlock($this->nextLabel("if.then"))
             var $endBlock = new WIRBlock($this->nextLabel("if.end"))
             var $elseBlock = $endBlock
@@ -72,7 +108,7 @@ class WIRBuilder {
                 $elseBlock = new WIRBlock($this->nextLabel("if.else"))
             }
             
-            $this->currentBlock->addInstruction(new WIRInstruction("cond_br", "", $condReg, $thenBlock->label, $elseBlock->label))
+            $this->currentBlock->addInstruction(new WIRInstruction("cond_br", "", $condI1, $thenBlock->label, $elseBlock->label))
             
             $this->currentFunc->addBlock($thenBlock)
             $this->currentBlock = $thenBlock
@@ -83,7 +119,46 @@ class WIRBuilder {
             
             $this->currentBlock->addInstruction(new WIRInstruction("br", "", $endBlock->label, "", ""))
             
-            if ($stmt->elseBody != nil) {
+            if (count($stmt->elseIfs) > 0) {
+                $this->currentFunc->addBlock($elseBlock)
+                $this->currentBlock = $elseBlock
+                
+                var $i = 0
+                while ($i < count($stmt->elseIfs)) {
+                    var $ei = $stmt->elseIfs[$i]
+                    var $eiCondReg = $this->buildExpr($ei->condition)
+                    var $eiThenBlock = new WIRBlock($this->nextLabel("elseif.then"))
+                    var $eiNextBlock = $endBlock
+                    
+                    if (intval($i) + 1 < count($stmt->elseIfs) || $stmt->elseBody != nil) {
+                        $eiNextBlock = new WIRBlock($this->nextLabel("elseif.next"))
+                    }
+                    
+                    // Unbox condition ptr → i1 for cond_br
+                    var $eiCondI1 = $this->nextReg()
+                    $this->currentBlock->addInstruction(new WIRInstruction("boolval", $eiCondI1, $eiCondReg, "", "i1"))
+                    $this->currentBlock->addInstruction(new WIRInstruction("cond_br", "", $eiCondI1, $eiThenBlock->label, $eiNextBlock->label))
+                    
+                    $this->currentFunc->addBlock($eiThenBlock)
+                    $this->currentBlock = $eiThenBlock
+                    if ($ei->body != nil) {
+                        $this->buildStmt($ei->body)
+                    }
+                    $this->currentBlock->addInstruction(new WIRInstruction("br", "", $endBlock->label, "", ""))
+                    
+                    if ($eiNextBlock->label != $endBlock->label) {
+                        $this->currentFunc->addBlock($eiNextBlock)
+                        $this->currentBlock = $eiNextBlock
+                    }
+                    
+                    $i = intval($i) + 1
+                }
+                
+                if ($stmt->elseBody != nil) {
+                    $this->buildStmt($stmt->elseBody)
+                    $this->currentBlock->addInstruction(new WIRInstruction("br", "", $endBlock->label, "", ""))
+                }
+            } else if ($stmt->elseBody != nil) {
                 $this->currentFunc->addBlock($elseBlock)
                 $this->currentBlock = $elseBlock
                 $this->buildStmt($stmt->elseBody)
@@ -102,7 +177,10 @@ class WIRBuilder {
             $this->currentFunc->addBlock($condBlock)
             $this->currentBlock = $condBlock
             var $condReg = $this->buildExpr($stmt->condition)
-            $this->currentBlock->addInstruction(new WIRInstruction("cond_br", "", $condReg, $bodyBlock->label, $endBlock->label))
+            // Unbox ptr → i1 for cond_br
+            var $condI1 = $this->nextReg()
+            $this->currentBlock->addInstruction(new WIRInstruction("boolval", $condI1, $condReg, "", "i1"))
+            $this->currentBlock->addInstruction(new WIRInstruction("cond_br", "", $condI1, $bodyBlock->label, $endBlock->label))
             
             $this->currentFunc->addBlock($bodyBlock)
             $this->currentBlock = $bodyBlock
@@ -130,7 +208,10 @@ class WIRBuilder {
             $this->currentBlock = $condBlock
             if ($stmt->condition != nil) {
                 var $condReg = $this->buildExpr($stmt->condition)
-                $this->currentBlock->addInstruction(new WIRInstruction("cond_br", "", $condReg, $bodyBlock->label, $endBlock->label))
+                // Unbox ptr → i1 for cond_br
+                var $condI1 = $this->nextReg()
+                $this->currentBlock->addInstruction(new WIRInstruction("boolval", $condI1, $condReg, "", "i1"))
+                $this->currentBlock->addInstruction(new WIRInstruction("cond_br", "", $condI1, $bodyBlock->label, $endBlock->label))
             } else {
                 $this->currentBlock->addInstruction(new WIRInstruction("br", "", $bodyBlock->label, "", ""))
             }
@@ -154,18 +235,41 @@ class WIRBuilder {
         } else if ($stmt->type == "FuncDecl") {
             var $savedFunc = $this->currentFunc
             var $savedBlock = $this->currentBlock
+            var $savedReg = $this->regCounter
+            var $savedLabel = $this->labelCounter
+            var $savedVars = $this->declaredVars
+            
+            $this->regCounter = "0"
+            $this->labelCounter = "0"
+            
+            var $funcName = $stmt->name
+            if ($funcName == "main") {
+                $funcName = "wolf_main"
+                $this->hasMainFunc = true
+            }
             
             var $params = []
             var $i = 0
             while ($i < count($stmt->params)) {
                 var $p = $stmt->params[$i]
-                Arrays::array_push($params, "ptr %" .. $p->name)
+                Arrays::array_push($params, "ptr %" .. $p->name .. "_param")
                 $i = intval($i) + 1
             }
             
-            $this->currentFunc = new WIRFunction($stmt->name, $params, "ptr")
+            $this->declaredVars = {}
+            $this->varClass = {}
+            $this->currentFunc = new WIRFunction($funcName, $params, "ptr")
             $this->currentBlock = new WIRBlock("entry")
             $this->currentFunc->addBlock($this->currentBlock)
+            
+            $i = 0
+            while ($i < count($stmt->params)) {
+                var $p = $stmt->params[$i]
+                $this->declaredVars[$p->name] = true
+                $this->currentBlock->addInstruction(new WIRInstruction("alloca", "%" .. $p->name, "", "", "ptr"))
+                $this->currentBlock->addInstruction(new WIRInstruction("store", "", "%" .. $p->name .. "_param", "%" .. $p->name, "ptr"))
+                $i = intval($i) + 1
+            }
             
             if ($stmt->body != nil) {
                 $this->buildStmt($stmt->body)
@@ -174,44 +278,113 @@ class WIRBuilder {
                 $this->currentBlock->addInstruction(new WIRInstruction("ret", "", $retVal, "", "ptr"))
             }
             
-            $this->currentBlock->addInstruction(new WIRInstruction("ret", "", "nil", "", "ptr"))
+            $this->currentBlock->addInstruction(new WIRInstruction("ret", "", "null", "", "ptr"))
             $this->module->addFunction($this->currentFunc)
             
             $this->currentFunc = $savedFunc
             $this->currentBlock = $savedBlock
+            $this->regCounter = $savedReg
+            $this->labelCounter = $savedLabel
+            $this->declaredVars = $savedVars
         } else if ($stmt->type == "ClassDecl") {
             var $i = 0
             while ($i < count($stmt->methods)) {
                 var $m = $stmt->methods[$i]
-                var $mName = $stmt->name .. "::" .. $m->name
+                var $mName = ""
+                if ($m->name == "__construct") {
+                    $mName = $stmt->name .. "_new"
+                } else {
+                    $mName = $stmt->name .. "_" .. $m->name
+                }
                 var $savedFunc = $this->currentFunc
                 var $savedBlock = $this->currentBlock
+                var $savedReg = $this->regCounter
+                var $savedLabel = $this->labelCounter
+                var $savedVars = $this->declaredVars
                 
                 var $params = []
-                Arrays::array_push($params, "ptr %this")
+                if ($m->name != "__construct") {
+                    Arrays::array_push($params, "ptr %this_param")
+                }
                 var $pIdx = 0
                 while ($pIdx < count($m->params)) {
                     var $p = $m->params[$pIdx]
-                    Arrays::array_push($params, "ptr %" .. $p->name)
+                    Arrays::array_push($params, "ptr %" .. $p->name .. "_param")
                     $pIdx = intval($pIdx) + 1
                 }
                 
+                // Reset counters for each new function — LLVM requires per-function namespace
+                $this->regCounter = "0"
+                $this->labelCounter = "0"
+                $this->declaredVars = {}
+                $this->varClass = {}
+                $this->varClass["this"] = $stmt->name
                 $this->currentFunc = new WIRFunction($mName, $params, "ptr")
                 $this->currentBlock = new WIRBlock("entry")
                 $this->currentFunc->addBlock($this->currentBlock)
                 
+                $this->declaredVars["this"] = true
+                if ($m->name != "__construct") {
+                    $this->currentBlock->addInstruction(new WIRInstruction("alloca", "%this", "", "", "ptr"))
+                    $this->currentBlock->addInstruction(new WIRInstruction("store", "", "%this_param", "%this", "ptr"))
+                } else {
+                    $this->currentBlock->addInstruction(new WIRInstruction("alloca", "%this", "", "", "ptr"))
+                    var $instReg = $this->nextReg()
+                    $this->currentBlock->addInstruction(new WIRInstruction("class_create", $instReg, $stmt->name, "", "ptr"))
+                    $this->currentBlock->addInstruction(new WIRInstruction("store", "", $instReg, "%this", "ptr"))
+                }
+                
+                $pIdx = 0
+                while ($pIdx < count($m->params)) {
+                    var $p = $m->params[$pIdx]
+                    $this->declaredVars[$p->name] = true
+                    $this->currentBlock->addInstruction(new WIRInstruction("alloca", "%" .. $p->name, "", "", "ptr"))
+                    $this->currentBlock->addInstruction(new WIRInstruction("store", "", "%" .. $p->name .. "_param", "%" .. $p->name, "ptr"))
+                    $pIdx = intval($pIdx) + 1
+                }
+                
                 if ($m->body != nil) {
                     $this->buildStmt($m->body)
+                    
+                    if (count($m->body->statements) > 0) {
+                        var $lastStmt = $m->body->statements[intval(count($m->body->statements)) - 1]
+                        if ($lastStmt->type != "ReturnStmt") {
+                            if ($m->name == "__construct") {
+                                var $retReg = $this->nextReg()
+                                $this->currentBlock->addInstruction(new WIRInstruction("load", $retReg, "%this", "", "ptr"))
+                                $this->currentBlock->addInstruction(new WIRInstruction("ret", "", $retReg, "", "ptr"))
+                            } else {
+                                $this->currentBlock->addInstruction(new WIRInstruction("ret", "", "nil", "", "ptr"))
+                            }
+                        }
+                    } else {
+                        if ($m->name == "__construct") {
+                            var $retReg2 = $this->nextReg()
+                            $this->currentBlock->addInstruction(new WIRInstruction("load", $retReg2, "%this", "", "ptr"))
+                            $this->currentBlock->addInstruction(new WIRInstruction("ret", "", $retReg2, "", "ptr"))
+                        } else {
+                            $this->currentBlock->addInstruction(new WIRInstruction("ret", "", "nil", "", "ptr"))
+                        }
+                    }
                 } else if ($m->arrowExpr != nil) {
                     var $retVal = $this->buildExpr($m->arrowExpr)
                     $this->currentBlock->addInstruction(new WIRInstruction("ret", "", $retVal, "", "ptr"))
+                } else {
+                    if ($m->name == "__construct") {
+                        var $retReg3 = $this->nextReg()
+                        $this->currentBlock->addInstruction(new WIRInstruction("load", $retReg3, "%this", "", "ptr"))
+                        $this->currentBlock->addInstruction(new WIRInstruction("ret", "", $retReg3, "", "ptr"))
+                    } else {
+                        $this->currentBlock->addInstruction(new WIRInstruction("ret", "", "nil", "", "ptr"))
+                    }
                 }
                 
-                $this->currentBlock->addInstruction(new WIRInstruction("ret", "", "nil", "", "ptr"))
                 $this->module->addFunction($this->currentFunc)
-                
                 $this->currentFunc = $savedFunc
                 $this->currentBlock = $savedBlock
+                $this->regCounter = $savedReg
+                $this->labelCounter = $savedLabel
+                $this->declaredVars = $savedVars
                 
                 $i = intval($i) + 1
             }
@@ -225,6 +398,120 @@ class WIRBuilder {
             if ($stmt->tryBody != nil) {
                 $this->buildStmt($stmt->tryBody)
             }
+        } else if ($stmt->type == "ForeachStmt") {
+            // Foreach loop lowering: for ($item in $collection)
+            // Lowers to: idx=0; while(idx < len(arr)) { item = arr[idx]; body; idx++ }
+            var $condBlock = new WIRBlock($this->nextLabel("foreach.cond"))
+            var $bodyBlock = new WIRBlock($this->nextLabel("foreach.body"))
+            var $endBlock  = new WIRBlock($this->nextLabel("foreach.end"))
+
+            // Evaluate the collection expression once before the loop
+            var $collReg = $this->buildExpr($stmt->iterable)
+
+            // idx = 0 (boxed) → allocate and store
+            var $idxZero = $this->nextReg()
+            $this->currentBlock->addInstruction(new WIRInstruction("box_int", $idxZero, "0", "", "ptr"))
+            var $idxVar = "%__foreach_idx_" .. $this->labelCounter
+            $this->currentBlock->addInstruction(new WIRInstruction("alloca", $idxVar, "", "", "ptr"))
+            $this->currentBlock->addInstruction(new WIRInstruction("store", "", $idxZero, $idxVar, "ptr"))
+
+            $this->currentBlock->addInstruction(new WIRInstruction("br", "", $condBlock->label, "", ""))
+
+            // Condition block: check idx < len(arr)
+            $this->currentFunc->addBlock($condBlock)
+            $this->currentBlock = $condBlock
+
+            var $idxLoaded = $this->nextReg()
+            $this->currentBlock->addInstruction(new WIRInstruction("load", $idxLoaded, $idxVar, "", "ptr"))
+
+            var $idxInt = $this->nextReg()
+            $this->currentBlock->addInstruction(new WIRInstruction("intval", $idxInt, $idxLoaded, "", "i64"))
+
+            var $lenBoxed = $this->nextReg()
+            $this->currentBlock->addInstruction(new WIRInstruction("call", $lenBoxed, "wolf_array_length", "ptr " .. $collReg, "i64"))
+
+            var $condReg = $this->nextReg()
+            $this->currentBlock->addInstruction(new WIRInstruction("cmp", $condReg, $idxInt, $lenBoxed, "slt"))
+            $this->currentBlock->addInstruction(new WIRInstruction("cond_br", "", $condReg, $bodyBlock->label, $endBlock->label))
+
+            // Body block: bind item variable, run body, increment idx
+            $this->currentFunc->addBlock($bodyBlock)
+            $this->currentBlock = $bodyBlock
+
+            // Bind $item = arr[idx]
+            var $elemReg = $this->nextReg()
+            $this->currentBlock->addInstruction(new WIRInstruction("call", $elemReg, "wolf_array_get", "ptr " .. $collReg .. ", i64 " .. $idxInt, "ptr"))
+            var $itemVar = "%__foreach_" .. $stmt->valueVar
+            $this->currentBlock->addInstruction(new WIRInstruction("alloca", $itemVar, "", "", "ptr"))
+            $this->currentBlock->addInstruction(new WIRInstruction("store", "", $elemReg, $itemVar, "ptr"))
+
+            // Also expose as user variable name
+            var $userItemVar = "%" .. $stmt->valueVar
+            $this->declaredVars[$stmt->valueVar] = true
+            $this->currentBlock->addInstruction(new WIRInstruction("alloca", $userItemVar, "", "", "ptr"))
+            $this->currentBlock->addInstruction(new WIRInstruction("store", "", $elemReg, $userItemVar, "ptr"))
+
+            if ($stmt->body != nil) {
+                $this->buildStmt($stmt->body)
+            }
+
+            // idx = idx + 1
+            var $idxLoaded2 = $this->nextReg()
+            $this->currentBlock->addInstruction(new WIRInstruction("load", $idxLoaded2, $idxVar, "", "ptr"))
+            var $idxInt2 = $this->nextReg()
+            $this->currentBlock->addInstruction(new WIRInstruction("intval", $idxInt2, $idxLoaded2, "", "i64"))
+            var $idxInc = $this->nextReg()
+            $this->currentBlock->addInstruction(new WIRInstruction("add", $idxInc, $idxInt2, "1", "i64"))
+            var $idxBoxed = $this->nextReg()
+            $this->currentBlock->addInstruction(new WIRInstruction("box_int", $idxBoxed, $idxInc, "", "ptr"))
+            $this->currentBlock->addInstruction(new WIRInstruction("store", "", $idxBoxed, $idxVar, "ptr"))
+            $this->currentBlock->addInstruction(new WIRInstruction("br", "", $condBlock->label, "", ""))
+
+            $this->currentFunc->addBlock($endBlock)
+            $this->currentBlock = $endBlock
+        } else if ($stmt->type == "MatchStmt") {
+            // Match lowering — use string equality (streq) for all patterns
+            // subject register returns a ptr
+            var $subjReg = $this->buildExpr($stmt->subject)
+            var $endBlock = new WIRBlock($this->nextLabel("match.end"))
+            
+            var $i = 0
+            while ($i < count($stmt->arms)) {
+                var $arm = $stmt->arms[$i]
+                var $armBlock = new WIRBlock($this->nextLabel("match.arm"))
+                var $nextArmBlock = new WIRBlock($this->nextLabel("match.next"))
+                
+                // Check if this is a wildcard pattern (_) — treat as unconditional branch to arm
+                if ($arm->pattern != nil && $arm->pattern->type == "Wildcard") {
+                    // Wildcard always matches — jump directly to arm body
+                    $this->currentBlock->addInstruction(new WIRInstruction("br", "", $armBlock->label, "", ""))
+                } else {
+                    // Build pattern value register and use streq comparison
+                    var $patReg = $this->buildExpr($arm->pattern)
+                    var $cmpReg = $this->nextReg()
+                    $this->currentBlock->addInstruction(new WIRInstruction("streq_match", $cmpReg, $subjReg, $patReg, "i1"))
+                    $this->currentBlock->addInstruction(new WIRInstruction("cond_br", "", $cmpReg, $armBlock->label, $nextArmBlock->label))
+                }
+                
+                $this->currentFunc->addBlock($armBlock)
+                $this->currentBlock = $armBlock
+                
+                var $j = 0
+                while ($j < count($arm->body)) {
+                    $this->buildStmt($arm->body[$j])
+                    $j = intval($j) + 1
+                }
+                $this->currentBlock->addInstruction(new WIRInstruction("br", "", $endBlock->label, "", ""))
+                
+                $this->currentFunc->addBlock($nextArmBlock)
+                $this->currentBlock = $nextArmBlock
+                
+                $i = intval($i) + 1
+            }
+            $this->currentBlock->addInstruction(new WIRInstruction("br", "", $endBlock->label, "", ""))
+            
+            $this->currentFunc->addBlock($endBlock)
+            $this->currentBlock = $endBlock
         } else if ($stmt->type == "ExpressionStmt") {
             $this->buildExpr($stmt->expr)
         }
@@ -235,7 +522,9 @@ class WIRBuilder {
             return "nil"
         }
         if ($expr->type == "IntLiteral") {
-            return $expr->value
+            var $res = $this->nextReg()
+            $this->currentBlock->addInstruction(new WIRInstruction("box_int", $res, $expr->value, "", "ptr"))
+            return $res
         }
         if ($expr->type == "StringLiteral") {
             var $strReg = $this->nextReg()
@@ -248,16 +537,47 @@ class WIRBuilder {
             return $loadReg
         }
         if ($expr->type == "BinaryExpr") {
+            if ($expr->op == "=") {
+                var $rightAssign = $this->buildExpr($expr->right)
+                if ($expr->right != nil) {
+                    if ($expr->right->type == "NewExpr") {
+                        if ($expr->left->type == "DollarIdent") {
+                            $this->varClass[$expr->left->name] = $expr->right->classExpr->name
+                        }
+                    }
+                }
+                if ($expr->left->type == "DollarIdent") {
+                    if ($this->declaredVars[$expr->left->name] == nil) {
+                        $this->declaredVars[$expr->left->name] = true
+                        $this->currentBlock->addInstruction(new WIRInstruction("alloca", "%" .. $expr->left->name, "", "", "ptr"))
+                    }
+                    $this->currentBlock->addInstruction(new WIRInstruction("store", "", $rightAssign, "%" .. $expr->left->name, "ptr"))
+                } else if ($expr->left->type == "PropertyAccess") {
+                    var $objReg = $this->buildExpr($expr->left->object)
+                    var $strReg = $this->nextReg()
+                    $this->currentBlock->addInstruction(new WIRInstruction("const_string", $strReg, "\"" .. $expr->left->property .. "\"", "", "ptr"))
+                    $this->currentBlock->addInstruction(new WIRInstruction("set_property", "", $objReg, $strReg .. ", ptr " .. $rightAssign, "ptr"))
+                }
+                return $rightAssign
+            }
+
             var $left = $this->buildExpr($expr->left)
             var $right = $this->buildExpr($expr->right)
-            var $res = $this->nextReg()
+            
+            if ($expr->op == "..") {
+                var $concatRes = $this->nextReg()
+                $this->currentBlock->addInstruction(new WIRInstruction("concat", $concatRes, $left, $right, "ptr"))
+                return $concatRes
+            }
+
             var $op = ""
             var $isCmp = false
             
             if ($expr->op == "+") { $op = "add" }
             else if ($expr->op == "-") { $op = "sub" }
             else if ($expr->op == "*") { $op = "mul" }
-            else if ($expr->op == "/") { $op = "div" }
+            else if ($expr->op == "/") { $op = "sdiv" }
+            else if ($expr->op == "%") { $op = "srem" }
             else if ($expr->op == "==") { 
                 $op = "eq"
                 $isCmp = true 
@@ -283,19 +603,48 @@ class WIRBuilder {
                 $isCmp = true 
             }
             
-            if ($expr->op == "=") {
-                // If it's an assignment, the left side is usually a DollarIdent.
-                // We emit a store instruction.
-                $this->currentBlock->addInstruction(new WIRInstruction("store", "", $right, "%" .. $expr->left->name, "ptr"))
-                return $right
+            if ($expr->op == "==" || $expr->op == "!=") {
+                var $eqRes = $this->nextReg()
+                $this->currentBlock->addInstruction(new WIRInstruction("call", $eqRes, "wolf_equals", "ptr " .. $left .. ", ptr " .. $right, "i64"))
+                if ($expr->op == "!=") {
+                    var $notRes = $this->nextReg()
+                    $this->currentBlock->addInstruction(new WIRInstruction("cmp", $notRes, $eqRes, "0", "eq"))
+                    var $extRes = $this->nextReg()
+                    $this->currentBlock->addInstruction(new WIRInstruction("zext_i1_i32", $extRes, $notRes, "", "i32"))
+                    $eqRes = $extRes
+                } else {
+                    var $extRes = $this->nextReg()
+                    $this->currentBlock->addInstruction(new WIRInstruction("trunc_i64_i32", $extRes, $eqRes, "", "i32"))
+                    $eqRes = $extRes
+                }
+                var $res = $this->nextReg()
+                $this->currentBlock->addInstruction(new WIRInstruction("box_bool_i32", $res, $eqRes, "", "ptr"))
+                return $res
             }
+
+            // Unbox both operands into raw i64
+            var $leftInt = $this->nextReg()
+            $this->currentBlock->addInstruction(new WIRInstruction("intval", $leftInt, $left, "", "i64"))
+            var $rightInt = $this->nextReg()
+            $this->currentBlock->addInstruction(new WIRInstruction("intval", $rightInt, $right, "", "i64"))
             
             if ($isCmp) {
-                $this->currentBlock->addInstruction(new WIRInstruction("cmp", $res, $left, $right, $op))
+                // cmp → i1, zext i1 → i32, box_bool_i32 → ptr
+                var $cmpRes = $this->nextReg()
+                $this->currentBlock->addInstruction(new WIRInstruction("cmp", $cmpRes, $leftInt, $rightInt, $op))
+                var $extRes = $this->nextReg()
+                $this->currentBlock->addInstruction(new WIRInstruction("zext_i1_i32", $extRes, $cmpRes, "", "i32"))
+                var $res = $this->nextReg()
+                $this->currentBlock->addInstruction(new WIRInstruction("box_bool_i32", $res, $extRes, "", "ptr"))
+                return $res
             } else {
-                $this->currentBlock->addInstruction(new WIRInstruction($op, $res, $left, $right, "i64"))
+                // math op → i64, then box_int → ptr
+                var $mathRes = $this->nextReg()
+                $this->currentBlock->addInstruction(new WIRInstruction($op, $mathRes, $leftInt, $rightInt, "i64"))
+                var $res = $this->nextReg()
+                $this->currentBlock->addInstruction(new WIRInstruction("box_int", $res, $mathRes, "", "ptr"))
+                return $res
             }
-            return $res
         }
         if ($expr->type == "PrintExpr") {
             var $argVal = $this->buildExpr($expr->arg)
@@ -304,6 +653,15 @@ class WIRBuilder {
             return ""
         }
         if ($expr->type == "CallExpr") {
+            if ($expr->callee->type == "Identifier" && $expr->callee->name == "int_to_string") {
+                var $argVal = $this->buildExpr($expr->args[0])
+                var $unboxed = $this->nextReg()
+                $this->currentBlock->addInstruction(new WIRInstruction("intval", $unboxed, $argVal, "", "i64"))
+                var $res = $this->nextReg()
+                $this->currentBlock->addInstruction(new WIRInstruction("call", $res, "int_to_string", "i64 " .. $unboxed, "ptr"))
+                return $res
+            }
+            
             var $argsList = ""
             var $i = 0
             while ($i < count($expr->args)) {
@@ -316,8 +674,70 @@ class WIRBuilder {
             var $calleeName = ""
             if ($expr->callee->type == "Identifier") {
                 $calleeName = $expr->callee->name
+                if ($calleeName == "main") {
+                    $calleeName = "wolf_main"
+                } else if ($calleeName == "error") {
+                    $calleeName = "wolf_error"
+                } else if ($calleeName == "strtoupper") {
+                    $calleeName = "wolf_strtoupper"
+                } else if ($calleeName == "strtolower") {
+                    $calleeName = "wolf_strtolower"
+                } else if ($calleeName == "strlen") {
+                    $calleeName = "wolf_strlen"
+                } else if ($calleeName == "trim") {
+                    $calleeName = "wolf_trim"
+                } else if ($calleeName == "substr") {
+                    $calleeName = "wolf_substr"
+                } else if ($calleeName == "explode") {
+                    $calleeName = "wolf_explode"
+                } else if ($calleeName == "implode") {
+                    $calleeName = "wolf_implode"
+                } else if ($calleeName == "wolf_system_exec") {
+                    $calleeName = "wolf_system_exec_ptr"
+                } else if ($calleeName == "wolf_system_exit") {
+                    $calleeName = "wolf_system_exit_ptr"
+                } else if ($calleeName == "wolf_file_write") {
+                    $calleeName = "wolf_file_write_ptr"
+                } else if ($calleeName == "wolf_file_delete") {
+                    $calleeName = "wolf_file_delete_ptr"
+                } else if ($calleeName == "wolf_dir_exists") {
+                    $calleeName = "wolf_dir_exists_ptr"
+                } else if ($calleeName == "wolf_file_exists") {
+                    $calleeName = "wolf_file_exists_ptr"
+                }
             } else if ($expr->callee->type == "DollarIdent") {
                 $calleeName = $expr->callee->name
+                if ($calleeName == "main") {
+                    $calleeName = "wolf_main"
+                } else if ($calleeName == "error") {
+                    $calleeName = "wolf_error"
+                } else if ($calleeName == "strtoupper") {
+                    $calleeName = "wolf_strtoupper"
+                } else if ($calleeName == "strtolower") {
+                    $calleeName = "wolf_strtolower"
+                } else if ($calleeName == "strlen") {
+                    $calleeName = "wolf_strlen"
+                } else if ($calleeName == "trim") {
+                    $calleeName = "wolf_trim"
+                } else if ($calleeName == "substr") {
+                    $calleeName = "wolf_substr"
+                } else if ($calleeName == "explode") {
+                    $calleeName = "wolf_explode"
+                } else if ($calleeName == "implode") {
+                    $calleeName = "wolf_implode"
+                } else if ($calleeName == "wolf_system_exec") {
+                    $calleeName = "wolf_system_exec_ptr"
+                } else if ($calleeName == "wolf_system_exit") {
+                    $calleeName = "wolf_system_exit_ptr"
+                } else if ($calleeName == "wolf_file_write") {
+                    $calleeName = "wolf_file_write_ptr"
+                } else if ($calleeName == "wolf_file_delete") {
+                    $calleeName = "wolf_file_delete_ptr"
+                } else if ($calleeName == "wolf_dir_exists") {
+                    $calleeName = "wolf_dir_exists_ptr"
+                } else if ($calleeName == "wolf_file_exists") {
+                    $calleeName = "wolf_file_exists_ptr"
+                }
             }
             $this->currentBlock->addInstruction(new WIRInstruction("call", $res, $calleeName, $argsList, "ptr"))
             return $res
@@ -332,7 +752,17 @@ class WIRBuilder {
                 $i = intval($i) + 1
             }
             var $res = $this->nextReg()
-            $this->currentBlock->addInstruction(new WIRInstruction("call_method", $res, $objReg, "\"" .. $expr->method .. "\", " .. $argsList, "ptr"))
+            var $className = ""
+            if ($expr->object->type == "DollarIdent") {
+                if ($this->varClass[$expr->object->name] != nil) {
+                    $className = $this->varClass[$expr->object->name]
+                }
+            }
+            if ($className != "") {
+                $this->currentBlock->addInstruction(new WIRInstruction("call", $res, $className .. "_" .. $expr->method, $argsList, "ptr"))
+            } else {
+                $this->currentBlock->addInstruction(new WIRInstruction("call_method", $res, $expr->method, $argsList, "ptr"))
+            }
             return $res
         }
         if ($expr->type == "StaticCall") {
@@ -345,14 +775,16 @@ class WIRBuilder {
                 $i = intval($i) + 1
             }
             var $res = $this->nextReg()
-            var $calleeName = $expr->className .. "::" .. $expr->method
+            var $calleeName = $expr->className .. "_" .. $expr->method
             $this->currentBlock->addInstruction(new WIRInstruction("call", $res, $calleeName, $argsList, "ptr"))
             return $res
         }
         if ($expr->type == "PropertyAccess") {
             var $objReg = $this->buildExpr($expr->object)
+            var $strReg = $this->nextReg()
+            $this->currentBlock->addInstruction(new WIRInstruction("const_string", $strReg, "\"" .. $expr->property .. "\"", "", "ptr"))
             var $res = $this->nextReg()
-            $this->currentBlock->addInstruction(new WIRInstruction("get_property", $res, $objReg, "\"" .. $expr->property .. "\"", "ptr"))
+            $this->currentBlock->addInstruction(new WIRInstruction("get_property", $res, $objReg, $strReg, "ptr"))
             return $res
         }
         if ($expr->type == "NewExpr") {
@@ -372,6 +804,118 @@ class WIRBuilder {
             $this->currentBlock->addInstruction(new WIRInstruction("new", $res, $className, $argsList, "ptr"))
             return $res
         }
-        return "nil"
+        if ($expr->type == "ArrayLiteral") {
+            var $res = $this->nextReg()
+            $this->currentBlock->addInstruction(new WIRInstruction("array_create", $res, "", "", "ptr"))
+            var $i = 0
+            while ($i < count($expr->elements)) {
+                var $argVal = $this->buildExpr($expr->elements[$i])
+                $this->currentBlock->addInstruction(new WIRInstruction("array_push", "", $res, $argVal, "ptr"))
+                $i = intval($i) + 1
+            }
+            return $res
+        }
+        if ($expr->type == "MapLiteral") {
+            var $res = $this->nextReg()
+            $this->currentBlock->addInstruction(new WIRInstruction("map_create", $res, "", "", "ptr"))
+            var $i = 0
+            while ($i < count($expr->keys)) {
+                var $keyVal = $this->buildExpr($expr->keys[$i])
+                var $valVal = $this->buildExpr($expr->values[$i])
+                $this->currentBlock->addInstruction(new WIRInstruction("map_set", "", $res, "ptr " .. $keyVal .. ", ptr " .. $valVal, "ptr"))
+                $i = intval($i) + 1
+            }
+            return $res
+        }
+        if ($expr->type == "IndexExpr") {
+            var $objReg = $this->buildExpr($expr->object)
+            var $idxReg = $this->buildExpr($expr->index)
+            var $res = $this->nextReg()
+            $this->currentBlock->addInstruction(new WIRInstruction("index", $res, $objReg, $idxReg, "ptr"))
+            return $res
+        }
+        if ($expr->type == "UnaryExpr") {
+            var $operandReg = $this->buildExpr($expr->operand)
+            if ($expr->op == "!") {
+                var $boolVal = $this->nextReg()
+                $this->currentBlock->addInstruction(new WIRInstruction("boolval", $boolVal, $operandReg, "", "i1"))
+                var $notVal = $this->nextReg()
+                $this->currentBlock->addInstruction(new WIRInstruction("unary", $notVal, $boolVal, "", "not"))
+                var $extVal = $this->nextReg()
+                $this->currentBlock->addInstruction(new WIRInstruction("zext_i1_i32", $extVal, $notVal, "", "i32"))
+                var $res = $this->nextReg()
+                $this->currentBlock->addInstruction(new WIRInstruction("box_bool_i32", $res, $extVal, "", "ptr"))
+                return $res
+            } else if ($expr->op == "-") {
+                var $intVal = $this->nextReg()
+                $this->currentBlock->addInstruction(new WIRInstruction("intval", $intVal, $operandReg, "", "i64"))
+                var $negVal = $this->nextReg()
+                $this->currentBlock->addInstruction(new WIRInstruction("unary", $negVal, $intVal, "", "neg"))
+                var $res = $this->nextReg()
+                $this->currentBlock->addInstruction(new WIRInstruction("box_int", $res, $negVal, "", "ptr"))
+                return $res
+            }
+            return $operandReg
+        }
+        if ($expr->type == "PostfixExpr") {
+            var $operandReg = $this->buildExpr($expr->operand)
+            var $intVal = $this->nextReg()
+            $this->currentBlock->addInstruction(new WIRInstruction("intval", $intVal, $operandReg, "", "i64"))
+            var $postVal = $this->nextReg()
+            var $op = ""
+            if ($expr->op == "++") { $op = "inc" }
+            else if ($expr->op == "--") { $op = "dec" }
+            $this->currentBlock->addInstruction(new WIRInstruction("postfix", $postVal, $intVal, "", $op))
+            var $res = $this->nextReg()
+            $this->currentBlock->addInstruction(new WIRInstruction("box_int", $res, $postVal, "", "ptr"))
+            // Ideally we should also store this back to the variable, but postfix syntax implementation is currently limited.
+            return $res
+        }
+        if ($expr->type == "StringConcat") {
+            var $leftStr = $this->buildExpr($expr->left)
+            var $rightStr = $this->buildExpr($expr->right)
+            var $res = $this->nextReg()
+            $this->currentBlock->addInstruction(new WIRInstruction("concat", $res, $leftStr, $rightStr, "ptr"))
+            return $res
+        }
+        if ($expr->type == "InterpolatedString") {
+            if (count($expr->parts) == 0) {
+                var $res = $this->nextReg()
+                $this->currentBlock->addInstruction(new WIRInstruction("const_string", $res, "\"\"", "", "ptr"))
+                return $res
+            }
+            var $res = $this->buildExpr($expr->parts[0])
+            var $i = 1
+            while ($i < count($expr->parts)) {
+                var $partVal = $this->buildExpr($expr->parts[$i])
+                var $newRes = $this->nextReg()
+                $this->currentBlock->addInstruction(new WIRInstruction("concat", $newRes, $res, $partVal, "ptr"))
+                $res = $newRes
+                $i = intval($i) + 1
+            }
+            return $res
+        }
+        if ($expr->type == "FloatLiteral") {
+            var $floatRaw = $this->nextReg()
+            var $res = $this->nextReg()
+            $this->currentBlock->addInstruction(new WIRInstruction("const_float", $floatRaw, $expr->value, "", "double"))
+            $this->currentBlock->addInstruction(new WIRInstruction("box_float", $res, $floatRaw, "", "ptr"))
+            return $res
+        }
+        if ($expr->type == "BoolLiteral") {
+            var $boolRaw = $this->nextReg()
+            var $res = $this->nextReg()
+            var $val = "0"
+            if ($expr->value) { $val = "1" }
+            $this->currentBlock->addInstruction(new WIRInstruction("const_bool", $boolRaw, $val, "", "i1"))
+            $this->currentBlock->addInstruction(new WIRInstruction("box_bool", $res, $boolRaw, "", "ptr"))
+            return $res
+        }
+        if ($expr->type == "NilLiteral") {
+            // Return LLVM null pointer for nil literal
+            return "null"
+        }
+        // Default: return null for unhandled expressions
+        return "null"
     }
 }

@@ -84,3 +84,16 @@ func test_typechecker_n1_eager_bypass() {
     print("PASS: test_typechecker_n1_eager_bypass")
     return nil
 }
+
+// ─── Test Runner (top-level invocations) ─────────────────────────────────────
+test_typechecker_strict_mismatch()
+test_typechecker_n1_loop()
+test_typechecker_n1_eager_bypass()
+print("ALL TYPECHECKER TESTS PASSED ✓")
+
+
+// WOLF TEST RUNNER
+test_typechecker_strict_mismatch()
+test_typechecker_n1_loop()
+test_typechecker_n1_eager_bypass()
+print("ALL TESTS PASSED IN typechecker_test.wolf")

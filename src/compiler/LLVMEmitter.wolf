@@ -50,10 +50,49 @@ class LLVMEmitter {
         $out = $out .. "\n; --- External Runtime Functions ---\n"
         $out = $out .. "declare void @wolf_print_str(ptr)\n"
         $out = $out .. "declare void @wolf_println()\n"
-        $out = $out .. "declare ptr @int_to_string(i64)\n"
-        $out = $out .. "declare i64 @string_to_int(ptr)\n"
-        $out = $out .. "declare ptr @concat_strings(ptr, ptr)\n"
+        $out = $out .. "declare ptr @wolf_int_to_string(i64)\n"
+        $out = $out .. "declare i64 @wolf_string_to_int(ptr)\n"
+        $out = $out .. "declare ptr @wolf_string_concat(ptr, ptr)\n"
         $out = $out .. "declare i1 @streq(ptr, ptr)\n"
+        $out = $out .. "declare i64 @wolf_equals(ptr, ptr)\n"
+        $out = $out .. "declare ptr @wolf_array_create()\n"
+        $out = $out .. "declare void @wolf_array_push(ptr, ptr)\n"
+        $out = $out .. "declare i64 @wolf_array_length(ptr)\n"
+        $out = $out .. "declare ptr @wolf_array_get(ptr, i64)\n"
+        $out = $out .. "declare ptr @wolf_map_create()\n"
+        $out = $out .. "declare void @wolf_map_set(ptr, ptr, ptr)\n"
+        $out = $out .. "declare ptr @wolf_map_get(ptr, ptr)\n"
+        $out = $out .. "declare ptr @wolf_class_create(ptr)\n"
+        $out = $out .. "declare ptr @wolf_val_int(i64)\n"
+        $out = $out .. "declare ptr @wolf_val_float(double)\n"
+        $out = $out .. "declare ptr @wolf_val_bool(i32)\n"
+        $out = $out .. "declare i64 @wolf_val_to_i64(ptr)\n"
+        $out = $out .. "declare i1 @wolf_val_truthy(ptr)\n"
+        $out = $out .. "declare ptr @wolf_error(ptr)\n"
+        $out = $out .. "declare ptr @wolf_strtoupper(ptr)\n"
+        $out = $out .. "declare ptr @wolf_strtolower(ptr)\n"
+        $out = $out .. "declare ptr @wolf_strlen(ptr)\n"
+        $out = $out .. "declare ptr @wolf_trim(ptr)\n"
+        $out = $out .. "declare ptr @wolf_substr(ptr, ptr, ptr)\n"
+        $out = $out .. "declare ptr @wolf_explode(ptr, ptr)\n"
+        $out = $out .. "declare ptr @wolf_implode(ptr, ptr)\n"
+        $out = $out .. "declare ptr @wolf_system_exec_ptr(ptr)\n"
+        $out = $out .. "declare ptr @wolf_system_exit_ptr(ptr)\n"
+        $out = $out .. "declare ptr @wolf_path_join(ptr, ptr)\n"
+        $out = $out .. "declare ptr @wolf_file_write_ptr(ptr, ptr)\n"
+        $out = $out .. "declare ptr @wolf_file_delete_ptr(ptr)\n"
+        $out = $out .. "declare ptr @wolf_file_read(ptr)\n"
+        $out = $out .. "declare ptr @wolf_file_basename(ptr)\n"
+        $out = $out .. "declare ptr @wolf_dir_exists_ptr(ptr)\n"
+        $out = $out .. "declare ptr @wolf_file_exists_ptr(ptr)\n"
+        $out = $out .. "declare i1 @wolf_dir_exists(ptr)\n"
+        $out = $out .. "declare ptr @wolf_file_list_dir(ptr)\n"
+        $out = $out .. "declare ptr @wolf_str_starts_with(ptr, ptr)\n"
+        $out = $out .. "declare ptr @wolf_str_contains(ptr, ptr)\n"
+        $out = $out .. "declare ptr @wolf_str_ends_with(ptr, ptr)\n"
+        $out = $out .. "declare ptr @wolf_str_replace(ptr, ptr, ptr)\n"
+        $out = $out .. "declare ptr @wolf_str_split(ptr, ptr)\n"
+        $out = $out .. "\n"
 
         return $out
     }
@@ -96,7 +135,7 @@ class LLVMEmitter {
             return $inst->dest .. " = alloca " .. $inst->type
         }
         if ($inst->opcode == "store") {
-            return "store " .. $inst->type .. " " .. $inst->op1 .. ", ptr " .. $inst->op2
+            return "store ptr " .. $inst->op1 .. ", ptr " .. $inst->op2
         }
         if ($inst->opcode == "load") {
             return $inst->dest .. " = load " .. $inst->type .. ", ptr " .. $inst->op1
@@ -104,17 +143,25 @@ class LLVMEmitter {
         if ($inst->opcode == "add") {
             return $inst->dest .. " = add " .. $inst->type .. " " .. $inst->op1 .. ", " .. $inst->op2
         }
+        if ($inst->opcode == "concat") {
+            return $inst->dest .. " = call ptr @wolf_string_concat(ptr " .. $inst->op1 .. ", ptr " .. $inst->op2 .. ")"
+        }
         if ($inst->opcode == "sub") {
             return $inst->dest .. " = sub " .. $inst->type .. " " .. $inst->op1 .. ", " .. $inst->op2
         }
         if ($inst->opcode == "mul") {
             return $inst->dest .. " = mul " .. $inst->type .. " " .. $inst->op1 .. ", " .. $inst->op2
         }
-        if ($inst->opcode == "div") {
+        if ($inst->opcode == "div" || $inst->opcode == "sdiv") {
             return $inst->dest .. " = sdiv " .. $inst->type .. " " .. $inst->op1 .. ", " .. $inst->op2
         }
+        if ($inst->opcode == "srem") {
+            return $inst->dest .. " = srem " .. $inst->type .. " " .. $inst->op1 .. ", " .. $inst->op2
+        }
         if ($inst->opcode == "ret") {
-            return "ret " .. $inst->type .. " " .. $inst->op1
+            var $retVal = $inst->op1
+            if ($retVal == "nil") { $retVal = "null" }
+            return "ret " .. $inst->type .. " " .. $retVal
         }
         if ($inst->opcode == "br") {
             return "br label %" .. $inst->op1
@@ -149,18 +196,49 @@ class LLVMEmitter {
             return $inst->dest .. " = bitcast ptr " .. $label .. " to ptr"
         }
         if ($inst->opcode == "call") {
+            var $funcName = $inst->op1
+            if ($funcName == "int_to_string") { $funcName = "wolf_int_to_string" }
+            if ($funcName == "string_to_int") { $funcName = "wolf_string_to_int" }
+            
             if ($inst->dest != "") {
-                return $inst->dest .. " = call " .. $inst->type .. " @" .. $inst->op1 .. "(" .. $inst->op2 .. ")"
+                return $inst->dest .. " = call " .. $inst->type .. " @" .. $funcName .. "(" .. $inst->op2 .. ")"
             } else {
-                return "call " .. $inst->type .. " @" .. $inst->op1 .. "(" .. $inst->op2 .. ")"
+                return "call " .. $inst->type .. " @" .. $funcName .. "(" .. $inst->op2 .. ")"
             }
         }
         if ($inst->opcode == "call_method") {
-            // e.g. dest = call ptr @wolf_method_call(...)
-            if ($inst->dest != "") {
-                return $inst->dest .. " = call " .. $inst->type .. " @wolf_method_call(" .. $inst->op2 .. ")"
+            var $methodName = $inst->op1
+            var $argsList = $inst->op2
+            
+            var $candidates = 0
+            var $targetName = ""
+            var $i = 0
+            while ($i < count($this->module->functions)) {
+                var $fName = $this->module->functions[$i]->name
+                var $suffix = "_" .. $methodName
+                var $fLen = Strings::Length($fName)
+                var $sLen = Strings::Length($suffix)
+                if ($fLen >= $sLen) {
+                    var $sub = Strings::Substring($fName, $fLen - $sLen, $fLen)
+                    // print("DEBUG MATCH: fName=" .. $fName .. " suffix=" .. $suffix .. " sub=" .. $sub)
+                    if ($sub == $suffix) {
+                        $candidates = intval($candidates) + 1
+                        $targetName = $fName
+                    }
+                }
+                $i = intval($i) + 1
             }
-            return "call " .. $inst->type .. " @wolf_method_call(" .. $inst->op2 .. ")"
+            
+            if ($candidates == 1) {
+                if ($inst->dest != "") {
+                    return $inst->dest .. " = call ptr @" .. $targetName .. "(" .. $argsList .. ")"
+                }
+                return "call ptr @" .. $targetName .. "(" .. $argsList .. ")"
+            } else {
+                print("WOLF COMPILER ERROR: Could not statically resolve method " .. $methodName)
+                wolf_system_exit(1)
+                return ""
+            }
         }
         if ($inst->opcode == "getelementptr") {
             return $inst->dest .. " = getelementptr " .. $inst->type .. ", " .. $inst->op1 .. ", " .. $inst->op2
@@ -181,11 +259,84 @@ class LLVMEmitter {
             }
             return "call ptr @" .. $className .. "_new(" .. $inst->op2 .. ")"
         }
+        if ($inst->opcode == "class_create") {
+            var $className = $inst->op2
+            return $inst->dest .. " = call ptr @wolf_class_create(ptr null)"
+        }
         if ($inst->opcode == "get_property") {
             if ($inst->dest != "") {
-                return $inst->dest .. " = call ptr @wolf_map_get(" .. $inst->op1 .. ", ptr " .. $inst->op2 .. ")"
+                return $inst->dest .. " = call ptr @wolf_map_get(ptr " .. $inst->op1 .. ", ptr " .. $inst->op2 .. ")"
             }
-            return "call ptr @wolf_map_get(" .. $inst->op1 .. ", ptr " .. $inst->op2 .. ")"
+            return "call ptr @wolf_map_get(ptr " .. $inst->op1 .. ", ptr " .. $inst->op2 .. ")"
+        }
+        if ($inst->opcode == "set_property") {
+            return "call void @wolf_map_set(ptr " .. $inst->op1 .. ", ptr " .. $inst->op2 .. ")"
+        }
+        if ($inst->opcode == "array_create") {
+            return $inst->dest .. " = call ptr @wolf_array_create()"
+        }
+        if ($inst->opcode == "array_push") {
+            return "call void @wolf_array_push(ptr " .. $inst->op1 .. ", ptr " .. $inst->op2 .. ")"
+        }
+        if ($inst->opcode == "map_create") {
+            return $inst->dest .. " = call ptr @wolf_map_create()"
+        }
+        if ($inst->opcode == "map_set") {
+            return "call void @wolf_map_set(ptr " .. $inst->op1 .. ", " .. $inst->op2 .. ")"
+        }
+        if ($inst->opcode == "index") {
+            return $inst->dest .. " = call ptr @wolf_map_get(ptr " .. $inst->op1 .. ", ptr " .. $inst->op2 .. ")"
+        }
+        if ($inst->opcode == "concat" || $inst->opcode == "interpolate") {
+            return $inst->dest .. " = call ptr @concat_strings(ptr " .. $inst->op1 .. ", ptr " .. $inst->op2 .. ")"
+        }
+        if ($inst->opcode == "unary") {
+            if ($inst->type == "neg") {
+                return $inst->dest .. " = sub i64 0, " .. $inst->op1
+            } else if ($inst->type == "not") {
+                return $inst->dest .. " = xor i1 " .. $inst->op1 .. ", 1"
+            }
+        }
+        if ($inst->opcode == "postfix") {
+            if ($inst->type == "inc") {
+                return $inst->dest .. " = add i64 " .. $inst->op1 .. ", 1"
+            } else if ($inst->type == "dec") {
+                return $inst->dest .. " = sub i64 " .. $inst->op1 .. ", 1"
+            }
+        }
+        if ($inst->opcode == "const_float") {
+            return $inst->dest .. " = fadd double 0.0, " .. $inst->op1
+        }
+        if ($inst->opcode == "const_bool") {
+            return $inst->dest .. " = add i1 0, " .. $inst->op1
+        }
+        if ($inst->opcode == "box_float") {
+            return $inst->dest .. " = call ptr @wolf_val_float(double " .. $inst->op1 .. ")"
+        }
+        if ($inst->opcode == "box_int") {
+            return $inst->dest .. " = call ptr @wolf_val_int(i64 " .. $inst->op1 .. ")"
+        }
+        if ($inst->opcode == "box_bool") {
+            // Legacy: direct i1 → bool box. Use zext_i1_i32 + box_bool_i32 pipeline instead.
+            return $inst->dest .. " = call ptr @wolf_val_bool(i32 0)  ; WARN: fallback box_bool"
+        }
+        if ($inst->opcode == "zext_i1_i32") {
+            return $inst->dest .. " = zext i1 " .. $inst->op1 .. " to i32"
+        }
+        if ($inst->opcode == "trunc_i64_i32") {
+            return $inst->dest .. " = trunc i64 " .. $inst->op1 .. " to i32"
+        }
+        if ($inst->opcode == "box_bool_i32") {
+            return $inst->dest .. " = call ptr @wolf_val_bool(i32 " .. $inst->op1 .. ")"
+        }
+        if ($inst->opcode == "intval") {
+            return $inst->dest .. " = call i64 @wolf_val_to_i64(ptr " .. $inst->op1 .. ")"
+        }
+        if ($inst->opcode == "boolval") {
+            return $inst->dest .. " = call i1 @wolf_val_truthy(ptr " .. $inst->op1 .. ")"
+        }
+        if ($inst->opcode == "streq_match") {
+            return $inst->dest .. " = call i1 @streq(ptr " .. $inst->op1 .. ", ptr " .. $inst->op2 .. ")"
         }
         return "; unknown instruction: " .. $inst->opcode
     }

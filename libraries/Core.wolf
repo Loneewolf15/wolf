@@ -15,7 +15,7 @@ class Core {
 
     func getUrl() {
         $path = wolf_get_request_path()
-        if $path == "/" {
+        if ($path == "/") {
             return []
         }
         $parts = explode("/", trim($path, "/"))
@@ -35,17 +35,17 @@ func __dispatch_route($req_id, $res_id) {
     $core = new Core()
     $url = $core->getUrl()
 
-    if count($url) > 0 {
+    if (count($url) > 0) {
         $cName = ucfirst($url[0])
         $core->currentController = $cName
     }
 
-    if count($url) > 1 {
+    if (count($url) > 1) {
         $core->currentMethod = $url[1]
     }
 
     # Extract params if they exist
-    if count($url) > 2 {
+    if (count($url) > 2) {
         $core->params = array_slice($url, 2, count($url) - 2)
     }
 
@@ -55,7 +55,7 @@ func __dispatch_route($req_id, $res_id) {
     $p = $core->params
     $handled = __compiler_dispatch_controller($c, $m, $p, $req_id, $res_id)
 
-    if !$handled {
+    if (!$handled) {
         http_response_code(404)
         print(json_encode({"error": "Controller or Method not found: /{$c}/{$m}"}))
     }

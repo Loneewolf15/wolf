@@ -16,7 +16,7 @@ class WIRInstruction {
         $this->type = $type
     }
 
-    public func to_string() {
+    public func to_string_inst() {
         if ($this->dest != "") {
             if ($this->op2 != "") {
                 return $this->dest .. " = " .. $this->opcode .. " " .. $this->type .. " " .. $this->op1 .. ", " .. $this->op2
@@ -43,15 +43,23 @@ class WIRBlock {
     }
 
     public func addInstruction($inst) {
+        // Do not add instructions if the block is already terminated
+        var $len = count($this->instructions)
+        if ($len > 0) {
+            var $last = $this->instructions[intval($len) - 1]
+            if ($last->opcode == "ret" || $last->opcode == "br" || $last->opcode == "cond_br") {
+                return nil
+            }
+        }
         Arrays::array_push($this->instructions, $inst)
     }
 
-    public func to_string() {
+    public func to_string_block() {
         var $out = $this->label .. ":\n"
         var $i = 0
         while ($i < count($this->instructions)) {
             var $inst = $this->instructions[$i]
-            $out = $out .. "  " .. $inst->to_string() .. "\n"
+            $out = $out .. "  " .. $inst->to_string_inst() .. "\n"
             $i = intval($i) + 1
         }
         return $out
@@ -75,7 +83,7 @@ class WIRFunction {
         Arrays::array_push($this->blocks, $block)
     }
 
-    public func to_string() {
+    public func to_string_func() {
         var $out = "func " .. $this->name .. "("
         var $i = 0
         while ($i < count($this->params)) {
@@ -90,7 +98,7 @@ class WIRFunction {
         $i = 0
         while ($i < count($this->blocks)) {
             var $block = $this->blocks[$i]
-            $out = $out .. $block->to_string()
+            $out = $out .. $block->to_string_block()
             $i = intval($i) + 1
         }
         $out = $out .. "}\n"
@@ -111,12 +119,12 @@ class WIRModule {
         Arrays::array_push($this->functions, $fn)
     }
 
-    public func to_string() {
+    public func to_string_module() {
         var $out = "; Module: " .. $this->name .. "\n"
         var $i = 0
         while ($i < count($this->functions)) {
             var $fn = $this->functions[$i]
-            $out = $out .. $fn->to_string() .. "\n"
+            $out = $out .. $fn->to_string_func() .. "\n"
             $i = intval($i) + 1
         }
         return $out

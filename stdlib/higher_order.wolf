@@ -5,7 +5,7 @@
 //   $result = pipeline(" hello ", trim, upper, slug)
 func pipeline($value, $funcs) {
     $result = $value
-    foreach $funcs as $fn {
+    foreach ($funcs as $fn) {
         $result = $fn($result)
     }
     return $result
@@ -15,13 +15,13 @@ func pipeline($value, $funcs) {
 // Note: Currently assumes wolf_retry_sleep() exists or we can just use sleep().
 func retry($maxAttempts, $fn) {
     $attempt = 0
-    while $attempt < $maxAttempts {
+    while ($attempt < $maxAttempts) {
         try {
             $result = $fn()
             return $result
         } catch ($e) {
             $attempt++
-            if $attempt >= $maxAttempts {
+            if ($attempt >= $maxAttempts) {
                 return nil // Or we could re-throw if Wolf had 'throw'
             }
             // Sleep for exponential backoff (e.g. 1 second)

@@ -33,7 +33,7 @@ class Controller {
     # Get Authorization header from current request
     func getAuthorizationHeader() {
         $headers = wolf_get_request_header("Authorization")
-        if $headers != "" {
+        if ($headers != "") {
             return trim($headers)
         }
         return ""
@@ -43,9 +43,9 @@ class Controller {
     func bearer() {
         $this->auth_header = $this->getAuthorizationHeader()
 
-        if $this->auth_header != "" {
+        if ($this->auth_header != "") {
             $parts = explode(" ", $this->auth_header)
-            if count($parts) > 1 {
+            if (count($parts) > 1) {
                 return $parts[1]
             }
         }
@@ -55,7 +55,7 @@ class Controller {
     # Decode JWT token
     func myJsonID($bearer, $serverKey) {
         $decoded = jwt_decode($bearer, $serverKey)
-        if $decoded == false {
+        if ($decoded == false) {
             return false
         }
         return $decoded
@@ -65,7 +65,7 @@ class Controller {
     func RouteProtection() {
         $headers = $this->getAuthorizationHeader()
 
-        if $headers == "" {
+        if ($headers == "") {
             $this->sendResponse(false, "Authorization header missing", {}, 401)
             return false
         }
@@ -75,7 +75,7 @@ class Controller {
         # Decode JWT token
         $decoded = $this->myJsonID($jwt, $this->serverKey)
 
-        if !$decoded {
+        if (!$decoded) {
             $this->sendResponse(false, "Invalid token format", {}, 401)
             return false
         }
@@ -87,13 +87,13 @@ class Controller {
         $user = $userModel->findUserById($user_id)
 
         # Check if user exists
-        if !$user {
+        if (!$user) {
             $this->sendResponse(false, "User not found", {}, 401)
             return false
         }
 
         # Validate token against database
-        if $user->access_token != $jwt {
+        if ($user->access_token != $jwt) {
             $this->sendResponse(false, "Invalid or expired token", {}, 401)
             return false
         }
@@ -102,18 +102,18 @@ class Controller {
     }
 
     # Get user by JWT token
-    func getuserbyid() {
+    func getCurrentUser() {
         $bearer = $this->bearer()
 
-        if $bearer != "" {
+        if ($bearer != "") {
             $userId = $this->myJsonID($bearer, $this->serverKey)
-            if !$userId {
+            if (!$userId) {
                 $this->sendResponse(false, "Oops Something Went Wrong!", {}, 401)
                 return false
             }
             $user = $this->userModel->getuserbyid($userId["user_id"])
 
-            if !$user {
+            if (!$user) {
                 $this->sendResponse(false, "No user with this userID!", {}, 404)
                 return false
             }

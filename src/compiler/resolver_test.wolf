@@ -18,7 +18,7 @@ func test_resolver_var_decl() {
     $r->Resolve($ast)
 
     var $table = $r->_symbolTable
-    var $sym = $table->lookupVar("x")
+    var $sym = $r->lookupVar("x")
     if ($sym == nil) {
         throw("test_resolver_var_decl: expected 'x' in symbol table, got nil")
     }
@@ -50,7 +50,7 @@ func test_resolver_func_hoist() {
     $r->Resolve($ast)
 
     var $table = $r->_symbolTable
-    var $sym = $table->lookupFunc("greet")
+    var $sym = $r->lookupFunc("greet")
     if ($sym == nil) {
         throw("test_resolver_func_hoist: 'greet' not in function table")
     }
@@ -142,7 +142,7 @@ func test_resolver_class_decl() {
     $r->Resolve($ast)
 
     var $table = $r->_symbolTable
-    var $cls = $table->lookupClass("Dog")
+    var $cls = $r->lookupClass("Dog")
     if ($cls == nil) {
         throw("test_resolver_class_decl: expected 'Dog' in class table")
     }
@@ -312,7 +312,7 @@ func test_resolver_func_param_count() {
     $r->Resolve($ast)
 
     var $table = $r->_symbolTable
-    var $sym = $table->lookupFunc("multiply")
+    var $sym = $r->lookupFunc("multiply")
     if ($sym == nil) {
         throw("test_resolver_func_param_count: 'multiply' not found")
     }
@@ -358,13 +358,13 @@ func test_resolver_lookup_miss() {
     $r->Resolve($ast)
     var $table = $r->_symbolTable
 
-    if ($table->lookupVar("nonexistent") != nil) {
+    if ($r->lookupVar("nonexistent") != nil) {
         throw("test_resolver_lookup_miss: expected nil for unknown var")
     }
-    if ($table->lookupFunc("nonexistent") != nil) {
+    if ($r->lookupFunc("nonexistent") != nil) {
         throw("test_resolver_lookup_miss: expected nil for unknown func")
     }
-    if ($table->lookupClass("nonexistent") != nil) {
+    if ($r->lookupClass("nonexistent") != nil) {
         throw("test_resolver_lookup_miss: expected nil for unknown class")
     }
     print("PASS: test_resolver_lookup_miss")
@@ -450,3 +450,42 @@ func test_resolver_match_scoping() {
     }
     print("PASS: test_resolver_match_scoping")
 }
+
+// ─── Test Runner (top-level invocations) ─────────────────────────────────────
+test_resolver_var_decl()
+test_resolver_func_hoist()
+test_resolver_func_params()
+test_resolver_undefined_var()
+test_resolver_class_decl()
+test_resolver_new_known_class()
+test_resolver_new_unknown_class()
+test_resolver_if_scoping()
+test_resolver_for_scoping()
+test_resolver_method_call()
+test_resolver_func_param_count()
+test_resolver_string_concat()
+test_resolver_lookup_miss()
+test_resolver_foreach_scoping()
+test_resolver_closure_scoping()
+test_resolver_match_scoping()
+print("ALL RESOLVER TESTS PASSED ✓")
+
+
+// WOLF TEST RUNNER
+test_resolver_var_decl()
+test_resolver_func_hoist()
+test_resolver_func_params()
+test_resolver_undefined_var()
+test_resolver_class_decl()
+test_resolver_new_known_class()
+test_resolver_new_unknown_class()
+test_resolver_if_scoping()
+test_resolver_for_scoping()
+test_resolver_method_call()
+test_resolver_func_param_count()
+test_resolver_string_concat()
+test_resolver_lookup_miss()
+test_resolver_foreach_scoping()
+test_resolver_closure_scoping()
+test_resolver_match_scoping()
+print("ALL TESTS PASSED IN resolver_test.wolf")
