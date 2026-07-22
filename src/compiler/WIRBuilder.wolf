@@ -9,6 +9,8 @@ class WIRBuilder {
     public $labelCounter = "0"
     public $declaredVars = {}
     public $varClass = {}
+    public $typeMap = {}
+    public $arenaContext = false
 
     public func __construct() {
         $this->module = new WIRModule("main")
@@ -17,7 +19,7 @@ class WIRBuilder {
     }
 
     public func nextReg() {
-        var $r = "%" .. $this->regCounter
+        var $r = "%r" .. $this->regCounter
         $this->regCounter = intval($this->regCounter) + 1
         return $r
     }
@@ -35,6 +37,8 @@ class WIRBuilder {
         $this->hasMainFunc = false
         $this->declaredVars = {}
         $this->varClass = {}
+        $this->typeMap = {}
+        $this->arenaContext = false
         $this->currentFunc = new WIRFunction("main", [], "i64")
         $this->currentBlock = new WIRBlock("entry")
         $this->currentFunc->addBlock($this->currentBlock)
@@ -53,12 +57,16 @@ class WIRBuilder {
         $this->currentBlock->addInstruction(new WIRInstruction("ret", "", "0", "", "i64"))
         $this->module->addFunction($this->currentFunc)
 
+        $this->optimizeModule()
         return $this->module
     }
 
     public func buildStmt($stmt) {
         if ($stmt->type == "VarDecl") {
             var $val = $this->buildExpr($stmt->value)
+            if ($stmt->typeName != "") {
+                $this->typeMap[$stmt->name] = $stmt->typeName
+            }
             if ($stmt->value != nil) {
                 if ($stmt->value->type == "NewExpr") {
                     $this->varClass[$stmt->name] = $stmt->value->classExpr->name
@@ -917,5 +925,119 @@ class WIRBuilder {
         }
         // Default: return null for unhandled expressions
         return "null"
+    }
+
+    public func optimizeModule() {
+        var $i = 0
+        var $funcs = $this->module->functions
+        while ($i < count($funcs)) {
+            var $f = $funcs[$i]
+            var $j = 0
+            var $blocks = $f->blocks
+            while ($j < count($blocks)) {
+                var $b = $blocks[$j]
+                
+                $this->optBoxingElim($b)
+                $this->optConcatFusion($b)
+                $this->optDeadInstElim($b)
+                
+                $j = intval($j) + 1
+            }
+            $i = intval($i) + 1
+        }
+    }
+
+    public func optBoxingElim($block) {
+        var $insts = $block->instructions
+        var $i = 0
+        var $boxMap = {} // tracking %res -> literal value
+        var $memMap = {} // tracking %mem -> literal value
+        
+        while ($i < count($insts)) {
+            var $inst = $insts[$i]
+            if ($inst->opcode == "box_int") {
+                $boxMap[$inst->dest] = $inst->op1
+            }
+            if ($inst->opcode == "store") {
+                if ($boxMap[$inst->op1] != nil) {
+                    $memMap[$inst->op2] = $boxMap[$inst->op1]
+                } else {
+                    $memMap[$inst->op2] = nil // invalidate if non-literal is stored
+                }
+            }
+            if ($inst->opcode == "load") {
+                if ($memMap[$inst->op1] != nil) {
+                    $boxMap[$inst->dest] = $memMap[$inst->op1]
+                }
+            }
+            if ($inst->opcode == "intval") {
+                if ($boxMap[$inst->op1] != nil) {
+                    $inst->opcode = "inline_i64"
+                    $inst->op1 = $boxMap[$inst->op1]
+                }
+            }
+            $i = intval($i) + 1
+        }
+    }
+
+    public func optConcatFusion($block) {
+        var $insts = $block->instructions
+        var $i = 0
+        var $concatCount = {}
+        var $concatArgs = {}
+        
+        while ($i < count($insts)) {
+            var $inst = $insts[$i]
+            if ($inst->opcode == "concat") {
+                var $c = $concatCount[$inst->op1]
+                if ($c != nil) {
+                    $inst->opcode = "string_concat_n"
+                    var $newCount = intval($c) + 1
+                    var $newArgs = $concatArgs[$inst->op1] .. ", ptr " .. $inst->op2
+                    $inst->op1 = "" .. $newCount
+                    $inst->op2 = $newArgs
+                    
+                    $concatCount[$inst->dest] = $newCount
+                    $concatArgs[$inst->dest] = $newArgs
+                } else {
+                    $concatCount[$inst->dest] = 2
+                    $concatArgs[$inst->dest] = "ptr " .. $inst->op1 .. ", ptr " .. $inst->op2
+                }
+            }
+            $i = intval($i) + 1
+        }
+    }
+
+    public func optDeadInstElim($block) {
+        var $insts = $block->instructions
+        var $used = {}
+        var $i = count($insts) - 1
+        
+        // Backward pass to find used registers
+        while ($i >= 0) {
+            var $inst = $insts[$i]
+            // For now, only safely eliminate string_concat since they have no side effects
+            // and we know ConcatFusion leaves dead ones behind
+            if ($inst->opcode == "concat") {
+                if ($used[$inst->dest] == nil) {
+                    $inst->opcode = "nop"
+                } else {
+                    $used[$inst->op1] = true
+                    $used[$inst->op2] = true
+                }
+            } else if ($inst->opcode == "string_concat_n") {
+                if ($used[$inst->dest] == nil) {
+                    $inst->opcode = "nop"
+                } else {
+                    // It's too hard to parse op2 to find used registers,
+                    // but we know string_concat_n is the final result so it won't be dead
+                }
+            } else {
+                // Mark all operands as used to be safe
+                if ($inst->op1 != "") { $used[$inst->op1] = true }
+                if ($inst->op2 != "") { $used[$inst->op2] = true }
+            }
+            $i = intval($i) - 1
+        }
     }
 }

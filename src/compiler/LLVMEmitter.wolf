@@ -53,6 +53,7 @@ class LLVMEmitter {
         $out = $out .. "declare ptr @wolf_int_to_string(i64)\n"
         $out = $out .. "declare i64 @wolf_string_to_int(ptr)\n"
         $out = $out .. "declare ptr @wolf_string_concat(ptr, ptr)\n"
+        $out = $out .. "declare ptr @wolf_string_concat_n(i32, ...)\n"
         $out = $out .. "declare i1 @streq(ptr, ptr)\n"
         $out = $out .. "declare i64 @wolf_equals(ptr, ptr)\n"
         $out = $out .. "declare ptr @wolf_array_create()\n"
@@ -143,8 +144,12 @@ class LLVMEmitter {
         if ($inst->opcode == "add") {
             return $inst->dest .. " = add " .. $inst->type .. " " .. $inst->op1 .. ", " .. $inst->op2
         }
-        if ($inst->opcode == "concat") {
+        if ($inst->opcode == "string_concat") {
             return $inst->dest .. " = call ptr @wolf_string_concat(ptr " .. $inst->op1 .. ", ptr " .. $inst->op2 .. ")"
+        }
+        if ($inst->opcode == "string_concat_n") {
+            // op1 is the count, op2 is a comma-separated list of pointers like "ptr %1, ptr %2"
+            return $inst->dest .. " = call ptr (i32, ...) @wolf_string_concat_n(i32 " .. $inst->op1 .. ", " .. $inst->op2 .. ")"
         }
         if ($inst->opcode == "sub") {
             return $inst->dest .. " = sub " .. $inst->type .. " " .. $inst->op1 .. ", " .. $inst->op2
@@ -290,6 +295,8 @@ class LLVMEmitter {
         if ($inst->opcode == "concat" || $inst->opcode == "interpolate") {
             return $inst->dest .. " = call ptr @concat_strings(ptr " .. $inst->op1 .. ", ptr " .. $inst->op2 .. ")"
         }
+        if ($inst->opcode == "") { return "" }
+        if ($inst->opcode == "nop") { return "" }
         if ($inst->opcode == "unary") {
             if ($inst->type == "neg") {
                 return $inst->dest .. " = sub i64 0, " .. $inst->op1
@@ -331,6 +338,9 @@ class LLVMEmitter {
         }
         if ($inst->opcode == "intval") {
             return $inst->dest .. " = call i64 @wolf_val_to_i64(ptr " .. $inst->op1 .. ")"
+        }
+        if ($inst->opcode == "inline_i64") {
+            return $inst->dest .. " = add i64 0, " .. $inst->op1
         }
         if ($inst->opcode == "boolval") {
             return $inst->dest .. " = call i1 @wolf_val_truthy(ptr " .. $inst->op1 .. ")"
