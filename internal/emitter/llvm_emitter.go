@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/wolflang/wolf/internal/ir"
+	"wolf/internal/ir"
 )
 
 // LLVMEmitter generates LLVM IR text from WIR.
@@ -791,6 +791,7 @@ func (e *LLVMEmitter) Emit(program *ir.Program) string {
 	e.writeln("declare ptr @wolf_file_list_dir(ptr)")
 	e.writeln("declare ptr @wolf_sys_getenv(ptr)")
 	e.writeln("declare ptr @wolf_os_exec(ptr)")
+	e.writeln("declare i64 @wolf_system_exec(ptr)")
 	e.writeln("")
 
 	e.writeln("; --- Phase 3: Utilities ---")
@@ -1635,6 +1636,7 @@ func (e *LLVMEmitter) inferExprType(expr ir.Expr) string {
 				"wolf_math_random", "wolf_rand_hex", "wolf_strings_length", "wolf_array_length",
 				"preg_match_all", "wolf_preg_match_all",
 				"redis_del", "wolf_redis_del", "randomint", "wolf_math_randomint",
+				"system_exec", "wolf_system_exec",
 				// Money arithmetic — all return i64 (cents)
 				"money_add", "wolf_money_add",
 				"money_subtract", "wolf_money_subtract",
@@ -3666,6 +3668,7 @@ func (e *LLVMEmitter) emitCallExpr(call *ir.CallExpr) string {
 			"wolf_string_length", "wolf_array_length", "wolf_argc",
 			"wolf_preg_match_all",
 			"wolf_qb_insert", "wolf_qb_update", "wolf_qb_delete",
+			"wolf_system_exec",
 			// Money arithmetic — return i64 (cents)
 			"wolf_money_add", "wolf_money_subtract",
 			"wolf_money_multiply", "wolf_money_divide", "wolf_money_percentage",
@@ -4416,6 +4419,12 @@ func (e *LLVMEmitter) emitStaticCall(sc *ir.StaticCall) string {
 			calleeName = "wolf_strings_isempty"
 		} else if strings.ToLower(sc.Method) == "charcodeat" {
 			calleeName = "wolf_strings_charcode_at"
+		} else if strings.ToLower(sc.Method) == "starts_with" {
+			calleeName = "wolf_str_starts_with"
+		} else if strings.ToLower(sc.Method) == "ends_with" {
+			calleeName = "wolf_str_ends_with"
+		} else if strings.ToLower(sc.Method) == "contains" {
+			calleeName = "wolf_str_contains"
 		} else {
 			calleeName = strings.ToLower(fmt.Sprintf("wolf_strings_%s", sc.Method))
 		}
