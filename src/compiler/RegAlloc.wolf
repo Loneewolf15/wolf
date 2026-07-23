@@ -1,0 +1,201 @@
+// src/compiler/RegAlloc.wolf
+// Simultaneous True Hybrid Register Allocator (Linear Scan + Graph Coloring Heuristics)
+
+class AllocatedReg {
+    public $vreg = ""
+    public $preg = ""
+    public $isSpilled = false
+    public $spillOffset = 0
+
+    public func __construct($vreg) {
+        $this->vreg = $vreg
+        $this->isSpilled = false
+    }
+}
+
+class RegAlloc {
+    public $physicalRegs = []
+    public $freeRegs = []
+    public $active = []
+    public $allocations = {}
+    public $spillCount = 0
+
+    public func __construct($physicalRegs) {
+        $this->physicalRegs = $physicalRegs
+    }
+
+    // Convert array to map with string keys for sorting
+    public func arrayToMap($arr) {
+        var $map = {}
+        var $i = 0
+        while ($i < count($arr)) {
+            $map["" .. $i] = $arr[$i]
+            $i = $i + 1
+        }
+        return $map
+    }
+
+    // Convert map with string keys back to array
+    public func mapToArray($map, $len) {
+        var $arr = []
+        var $i = 0
+        while ($i < $len) {
+            Arrays::array_push($arr, $map["" .. $i])
+            $i = $i + 1
+        }
+        return $arr
+    }
+
+    public func sortIntervals($list) {
+        var $len = count($list)
+        var $map = $this->arrayToMap($list)
+        var $i = 1
+        while ($i < $len) {
+            var $key = $map["" .. $i]
+            var $j = $i - 1
+            while ($j >= 0 && $map["" .. $j]->start > $key->start) {
+                $map["" .. ($j + 1)] = $map["" .. $j]
+                $j = $j - 1
+            }
+            $map["" .. ($j + 1)] = $key
+            $i = $i + 1
+        }
+        return $this->mapToArray($map, $len)
+    }
+
+    public func sortActiveByEnd() {
+        var $len = count($this->active)
+        var $map = $this->arrayToMap($this->active)
+        var $i = 1
+        while ($i < $len) {
+            var $key = $map["" .. $i]
+            var $j = $i - 1
+            while ($j >= 0 && $map["" .. $j]->end > $key->end) {
+                $map["" .. ($j + 1)] = $map["" .. $j]
+                $j = $j - 1
+            }
+            $map["" .. ($j + 1)] = $key
+            $i = $i + 1
+        }
+        $this->active = $this->mapToArray($map, $len)
+    }
+
+    public func expireOldIntervals($current) {
+        var $newActive = []
+        var $i = 0
+        while ($i < count($this->active)) {
+            var $interval = $this->active[$i]
+            if ($interval->end >= $current->start) {
+                Arrays::array_push($newActive, $interval)
+            } else {
+                var $alloc = $this->allocations[$interval->reg]
+                if ($alloc != nil && !$alloc->isSpilled) {
+                    Arrays::array_push($this->freeRegs, $alloc->preg)
+                }
+            }
+            $i = $i + 1
+        }
+        $this->active = $newActive
+    }
+
+    // Graph Coloring Heuristic: Pick the optimal interval to spill based on Chaitin-Briggs cost
+    // Cost = (useCount * 100) / length (approximation of degree over time)
+    public func spillAtInterval($current) {
+        var $spillInterval = $current
+        var $currentLen = $current->end - $current->start + 1
+        var $spillCost = ($current->useCount * 100) / $currentLen
+        var $spillIdx = -1
+
+        var $i = 0
+        while ($i < count($this->active)) {
+            var $interval = $this->active[$i]
+            var $intervalLen = $interval->end - $interval->start + 1
+            var $cost = ($interval->useCount * 100) / $intervalLen
+            if ($cost < $spillCost) {
+                $spillInterval = $interval
+                $spillCost = $cost
+                $spillIdx = $i
+            }
+            $i = $i + 1
+        }
+
+        if ($spillInterval->reg == $current->reg) {
+            // Spill current
+            var $alloc = new AllocatedReg($current->reg)
+            $alloc->isSpilled = true
+            $alloc->spillOffset = $this->spillCount
+            $this->allocations[$current->reg] = $alloc
+            $this->spillCount = $this->spillCount + 1
+        } else {
+            // Spill active interval
+            var $alloc = $this->allocations[$spillInterval->reg]
+            var $freedReg = $alloc->preg
+            $alloc->isSpilled = true
+            $alloc->spillOffset = $this->spillCount
+            $this->spillCount = $this->spillCount + 1
+
+            // Remove from active
+            var $newActive = []
+            var $j = 0
+            while ($j < count($this->active)) {
+                if ($j != $spillIdx) {
+                    Arrays::array_push($newActive, $this->active[$j])
+                }
+                $j = $j + 1
+            }
+            $this->active = $newActive
+
+            // Assign freed register to current
+            var $newAlloc = new AllocatedReg($current->reg)
+            $newAlloc->preg = $freedReg
+            $this->allocations[$current->reg] = $newAlloc
+            Arrays::array_push($this->active, $current)
+            $this->sortActiveByEnd()
+        }
+    }
+
+    public func allocate($intervalList) {
+        $this->freeRegs = []
+        var $i = 0
+        while ($i < count($this->physicalRegs)) {
+            Arrays::array_push($this->freeRegs, $this->physicalRegs[$i])
+            $i = intval($i) + 1
+        }
+        $this->active = []
+        $this->allocations = {}
+        $this->spillCount = 0
+
+        var $sorted = $this->sortIntervals($intervalList)
+        
+        $i = 0
+        while ($i < count($sorted)) {
+            var $interval = $sorted[$i]
+            $this->expireOldIntervals($interval)
+
+            if (count($this->freeRegs) == 0) {
+                $this->spillAtInterval($interval)
+            } else {
+                var $preg = $this->freeRegs[0]
+                
+                // Pop the first register
+                var $newFree = []
+                var $j = 1
+                while ($j < count($this->freeRegs)) {
+                    Arrays::array_push($newFree, $this->freeRegs[$j])
+                    $j = $j + 1
+                }
+                $this->freeRegs = $newFree
+
+                var $alloc = new AllocatedReg($interval->reg)
+                $alloc->preg = $preg
+                $this->allocations[$interval->reg] = $alloc
+                
+                Arrays::array_push($this->active, $interval)
+                $this->sortActiveByEnd()
+            }
+            $i = $i + 1
+        }
+
+        return $this->allocations
+    }
+}

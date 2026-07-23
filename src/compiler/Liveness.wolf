@@ -1,0 +1,97 @@
+// src/compiler/Liveness.wolf
+// Computes coarse live intervals for Linear Scan Register Allocation
+
+class LiveInterval {
+    public $reg = ""
+    public $start = 0
+    public $end = 0
+    public $useCount = 0
+
+    public func __construct($reg, $start) {
+        $this->reg = $reg
+        $this->start = $start
+        $this->end = $start
+        $this->useCount = 1
+    }
+}
+
+class LivenessAnalysis {
+    public $intervals = {}
+    public $intervalList = []
+    public $instructionIds = []
+
+    public func __construct() {
+        $this->intervals = {}
+        $this->instructionIds = []
+    }
+
+    public func isVirtualReg($name) {
+        if ($name == "") { return false }
+        if (Strings::starts_with($name, "%r")) { return true }
+        return false
+    }
+
+    public func updateUse($reg, $id) {
+        if ($this->isVirtualReg($reg)) {
+            var $interval = $this->intervals[$reg]
+            if ($interval != nil) {
+                $interval->useCount = intval($interval->useCount) + 1
+                if ($id > $interval->end) {
+                    $interval->end = $id
+                }
+            } else {
+                // Should not happen in strict SSA, but handle gracefully
+                var $newInterval = new LiveInterval($reg, $id)
+                $this->intervals[$reg] = $newInterval
+                Arrays::array_push($this->intervalList, $newInterval)
+            }
+        }
+    }
+
+    public func analyzeFunction($fn) {
+        $this->intervals = {}
+        $this->instructionIds = []
+        var $globalId = 0
+
+        var $i = 0
+        while ($i < count($fn->blocks)) {
+            var $block = $fn->blocks[$i]
+            var $j = 0
+            while ($j < count($block->instructions)) {
+                var $inst = $block->instructions[$j]
+                
+                // Assign ID
+                // Store instruction mapping for debugging or allocator reference
+                Arrays::array_push($this->instructionIds, $inst)
+
+                // 1. Definition
+                if ($this->isVirtualReg($inst->dest)) {
+                    if ($this->intervals[$inst->dest] == nil) {
+                        var $newInterval = new LiveInterval($inst->dest, $globalId)
+                        $this->intervals[$inst->dest] = $newInterval
+                        Arrays::array_push($this->intervalList, $newInterval)
+                    }
+                }
+
+                // 2. Uses
+                $this->updateUse($inst->op1, $globalId)
+                $this->updateUse($inst->op2, $globalId)
+
+                $globalId = intval($globalId) + 1
+                $j = intval($j) + 1
+            }
+            $i = intval($i) + 1
+        }
+        
+        return $this->intervals
+    }
+    
+    public func dumpIntervals() {
+        var $i = 0
+        while ($i < count($this->intervalList)) {
+            var $interval = $this->intervalList[$i]
+            print($interval->reg .. ": [" .. $interval->start .. ", " .. $interval->end .. "]")
+            $i = intval($i) + 1
+        }
+    }
+}
