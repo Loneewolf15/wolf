@@ -143,27 +143,34 @@ WolfSentinel* wolf_sentinel_create(int core_id) {
     s->backend = WOLF_IO_IOURING;
     s->uring = wolf_uring_create(4096, 1); // 4096 entries, SQPOLL enabled
     if (!s->uring) {
-        fprintf(stderr, "[WOLF-ENGINE] io_uring init failed, falling back\n");
-        // Fallthrough macro logic here requires careful handling, but for now we just exit
-        exit(1);
+        fprintf(stderr, "[WOLF-ENGINE] Warning: io_uring init failed. Falling back to epoll.\n");
+        s->backend = 0;
+    } else {
+        s->poll_fd = -1;
     }
-    s->poll_fd = -1;
+#endif /* WOLF_HAS_IO_URING */
 
-#elif defined(WOLF_HAS_EPOLL)
-    s->backend = WOLF_IO_EPOLL;
-    s->poll_fd = epoll_create1(EPOLL_CLOEXEC);
-    if (s->poll_fd < 0) { perror("epoll_create1"); free(s); return NULL; }
-
-#elif defined(WOLF_HAS_KQUEUE)
-    s->backend = WOLF_IO_KQUEUE;
-    s->poll_fd = kqueue();
-    if (s->poll_fd < 0) { perror("kqueue"); free(s); return NULL; }
-
-#else
-    s->backend = WOLF_IO_POLL;
-    s->poll_fd = -1;
+#if defined(WOLF_HAS_EPOLL)
+    if (s->backend == 0) {
+        s->backend = WOLF_IO_EPOLL;
+        s->poll_fd = epoll_create1(EPOLL_CLOEXEC);
+        if (s->poll_fd < 0) { perror("epoll_create1"); free(s); return NULL; }
+    }
 #endif
 
+#if defined(WOLF_HAS_KQUEUE)
+    if (s->backend == 0) {
+        s->backend = WOLF_IO_KQUEUE;
+        s->poll_fd = kqueue();
+        if (s->poll_fd < 0) { perror("kqueue"); free(s); return NULL; }
+    }
+#endif
+
+    if (s->backend == 0) {
+        s->backend = WOLF_IO_POLL;
+        s->poll_fd = -1;
+    }
+    
     return s;
 }
 
@@ -1444,7 +1451,7 @@ static void on_accept_complete(int server_fd, void* core_ptr, int client_fd) {
  * Event-driven epoll helpers (Linux non-io_uring path)
  * Mirrors the io_uring callback chain: accept → recv → [worker] → send
  * ================================================================ */
-#if defined(WOLF_HAS_EPOLL) && !defined(WOLF_HAS_IO_URING)
+#if defined(WOLF_HAS_EPOLL)
 
 /* Accept all pending connections and register each with epoll ONESHOT. */
 static void wolf_epoll_accept_all(WolfCore* core) {
@@ -1682,8 +1689,8 @@ static void* wolf_core_thread(void* arg) {
             core->core_id, (unsigned long)pthread_self());
 
 #if defined(WOLF_HAS_IO_URING)
+    if (core->sentinel && core->sentinel->backend == WOLF_IO_IOURING) {
     /* Initialize per-core completion ring and eventfd */
-    {
         atomic_store_explicit(&core->complete_ring.head, 0, memory_order_relaxed);
         atomic_store_explicit(&core->complete_ring.tail, 0, memory_order_relaxed);
 #if defined(__linux__)
@@ -1696,8 +1703,6 @@ static void* wolf_core_thread(void* arg) {
 #else
         core->complete_ring.notify_fd = -1;
 #endif
-    }
-
     // 1. Submit the multishot accept SQE once
     wolf_uring_submit_accept(core->sentinel->uring, core->server_fd, on_accept_complete, core, NULL);
     wolf_uring_flush(core->sentinel->uring);
@@ -1709,12 +1714,15 @@ static void* wolf_core_thread(void* arg) {
         wolf_core_drain_completions(core);
         wolf_uring_poll(core->sentinel->uring, 5); /* 5ms max wait — reduced from 100ms */
     }
-#elif defined(WOLF_HAS_EPOLL)
+    }
+#endif /* WOLF_HAS_IO_URING */
+
+#if defined(WOLF_HAS_EPOLL)
+    if (core->sentinel && core->sentinel->backend == WOLF_IO_EPOLL) {
     /* ── Event-driven epoll path ────────────────────────────────────────────
      * Mirrors the io_uring path: accept→recv→[worker pool]→send, all driven
      * by epoll_wait events.  Concurrent connections per core = no serialisation.
      * notify_fd (eventfd) wakes the poller when a worker posts a completion. */
-    {
         atomic_store_explicit(&core->complete_ring.head, 0, memory_order_relaxed);
         atomic_store_explicit(&core->complete_ring.tail, 0, memory_order_relaxed);
 
@@ -1762,12 +1770,11 @@ static void* wolf_core_thread(void* arg) {
         close(nfd);
         close(efd);
     }
+#endif /* WOLF_HAS_EPOLL */
 
-#elif defined(WOLF_HAS_KQUEUE)
+#if defined(WOLF_HAS_KQUEUE)
+    if (core->sentinel && core->sentinel->backend == WOLF_IO_KQUEUE) {
     /* ── Event-driven kqueue path (macOS / BSD) ─────────────────────────────
-     * Same callback model.  Uses pipe[2] for worker→poller wakeup since
-     * eventfd is Linux-only. */
-    {
         atomic_store_explicit(&core->complete_ring.head, 0, memory_order_relaxed);
         atomic_store_explicit(&core->complete_ring.tail, 0, memory_order_relaxed);
 
@@ -1821,10 +1828,10 @@ static void* wolf_core_thread(void* arg) {
         if (core->kq_notify_rfd >= 0) close(core->kq_notify_rfd);
         if (core->complete_ring.notify_fd >= 0) close(core->complete_ring.notify_fd);
     }
+#endif /* WOLF_HAS_KQUEUE */
 
-#else
+    if (core->sentinel && core->sentinel->backend == WOLF_IO_POLL) {
     /* ── poll() fallback (rare: non-Linux, non-macOS) ───────────────────── */
-    {
         atomic_store_explicit(&core->complete_ring.head, 0, memory_order_relaxed);
         atomic_store_explicit(&core->complete_ring.tail, 0, memory_order_relaxed);
         core->complete_ring.notify_fd = -1;
@@ -1872,7 +1879,6 @@ static void* wolf_core_thread(void* arg) {
             wolf_core_free_ctx(ctx);
         }
     }
-#endif
 
     fprintf(stderr, "[WOLF-ENGINE] Core %d shutting down (served %lld requests)\n",
             core->core_id, (long long)core->requests_total);
@@ -2206,4 +2212,15 @@ void wolf_engine_longjmp_oom(void) {
         ctx->oom_triggered = 1;
         longjmp(ctx->oom_jump, 1);
     }
+}
+
+/* 
+ * SPSC matrix pop entry point for workers.
+ * Currently stubbed to fall back to legacy `wolf_core_pop` queue 
+ * since the io_uring fast path is being refactored. 
+ */
+int wolf_engine_spsc_pop(int wid, wolf_task_t* out) {
+    (void)wid;
+    (void)out;
+    return 0; /* Fallback to standard core queue */
 }
