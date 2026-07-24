@@ -51,6 +51,16 @@ graph TD
 
 ## Session History
 
+### 2026-07-23 (Session 36 — Native Register Allocation Phase 1 & 2)
+**Done:**
+- Resolved a critical bootstrapping bug where `wolf_system_exec` was mistyped as `ptr` instead of `i64`.
+- Corrected missing `Strings::starts_with`, `ends_with`, and `contains` LLVM static method dispatch mappings.
+- Successfully built the compiler natively via `go run ./cmd/wolf build src/compiler/main.wolf`.
+- Implemented `Liveness.wolf` live interval tracking and generation pass.
+- Designed and implemented a **Simultaneous True Hybrid Register Allocator** (`RegAlloc.wolf`) integrating Graph Coloring heuristics into a Linear Scan `O(n)` sweep.
+- Validated dynamic register eviction unit tests successfully.
+- Phase 1 and Phase 2 of Horizon 3 completed.
+
 ### 2026-07-22 (Session 35 — Native Method Dispatch Fixes & Test Suite Polish)
 **Done:**
 - Resolved a critical bug in `LLVMEmitter.wolf` where static method dispatch (`$candidates == 1`) crashes when multiple unrelated classes define methods with the same name.

@@ -12,9 +12,9 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
-	"github.com/wolflang/wolf/internal/compiler"
-	"github.com/wolflang/wolf/internal/config"
-	"github.com/wolflang/wolf/internal/dashboard"
+	"wolf/internal/compiler"
+	"wolf/internal/config"
+	"wolf/internal/dashboard"
 )
 
 var devCmd = &cobra.Command{

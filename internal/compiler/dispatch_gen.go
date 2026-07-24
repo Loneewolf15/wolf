@@ -1,8 +1,8 @@
 package compiler
 
 import (
-	"github.com/wolflang/wolf/internal/lexer"
-	"github.com/wolflang/wolf/internal/parser"
+	"wolf/internal/lexer"
+	"wolf/internal/parser"
 )
 
 // generateDispatcherAST looks at all classes in the parsed program and creates a

@@ -36,7 +36,7 @@ class BoundedCounter {
 
     func increment() {
         $next = $this->count + 1
-        if $next <= $this->max {
+        if ($next <= $this->max) {
             $this->count = $next
         }
     }
@@ -67,7 +67,7 @@ func test_counter_basic() {
     $c->increment()
     $c->increment()
     $val = $c->value()
-    if $val != 2 {
+    if ($val != 2) {
         error("T1-03: Counter after 2 increments expected 2, got: {$val}")
     }
 }
@@ -78,7 +78,7 @@ func test_counter_triple_increment() {
     $c->increment()
     $c->increment()
     $val = $c->value()
-    if $val != 3 {
+    if ($val != 3) {
         error("T1-03: Counter after 3 increments expected 3, got: {$val}")
     }
 }
@@ -90,7 +90,7 @@ func test_counter_decrement() {
     $c->increment()
     $c->decrement()
     $val = $c->value()
-    if $val != 2 {
+    if ($val != 2) {
         error("T1-03: Counter after 3 increments + 1 decrement expected 2, got: {$val}")
     }
 }
@@ -101,7 +101,7 @@ func test_counter_reset() {
     $c->increment()
     $c->reset()
     $val = $c->value()
-    if $val != 0 {
+    if ($val != 0) {
         error("T1-03: Counter after reset expected 0, got: {$val}")
     }
 }
@@ -115,10 +115,10 @@ func test_counter_independence() {
     $c2->increment()
     $v1 = $c1->value()
     $v2 = $c2->value()
-    if $v1 != 2 {
+    if ($v1 != 2) {
         error("T1-03: c1 expected 2, got: {$v1}")
     }
-    if $v2 != 1 {
+    if ($v2 != 1) {
         error("T1-03: c2 expected 1, got: {$v2}")
     }
 }
@@ -131,7 +131,7 @@ func test_bounded_counter() {
     $bc->increment() // should be clamped
     $bc->increment() // should be clamped
     $val = $bc->value()
-    if $val != 3 {
+    if ($val != 3) {
         error("T1-03: BoundedCounter(3) after 5 increments expected 3, got: {$val}")
     }
 }
@@ -139,7 +139,18 @@ func test_bounded_counter() {
 func test_named_entity() {
     $e = new NamedEntity(42, "Wolf")
     $label = $e->label()
-    if $label != "Wolf#42" {
+    if ($label != "Wolf#42") {
         error("T1-03: NamedEntity label expected 'Wolf#42', got: {$label}")
     }
 }
+
+
+// WOLF TEST RUNNER
+test_counter_basic()
+test_counter_triple_increment()
+test_counter_decrement()
+test_counter_reset()
+test_counter_independence()
+test_bounded_counter()
+test_named_entity()
+print("ALL TESTS PASSED IN t1_classes_test.wolf")

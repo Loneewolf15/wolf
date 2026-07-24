@@ -23,17 +23,31 @@ typedef struct {
 typedef struct {
     struct io_uring ring;
     int sqpoll_enabled;
+    int registered_bufs;
+    int has_send_zc;
 } WolfURing;
 
 #include "wolf_http_engine.h" // For WolfArena
 
+typedef struct WolfUringCapabilities {
+    int has_sqpoll;
+    int has_send_zc;
+    int has_register_buffers;
+    int probed;
+} WolfUringCapabilities;
+
+extern WolfUringCapabilities wolf_uring_caps;
+
+void wolf_uring_probe(void);
 WolfURing* wolf_uring_create(int queue_depth, int sqpoll);
+int        wolf_uring_register_arena_buffers(WolfURing* ring, WolfArenaPool* pool);
 int        wolf_uring_submit_accept(WolfURing* ring, int server_fd, wolf_uring_cb_t cb, void* ctx, WolfArena* arena);
 int        wolf_uring_submit_recv(WolfURing* ring, int client_fd, void* buf, size_t len, wolf_uring_cb_t cb, void* ctx, WolfArena* arena);
 int        wolf_uring_submit_send(WolfURing* ring, int client_fd, const void* buf, size_t len, wolf_uring_cb_t cb, void* ctx, WolfArena* arena);
 int        wolf_uring_submit_send_zc(WolfURing* ring, int client_fd, const void* buf, size_t len, wolf_uring_cb_t cb, void* ctx, WolfArena* arena);
 int        wolf_uring_has_send_zc(WolfURing* ring);
 int        wolf_uring_poll_fd(WolfURing* ring, int fd, wolf_uring_cb_t cb, void* ctx);
+int        wolf_uring_submit_poll(WolfURing* r, int fd, int events, wolf_uring_cb_t cb, void* ctx);
 int        wolf_uring_flush(WolfURing* ring);
 int        wolf_uring_poll(WolfURing* ring, int timeout_ms);
 void       wolf_uring_destroy(WolfURing* ring);

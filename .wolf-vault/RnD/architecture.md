@@ -188,3 +188,7 @@ SIGTERM/SIGINT received
 ### ADR-028: HTTP Engine Native Multipart Parser (2026-06-24)
 - **Decision:** Re-implement multipart/form-data parsing natively within `wolf_http_engine.c` (`wolf_engine_parse_multipart`) rather than attempting to bridge to the legacy `wolf_parse_multipart` which targets the deprecated `http_contexts` array.
 - **Reasoning:** The Thread-Per-Core HTTP engine introduces `WolfConnCtx` for request scoping. Bridging to the legacy parser caused context mismatch bugs (BUG-088) where uploads were written to the wrong context arrays. Re-implementing it inside the engine ensures tight integration with `wolf_arena_alloc`, zero-heap allocation guarantees, and direct population of `ctx->uploads[]`.
+
+### ADR-029: True Hybrid Register Allocation (2026-07-23)
+- **Decision:** Implement a Simultaneous True Hybrid Register Allocator in `RegAlloc.wolf` combining `O(n)` linear sweep scanning with a Chaitin-Briggs Graph Coloring spill heuristic.
+- **Reasoning:** Rather than falling back to a full interference graph matrix, this strategy keeps the compilation lightning-fast via linear scan while avoiding suboptimal evictions by calculating the cost (`useCount * 100 / length`) of the *currently active* overlapping intervals, safely spilling the lowest-priority register.

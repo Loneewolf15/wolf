@@ -20,7 +20,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/wolflang/wolf/internal/compiler"
+	"wolf/internal/compiler"
 )
 
 // waitForPort polls until the TCP port is open or the timeout expires.

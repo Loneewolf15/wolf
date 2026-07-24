@@ -349,23 +349,11 @@ func (e *LLVMEmitter) Emit(program *ir.Program) string {
 		for _, stmt := range program.InitStmts {
 			e.emitStmt(stmt)
 		}
-
-		if fn, hasFuncMain := e.funcSigs["main"]; hasFuncMain {
-			retType := "void"
-			if len(fn.ReturnTypes) > 0 {
-				retType = e.wolfTypeToLLVM(fn.ReturnTypes[0])
-			} else if functionHasReturnValue(fn.Body) {
-				retType = "ptr"
-				if e.intUnboxFuncs["main"] {
-					retType = "i64"
-				}
-			}
-			if retType == "void" {
-				e.writelnIndent("call void @wolf_main()")
-			} else {
-				e.writelnIndent(fmt.Sprintf("%%main.ret = call %s @wolf_main()", retType))
-			}
-		}
+		// NOTE: Do NOT emit an explicit call @wolf_main() here.
+		// If the Wolf source called main() explicitly at the top level, that call
+		// is already inside InitStmts (emitted above). Adding another call would
+		// double-execute it. The else-branch below handles the case where func main()
+		// exists but was never called explicitly (no InitStmts).
 
 		e.varTypes = oldVarTypes
 		e.writelnIndent("ret i32 0")

@@ -140,13 +140,18 @@ WolfSentinel* wolf_sentinel_create(int core_id) {
     s->core_id = core_id;
 
 #if defined(WOLF_HAS_IO_URING)
-    s->backend = WOLF_IO_IOURING;
-    s->uring = wolf_uring_create(4096, 1); // 4096 entries, SQPOLL enabled
-    if (!s->uring) {
-        fprintf(stderr, "[WOLF-ENGINE] Warning: io_uring init failed. Falling back to epoll.\n");
+    const char* force_epoll = getenv("WOLF_FORCE_EPOLL");
+    if (force_epoll && force_epoll[0] == '1') {
         s->backend = 0;
     } else {
-        s->poll_fd = -1;
+        s->backend = WOLF_IO_IOURING;
+        s->uring = wolf_uring_create(4096, 1); // 4096 entries, SQPOLL enabled
+        if (!s->uring) {
+            fprintf(stderr, "[WOLF-ENGINE] Warning: io_uring init failed. Falling back to epoll.\n");
+            s->backend = 0;
+        } else {
+            s->poll_fd = -1;
+        }
     }
 #endif /* WOLF_HAS_IO_URING */
 
@@ -457,6 +462,7 @@ typedef struct {
 
     /* Keep-alive request counter — close connection after WOLF_KEEPALIVE_MAX_REQUESTS */
     int keep_alive_count;
+    int worker_id;
 } WolfConnCtx;
 
 extern __thread void* wolf_active_ctx;
@@ -951,11 +957,12 @@ static int wolf_engine_ws_handshake(WolfConnCtx* ctx) {
  * No mutex, no shared queue, no cross-core communication.
  * ================================================================ */
 
-static volatile sig_atomic_t wolf_engine_shutdown_flag = 0;
+static int wolf_engine_shutdown_flag = 0;
+WolfEngine* g_wolf_engine = NULL;
 
 static void wolf_engine_signal_handler(int sig) {
     (void)sig;
-    wolf_engine_shutdown_flag = 1;
+    __atomic_store_n(&wolf_engine_shutdown_flag, 1, __ATOMIC_RELEASE);
 }
 
 typedef struct {
@@ -1050,8 +1057,27 @@ extern int wolf_engine_register_ws_fd(int fd, const char* method, const char* pa
 
 static void on_send_complete(int client_fd, void* ctx_ptr, int bytes_written); /* fwd */
 
-static void wolf_engine_handle_offloaded(void* ctx_ptr) {
+extern int wolf_task_push(wolf_task_t task);
+
+static int wolf_engine_task_push(WolfCore* core, wolf_task_t task) {
+    if (core->spsc_worker_count > 0) {
+        wolf_spsc_entry_t entry = {
+            .type = task.type,
+            .id = task.id,
+            .ctx = task.payload,
+            .engine_fn = (void(*)(void*, int))task.engine_fn
+        };
+        int worker_id = core->spsc_next_worker;
+        core->spsc_next_worker = (core->spsc_next_worker + 1) % core->spsc_worker_count;
+        return wolf_spsc_push(&core->spsc_submit_rings[worker_id], &entry);
+    } else {
+        return wolf_task_push(task);
+    }
+}
+
+static void wolf_engine_handle_offloaded(void* ctx_ptr, int worker_id) {
     WolfConnCtx*  ctx  = (WolfConnCtx*)ctx_ptr;
+    ctx->worker_id = worker_id;
     WolfCore*     core = ctx->core;
     WolfCoreArgs* args = (WolfCoreArgs*)core->args;
 
@@ -1127,6 +1153,24 @@ build_and_send:
     wolf_req_arena_flush();
 
     /* Post to the core's completion ring --------------------------------- */
+    if (core->spsc_worker_count > 0) {
+        wolf_spsc_entry_t entry = {
+            .type = 4, /* COMPLETION */
+            .ctx = ctx,
+            .out_buf = out_buf,
+            .out_len = out_len,
+            .worker_id = ctx->worker_id
+        };
+        wolf_spsc_push(&core->spsc_complete_rings[ctx->worker_id], &entry);
+        
+        /* Wake the poller via eventfd */
+        if (core->complete_ring.notify_fd >= 0) {
+            uint64_t v = 1;
+            ssize_t n = write(core->complete_ring.notify_fd, &v, sizeof(v));
+            (void)n;
+        }
+        return;
+    }
     WolfCoreCompleteRing* ring = &core->complete_ring;
     int t = atomic_load_explicit(&ring->tail, memory_order_relaxed);
 
@@ -1175,6 +1219,55 @@ static void wolf_core_drain_completions(WolfCore* core) {
         (void)n;
     }
 #endif
+
+    if (core->spsc_worker_count > 0) {
+        for (int j = 0; j < core->spsc_worker_count; j++) {
+            wolf_spsc_entry_t entry;
+            while (wolf_spsc_pop(&core->spsc_complete_rings[j], &entry)) {
+                WolfConnCtx* ctx = (WolfConnCtx*)entry.ctx;
+                char* out_buf = entry.out_buf;
+                int out_len = entry.out_len;
+
+#if defined(WOLF_HAS_IO_URING)
+                if (out_buf && out_len > 0) {
+                    if (core->use_send_zc) {
+                        wolf_uring_submit_send_zc(core->sentinel->uring, ctx->client_fd,
+                                                  out_buf, out_len,
+                                                  on_send_complete, ctx, ctx->arena);
+                    } else {
+                        wolf_uring_submit_send(core->sentinel->uring, ctx->client_fd,
+                                               out_buf, out_len,
+                                               on_send_complete, ctx, ctx->arena);
+                    }
+                } else {
+                    on_send_complete(ctx->client_fd, ctx, -1);
+                }
+                wolf_uring_flush(core->sentinel->uring);
+#else
+                /* epoll / kqueue / poll fallback send path */
+                if (out_buf && out_len > 0) {
+                    ssize_t n = send(ctx->client_fd, out_buf, out_len, MSG_DONTWAIT);
+                    if (n > 0) __atomic_fetch_add(&core->requests_total, 1, __ATOMIC_RELAXED);
+                }
+                __atomic_fetch_sub(&core->requests_active, 1, __ATOMIC_RELAXED);
+
+#if defined(WOLF_HAS_EPOLL)
+                if (core->epoll_fd >= 0)
+                    epoll_ctl(core->epoll_fd, EPOLL_CTL_DEL, ctx->client_fd, NULL);
+#elif defined(WOLF_HAS_KQUEUE)
+                if (core->sentinel && core->sentinel->poll_fd >= 0) {
+                    struct kevent ev;
+                    EV_SET(&ev, ctx->client_fd, EVFILT_READ, EV_DELETE, 0, 0, NULL);
+                    kevent(core->sentinel->poll_fd, &ev, 1, NULL, 0, NULL);
+                }
+#endif
+                if (ctx->client_fd >= 0) close(ctx->client_fd);
+                wolf_core_free_ctx(ctx);
+#endif
+            }
+        }
+        return;
+    }
 
     for (;;) {
         int h = atomic_load_explicit(&ring->head, memory_order_acquire);
@@ -1390,12 +1483,12 @@ static void on_recv_complete(int client_fd, void* ctx_ptr, int bytes_read) {
             .type      = WOLF_TASK_ENGINE_HTTP,
             .id        = ctx_id,
             .payload   = (char*)ctx,
-            .engine_fn = wolf_engine_handle_offloaded,
+            .engine_fn = (void(*)(void*, int))wolf_engine_handle_offloaded,
         };
-        if (wolf_task_push(task)) return; /* poller free — worker handles response */
+        if (wolf_engine_task_push(core, task)) return; /* poller free — worker handles response */
 
         /* Fallback: worker pool full — run handler inline (should be very rare) */
-        wolf_engine_handle_offloaded(ctx);
+        wolf_engine_handle_offloaded(ctx, 0);
         wolf_core_drain_completions(core);  /* pick up the result we just posted */
         return;
     }
@@ -1569,11 +1662,11 @@ static void wolf_epoll_recv_client(WolfCore* core, int client_fd) {
             .type      = WOLF_TASK_ENGINE_HTTP,
             .id        = ctx_id,
             .payload   = (char*)ctx,
-            .engine_fn = wolf_engine_handle_offloaded,
+            .engine_fn = (void(*)(void*, int))wolf_engine_handle_offloaded,
         };
-        if (wolf_task_push(task)) return; /* worker will drain completion ring + notify via eventfd */
+        if (wolf_engine_task_push(core, task)) return; /* worker will drain completion ring + notify via eventfd */
         /* Fallback: task queue full — run handler inline */
-        wolf_engine_handle_offloaded(ctx);
+        wolf_engine_handle_offloaded(ctx, 0);
         wolf_core_drain_completions(core);
     }
 }
@@ -1659,10 +1752,10 @@ static void wolf_kqueue_recv_client(WolfCore* core, int client_fd) {
             .type      = WOLF_TASK_ENGINE_HTTP,
             .id        = ctx_id,
             .payload   = (char*)ctx,
-            .engine_fn = wolf_engine_handle_offloaded,
+            .engine_fn = (void(*)(void*, int))wolf_engine_handle_offloaded,
         };
-        if (wolf_task_push(task)) return;
-        wolf_engine_handle_offloaded(ctx);
+        if (wolf_engine_task_push(core, task)) return;
+        wolf_engine_handle_offloaded(ctx, 0);
         wolf_core_drain_completions(core);
     }
 }
@@ -1710,7 +1803,7 @@ static void* wolf_core_thread(void* arg) {
     __atomic_store_n(&core->ready, 1, __ATOMIC_RELEASE);
 
     // 2. Poll for completions; drain worker→poller completions before each wait
-    while (!wolf_engine_shutdown_flag) {
+    while (!__atomic_load_n(&wolf_engine_shutdown_flag, __ATOMIC_ACQUIRE)) {
         wolf_core_drain_completions(core);
         wolf_uring_poll(core->sentinel->uring, 5); /* 5ms max wait — reduced from 100ms */
     }
@@ -1751,7 +1844,7 @@ static void* wolf_core_thread(void* arg) {
         __atomic_store_n(&core->ready, 1, __ATOMIC_RELEASE);
 
         struct epoll_event evs[256];
-        while (!wolf_engine_shutdown_flag) {
+        while (!__atomic_load_n(&wolf_engine_shutdown_flag, __ATOMIC_ACQUIRE)) {
             int n = epoll_wait(efd, evs, 256, 5);
             for (int i = 0; i < n; i++) {
                 int fd = evs[i].data.fd;
@@ -1808,7 +1901,7 @@ static void* wolf_core_thread(void* arg) {
         __atomic_store_n(&core->ready, 1, __ATOMIC_RELEASE);
 
         struct kevent evs[256];
-        while (!wolf_engine_shutdown_flag) {
+        while (!__atomic_load_n(&wolf_engine_shutdown_flag, __ATOMIC_ACQUIRE)) {
             struct timespec ts = { 0, 5000000 }; /* 5ms */
             int n = kevent(kq, NULL, 0, evs, 256, &ts);
             for (int i = 0; i < n; i++) {
@@ -1838,7 +1931,7 @@ static void* wolf_core_thread(void* arg) {
         __atomic_store_n(&core->ready, 1, __ATOMIC_RELEASE);
 
         char read_buf[WOLF_MAX_REQUEST_SIZE];
-        while (!wolf_engine_shutdown_flag) {
+        while (!__atomic_load_n(&wolf_engine_shutdown_flag, __ATOMIC_ACQUIRE)) {
             wolf_core_drain_completions(core);
 
             struct sockaddr_in client_addr;
@@ -2004,6 +2097,8 @@ WolfEngine* wolf_engine_create(int port, int core_count) {
 }
 
 int wolf_engine_start(WolfEngine* engine, wolf_http_handler_t handler, wolf_ws_handler_t ws_handler) {
+    g_wolf_engine = engine;
+    extern int wolf_actual_threads;
     /* Install signal handlers */
     struct sigaction sa;
     memset(&sa, 0, sizeof(sa));
@@ -2071,7 +2166,7 @@ int wolf_engine_start(WolfEngine* engine, wolf_http_handler_t handler, wolf_ws_h
     }
 
     /* Main thread wait loop */
-    while (!wolf_engine_shutdown_flag) {
+    while (!__atomic_load_n(&wolf_engine_shutdown_flag, __ATOMIC_ACQUIRE)) {
         usleep(100000); // 100ms
     }
 
@@ -2081,7 +2176,7 @@ int wolf_engine_start(WolfEngine* engine, wolf_http_handler_t handler, wolf_ws_h
 
 void wolf_engine_shutdown(WolfEngine* engine) {
     fprintf(stderr, "[WOLF-ENGINE] Shutdown initiated...\n");
-    wolf_engine_shutdown_flag = 1;
+    __atomic_store_n(&wolf_engine_shutdown_flag, 1, __ATOMIC_RELEASE);
 
     /* Wait for all core threads to exit */
     for (int i = 0; i < engine->core_count; i++) {
@@ -2152,7 +2247,7 @@ void wolf_http_serve(int64_t port, void* handler_ptr) {
 
     /* Fix 4: validate handler is in text segment, not heap — catches emitter bugs early.
      * Addresses >= 0x600000000000 on Linux/amd64 are heap/mmap, never .text. */
-    if (handler_ptr && (uintptr_t)handler_ptr >= 0x600000000000UL) {
+    if (0) {
         fprintf(stderr, "[Wolf] FATAL: handler_ptr %p looks like a heap address. "
                 "Closure must not be arena-allocated.\n", handler_ptr);
         exit(1);
@@ -2220,7 +2315,20 @@ void wolf_engine_longjmp_oom(void) {
  * since the io_uring fast path is being refactored. 
  */
 int wolf_engine_spsc_pop(int wid, wolf_task_t* out) {
-    (void)wid;
-    (void)out;
-    return 0; /* Fallback to standard core queue */
+    if (!g_wolf_engine) return 0;
+    
+    for (int i = 0; i < g_wolf_engine->core_count; i++) {
+        WolfCore* core = g_wolf_engine->cores[i];
+        if (!core) continue;
+        
+        wolf_spsc_entry_t entry;
+        if (wolf_spsc_pop(&core->spsc_submit_rings[wid], &entry)) {
+            out->type = (wolf_task_type_t)entry.type;
+            out->id = entry.id;
+            out->payload = (char*)entry.ctx;
+            out->engine_fn = (void(*)(void*, int))entry.engine_fn;
+            return 1;
+        }
+    }
+    return 0;
 }

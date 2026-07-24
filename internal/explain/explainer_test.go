@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/wolflang/wolf/internal/explain"
+	"wolf/internal/explain"
 )
 
 // ── Explainer.ExplainError ────────────────────────────────────────────────────

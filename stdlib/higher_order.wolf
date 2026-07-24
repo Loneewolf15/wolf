@@ -5,7 +5,7 @@
 //   $result = pipeline(" hello ", trim, upper, slug)
 func pipeline($value, $funcs) {
     $result = $value
-    foreach ($funcs as $fn) {
+    foreach $funcs as $fn {
         $result = $fn($result)
     }
     return $result

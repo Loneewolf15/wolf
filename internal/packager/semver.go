@@ -183,6 +183,11 @@ func HighestCompatible(constraint string, tags []string) string {
 				return tag
 			}
 		}
+		// If tags is empty or it didn't match, but it's a simple branch/commit name,
+		// return it so git clone can attempt to fetch it directly.
+		if !strings.ContainsAny(constraint, "^~<>=") {
+			return constraint
+		}
 	}
 
 	return bestStr

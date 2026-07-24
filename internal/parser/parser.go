@@ -3,7 +3,7 @@ package parser
 import (
 	"fmt"
 
-	"github.com/wolflang/wolf/internal/lexer"
+	"wolf/internal/lexer"
 )
 
 // Parser produces an AST from a token stream.

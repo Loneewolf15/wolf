@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/wolflang/wolf"
+	"wolf"
 )
 
 // ensureAssetsExtracted extracts the embedded runtime and third_party files

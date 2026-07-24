@@ -1,7 +1,7 @@
 package emitter
 
 import (
-	"github.com/wolflang/wolf/internal/ir"
+	"wolf/internal/ir"
 )
 
 // scanCaptured scans an AST/IR block for usages of variables that were declared OUTSIDE

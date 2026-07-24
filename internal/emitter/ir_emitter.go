@@ -6,9 +6,9 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/wolflang/wolf/internal/ir"
-	"github.com/wolflang/wolf/internal/parser"
-	"github.com/wolflang/wolf/internal/resolver"
+	"wolf/internal/ir"
+	"wolf/internal/parser"
+	"wolf/internal/resolver"
 )
 
 // IREmitter transforms a Wolf AST into WIR.
@@ -730,7 +730,7 @@ func (e *IREmitter) emitExpr(expr parser.Expression) ir.Expr {
 		}
 		if ident, ok := ex.Object.(*parser.Identifier); ok {
 			if strings.HasPrefix(ident.Name, "Wolf_") {
-				e.imports["github.com/wolflang/wolf/stdlib"] = true
+				e.imports["wolf/stdlib"] = true
 			}
 		}
 		return &ir.MethodCallExpr{
@@ -745,7 +745,7 @@ func (e *IREmitter) emitExpr(expr parser.Expression) ir.Expr {
 			args = append(args, e.emitExpr(a))
 		}
 		if strings.HasPrefix(ex.Class, "Wolf_") {
-			e.imports["github.com/wolflang/wolf/stdlib"] = true
+			e.imports["wolf/stdlib"] = true
 		}
 		return &ir.StaticCall{
 			Class:  ex.Class,

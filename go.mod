@@ -1,4 +1,4 @@
-module github.com/wolflang/wolf
+module wolf
 
 go 1.22.10
 

@@ -3,30 +3,31 @@
 # -----------------------------------------------------------------------------
 FROM golang:1.22-bookworm AS builder
 
-# Install build dependencies (Wolf requires clang/llvm to emit native code)
+# Install build dependencies (Wolf requires clang/llvm, liburing, mariadb)
+# We use clang-15/llvm-15 because LLVM 15+ supports opaque pointers by default,
+# which the Wolf compiler emits. Debian Bookworm defaults to LLVM 14.
 RUN apt-get update && apt-get install -y \
-    clang \
-    llvm \
+    clang-15 \
+    llvm-15 \
     make \
     git \
+    liburing-dev \
+    libmariadb-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Wolf compiler
-RUN go install github.com/wolflang/wolf/cmd/wolf@latest
+# Add LLVM 15 to PATH so `wolf build` finds the right toolchain
+ENV PATH="/usr/lib/llvm-15/bin:${PATH}"
 
-# Set working directory
 WORKDIR /app
 
 # Copy project source
 COPY . .
 
-# Build the native binary
-# The entry point defaults to public/index.wolf for APIs, src/main.wolf for scripts
-RUN if [ -f "public/index.wolf" ]; then \
-      wolf build public/index.wolf; \
-    else \
-      wolf build src/main.wolf; \
-    fi
+# Build the Wolf compiler CLI locally
+RUN go build -o /usr/local/bin/wolf ./cmd/wolf
+
+# Build the native bench_server binary
+RUN wolf build examples/bench_server.wolf
 
 # -----------------------------------------------------------------------------
 # STAGE 2: Runner
@@ -35,19 +36,19 @@ FROM debian:bookworm-slim
 
 WORKDIR /app
 
-# Install runtime dependencies (e.g., ca-certificates for HTTPS, libcurl for wolf_http)
+# Install runtime dependencies
 RUN apt-get update && apt-get install -y \
     ca-certificates \
     libcurl4 \
+    liburing2 \
+    libmariadb3 \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy the compiled native binary from the builder stage
-# Assuming the compiled binary takes the name of the project or defaults to the source name
-# Here we just copy the entire wolf_out directory which contains the binary
 COPY --from=builder /app/wolf_out /app/wolf_out
 
 # Expose standard Wolf API port (override if necessary)
-EXPOSE 2006
+EXPOSE 8080
 
-# Run the compiled binary (assuming the binary name is index if public/index.wolf was compiled)
-CMD ["sh", "-c", "if [ -f /app/wolf_out/index ]; then /app/wolf_out/index; else /app/wolf_out/main; fi"]
+# Run the compiled bench_server
+CMD ["/app/wolf_out/bench_server"]

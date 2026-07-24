@@ -8,7 +8,7 @@ Currently, Wolf is built directly from source using Go.
 
 ```bash
 # Clone the repository
-git clone https://github.com/wolflang/wolf.git
+git clone https://wolf.git
 cd wolf
 
 # Build the CLI

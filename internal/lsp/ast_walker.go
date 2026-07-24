@@ -1,8 +1,8 @@
 package lsp
 
 import (
-	"github.com/wolflang/wolf/internal/lexer"
-	"github.com/wolflang/wolf/internal/parser"
+	"wolf/internal/lexer"
+	"wolf/internal/parser"
 )
 
 // FindNodeAtPosition returns the deepest AST Node that encloses the given line and column.

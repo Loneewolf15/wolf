@@ -9,9 +9,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/wolflang/wolf/internal/compiler"
-	"github.com/wolflang/wolf/internal/lexer"
-	"github.com/wolflang/wolf/internal/parser"
+	"wolf/internal/compiler"
+	"wolf/internal/lexer"
+	"wolf/internal/parser"
 )
 
 func Run(projectRoot string) error {
@@ -23,7 +23,7 @@ func Run(projectRoot string) error {
 		if info.IsDir() && (info.Name() == ".git" || info.Name() == ".wolf_modules" || info.Name() == "wolf_out") {
 			return filepath.SkipDir
 		}
-		if !info.IsDir() && strings.HasSuffix(info.Name(), ".wolf") && !strings.HasSuffix(info.Name(), "_test_runner.wolf") {
+		if !info.IsDir() && strings.HasSuffix(info.Name(), "_test.wolf") {
 			testFiles = append(testFiles, path)
 		}
 		return nil

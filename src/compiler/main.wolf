@@ -44,14 +44,16 @@ class WolfCompiler {
     public $projectDir = ""
     public $dumpWIR = false
     public $emitLLVM = false
+    public $dumpLiveness = false
 
-    public func __construct($file, $source, $strict, $projectDir, $dumpWIR, $emitLLVM) {
+    public func __construct($file, $source, $strict, $projectDir, $dumpWIR, $emitLLVM, $dumpLiveness) {
         $this->file       = $file
         $this->source     = $source
         $this->strict     = $strict
         $this->projectDir = $projectDir
         $this->dumpWIR    = $dumpWIR
         $this->emitLLVM   = $emitLLVM
+        $this->dumpLiveness = $dumpLiveness
     }
 
     // ─── Compile ───────────────────────────────────────────────────────────
@@ -162,6 +164,19 @@ class WolfCompiler {
             print($module->to_string_module())
         }
 
+        // Phase 5.5 — Liveness Analysis (Horizon 3 Native Backend Prep)
+        if ($this->dumpLiveness) {
+            var $liveness = new LivenessAnalysis()
+            var $i = 0
+            while ($i < count($module->functions)) {
+                var $fn = $module->functions[$i]
+                var $intervals = $liveness->analyzeFunction($fn)
+                print("--- Live Intervals for " .. $fn->name .. " ---")
+                // Cannot easily dump map contents yet, but we ran it without crashing!
+                $i = intval($i) + 1
+            }
+        }
+
         // Phase 6 — LLVM IR Emission (ADR-027): lower WIR → LLVM text format (.ll)
         if ($this->emitLLVM) {
             var $llvmEmitter = new LLVMEmitter($module)
@@ -204,10 +219,11 @@ func main() {
     }
 
     var $file = $cmdOrFile
-    var $strict     = false
-    var $projectDir = ""
-    var $dumpWIR    = false
-    var $emitLLVM   = false
+    var $strict       = false
+    var $projectDir   = ""
+    var $dumpWIR      = false
+    var $emitLLVM     = false
+    var $dumpLiveness = false
 
     // Parse remaining flags
     var $argi = 2
@@ -231,6 +247,10 @@ func main() {
                 } else {
                     if ($arg == "--emit-llvm") {
                         $emitLLVM = true
+                    } else {
+                        if ($arg == "--dump-liveness") {
+                            $dumpLiveness = true
+                        }
                     }
                 }
             }
@@ -245,6 +265,6 @@ func main() {
         wolf_system_exit(1)
     }
 
-    var $compiler = new WolfCompiler($file, $source, $strict, $projectDir, $dumpWIR, $emitLLVM)
+    var $compiler = new WolfCompiler($file, $source, $strict, $projectDir, $dumpWIR, $emitLLVM, $dumpLiveness)
     $compiler->Compile()
 }

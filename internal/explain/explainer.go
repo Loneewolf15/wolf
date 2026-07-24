@@ -182,7 +182,7 @@ func genericExplanation(raw, phase string) Explanation {
 		ErrorCode: "W-E000",
 		Summary:   "An unrecognised compiler error occurred.",
 		Detail:    "This error did not match any known Wolf error pattern. This may be a Wolf compiler bug or a very unusual code pattern.",
-		Fix:       "1. Read the raw error above carefully — the file and line number tell you exactly where to look.\n2. Run 'wolf check <file.wolf>' for type-only diagnostics without a full build.\n3. If the error references LLVM IR, run 'wolf_out/main <file.wolf> --dump-wir' to inspect the WIR before lowering.\n4. File a bug at https://github.com/wolflang/wolf/issues with a minimal reproduction.",
+		Fix:       "1. Read the raw error above carefully — the file and line number tell you exactly where to look.\n2. Run 'wolf check <file.wolf>' for type-only diagnostics without a full build.\n3. If the error references LLVM IR, run 'wolf_out/main <file.wolf> --dump-wir' to inspect the WIR before lowering.\n4. File a bug at https://wolf/issues with a minimal reproduction.",
 		Phase:     phase,
 		Raw:       raw,
 	}

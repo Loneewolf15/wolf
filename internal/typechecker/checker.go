@@ -7,9 +7,9 @@ package typechecker
 import (
 	"fmt"
 
-	"github.com/wolflang/wolf/internal/lexer"
-	"github.com/wolflang/wolf/internal/parser"
-	"github.com/wolflang/wolf/internal/resolver"
+	"wolf/internal/lexer"
+	"wolf/internal/parser"
+	"wolf/internal/resolver"
 )
 
 // WolfType represents a type in the Wolf type system.

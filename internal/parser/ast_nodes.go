@@ -3,7 +3,7 @@
 package parser
 
 import (
-	"github.com/wolflang/wolf/internal/lexer"
+	"wolf/internal/lexer"
 )
 
 // Node is the interface that all AST nodes implement.

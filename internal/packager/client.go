@@ -21,6 +21,15 @@ var httpClient = &http.Client{Timeout: 10 * time.Second}
 
 // ResolvePackage attempts to resolve a package name into a Git repository and version list.
 func ResolvePackage(pkgName string) (*RegistryResponse, error) {
+	// Local filesystem bypass
+	if strings.HasPrefix(pkgName, "file://") {
+		return &RegistryResponse{
+			Name:       pkgName,
+			Repository: pkgName,
+			Versions:   []string{},
+		}, nil
+	}
+
 	// Direct Git hosting bypasses the vanity registry
 	if strings.HasPrefix(pkgName, "github.com/") || strings.HasPrefix(pkgName, "gitlab.com/") || strings.HasPrefix(pkgName, "bitbucket.org/") {
 		return &RegistryResponse{

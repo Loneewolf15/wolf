@@ -543,7 +543,7 @@ func DockerInit() error {
 	// Note: We avoid importing config directly if it causes cycles, but scaffold -> config is fine.
 	// Wait, we need to make sure we don't cause an import cycle.
 	// We'll just read wolf.config text natively to avoid depending on config package directly,
-	// or we can import it. Let's try importing "github.com/wolflang/wolf/internal/config".
+	// or we can import it. Let's try importing "wolf/internal/config".
 
 	// Actually, just to be safe and fast, let's write the templates directly.
 
@@ -569,7 +569,7 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Wolf compiler
-RUN go install github.com/wolflang/wolf/cmd/wolf@latest
+RUN go install wolf/cmd/wolf@latest
 
 # Set working directory
 WORKDIR /app

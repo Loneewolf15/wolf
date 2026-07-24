@@ -326,7 +326,7 @@ typedef struct {
     wolf_task_type_t type;
     int64_t          id;          /* req_id or context_id */
     char*            payload;     /* WS_EVENT: message; ENGINE_HTTP: WolfConnCtx* */
-    void           (*engine_fn)(void* ctx); /* ENGINE_HTTP: handler dispatch fn */
+    void           (*engine_fn)(void* ctx, int worker_id); /* ENGINE_HTTP: handler dispatch fn */
 } wolf_task_t;
 
 #include <unistd.h>
@@ -371,16 +371,16 @@ static int wolf_auto_thread_count(void) {
 
 typedef struct {
     wolf_task_t       tasks[WOLF_CORE_QUEUE_SIZE];
-    /* Align head/tail to separate cache lines to prevent false sharing */
-    _Atomic int       head __attribute__((aligned(64)));
-    _Atomic int       tail __attribute__((aligned(64)));
+    int               head;
+    int               tail;
+    pthread_mutex_t   mutex;
 } wolf_core_queue_t;
 
 static wolf_core_queue_t wolf_core_queues[WOLF_THREAD_ARRAY_SIZE];
 static _Atomic int        wolf_rr_index = 0;   /* round-robin push counter */
 
 static pthread_t wolf_worker_pool[WOLF_THREAD_ARRAY_SIZE];
-static int       wolf_actual_threads = 16;     /* set in wolf_worker_pool_init */
+int       wolf_actual_threads = 16;     /* set in wolf_worker_pool_init */
 
 /* ---- Push from accept thread (or any producer) → chosen worker ring ---- */
 /* Returns 1 if task was enqueued, 0 if all rings are full */
@@ -390,48 +390,53 @@ static int wolf_task_push(wolf_task_t task) {
                     memory_order_relaxed) % (unsigned)wolf_actual_threads);
     wolf_core_queue_t* q = &wolf_core_queues[idx];
 
-    int t = atomic_load_explicit(&q->tail, memory_order_relaxed);
-    int h = atomic_load_explicit(&q->head, memory_order_acquire);
-    if ((t - h) >= WOLF_CORE_QUEUE_SIZE) {
+    pthread_mutex_lock(&q->mutex);
+    if ((q->tail - q->head) >= WOLF_CORE_QUEUE_SIZE) {
+        pthread_mutex_unlock(&q->mutex);
         /* Primary queue full — scan peers for a free slot */
         for (int i = 1; i < wolf_actual_threads; i++) {
             int alt = (idx + i) % wolf_actual_threads;
             q = &wolf_core_queues[alt];
-            t = atomic_load_explicit(&q->tail, memory_order_relaxed);
-            h = atomic_load_explicit(&q->head, memory_order_acquire);
-            if ((t - h) < WOLF_CORE_QUEUE_SIZE) goto enqueue;
+            pthread_mutex_lock(&q->mutex);
+            if ((q->tail - q->head) < WOLF_CORE_QUEUE_SIZE) goto enqueue;
+            pthread_mutex_unlock(&q->mutex);
         }
         return 0; /* All rings full */
     }
 
 enqueue:
-    q->tasks[t & WOLF_CORE_QUEUE_MASK] = task;
-    atomic_store_explicit(&q->tail, t + 1, memory_order_release);
+    q->tasks[q->tail & WOLF_CORE_QUEUE_MASK] = task;
+    q->tail++;
+    pthread_mutex_unlock(&q->mutex);
     return 1;
 }
 
-/* ---- Worker pops from its own ring (SPSC — no CAS needed) ---- */
+/* ---- Worker pops from its own ring ---- */
 static int wolf_core_pop(int wid, wolf_task_t* out) {
     wolf_core_queue_t* q = &wolf_core_queues[wid];
-    int h = atomic_load_explicit(&q->head, memory_order_relaxed);
-    int t = atomic_load_explicit(&q->tail, memory_order_acquire);
-    if (h >= t) return 0;
-    *out = q->tasks[h & WOLF_CORE_QUEUE_MASK];
-    atomic_store_explicit(&q->head, h + 1, memory_order_release);
+    pthread_mutex_lock(&q->mutex);
+    if (q->head >= q->tail) {
+        pthread_mutex_unlock(&q->mutex);
+        return 0;
+    }
+    *out = q->tasks[q->head & WOLF_CORE_QUEUE_MASK];
+    q->head++;
+    pthread_mutex_unlock(&q->mutex);
     return 1;
 }
 
-/* ---- Work-stealer takes one task from victim's head (CAS) ---- */
+/* ---- Work-stealer takes one task from victim's head ---- */
 static int wolf_core_steal(int victim, wolf_task_t* out) {
     wolf_core_queue_t* q = &wolf_core_queues[victim];
-    int h = atomic_load_explicit(&q->head, memory_order_acquire);
-    int t = atomic_load_explicit(&q->tail, memory_order_acquire);
-    if (h >= t) return 0;
-    *out = q->tasks[h & WOLF_CORE_QUEUE_MASK];
-    /* CAS: only commit if head hasn't been moved by the owner */
-    return atomic_compare_exchange_weak_explicit(
-        &q->head, &h, h + 1,
-        memory_order_acq_rel, memory_order_relaxed);
+    pthread_mutex_lock(&q->mutex);
+    if (q->head >= q->tail) {
+        pthread_mutex_unlock(&q->mutex);
+        return 0;
+    }
+    *out = q->tasks[q->head & WOLF_CORE_QUEUE_MASK];
+    q->head++;
+    pthread_mutex_unlock(&q->mutex);
+    return 1;
 }
 
 static void* http_worker(void* arg); /* Forward declaration */
@@ -449,6 +454,12 @@ static void* wolf_worker_thread_func(void* arg) {
     int spin = 0;
     while (!wolf_shutdown_requested) {
         wolf_task_t task;
+
+        extern int wolf_engine_spsc_pop(int wid, wolf_task_t* out);
+        if (wolf_engine_spsc_pop(wid, &task)) {
+            spin = 0;
+            goto dispatch;
+        }
 
         /* 1. Pop from this worker's own ring — always try first */
         if (wolf_core_pop(wid, &task)) {
@@ -485,7 +496,7 @@ dispatch:
             http_worker((void*)(intptr_t)task.id);
         } else if (task.type == WOLF_TASK_ENGINE_HTTP) {
             /* io_uring engine: run the offloaded handler then post completion */
-            if (task.engine_fn) task.engine_fn(task.payload);
+            if (task.engine_fn) task.engine_fn(task.payload, wid);
         } else if (task.type == WOLF_TASK_WS_EVENT) {
             WOLF_LOG("[WOLF-WS] Worker %d popped WS task fd=%d, payload=%s\n", wid, (int)task.id, task.payload ? (char*)task.payload : "(null)");
             if (global_ws_handler) {
@@ -596,10 +607,11 @@ static int wolf_is_dedicated_server(void) { return 0; }
 
 static void wolf_worker_pool_init(void) {
     wolf_actual_threads = wolf_auto_thread_count();
-    /* Zero all per-core queue heads/tails */
+    /* Initialize queues and mutexes */
     for (int i = 0; i < wolf_actual_threads; i++) {
-        atomic_store(&wolf_core_queues[i].head, 0);
-        atomic_store(&wolf_core_queues[i].tail, 0);
+        wolf_core_queues[i].head = 0;
+        wolf_core_queues[i].tail = 0;
+        pthread_mutex_init(&wolf_core_queues[i].mutex, NULL);
     }
     fprintf(stderr,
             "[WOLF-POOL] Spawning %d worker threads (lock-free per-core queues + work-stealing)...\n",
@@ -8122,3 +8134,35 @@ int main(int argc, char** argv) {
 }
 #endif
 int wolf_get_active_requests(void) { return wolf_active_requests; }
+
+int64_t wolf_system_exec(const char* cmd) {
+    if (!cmd) return -1;
+    return (int64_t)system(cmd);
+}
+
+const char* wolf_string_concat_n(int count, ...) {
+    va_list args;
+    va_start(args, count);
+    size_t total_len = 0;
+    for (int i = 0; i < count; i++) {
+        const char* s = va_arg(args, const char*);
+        if (s) total_len += strlen(s);
+    }
+    va_end(args);
+
+    char* result = (char*)wolf_req_alloc(total_len + 1);
+    char* ptr = result;
+    
+    va_start(args, count);
+    for (int i = 0; i < count; i++) {
+        const char* s = va_arg(args, const char*);
+        if (s) {
+            size_t l = strlen(s);
+            memcpy(ptr, s, l);
+            ptr += l;
+        }
+    }
+    va_end(args);
+    *ptr = '\0';
+    return result;
+}

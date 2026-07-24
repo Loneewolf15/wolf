@@ -2,7 +2,7 @@ package main
 
 import (
 	"fmt"
-	"github.com/wolflang/wolf"
+	"wolf"
 	"io/fs"
 )
 

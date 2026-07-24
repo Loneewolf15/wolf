@@ -6,8 +6,8 @@ package resolver
 import (
 	"fmt"
 
-	"github.com/wolflang/wolf/internal/lexer"
-	"github.com/wolflang/wolf/internal/parser"
+	"wolf/internal/lexer"
+	"wolf/internal/parser"
 )
 
 // Scope tracks variable bindings at one nesting level.

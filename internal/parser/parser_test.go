@@ -3,7 +3,7 @@ package parser
 import (
 	"testing"
 
-	"github.com/wolflang/wolf/internal/lexer"
+	"wolf/internal/lexer"
 )
 
 // --- Test Helpers ---

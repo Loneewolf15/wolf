@@ -6,8 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/wolflang/wolf/internal/lexer"
-	"github.com/wolflang/wolf/internal/parser"
+	"wolf/internal/lexer"
+	"wolf/internal/parser"
 )
 
 // AutoDiscover scans the project for dependencies.
@@ -205,8 +205,11 @@ func (c *Compiler) legacyAutoDiscover(projectRoot string, filename string) ([]*p
 					if strings.HasSuffix(info.Name(), "_test.wolf") {
 						return nil
 					}
+					if info.Name() == "main.wolf" && absPath != absFilename {
+						return nil
+					}
 
-					if c.Verbose {
+					if c.Verbose || true {
 						fmt.Printf("wolf: auto-discovered %s\n", path)
 					}
 
@@ -235,6 +238,9 @@ func (c *Compiler) legacyAutoDiscover(projectRoot string, filename string) ([]*p
 
 					asts = append(asts, fileAST)
 				} else if strings.HasSuffix(info.Name(), ".go") {
+					if strings.HasSuffix(info.Name(), "_test.go") {
+						return nil
+					}
 					if c.Verbose {
 						fmt.Printf("wolf: auto-discovered Go plugin %s\n", path)
 					}

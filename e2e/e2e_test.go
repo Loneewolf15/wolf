@@ -10,9 +10,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/wolflang/wolf/internal/compiler"
-	"github.com/wolflang/wolf/internal/packager"
-	"github.com/wolflang/wolf/internal/tester"
+	"wolf/internal/compiler"
+	"wolf/internal/packager"
+	"wolf/internal/tester"
 )
 
 // isHTTPTest returns true for tests that require a live network or bind a
@@ -23,7 +23,15 @@ func isHTTPTest(name string) bool {
 	return strings.HasPrefix(name, "30_") ||
 		strings.HasPrefix(name, "31_") ||
 		name == "37_http_client.wolf" ||
-		name == "58_sockets.wolf"
+		name == "58_sockets.wolf" ||
+		// T2/T3 HTTP server programs — bind ports, never exit on their own;
+		// driven by TestT2_* / TestT3_* in t2_http_test.go.
+		strings.HasPrefix(name, "61_") ||
+		strings.HasPrefix(name, "62_") ||
+		strings.HasPrefix(name, "63_") ||
+		strings.HasPrefix(name, "64_") ||
+		strings.HasPrefix(name, "65_") ||
+		strings.HasPrefix(name, "66_")
 }
 
 func TestEndToEnd(t *testing.T) {
@@ -43,6 +51,11 @@ func TestEndToEnd(t *testing.T) {
 
 		name := file.Name()
 		t.Run(name, func(t *testing.T) {
+			// Tests 45 and 46 mutate shared state (testdata/wolf.mod, os.Stdout)
+			// and must NOT run in parallel. All other tests use unique OutDirs.
+			if name != "45_package_install.wolf" && name != "46_test_runner.wolf" {
+				t.Parallel()
+			}
 			if isHTTPTest(name) {
 				if os.Getenv("CI") != "" {
 					t.Skip("skipping HTTP/WS e2e in CI (network/port dependency)")
@@ -53,11 +66,11 @@ func TestEndToEnd(t *testing.T) {
 			}
 
 			if name == "45_package_install.wolf" {
-				// Setup wolf.mod dynamically
+				// Setup wolf.json dynamically
 				absTestdata, _ := filepath.Abs(testdata)
-				tmpl, _ := os.ReadFile(filepath.Join(testdata, "wolf.mod.template"))
+				tmpl, _ := os.ReadFile(filepath.Join(testdata, "wolf.json.template"))
 				modContent := strings.ReplaceAll(string(tmpl), "{PWD}", absTestdata)
-				os.WriteFile(filepath.Join(testdata, "wolf.mod"), []byte(modContent), 0644)
+				os.WriteFile(filepath.Join(testdata, "wolf.json"), []byte(modContent), 0644)
 
 				// Ensure dummy_pkg_repo is a git repo so clone works
 				dummyRepo := filepath.Join(testdata, "dummy_pkg_repo")
@@ -72,7 +85,7 @@ func TestEndToEnd(t *testing.T) {
 					t.Fatalf("Failed to run wolf install: %v", err)
 				}
 				defer os.RemoveAll(filepath.Join(testdata, ".wolf_modules"))
-				defer os.Remove(filepath.Join(testdata, "wolf.mod"))
+				defer os.Remove(filepath.Join(testdata, "wolf.json"))
 				defer os.Remove(filepath.Join(testdata, "wolf.lock"))
 			}
 
@@ -112,11 +125,15 @@ func test_fail() {
 
 				out := buf.String()
 
-				// Strip time and compiler debug output
+				// Strip time, compiler debug output, and linker commands
 				lines := strings.Split(out, "\n")
 				var cleanLines []string
 				for _, line := range lines {
-					if !strings.HasPrefix(line, "wolf test: Running tests") && !strings.HasPrefix(line, "Total Time:") && !strings.HasPrefix(line, ">> ") && !strings.HasPrefix(line, "Warning: ") {
+					if !strings.HasPrefix(line, "wolf test: Running tests") &&
+						!strings.HasPrefix(line, "Total Time:") &&
+						!strings.HasPrefix(line, ">> ") &&
+						!strings.HasPrefix(line, "Warning: ") &&
+						!strings.HasPrefix(line, "wolf: linker command: ") {
 						cleanLines = append(cleanLines, line)
 					}
 				}
@@ -195,5 +212,16 @@ func test_fail() {
 				t.Errorf("Output mismatch.\nExpected:\n%s\nGot:\n%s", expected, actual)
 			}
 		})
+	}
+}
+
+func TestInternalSuites(t *testing.T) {
+	err := tester.Run("../src/compiler")
+	if err != nil {
+		t.Fatalf("Compiler tests failed: %v", err)
+	}
+	err = tester.Run("../tests")
+	if err != nil {
+		t.Fatalf("Integration tests failed: %v", err)
 	}
 }

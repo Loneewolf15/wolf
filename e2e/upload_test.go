@@ -14,7 +14,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/wolflang/wolf/internal/compiler"
+	"wolf/internal/compiler"
 )
 
 func TestFileUpload(t *testing.T) {

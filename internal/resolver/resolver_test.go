@@ -3,8 +3,8 @@ package resolver
 import (
 	"testing"
 
-	"github.com/wolflang/wolf/internal/lexer"
-	"github.com/wolflang/wolf/internal/parser"
+	"wolf/internal/lexer"
+	"wolf/internal/parser"
 )
 
 // --- Test Helpers ---

@@ -3,9 +3,9 @@ package lsp
 import (
 	"strings"
 
-	"github.com/wolflang/wolf/internal/compiler"
-	"github.com/wolflang/wolf/internal/parser"
-	"github.com/wolflang/wolf/internal/resolver"
+	"wolf/internal/compiler"
+	"wolf/internal/parser"
+	"wolf/internal/resolver"
 )
 
 type Handler struct {

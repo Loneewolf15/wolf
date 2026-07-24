@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/wolflang/wolf/internal/config"
+	"wolf/internal/config"
 )
 
 // Migrator manages applying and rolling back database migrations.

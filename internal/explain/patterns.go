@@ -160,7 +160,7 @@ func allPatterns() []pattern {
 			keywords: []string{"llvm error", "llvm ir error", "invalid llvm"},
 			summary:  "The LLVM backend encountered an invalid IR construct.",
 			detail:   "The Wolf LLVM emitter produced IR that LLVM's verifier rejected. This is almost always a Wolf compiler bug rather than a user code error.",
-			fix:      "1. Run 'wolf build <file.wolf> --dump-wir' to inspect the WolfIR before LLVM lowering.\n2. Check the error message for the specific LLVM instruction that failed.\n3. File a bug at https://github.com/wolflang/wolf/issues with a minimal reproduction.",
+			fix:      "1. Run 'wolf build <file.wolf> --dump-wir' to inspect the WolfIR before LLVM lowering.\n2. Check the error message for the specific LLVM instruction that failed.\n3. File a bug at https://wolf/issues with a minimal reproduction.",
 		},
 		{
 			code:     "W-E031",

@@ -11,15 +11,22 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
 
-	"github.com/wolflang/wolf/internal/config"
-	"github.com/wolflang/wolf/internal/emitter"
-	"github.com/wolflang/wolf/internal/ir"
-	"github.com/wolflang/wolf/internal/lexer"
-	"github.com/wolflang/wolf/internal/parser"
-	"github.com/wolflang/wolf/internal/resolver"
-	"github.com/wolflang/wolf/internal/typechecker"
+	"wolf/internal/config"
+	"wolf/internal/emitter"
+	"wolf/internal/ir"
+	"wolf/internal/lexer"
+	"wolf/internal/parser"
+	"wolf/internal/resolver"
+	"wolf/internal/typechecker"
 )
+
+// goPluginMu serializes concurrent calls to buildGoPlugins.
+// The Go plugin build uses a shared cache directory (/tmp/.../cache/go_src)
+// and a shared archive (/tmp/.../cache/goplugin.a); concurrent access causes
+// go mod init races and 'text file busy' link errors.
+var goPluginMu sync.Mutex
 
 // Compiler orchestrates the full Wolf compilation pipeline.
 type Compiler struct {
@@ -640,7 +647,7 @@ func (c *Compiler) Build(source, filename string) (*CompileResult, error) {
 			linkArgs = append(linkArgs, "-undefined", "dynamic_lookup")
 		}
 	} else {
-		linkArgs = []string{"-o", binaryPath, objFile, runtimeObj, "-pthread", "-g", "-L/tmp/liburing/src", "-luring"}
+		linkArgs = []string{"-o", binaryPath, objFile, runtimeObj, "-pthread", "-g", "-luring"}
 		if hasGoPlugin {
 			linkArgs = append(linkArgs, goPluginArchive)
 		}
@@ -674,12 +681,16 @@ func (c *Compiler) Build(source, filename string) (*CompileResult, error) {
 
 	if runtime.GOOS == "linux" || runtime.GOOS == "darwin" {
 		linkArgs = append(linkArgs, "-lm")
+		if runtime.GOOS == "linux" {
+			linkArgs = append(linkArgs, "-luring")
+		}
 		if httpClientEnabled {
 			linkArgs = append(linkArgs, "-lcurl")
 		}
 	}
 
 	linkCmd := exec.Command(cc, linkArgs...)
+	fmt.Printf("wolf: linker command: %v\n", linkCmd.Args)
 	if out, err := linkCmd.CombinedOutput(); err != nil {
 		return result, fmt.Errorf("linking failed: %s\n%s", err, string(out))
 	}
@@ -688,7 +699,7 @@ func (c *Compiler) Build(source, filename string) (*CompileResult, error) {
 		// Also link wolf_host executable using just runtimeObj
 		hostPath := filepath.Join(outDir, "wolf_host")
 
-		hostLinkArgs := []string{"-o", hostPath, runtimeObj, "-pthread", "-g", "-rdynamic", "-L/tmp/liburing/src", "-luring"}
+		hostLinkArgs := []string{"-o", hostPath, runtimeObj, "-pthread", "-g", "-rdynamic", "-luring"}
 		if runtime.GOOS == "darwin" {
 			// -rdynamic on mac is sometimes -Wl,-export_dynamic
 			// actually clang supports -rdynamic directly on macOS usually.
@@ -1001,16 +1012,21 @@ func (c *Compiler) loadConfig(path string) error {
 // buildGoPlugins handles the "Zero-Friction C/Go Interop" compilation.
 // It creates a synthetic main.go that imports all discovered .go plugins and mlbridge,
 // compiles them into a c-archive, and parses the resulting header.
+// The shared cache directory is protected by goPluginMu to prevent parallel races.
 func (c *Compiler) buildGoPlugins(irProg *ir.Program) ([]emitter.CGOFunction, error) {
 	if len(c.GoPlugins) == 0 && !irProg.RequiresMLBridge {
 		return nil, nil
 	}
+
+	goPluginMu.Lock()
+	defer goPluginMu.Unlock()
 
 	assetsDir, err := ensureAssetsExtracted()
 	if err != nil {
 		return nil, err
 	}
 	cacheDir := filepath.Join(assetsDir, "..", "cache", "go_src")
+	os.RemoveAll(cacheDir)
 	if err := os.MkdirAll(cacheDir, 0755); err != nil {
 		return nil, err
 	}

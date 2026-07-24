@@ -1,5 +1,5 @@
 {
-  "file": "e2e/testdata/67_bug089_bool_return.wolf",
+  "file": "examples/bench_server.wolf",
   "errors": null,
   "phase": "unknown",
   "version": "0.1.0-dev"

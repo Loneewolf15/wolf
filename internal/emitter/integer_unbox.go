@@ -21,7 +21,7 @@ package emitter
 // the function and fall back to the safe ptr representation.
 
 import (
-	"github.com/wolflang/wolf/internal/ir"
+	"wolf/internal/ir"
 )
 
 // isFuncIntegerPure returns true if fn qualifies for integer unboxing.

@@ -1,5 +1,25 @@
 # Wolf Bugs Fixed — Cumulative Log
 
+## Session 2026-07-23 (Session 36 — Native Register Allocation Phase 1 & 2)
+
+### BUG-091: `wolf_system_exec` pointer vs i64 LLVM type mismatch
+- **Class:** P0 🔴 Compiler Panic (Runtime crash)
+- **Root cause:** `CgoFuncs` in `llvm_emitter.go` mapping returned `ptr` for `wolf_system_exec` because it was missing from the `i64` coercion list for function return types. This caused runtime errors and LLVM type mismatches when compiling `wolf test`.
+- **Fix:** Appended `"wolf_system_exec"` to `e.funcSigs` explicit `i64` return types mapping.
+- **File:** `internal/emitter/llvm_emitter.go`
+
+### BUG-092: `Strings::starts_with` LLVM mapping missing
+- **Class:** P0 🔴 Compiler Panic (Unresolved external symbol)
+- **Root cause:** The `emitStaticCall` mapped Wolf's `Strings` methods (like `substring`) to C functions (`wolf_strings_substring`), but missed `starts_with`, `ends_with`, and `contains`. 
+- **Fix:** Handled these string matching functions explicitly in `emitStaticCall` inside `llvm_emitter.go`.
+- **File:** `internal/emitter/llvm_emitter.go`
+
+### BUG-093: Array assignment crashes native LLVM execution
+- **Class:** P1 🟠 Runtime Stability (Segfault on dynamic memory assignment)
+- **Root cause:** `IndexAssign` (e.g. `$list[$j] = $val`) dynamically resolved to `wolf_map_set`, which expects a map, not a Wolf array. Attempting array index reassignment triggered segmentation faults during standard sorting algorithms in `RegAlloc.wolf`.
+- **Fix:** Mitigated natively by implementing `arrayToMap` and `mapToArray` wrappers inside `RegAlloc.wolf`, allowing map assignment using string-casted index keys (`$map["" .. $j] = $val`) to bypass array immutability.
+- **File:** `src/compiler/RegAlloc.wolf`
+
 ## Session 2026-07-22 (Session 35 — Native Method Dispatch Fixes)
 
 ### BUG-089: LLVM Emitter panics on duplicate method names across unrelated classes

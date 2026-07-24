@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/wolflang/wolf/internal/compiler"
+	"wolf/internal/compiler"
 )
 
 func TestGracefulShutdown(t *testing.T) {
@@ -52,7 +52,7 @@ func TestGracefulShutdown(t *testing.T) {
 	go func() {
 		for scanner.Scan() {
 			line := scanner.Text()
-			if strings.Contains(line, "Wolf HTTP Server running") {
+			if strings.Contains(line, "Wolf HTTP Server running") || strings.Contains(line, "Wolf HTTP Engine") {
 				stopChan <- true
 				return
 			}

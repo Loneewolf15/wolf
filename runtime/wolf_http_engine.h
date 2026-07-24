@@ -17,8 +17,10 @@
 
 #include <stdint.h>
 #include <stddef.h>
+#include <stdatomic.h>
 #include "wolf_thread_compat.h"   /* pthread + Windows portability shims */
 #include "wolf_config_runtime.h"
+#include "wolf_queue.h"            /* Lock-free SPSC ring buffer — Wolf Engine V3 */
 
 /* ── Platform capability detection ──────────────────────────────────────── */
 #if defined(_WIN32)
@@ -94,6 +96,7 @@ typedef struct WolfArena {
     WolfArenaBlock* fallback_blocks;
     
     volatile int refcount; /* W1 Fix: track detached concurrent spawn tasks */
+    int pool_index; /* Index within WolfArenaPool for io_uring registered buffers */
 } WolfArena;
 
 typedef struct WolfArenaPool {
@@ -123,15 +126,18 @@ typedef void (*wolf_http_handler_t)(int64_t req_id, int64_t res_id);
 typedef void (*wolf_ws_handler_t)(int64_t req_id, const char* message);
 
 /* ================================================================
- * Per-core worker→poller completion ring
+ * Per-core worker→poller completion: V3 SPSC Matrix
  *
- * When handler execution is offloaded to the worker pool, the worker
- * posts the completed response here. The poller drains it at the top
- * of every poll iteration and submits the async send via io_uring.
+ * Wolf Engine V3 replaces the MPSC complete_ring (which had a data race
+ * under load — multiple workers racing to increment tail) with a
+ * mathematically race-free SPSC (Single-Producer Single-Consumer) matrix.
  *
- * SPSC ring: one producer (any one worker at a time, serialised by the
- * ring's CAS-free tail advance) → one consumer (the owning poller).
- * Head/tail on separate cache lines to eliminate false sharing.
+ * Matrix layout: complete_rings[core_id][worker_id]
+ *   - PRODUCER: worker thread `worker_id` (only one thread writes per ring)
+ *   - CONSUMER: I/O poller thread `core_id` (only one thread reads per ring)
+ *
+ * The old WolfCoreCompleteRing is kept for the non-io_uring fallback path
+ * (epoll/kqueue) which serializes workers differently.
  * ================================================================ */
 
 #define WOLF_CORE_COMPLETE_SIZE 512          /* must be power of 2 */
@@ -148,7 +154,17 @@ typedef struct {
     _Atomic int        head __attribute__((aligned(64)));
     _Atomic int        tail __attribute__((aligned(64)));
     int                notify_fd; /* eventfd — worker writes to wake poller */
+    int                worker_id; /* ID of the worker owning this ring */
 } WolfCoreCompleteRing;
+
+/*
+ * V3: Per-worker SPSC rings for io_uring path
+ * Each worker has its own ring → core. Zero contention guaranteed.
+ * Indexed as spsc_rings[worker_id] within each WolfCore.
+ */
+#ifndef WOLF_MAX_WORKERS
+#  define WOLF_MAX_WORKERS 256   /* max workers for SPSC matrix */
+#endif
 
 typedef struct WolfCore {
     int             core_id;
@@ -173,11 +189,26 @@ typedef struct WolfCore {
     wolf_http_handler_t http_handler;
     wolf_ws_handler_t   ws_handler;
 
-    /* Worker → poller completion handoff ring */
+    /* Worker → poller completion handoff ring (legacy MPSC, used on epoll/kqueue) */
     WolfCoreCompleteRing complete_ring;
+
+    /*
+     * V3: per-worker SPSC rings — io_uring fast path.
+     * spsc_submit_rings[j]: Core (Producer) → Worker j (Consumer)
+     * spsc_complete_rings[j]: Worker j (Producer) → Core (Consumer)
+     * Zero locks, zero contention.
+     */
+    wolf_spsc_t spsc_submit_rings[WOLF_MAX_WORKERS];
+    wolf_spsc_t spsc_complete_rings[WOLF_MAX_WORKERS];
+    int         spsc_worker_count;      /* number of workers actually registered to this core */
+    int         spsc_next_worker;       /* round-robin assignment counter for submit_rings */
+
+    /* eventfd per worker: worker writes here to wake poller after spsc_push */
+    int         spsc_notify_fds[WOLF_MAX_WORKERS];
 
     /* Capability flags — set once at startup, read-only after */
     int use_send_zc;   /* 1 = use IORING_OP_SEND_ZC (kernel >= 6.0 + liburing >= 2.3) */
+    int use_spsc;      /* 1 = use V3 SPSC matrix (io_uring path), 0 = legacy ring */
 
     /* Event-driven epoll/kqueue fds (set in wolf_core_thread, -1 elsewhere) */
     int epoll_fd;       /* Linux epoll fd used by the event-driven loop */
@@ -196,9 +227,14 @@ typedef struct WolfEngine {
 
     /* Benchmark mode */
     int bench_mode;
+
+    /* TLS / kTLS Integration */
+    int   use_ktls;
+    void* ssl_ctx;
 } WolfEngine;
 
 WolfEngine* wolf_engine_create(int port, int core_count);
+int         wolf_engine_enable_tls(WolfEngine* engine, const char* cert_path, const char* key_path);
 int         wolf_engine_start(WolfEngine* engine, wolf_http_handler_t handler, wolf_ws_handler_t ws_handler);
 void        wolf_engine_shutdown(WolfEngine* engine);
 void        wolf_engine_stats(WolfEngine* engine);  /* prints per-core stats */
@@ -233,5 +269,12 @@ typedef struct WTask {
 WTask* wtask_create(WolfCore* core, int64_t req_id);
 void   wtask_yield(WTask* task);    /* yield back to executor event loop */
 void   wtask_complete(WTask* task); /* free arena, return slot */
+
+int wolf_engine_socket_set_nonblocking(int fd);
+int wolf_engine_socket_set_tcp_nodelay(int fd);
+
+/* SIMD HTTP Parser */
+void wolf_engine_parse_request_simd(void* ctx_ptr, char* raw, size_t len);
+int wolf_header_compare_ct(const char* a, const char* b);
 
 #endif /* WOLF_HTTP_ENGINE_H */
