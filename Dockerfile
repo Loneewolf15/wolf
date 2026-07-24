@@ -12,7 +12,7 @@ RUN apt-get update && apt-get install -y \
     make \
     git \
     liburing-dev \
-    libmariadb-dev \
+    libmysqlclient-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Add LLVM 15 to PATH so `wolf build` finds the right toolchain

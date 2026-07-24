@@ -2132,6 +2132,12 @@ int wolf_engine_start(WolfEngine* engine, wolf_http_handler_t handler, wolf_ws_h
     wolf_worker_pool_init();
 
     /* Start per-core threads */
+    
+    for (int i = 0; i < engine->core_count; i++) {
+        if (engine->cores[i]) {
+            engine->cores[i]->spsc_worker_count = wolf_actual_threads;
+        }
+    }
     for (int i = 0; i < engine->core_count; i++) {
         WolfCore* core = engine->cores[i];
         if (!core) continue;
