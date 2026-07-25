@@ -1235,8 +1235,12 @@ static void wtask_complete_cb(const wolf_spsc_entry_t* entry, void* userdata) {
 
 void wolf_core_drain_completions(WolfCore* core) {
     if (core->spsc_worker_count > 0) {
-        extern wolf_engine_matrix_t comp_matrix;
-        wolf_matrix_drain(&comp_matrix, core->core_id, wtask_complete_cb, core);
+        for (int i = 0; i < core->spsc_worker_count; i++) {
+            wolf_spsc_entry_t entry;
+            while (wolf_spsc_pop(&core->spsc_complete_rings[i], &entry)) {
+                wtask_complete_cb(&entry, core);
+            }
+        }
     }
     
     if (core->notify_fd >= 0) {
