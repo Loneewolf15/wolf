@@ -1352,7 +1352,18 @@ static void on_recv_complete(int client_fd, void* ctx_ptr, int bytes_read) {
     ctx->bytes_in = bytes_read;
     ctx->read_buf[bytes_read] = '\0';
     
-    wolf_engine_parse_request(ctx, ctx->read_buf, bytes_read);
+    int parse_status = wolf_engine_parse_request(ctx, ctx->read_buf, bytes_read);
+    if (parse_status < 0 || ctx->status_code == 400) {
+        ctx->status_code = 400;
+        char* hbuf = NULL; int hlen = 0;
+        wolf_engine_build_response(ctx, &hbuf, &hlen);
+        if (hbuf && hlen > 0) {
+            wolf_uring_submit_send(core->sentinel->uring, client_fd, hbuf, hlen, on_send_complete, ctx, ctx->arena);
+        } else {
+            on_send_complete(client_fd, ctx, -1);
+        }
+        return;
+    }
 
     /* GET /health Observability Bypass */
     if (ctx->method && strcmp(ctx->method, "GET") == 0 && ctx->path && strcmp(ctx->path, "/health") == 0) {
@@ -1857,7 +1868,17 @@ static void wolf_kqueue_recv_client(WolfCore* core, int client_fd) {
     ctx->read_buf[bytes] = '\0';
     ctx->bytes_in        = bytes;
 
-    wolf_engine_parse_request(ctx, ctx->read_buf, bytes);
+    int parse_status = wolf_engine_parse_request(ctx, ctx->read_buf, bytes);
+    if (parse_status < 0 || ctx->status_code == 400) {
+        ctx->status_code = 400;
+        char* out_buf = NULL; int out_len = 0;
+        wolf_engine_build_response(ctx, &out_buf, &out_len);
+        if (out_buf && out_len > 0) write(client_fd, out_buf, out_len);
+        wolf_fd_remove_entry(client_fd);
+        close(client_fd);
+        wolf_core_free_ctx(ctx);
+        return;
+    }
 
     int64_t ctx_id = (int64_t)(ctx - wolf_core_ctxs);
     ctx->request_id    = ctx_id;
@@ -2100,7 +2121,16 @@ static void* wolf_core_thread(void* arg) {
             ssize_t bytes = read(client_fd, read_buf, sizeof(read_buf) - 1);
             if (bytes <= 0) { close(client_fd); wolf_core_free_ctx(ctx); continue; }
             read_buf[bytes] = '\0';
-            wolf_engine_parse_request(ctx, read_buf, bytes);
+            int parse_status = wolf_engine_parse_request(ctx, read_buf, bytes);
+            if (parse_status < 0 || ctx->status_code == 400) {
+                ctx->status_code = 400;
+                char* out_buf = NULL; int out_len = 0;
+                wolf_engine_build_response(ctx, &out_buf, &out_len);
+                if (out_buf && out_len > 0) write(client_fd, out_buf, out_len);
+                close(client_fd);
+                wolf_core_free_ctx(ctx);
+                continue;
+            }
             char* out_buf = NULL; int out_len = 0;
             wolf_engine_build_response(ctx, &out_buf, &out_len);
             if (out_buf && out_len > 0) write(client_fd, out_buf, out_len);
@@ -2112,7 +2142,8 @@ static void* wolf_core_thread(void* arg) {
     fprintf(stderr, "[WOLF-ENGINE] Core %d shutting down (served %lld requests)\n",
             core->core_id, (long long)core->requests_total);
 
-    free(args);
+    /* DO NOT free(args) here — wolf_engine_destroy() handles it. 
+     * Freeing it here causes a UAF/double-free race with the worker pool. */
     return NULL;
 }
 
@@ -2219,7 +2250,7 @@ WolfEngine* wolf_engine_create(int port, int core_count) {
         core->kq_notify_rfd = -1;
         /* Phase 4: initialize per-core time-wheel */
         core->timewheel   = wolf_timewheel_create();
-        /* ADR-030: core->ratelimit is a shared pointer; assigned below after
+        /* ADR-031: core->ratelimit is a shared pointer; assigned below after
          * wolf_engine_create allocates the single global instance. */
         core->ratelimit   = NULL; /* filled in after loop */
 #if defined(WOLF_HAS_IO_URING)
@@ -2234,7 +2265,7 @@ WolfEngine* wolf_engine_create(int port, int core_count) {
         engine->cores[i] = core;
     }
 
-    /* ADR-030: Create a single global rate limiter shared by all cores.
+    /* ADR-031: Create a single global rate limiter shared by all cores.
      * Per-core limiters would allow N × WOLF_RATE_RPS per IP (where N = core_count),
      * breaking the security contract. One global instance enforces the exact ceiling. */
     engine->ratelimit = wolf_ratelimit_create(WOLF_RATE_RPS, WOLF_RATE_BURST);
@@ -2386,12 +2417,12 @@ void wolf_engine_destroy(WolfEngine* engine) {
         wolf_arena_pool_destroy(core->arena_pool);
         /* Phase 4: destroy per-core time-wheel */
         wolf_timewheel_destroy(core->timewheel);
-        /* ADR-030: do NOT destroy core->ratelimit here; it is a shared pointer.
+        /* ADR-031: do NOT destroy core->ratelimit here; it is a shared pointer.
          * The single global instance is destroyed on engine after this loop. */
         core->ratelimit = NULL;
         free(core);
     }
-    /* ADR-030: destroy the single global rate limiter */
+    /* ADR-031: destroy the single global rate limiter */
     wolf_ratelimit_destroy(engine->ratelimit);
     engine->ratelimit = NULL;
     free(engine->cores);
