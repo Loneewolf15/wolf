@@ -4,469 +4,469 @@
 target triple = "x86_64-pc-linux-gnu"
 
 ; --- String Constants ---
-@.str.2 = private unnamed_addr constant [25 x i8] c"test_array_push failed: \00"
-@.str.33 = private unnamed_addr constant [10 x i8] c"1 + 2 * 3\00"
-@.str.197 = private unnamed_addr constant [57 x i8] c"test_parser_class_decl failed: expected name 'Dog', got \00"
-@.str.372 = private unnamed_addr constant [33 x i8] c"\E2\9D\8C test_lexer_string - FAILED: \00"
-@.str.422 = private unnamed_addr constant [38 x i8] c"\E2\9D\8C test_parser_match_stmt - FAILED: \00"
-@.str.28 = private unnamed_addr constant [13 x i8] c"expected EOF\00"
-@.str.68 = private unnamed_addr constant [11 x i8] c"BinaryExpr\00"
-@.str.193 = private unnamed_addr constant [32 x i8] c"test_parser_class_decl failed: \00"
-@.str.231 = private unnamed_addr constant [69 x i8] c"\E2\9D\8C test_parser_foreach_stmt - FAILED: expected DollarIdent iterable\00"
-@.str.266 = private unnamed_addr constant [62 x i8] c"test_resolver_var_decl: expected 'x' in symbol table, got nil\00"
-@.str.277 = private unnamed_addr constant [56 x i8] c"test_resolver_func_hoist: 'greet' not in function table\00"
-@.str.77 = private unnamed_addr constant [30 x i8] c"PASS: test_parser_binary_expr\00"
-@.str.417 = private unnamed_addr constant [30 x i8] c"\E2\9C\85 test_parser_closure_arrow\00"
-@.str.418 = private unnamed_addr constant [41 x i8] c"\E2\9D\8C test_parser_closure_arrow - FAILED: \00"
-@.str.427 = private unnamed_addr constant [30 x i8] c"\E2\9C\85 test_resolver_func_params\00"
-@.str.80 = private unnamed_addr constant [8 x i8] c" errors\00"
-@.str.406 = private unnamed_addr constant [36 x i8] c"\E2\9D\8C test_parser_for_stmt - FAILED: \00"
-@.str.450 = private unnamed_addr constant [45 x i8] c"\E2\9D\8C test_resolver_foreach_scoping - FAILED: \00"
-@.str.81 = private unnamed_addr constant [70 x i8] c"test_parser_precedence_comparison failed: expected BinaryExpr at root\00"
-@.str.343 = private unnamed_addr constant [54 x i8] c"foreach ($users as $u) { var $profile = $db->get(); }\00"
-@.str.421 = private unnamed_addr constant [27 x i8] c"\E2\9C\85 test_parser_match_stmt\00"
-@.str.462 = private unnamed_addr constant [10 x i8] c" passed, \00"
-@.str.233 = private unnamed_addr constant [2 x i8] c"k\00"
-@.str.289 = private unnamed_addr constant [34 x i8] c"PASS: test_resolver_undefined_var\00"
-@.str.58 = private unnamed_addr constant [8 x i8] c"VarDecl\00"
-@.str.90 = private unnamed_addr constant [17 x i8] c"var $x = !$flag;\00"
-@.str.180 = private unnamed_addr constant [30 x i8] c"test_parser_for_stmt failed: \00"
-@.str.284 = private unnamed_addr constant [32 x i8] c"PASS: test_resolver_func_params\00"
-@.str.448 = private unnamed_addr constant [41 x i8] c"\E2\9D\8C test_resolver_lookup_miss - FAILED: \00"
-@.str.166 = private unnamed_addr constant [58 x i8] c"test_parser_if_stmt failed: expected BinaryExpr condition\00"
-@.str.177 = private unnamed_addr constant [54 x i8] c"test_parser_if_elseif_else failed: expected else body\00"
-@.str.221 = private unnamed_addr constant [53 x i8] c"test_parser_grouped_expr failed: expected BinaryExpr\00"
-@.str.335 = private unnamed_addr constant [36 x i8] c"PASS: test_resolver_closure_scoping\00"
-@.str.451 = private unnamed_addr constant [34 x i8] c"\E2\9C\85 test_resolver_closure_scoping\00"
-@.str.75 = private unnamed_addr constant [2 x i8] c"*\00"
-@.str.128 = private unnamed_addr constant [10 x i8] c"Substring\00"
-@.str.165 = private unnamed_addr constant [10 x i8] c"condition\00"
-@.str.282 = private unnamed_addr constant [60 x i8] c"func add($a, $b) { var $result = $a + $b; return $result; }\00"
-@.str.389 = private unnamed_addr constant [36 x i8] c"\E2\9C\85 test_parser_chained_method_call\00"
-@.str.445 = private unnamed_addr constant [32 x i8] c"\E2\9C\85 test_resolver_string_concat\00"
-@.str.244 = private unnamed_addr constant [10 x i8] c"arrowExpr\00"
-@.str.321 = private unnamed_addr constant [55 x i8] c"test_resolver_string_concat: unexpected resolve errors\00"
-@.str.140 = private unnamed_addr constant [8 x i8] c"NewExpr\00"
-@.str.207 = private unnamed_addr constant [9 x i8] c"FuncDecl\00"
-@.str.20 = private unnamed_addr constant [6 x i8] c"IDENT\00"
-@.str.70 = private unnamed_addr constant [3 x i8] c"op\00"
-@.str.148 = private unnamed_addr constant [47 x i8] c"test_parser_array_literal failed: errors found\00"
-@.str.268 = private unnamed_addr constant [4 x i8] c"var\00"
-@.str.318 = private unnamed_addr constant [49 x i8] c"test_resolver_func_param_count: expected 3, got \00"
-@.str.382 = private unnamed_addr constant [49 x i8] c"\E2\9D\8C test_parser_precedence_comparison - FAILED: \00"
-@.str.34 = private unnamed_addr constant [42 x i8] c"test_lexer_math failed: expected 6 tokens\00"
-@.str.86 = private unnamed_addr constant [64 x i8] c"test_parser_precedence_comparison failed: expected '==' on left\00"
-@.str.125 = private unnamed_addr constant [10 x i8] c"className\00"
-@.str.138 = private unnamed_addr constant [43 x i8] c"var $p = new Parser($tokens, $file, $src);\00"
-@.str.246 = private unnamed_addr constant [32 x i8] c"PASS: test_parser_closure_arrow\00"
-@.str.377 = private unnamed_addr constant [22 x i8] c"\E2\9C\85 test_parser_basic\00"
-@.str.413 = private unnamed_addr constant [29 x i8] c"\E2\9C\85 test_parser_grouped_expr\00"
-@.str.173 = private unnamed_addr constant [48 x i8] c"test_parser_if_elseif_else failed: errors found\00"
-@.str.398 = private unnamed_addr constant [41 x i8] c"\E2\9D\8C test_parser_array_literal - FAILED: \00"
-@.str.97 = private unnamed_addr constant [36 x i8] c"var $s = \22hello\22 .. \22 \22 .. \22world\22;\00"
-@.str.99 = private unnamed_addr constant [13 x i8] c"StringConcat\00"
-@.str.185 = private unnamed_addr constant [51 x i8] c"test_parser_for_stmt failed: expected non-nil body\00"
-@.str.346 = private unnamed_addr constant [62 x i8] c"\E2\9D\8C test_typechecker_n1_loop - FAILED: expected warning level\00"
-@.str.359 = private unnamed_addr constant [28 x i8] c"ALL PARSER TESTS PASSED \E2\9C\93\00"
-@.str.368 = private unnamed_addr constant [32 x i8] c"\E2\9D\8C test_lexer_empty - FAILED: \00"
-@.str.447 = private unnamed_addr constant [30 x i8] c"\E2\9C\85 test_resolver_lookup_miss\00"
-@.str.19 = private unnamed_addr constant [13 x i8] c"expected VAR\00"
-@.str.116 = private unnamed_addr constant [7 x i8] c"object\00"
-@.str.117 = private unnamed_addr constant [67 x i8] c"test_parser_chained_method_call failed: inner should be MethodCall\00"
-@.str.373 = private unnamed_addr constant [20 x i8] c"\E2\9C\85 test_lexer_math\00"
-@.str.57 = private unnamed_addr constant [53 x i8] c"test_parser_basic failed: expected 1 statement, got \00"
-@.str.76 = private unnamed_addr constant [66 x i8] c"test_parser_binary_expr failed: expected '*' in nested expr, got \00"
-@.str.141 = private unnamed_addr constant [52 x i8] c"test_parser_new_expr failed: expected NewExpr, got \00"
-@.str.170 = private unnamed_addr constant [60 x i8] c"test_parser_if_stmt failed: expected else body to be parsed\00"
-@.str.250 = private unnamed_addr constant [58 x i8] c"test_parser_closure_block failed: expected BlockStmt body\00"
-@.str.332 = private unnamed_addr constant [36 x i8] c"PASS: test_resolver_foreach_scoping\00"
-@.str.187 = private unnamed_addr constant [33 x i8] c"while ($running) { var $x = 1; }\00"
-@.str.228 = private unnamed_addr constant [66 x i8] c"\E2\9D\8C test_parser_foreach_stmt - FAILED: expected ForeachStmt, got \00"
-@.str.53 = private unnamed_addr constant [45 x i8] c"test_parser_basic failed: parse errors found\00"
-@.str.307 = private unnamed_addr constant [53 x i8] c"test_resolver_if_scoping: expected no resolve errors\00"
-@.str.395 = private unnamed_addr constant [25 x i8] c"\E2\9C\85 test_parser_new_expr\00"
-@.str.396 = private unnamed_addr constant [36 x i8] c"\E2\9D\8C test_parser_new_expr - FAILED: \00"
-@.str.457 = private unnamed_addr constant [29 x i8] c"\E2\9C\85 test_typechecker_n1_loop\00"
-@.str.27 = private unnamed_addr constant [19 x i8] c"expected SEMICOLON\00"
-@.str.420 = private unnamed_addr constant [41 x i8] c"\E2\9D\8C test_parser_closure_block - FAILED: \00"
-@.str.461 = private unnamed_addr constant [9 x i8] c"\0ATests: \00"
-@.str.48 = private unnamed_addr constant [15 x i8] c"expected CLASS\00"
-@.str.190 = private unnamed_addr constant [56 x i8] c"test_parser_while_stmt failed: expected WhileStmt, got \00"
 @.str.381 = private unnamed_addr constant [38 x i8] c"\E2\9C\85 test_parser_precedence_comparison\00"
-@.str.408 = private unnamed_addr constant [38 x i8] c"\E2\9D\8C test_parser_while_stmt - FAILED: \00"
-@.str.167 = private unnamed_addr constant [2 x i8] c">\00"
-@.str.329 = private unnamed_addr constant [54 x i8] c"foreach ([1, 2, 3] as $k => $v) { var $x = $v + $k; }\00"
-@.str.98 = private unnamed_addr constant [47 x i8] c"test_parser_string_concat failed: errors found\00"
-@.str.196 = private unnamed_addr constant [4 x i8] c"Dog\00"
-@.str.198 = private unnamed_addr constant [11 x i8] c"properties\00"
-@.str.315 = private unnamed_addr constant [9 x i8] c"multiply\00"
-@.str.114 = private unnamed_addr constant [6 x i8] c"count\00"
-@.str.429 = private unnamed_addr constant [32 x i8] c"\E2\9C\85 test_resolver_undefined_var\00"
-@.str.21 = private unnamed_addr constant [15 x i8] c"expected IDENT\00"
-@.str.135 = private unnamed_addr constant [10 x i8] c"IndexExpr\00"
-@.str.154 = private unnamed_addr constant [41 x i8] c"var $m = {\22name\22: \22wolf\22, \22version\22: 1};\00"
-@.str.386 = private unnamed_addr constant [41 x i8] c"\E2\9D\8C test_parser_string_concat - FAILED: \00"
-@.str.402 = private unnamed_addr constant [35 x i8] c"\E2\9D\8C test_parser_if_stmt - FAILED: \00"
-@.str.410 = private unnamed_addr constant [38 x i8] c"\E2\9D\8C test_parser_class_decl - FAILED: \00"
-@.str.438 = private unnamed_addr constant [40 x i8] c"\E2\9D\8C test_resolver_if_scoping - FAILED: \00"
-@.str.215 = private unnamed_addr constant [7 x i8] c"values\00"
-@.str.216 = private unnamed_addr constant [56 x i8] c"test_parser_return_stmt failed: expected 1 return value\00"
-@.str.234 = private unnamed_addr constant [65 x i8] c"\E2\9D\8C test_parser_foreach_stmt - FAILED: expected keyVar 'k', got \00"
-@.str.347 = private unnamed_addr constant [68 x i8] c"\E2\9D\8C test_typechecker_n1_loop - FAILED: expected N+1 warning message\00"
-@.str.367 = private unnamed_addr constant [21 x i8] c"\E2\9C\85 test_lexer_empty\00"
-@.str.201 = private unnamed_addr constant [55 x i8] c"test_parser_class_decl failed: expected 1 method, got \00"
-@.str.247 = private unnamed_addr constant [42 x i8] c"var $print = func($msg) { print($msg); };\00"
-@.str.324 = private unnamed_addr constant [12 x i8] c"nonexistent\00"
-@.str.345 = private unnamed_addr constant [8 x i8] c"warning\00"
-@.str.55 = private unnamed_addr constant [47 x i8] c"test_parser_basic failed: expected Program AST\00"
-@.str.124 = private unnamed_addr constant [58 x i8] c"test_parser_static_call failed: expected StaticCall, got \00"
-@.str.334 = private unnamed_addr constant [50 x i8] c"test_resolver_closure_scoping: expected no errors\00"
-@.str.339 = private unnamed_addr constant [24 x i8] c"var $x : int = \22hello\22;\00"
-@.str.362 = private unnamed_addr constant [39 x i8] c"ALL TESTS PASSED IN resolver_test.wolf\00"
-@.str.22 = private unnamed_addr constant [7 x i8] c"ASSIGN\00"
-@.str.202 = private unnamed_addr constant [5 x i8] c"bark\00"
-@.str.238 = private unnamed_addr constant [31 x i8] c"PASS: test_parser_foreach_stmt\00"
-@.str.314 = private unnamed_addr constant [51 x i8] c"func multiply($a, $b, $c) { return $a * $b * $c; }\00"
-@.str.317 = private unnamed_addr constant [11 x i8] c"paramCount\00"
-@.str.54 = private unnamed_addr constant [8 x i8] c"Program\00"
-@.str.100 = private unnamed_addr constant [70 x i8] c"test_parser_string_concat failed: expected StringConcat at root, got \00"
-@.str.152 = private unnamed_addr constant [60 x i8] c"test_parser_array_literal failed: expected 3 elements, got \00"
-@.str.179 = private unnamed_addr constant [45 x i8] c"for ($i = 0; $i < 10; $i++) { var $x = $i; }\00"
-@.str.188 = private unnamed_addr constant [44 x i8] c"test_parser_while_stmt failed: errors found\00"
-@.str.271 = private unnamed_addr constant [6 x i8] c"level\00"
-@.str.273 = private unnamed_addr constant [50 x i8] c"test_resolver_var_decl: unexpected resolve errors\00"
-@.str.391 = private unnamed_addr constant [28 x i8] c"\E2\9C\85 test_parser_static_call\00"
-@.str.134 = private unnamed_addr constant [45 x i8] c"test_parser_array_index failed: errors found\00"
-@.str.256 = private unnamed_addr constant [5 x i8] c"arms\00"
-@.str.326 = private unnamed_addr constant [57 x i8] c"test_resolver_lookup_miss: expected nil for unknown func\00"
-@.str.363 = private unnamed_addr constant [33 x i8] c"ALL TYPECHECKER TESTS PASSED \E2\9C\93\00"
-@.str.405 = private unnamed_addr constant [25 x i8] c"\E2\9C\85 test_parser_for_stmt\00"
-@.str.354 = private unnamed_addr constant [23 x i8] c"PASS: test_lexer_basic\00"
+@.str.332 = private unnamed_addr constant [36 x i8] c"PASS: test_resolver_foreach_scoping\00"
 @.str.212 = private unnamed_addr constant [56 x i8] c"test_parser_return_stmt failed: expected BlockStmt body\00"
-@.str.229 = private unnamed_addr constant [9 x i8] c"iterable\00"
-@.str.364 = private unnamed_addr constant [42 x i8] c"ALL TESTS PASSED IN typechecker_test.wolf\00"
-@.str.378 = private unnamed_addr constant [33 x i8] c"\E2\9D\8C test_parser_basic - FAILED: \00"
-@.str.414 = private unnamed_addr constant [40 x i8] c"\E2\9D\8C test_parser_grouped_expr - FAILED: \00"
-@.str.437 = private unnamed_addr constant [29 x i8] c"\E2\9C\85 test_resolver_if_scoping\00"
-@.str.446 = private unnamed_addr constant [43 x i8] c"\E2\9D\8C test_resolver_string_concat - FAILED: \00"
-@.str.333 = private unnamed_addr constant [67 x i8] c"var $x = 10; var $add = func($a) { var $y = $a + $x; return $y; };\00"
-@.str.26 = private unnamed_addr constant [10 x i8] c"SEMICOLON\00"
-@.str.39 = private unnamed_addr constant [26 x i8] c"if else return class func\00"
-@.str.50 = private unnamed_addr constant [14 x i8] c"expected FUNC\00"
-@.str.83 = private unnamed_addr constant [70 x i8] c"test_parser_precedence_comparison failed: expected '&&' at root, got \00"
-@.str.251 = private unnamed_addr constant [32 x i8] c"PASS: test_parser_closure_block\00"
-@.str.295 = private unnamed_addr constant [59 x i8] c"test_resolver_class_decl: expected field 'name' registered\00"
-@.str.296 = private unnamed_addr constant [60 x i8] c"test_resolver_class_decl: expected method 'bark' registered\00"
-@.str.46 = private unnamed_addr constant [16 x i8] c"expected RETURN\00"
-@.str.123 = private unnamed_addr constant [11 x i8] c"StaticCall\00"
-@.str.163 = private unnamed_addr constant [7 x i8] c"IfStmt\00"
-@.str.248 = private unnamed_addr constant [53 x i8] c"test_parser_closure_block failed: expected no errors\00"
-@.str.355 = private unnamed_addr constant [24 x i8] c"PASS: test_lexer_string\00"
-@.str.1 = private unnamed_addr constant [6 x i8] c"hello\00"
-@.str.232 = private unnamed_addr constant [7 x i8] c"keyVar\00"
-@.str.243 = private unnamed_addr constant [52 x i8] c"test_parser_closure_arrow failed: expected 2 params\00"
-@.str.288 = private unnamed_addr constant [54 x i8] c"test_resolver_undefined_var: error should mention 'z'\00"
-@.str.328 = private unnamed_addr constant [32 x i8] c"PASS: test_resolver_lookup_miss\00"
-@.str.411 = private unnamed_addr constant [28 x i8] c"\E2\9C\85 test_parser_return_stmt\00"
-@.str.88 = private unnamed_addr constant [65 x i8] c"test_parser_precedence_comparison failed: expected '!=' on right\00"
-@.str.132 = private unnamed_addr constant [30 x i8] c"PASS: test_parser_static_call\00"
-@.str.261 = private unnamed_addr constant [9 x i8] c"Wildcard\00"
-@.str.303 = private unnamed_addr constant [74 x i8] c"test_resolver_new_unknown_class: expected error for unknown class 'Ghost'\00"
-@.str.385 = private unnamed_addr constant [30 x i8] c"\E2\9C\85 test_parser_string_concat\00"
-@.str.262 = private unnamed_addr constant [66 x i8] c"test_parser_match_stmt failed: expected Wildcard pattern in arm 2\00"
-@.str.168 = private unnamed_addr constant [54 x i8] c"test_parser_if_stmt failed: expected '>' condition op\00"
-@.str.213 = private unnamed_addr constant [11 x i8] c"ReturnStmt\00"
-@.str.96 = private unnamed_addr constant [29 x i8] c"PASS: test_parser_unary_expr\00"
-@.str.121 = private unnamed_addr constant [41 x i8] c"var $sub = Strings::Substring($s, 0, 5);\00"
-@.str.137 = private unnamed_addr constant [30 x i8] c"PASS: test_parser_array_index\00"
-@.str.206 = private unnamed_addr constant [45 x i8] c"test_parser_return_stmt failed: errors found\00"
-@.str.297 = private unnamed_addr constant [52 x i8] c"test_resolver_class_decl: unexpected resolve errors\00"
-@.str.189 = private unnamed_addr constant [10 x i8] c"WhileStmt\00"
-@.str.258 = private unnamed_addr constant [8 x i8] c"pattern\00"
-@.str.286 = private unnamed_addr constant [8 x i8] c"message\00"
-@.str.365 = private unnamed_addr constant [20 x i8] c"\E2\9C\85 test_array_push\00"
-@.str.460 = private unnamed_addr constant [48 x i8] c"\E2\9D\8C test_typechecker_n1_eager_bypass - FAILED: \00"
-@.str.254 = private unnamed_addr constant [10 x i8] c"MatchStmt\00"
-@.str.313 = private unnamed_addr constant [32 x i8] c"PASS: test_resolver_method_call\00"
-@.str.392 = private unnamed_addr constant [39 x i8] c"\E2\9D\8C test_parser_static_call - FAILED: \00"
-@.str.158 = private unnamed_addr constant [5 x i8] c"keys\00"
-@.str.397 = private unnamed_addr constant [30 x i8] c"\E2\9C\85 test_parser_array_literal\00"
-@.str.118 = private unnamed_addr constant [7 x i8] c"filter\00"
-@.str.287 = private unnamed_addr constant [62 x i8] c"test_resolver_undefined_var: expected at least 1 error for $z\00"
-@.str.191 = private unnamed_addr constant [29 x i8] c"PASS: test_parser_while_stmt\00"
-@.str.25 = private unnamed_addr constant [13 x i8] c"expected INT\00"
-@.str.130 = private unnamed_addr constant [5 x i8] c"args\00"
-@.str.269 = private unnamed_addr constant [50 x i8] c"test_resolver_var_decl: expected kind 'var', got \00"
-@.str.278 = private unnamed_addr constant [5 x i8] c"func\00"
-@.str.353 = private unnamed_addr constant [23 x i8] c"PASS: test_lexer_empty\00"
-@.str.108 = private unnamed_addr constant [8 x i8] c"getName\00"
-@.str.263 = private unnamed_addr constant [29 x i8] c"PASS: test_parser_match_stmt\00"
-@.str.383 = private unnamed_addr constant [27 x i8] c"\E2\9C\85 test_parser_unary_expr\00"
-@.str.434 = private unnamed_addr constant [45 x i8] c"\E2\9D\8C test_resolver_new_known_class - FAILED: \00"
-@.str.18 = private unnamed_addr constant [4 x i8] c"VAR\00"
-@.str.67 = private unnamed_addr constant [6 x i8] c"value\00"
-@.str.291 = private unnamed_addr constant [56 x i8] c"test_resolver_class_decl: expected 'Dog' in class table\00"
-@.str.15 = private unnamed_addr constant [10 x i8] c", lexeme=\00"
-@.str.45 = private unnamed_addr constant [7 x i8] c"RETURN\00"
-@.str.183 = private unnamed_addr constant [56 x i8] c"test_parser_for_stmt failed: expected non-nil condition\00"
-@.str.387 = private unnamed_addr constant [28 x i8] c"\E2\9C\85 test_parser_method_call\00"
-@.str.72 = private unnamed_addr constant [62 x i8] c"test_parser_binary_expr failed: expected '+' as root op, got \00"
-@.str.151 = private unnamed_addr constant [9 x i8] c"elements\00"
-@.str.161 = private unnamed_addr constant [49 x i8] c"if ($x > 0) { var $y = 1; } else { var $y = 0; }\00"
-@.str.223 = private unnamed_addr constant [68 x i8] c"test_parser_grouped_expr failed: expected '+' on left from grouping\00"
-@.str.388 = private unnamed_addr constant [39 x i8] c"\E2\9D\8C test_parser_method_call - FAILED: \00"
-@.str.459 = private unnamed_addr constant [37 x i8] c"\E2\9C\85 test_typechecker_n1_eager_bypass\00"
-@.str.337 = private unnamed_addr constant [48 x i8] c"test_resolver_match_scoping: expected no errors\00"
-@.str.31 = private unnamed_addr constant [7 x i8] c"STRING\00"
-@.str.133 = private unnamed_addr constant [18 x i8] c"var $v = $arr[0];\00"
-@.str.176 = private unnamed_addr constant [59 x i8] c"test_parser_if_elseif_else failed: expected 1 elseif, got \00"
-@.str.265 = private unnamed_addr constant [13 x i8] c"_symbolTable\00"
-@.str.403 = private unnamed_addr constant [31 x i8] c"\E2\9C\85 test_parser_if_elseif_else\00"
-@.str.182 = private unnamed_addr constant [52 x i8] c"test_parser_for_stmt failed: expected ForStmt, got \00"
-@.str.71 = private unnamed_addr constant [2 x i8] c"+\00"
-@.str.340 = private unnamed_addr constant [70 x i8] c"\E2\9D\8C test_typechecker_strict_mismatch - FAILED: expected 1 error, got \00"
-@.str.441 = private unnamed_addr constant [30 x i8] c"\E2\9C\85 test_resolver_method_call\00"
-@.str.255 = private unnamed_addr constant [50 x i8] c"test_parser_match_stmt failed: expected MatchStmt\00"
-@.str.336 = private unnamed_addr constant [69 x i8] c"var $x = 10; match $x { 10 => { var $y = 1; } _ => { var $y = 2; } }\00"
-@.str.370 = private unnamed_addr constant [32 x i8] c"\E2\9D\8C test_lexer_basic - FAILED: \00"
-@.str.404 = private unnamed_addr constant [42 x i8] c"\E2\9D\8C test_parser_if_elseif_else - FAILED: \00"
-@.str.174 = private unnamed_addr constant [51 x i8] c"test_parser_if_elseif_else failed: expected IfStmt\00"
-@.str.65 = private unnamed_addr constant [51 x i8] c"test_parser_binary_expr failed: parse errors found\00"
-@.str.143 = private unnamed_addr constant [7 x i8] c"Parser\00"
-@.str.162 = private unnamed_addr constant [41 x i8] c"test_parser_if_stmt failed: errors found\00"
-@.str.204 = private unnamed_addr constant [29 x i8] c"PASS: test_parser_class_decl\00"
-@.str.235 = private unnamed_addr constant [9 x i8] c"valueVar\00"
-@.str.426 = private unnamed_addr constant [40 x i8] c"\E2\9D\8C test_resolver_func_hoist - FAILED: \00"
-@.str.60 = private unnamed_addr constant [5 x i8] c"name\00"
-@.str.91 = private unnamed_addr constant [44 x i8] c"test_parser_unary_expr failed: errors found\00"
-@.str.119 = private unnamed_addr constant [72 x i8] c"test_parser_chained_method_call failed: inner method should be 'filter'\00"
-@.str.146 = private unnamed_addr constant [27 x i8] c"PASS: test_parser_new_expr\00"
-@.str.454 = private unnamed_addr constant [43 x i8] c"\E2\9D\8C test_resolver_match_scoping - FAILED: \00"
-@.str.156 = private unnamed_addr constant [11 x i8] c"MapLiteral\00"
-@.str.200 = private unnamed_addr constant [8 x i8] c"methods\00"
-@.str.379 = private unnamed_addr constant [28 x i8] c"\E2\9C\85 test_parser_binary_expr\00"
-@.str.455 = private unnamed_addr constant [37 x i8] c"\E2\9C\85 test_typechecker_strict_mismatch\00"
-@.str.59 = private unnamed_addr constant [49 x i8] c"test_parser_basic failed: expected VarDecl, got \00"
-@.str.293 = private unnamed_addr constant [54 x i8] c"test_resolver_class_decl: expected kind 'class', got \00"
-@.str.319 = private unnamed_addr constant [37 x i8] c"PASS: test_resolver_func_param_count\00"
-@.str.432 = private unnamed_addr constant [40 x i8] c"\E2\9D\8C test_resolver_class_decl - FAILED: \00"
-@.str.61 = private unnamed_addr constant [2 x i8] c"x\00"
-@.str.23 = private unnamed_addr constant [16 x i8] c"expected ASSIGN\00"
-@.str.147 = private unnamed_addr constant [20 x i8] c"var $a = [1, 2, 3];\00"
-@.str.199 = private unnamed_addr constant [57 x i8] c"test_parser_class_decl failed: expected 1 property, got \00"
-@.str.325 = private unnamed_addr constant [56 x i8] c"test_resolver_lookup_miss: expected nil for unknown var\00"
-@.str.120 = private unnamed_addr constant [38 x i8] c"PASS: test_parser_chained_method_call\00"
-@.str.225 = private unnamed_addr constant [42 x i8] c"foreach ($arr as $k => $v) { print($v); }\00"
-@.str.280 = private unnamed_addr constant [52 x i8] c"test_resolver_func_hoist: unexpected resolve errors\00"
-@.str.292 = private unnamed_addr constant [6 x i8] c"class\00"
-@.str.9 = private unnamed_addr constant [4 x i8] c"EOF\00"
-@.str.64 = private unnamed_addr constant [25 x i8] c"var $result = 1 + 2 * 3;\00"
-@.str.350 = private unnamed_addr constant [88 x i8] c"\E2\9D\8C test_typechecker_n1_eager_bypass - FAILED: expected 0 warnings due to eager loading\00"
-@.str.453 = private unnamed_addr constant [32 x i8] c"\E2\9C\85 test_resolver_match_scoping\00"
-@.str.305 = private unnamed_addr constant [38 x i8] c"PASS: test_resolver_new_unknown_class\00"
-@.str.433 = private unnamed_addr constant [34 x i8] c"\E2\9C\85 test_resolver_new_known_class\00"
-@.str.316 = private unnamed_addr constant [53 x i8] c"test_resolver_func_param_count: 'multiply' not found\00"
-@.str.360 = private unnamed_addr constant [37 x i8] c"ALL TESTS PASSED IN parser_test.wolf\00"
-@.str.102 = private unnamed_addr constant [32 x i8] c"PASS: test_parser_string_concat\00"
-@.str.106 = private unnamed_addr constant [58 x i8] c"test_parser_method_call failed: expected MethodCall, got \00"
-@.str.299 = private unnamed_addr constant [33 x i8] c"class Cat {} var $c = new Cat();\00"
-@.str.3 = private unnamed_addr constant [1 x i8] c"\00"
-@.str.30 = private unnamed_addr constant [44 x i8] c"test_lexer_string failed: expected 2 tokens\00"
-@.str.37 = private unnamed_addr constant [5 x i8] c"STAR\00"
-@.str.127 = private unnamed_addr constant [67 x i8] c"test_parser_static_call failed: expected className 'Strings', got \00"
-@.str.144 = private unnamed_addr constant [59 x i8] c"test_parser_new_expr failed: expected class 'Parser', got \00"
-@.str.267 = private unnamed_addr constant [5 x i8] c"kind\00"
-@.str.443 = private unnamed_addr constant [35 x i8] c"\E2\9C\85 test_resolver_func_param_count\00"
-@.str.220 = private unnamed_addr constant [46 x i8] c"test_parser_grouped_expr failed: errors found\00"
-@.str.209 = private unnamed_addr constant [7 x i8] c"params\00"
-@.str.219 = private unnamed_addr constant [22 x i8] c"var $v = (1 + 2) * 3;\00"
-@.str.419 = private unnamed_addr constant [30 x i8] c"\E2\9C\85 test_parser_closure_block\00"
-@.str.109 = private unnamed_addr constant [64 x i8] c"test_parser_method_call failed: expected method 'getName', got \00"
-@.str.126 = private unnamed_addr constant [8 x i8] c"Strings\00"
-@.str.129 = private unnamed_addr constant [66 x i8] c"test_parser_static_call failed: expected method 'Substring', got \00"
-@.str.260 = private unnamed_addr constant [68 x i8] c"test_parser_match_stmt failed: expected IntLiteral pattern in arm 1\00"
-@.str.331 = private unnamed_addr constant [102 x i8] c"\E2\9D\8C test_resolver_foreach_scoping - FAILED: test_resolver_foreach_scoping: expected no resolve errors\00"
-@.str.436 = private unnamed_addr constant [47 x i8] c"\E2\9D\8C test_resolver_new_unknown_class - FAILED: \00"
-@.str.449 = private unnamed_addr constant [34 x i8] c"\E2\9C\85 test_resolver_foreach_scoping\00"
-@.str.42 = private unnamed_addr constant [12 x i8] c"expected IF\00"
-@.str.194 = private unnamed_addr constant [10 x i8] c"ClassDecl\00"
-@.str.218 = private unnamed_addr constant [30 x i8] c"PASS: test_parser_return_stmt\00"
-@.str.384 = private unnamed_addr constant [38 x i8] c"\E2\9D\8C test_parser_unary_expr - FAILED: \00"
-@.str.12 = private unnamed_addr constant [24 x i8] c"Tokens count in basic: \00"
-@.str.103 = private unnamed_addr constant [26 x i8] c"var $n = $obj->getName();\00"
-@.str.155 = private unnamed_addr constant [45 x i8] c"test_parser_map_literal failed: errors found\00"
-@.str.428 = private unnamed_addr constant [41 x i8] c"\E2\9D\8C test_resolver_func_params - FAILED: \00"
-@.str.13 = private unnamed_addr constant [7 x i8] c"Token \00"
-@.str.94 = private unnamed_addr constant [2 x i8] c"!\00"
-@.str.195 = private unnamed_addr constant [56 x i8] c"test_parser_class_decl failed: expected ClassDecl, got \00"
-@.str.349 = private unnamed_addr constant [67 x i8] c"foreach ($users as $u) { $db->with(); var $profile = $db->get(); }\00"
-@.str.38 = private unnamed_addr constant [14 x i8] c"expected STAR\00"
-@.str.62 = private unnamed_addr constant [50 x i8] c"test_parser_basic failed: expected name 'x', got \00"
-@.str.93 = private unnamed_addr constant [56 x i8] c"test_parser_unary_expr failed: expected UnaryExpr, got \00"
-@.str.217 = private unnamed_addr constant [66 x i8] c"test_parser_return_stmt failed: expected '+' in return expression\00"
-@.str.274 = private unnamed_addr constant [29 x i8] c"PASS: test_resolver_var_decl\00"
-@.str.290 = private unnamed_addr constant [74 x i8] c"class Dog { public $name = \22rex\22; public func bark() { return \22woof\22; } }\00"
-@.str.24 = private unnamed_addr constant [4 x i8] c"INT\00"
-@.str.36 = private unnamed_addr constant [14 x i8] c"expected PLUS\00"
-@.str.157 = private unnamed_addr constant [58 x i8] c"test_parser_map_literal failed: expected MapLiteral, got \00"
-@.str.222 = private unnamed_addr constant [76 x i8] c"test_parser_grouped_expr failed: expected '*' at root due to grouping, got \00"
-@.str.241 = private unnamed_addr constant [12 x i8] c"ClosureExpr\00"
-@.str.351 = private unnamed_addr constant [39 x i8] c"PASS: test_typechecker_n1_eager_bypass\00"
-@.str.440 = private unnamed_addr constant [41 x i8] c"\E2\9D\8C test_resolver_for_scoping - FAILED: \00"
-@.str.139 = private unnamed_addr constant [42 x i8] c"test_parser_new_expr failed: errors found\00"
-@.str.160 = private unnamed_addr constant [30 x i8] c"PASS: test_parser_map_literal\00"
-@.str.175 = private unnamed_addr constant [8 x i8] c"elseIfs\00"
-@.str.283 = private unnamed_addr constant [75 x i8] c"test_resolver_func_params: unexpected errors \E2\80\94 params should be in scope\00"
-@.str.192 = private unnamed_addr constant [74 x i8] c"class Dog { public $name = \22rex\22; public func bark() { print(\22woof\22); } }\00"
-@.str.264 = private unnamed_addr constant [13 x i8] c"var $x = 42;\00"
-@.str.416 = private unnamed_addr constant [40 x i8] c"\E2\9D\8C test_parser_foreach_stmt - FAILED: \00"
-@.str.399 = private unnamed_addr constant [28 x i8] c"\E2\9C\85 test_parser_map_literal\00"
-@.str.142 = private unnamed_addr constant [10 x i8] c"classExpr\00"
-@.str.253 = private unnamed_addr constant [50 x i8] c"test_parser_match_stmt failed: expected no errors\00"
-@.str.285 = private unnamed_addr constant [17 x i8] c"var $y = $z + 1;\00"
-@.str.294 = private unnamed_addr constant [7 x i8] c"fields\00"
-@.str.300 = private unnamed_addr constant [66 x i8] c"test_resolver_new_known_class: expected no errors for known class\00"
-@.str.327 = private unnamed_addr constant [58 x i8] c"test_resolver_lookup_miss: expected nil for unknown class\00"
-@.str.393 = private unnamed_addr constant [28 x i8] c"\E2\9C\85 test_parser_array_index\00"
-@.str.10 = private unnamed_addr constant [38 x i8] c"test_lexer_empty failed: expected EOF\00"
-@.str.69 = private unnamed_addr constant [66 x i8] c"test_parser_binary_expr failed: expected BinaryExpr at root, got \00"
-@.str.306 = private unnamed_addr constant [40 x i8] c"var $x = 1; if ($x > 0) { var $y = 2; }\00"
-@.str.320 = private unnamed_addr constant [43 x i8] c"var $a = \22hello\22; var $b = $a .. \22 world\22;\00"
-@.str.380 = private unnamed_addr constant [39 x i8] c"\E2\9D\8C test_parser_binary_expr - FAILED: \00"
-@.str.16 = private unnamed_addr constant [7 x i8] c"lexeme\00"
-@.str.371 = private unnamed_addr constant [22 x i8] c"\E2\9C\85 test_lexer_string\00"
-@.str.407 = private unnamed_addr constant [27 x i8] c"\E2\9C\85 test_parser_while_stmt\00"
-@.str.159 = private unnamed_addr constant [54 x i8] c"test_parser_map_literal failed: expected 2 keys, got \00"
-@.str.214 = private unnamed_addr constant [58 x i8] c"test_parser_return_stmt failed: expected ReturnStmt, got \00"
-@.str.310 = private unnamed_addr constant [32 x i8] c"PASS: test_resolver_for_scoping\00"
-@.str.312 = private unnamed_addr constant [53 x i8] c"test_resolver_method_call: unexpected resolve errors\00"
-@.str.463 = private unnamed_addr constant [8 x i8] c" failed\00"
-@.str.92 = private unnamed_addr constant [10 x i8] c"UnaryExpr\00"
-@.str.227 = private unnamed_addr constant [12 x i8] c"ForeachStmt\00"
-@.str.342 = private unnamed_addr constant [39 x i8] c"PASS: test_typechecker_strict_mismatch\00"
-@.str.14 = private unnamed_addr constant [8 x i8] c": type=\00"
-@.str.85 = private unnamed_addr constant [3 x i8] c"==\00"
-@.str.107 = private unnamed_addr constant [7 x i8] c"method\00"
-@.str.164 = private unnamed_addr constant [50 x i8] c"test_parser_if_stmt failed: expected IfStmt, got \00"
-@.str.249 = private unnamed_addr constant [55 x i8] c"test_parser_closure_block failed: expected ClosureExpr\00"
-@.str.302 = private unnamed_addr constant [22 x i8] c"var $x = new Ghost();\00"
-@.str.169 = private unnamed_addr constant [9 x i8] c"elseBody\00"
-@.str.281 = private unnamed_addr constant [31 x i8] c"PASS: test_resolver_func_hoist\00"
-@.str.311 = private unnamed_addr constant [88 x i8] c"class Box { public func open() { return 1; } } var $b = new Box(); var $v = $b->open();\00"
-@.str.323 = private unnamed_addr constant [12 x i8] c"var $x = 1;\00"
-@.str.341 = private unnamed_addr constant [76 x i8] c"\E2\9D\8C test_typechecker_strict_mismatch - FAILED: expected type mismatch error\00"
-@.str.186 = private unnamed_addr constant [27 x i8] c"PASS: test_parser_for_stmt\00"
-@.str.309 = private unnamed_addr constant [54 x i8] c"test_resolver_for_scoping: expected no resolve errors\00"
-@.str.412 = private unnamed_addr constant [39 x i8] c"\E2\9D\8C test_parser_return_stmt - FAILED: \00"
-@.str.431 = private unnamed_addr constant [29 x i8] c"\E2\9C\85 test_resolver_class_decl\00"
-@.str.17 = private unnamed_addr constant [49 x i8] c"test_lexer_basic failed: expected 6 tokens, got \00"
-@.str.78 = private unnamed_addr constant [31 x i8] c"var $x = $a == $b && $c != $d;\00"
-@.str.110 = private unnamed_addr constant [30 x i8] c"PASS: test_parser_method_call\00"
-@.str.35 = private unnamed_addr constant [5 x i8] c"PLUS\00"
-@.str.172 = private unnamed_addr constant [84 x i8] c"if ($x == 1) { var $a = 1; } else if ($x == 2) { var $a = 2; } else { var $a = 0; }\00"
-@.str.40 = private unnamed_addr constant [27 x i8] c"test_lexer_keywords failed\00"
-@.str.369 = private unnamed_addr constant [21 x i8] c"\E2\9C\85 test_lexer_basic\00"
-@.str.425 = private unnamed_addr constant [29 x i8] c"\E2\9C\85 test_resolver_func_hoist\00"
-@.str.4 = private unnamed_addr constant [10 x i8] c"test.wolf\00"
-@.str.11 = private unnamed_addr constant [12 x i8] c"var x = 10;\00"
-@.str.29 = private unnamed_addr constant [8 x i8] c"\22hello\22\00"
-@.str.115 = private unnamed_addr constant [71 x i8] c"test_parser_chained_method_call failed: outer method should be 'count'\00"
-@.str.153 = private unnamed_addr constant [32 x i8] c"PASS: test_parser_array_literal\00"
-@.str.298 = private unnamed_addr constant [31 x i8] c"PASS: test_resolver_class_decl\00"
-@.str.32 = private unnamed_addr constant [16 x i8] c"expected STRING\00"
-@.str.84 = private unnamed_addr constant [5 x i8] c"left\00"
-@.str.242 = private unnamed_addr constant [55 x i8] c"test_parser_closure_arrow failed: expected ClosureExpr\00"
-@.str.43 = private unnamed_addr constant [5 x i8] c"ELSE\00"
-@.str.276 = private unnamed_addr constant [6 x i8] c"greet\00"
-@.str.376 = private unnamed_addr constant [35 x i8] c"\E2\9D\8C test_lexer_keywords - FAILED: \00"
-@.str.87 = private unnamed_addr constant [3 x i8] c"!=\00"
-@.str.104 = private unnamed_addr constant [45 x i8] c"test_parser_method_call failed: errors found\00"
-@.str.230 = private unnamed_addr constant [12 x i8] c"DollarIdent\00"
-@.str.352 = private unnamed_addr constant [22 x i8] c"PASS: test_array_push\00"
-@.str.444 = private unnamed_addr constant [46 x i8] c"\E2\9D\8C test_resolver_func_param_count - FAILED: \00"
-@.str.203 = private unnamed_addr constant [54 x i8] c"test_parser_class_decl failed: expected method 'bark'\00"
-@.str.211 = private unnamed_addr constant [10 x i8] c"BlockStmt\00"
-@.str.400 = private unnamed_addr constant [39 x i8] c"\E2\9D\8C test_parser_map_literal - FAILED: \00"
-@.str.95 = private unnamed_addr constant [53 x i8] c"test_parser_unary_expr failed: expected '!' op, got \00"
-@.str.257 = private unnamed_addr constant [47 x i8] c"test_parser_match_stmt failed: expected 2 arms\00"
-@.str.259 = private unnamed_addr constant [11 x i8] c"IntLiteral\00"
-@.str.442 = private unnamed_addr constant [41 x i8] c"\E2\9D\8C test_resolver_method_call - FAILED: \00"
-@.str.366 = private unnamed_addr constant [31 x i8] c"\E2\9D\8C test_array_push - FAILED: \00"
 @.str.394 = private unnamed_addr constant [39 x i8] c"\E2\9D\8C test_parser_array_index - FAILED: \00"
-@.str.82 = private unnamed_addr constant [3 x i8] c"&&\00"
-@.str.101 = private unnamed_addr constant [71 x i8] c"test_parser_string_concat failed: expected nested StringConcat on left\00"
-@.str.131 = private unnamed_addr constant [54 x i8] c"test_parser_static_call failed: expected 3 args, got \00"
-@.str.205 = private unnamed_addr constant [37 x i8] c"func add($a, $b) { return $a + $b; }\00"
-@.str.356 = private unnamed_addr constant [22 x i8] c"PASS: test_lexer_math\00"
-@.str.439 = private unnamed_addr constant [30 x i8] c"\E2\9C\85 test_resolver_for_scoping\00"
-@.str.5 = private unnamed_addr constant [15 x i8] c"Tokens count: \00"
-@.str.52 = private unnamed_addr constant [13 x i8] c"var $x = 10;\00"
-@.str.226 = private unnamed_addr constant [58 x i8] c"\E2\9D\8C test_parser_foreach_stmt - FAILED: expected no errors\00"
-@.str.423 = private unnamed_addr constant [27 x i8] c"\E2\9C\85 test_resolver_var_decl\00"
-@.str.136 = private unnamed_addr constant [57 x i8] c"test_parser_array_index failed: expected IndexExpr, got \00"
-@.str.184 = private unnamed_addr constant [5 x i8] c"body\00"
-@.str.49 = private unnamed_addr constant [5 x i8] c"FUNC\00"
-@.str.210 = private unnamed_addr constant [56 x i8] c"test_parser_return_stmt failed: expected 2 params, got \00"
-@.str.301 = private unnamed_addr constant [36 x i8] c"PASS: test_resolver_new_known_class\00"
-@.str.435 = private unnamed_addr constant [36 x i8] c"\E2\9C\85 test_resolver_new_unknown_class\00"
-@.str.51 = private unnamed_addr constant [26 x i8] c"PASS: test_lexer_keywords\00"
-@.str.111 = private unnamed_addr constant [37 x i8] c"var $v = $arr->filter($fn)->count();\00"
-@.str.236 = private unnamed_addr constant [2 x i8] c"v\00"
-@.str.56 = private unnamed_addr constant [11 x i8] c"statements\00"
-@.str.63 = private unnamed_addr constant [24 x i8] c"PASS: test_parser_basic\00"
-@.str.178 = private unnamed_addr constant [33 x i8] c"PASS: test_parser_if_elseif_else\00"
-@.str.415 = private unnamed_addr constant [29 x i8] c"\E2\9C\85 test_parser_foreach_stmt\00"
-@.str.224 = private unnamed_addr constant [31 x i8] c"PASS: test_parser_grouped_expr\00"
-@.str.308 = private unnamed_addr constant [31 x i8] c"PASS: test_resolver_if_scoping\00"
-@.str.374 = private unnamed_addr constant [31 x i8] c"\E2\9D\8C test_lexer_math - FAILED: \00"
-@.str.145 = private unnamed_addr constant [51 x i8] c"test_parser_new_expr failed: expected 3 args, got \00"
-@.str.358 = private unnamed_addr constant [36 x i8] c"ALL TESTS PASSED IN lexer_test.wolf\00"
-@.str.47 = private unnamed_addr constant [6 x i8] c"CLASS\00"
-@.str.304 = private unnamed_addr constant [62 x i8] c"test_resolver_new_unknown_class: error should mention 'Ghost'\00"
-@.str.322 = private unnamed_addr constant [34 x i8] c"PASS: test_resolver_string_concat\00"
-@.str.452 = private unnamed_addr constant [45 x i8] c"\E2\9D\8C test_resolver_closure_scoping - FAILED: \00"
-@.str.6 = private unnamed_addr constant [19 x i8] c"First token type: \00"
-@.str.245 = private unnamed_addr constant [63 x i8] c"test_parser_closure_arrow failed: expected BinaryExpr in arrow\00"
-@.str.330 = private unnamed_addr constant [16 x i8] c"RESOLVE ERROR: \00"
-@.str.361 = private unnamed_addr constant [30 x i8] c"ALL RESOLVER TESTS PASSED \E2\9C\93\00"
-@.str.89 = private unnamed_addr constant [40 x i8] c"PASS: test_parser_precedence_comparison\00"
-@.str.208 = private unnamed_addr constant [56 x i8] c"test_parser_return_stmt failed: expected FuncDecl, got \00"
 @.str.272 = private unnamed_addr constant [6 x i8] c"error\00"
-@.str.275 = private unnamed_addr constant [50 x i8] c"var $msg = \22hi\22; func greet() { return \22hello\22; }\00"
-@.str.344 = private unnamed_addr constant [64 x i8] c"\E2\9D\8C test_typechecker_n1_loop - FAILED: expected 1 warning, got \00"
-@.str.430 = private unnamed_addr constant [43 x i8] c"\E2\9D\8C test_resolver_undefined_var - FAILED: \00"
+@.str.308 = private unnamed_addr constant [31 x i8] c"PASS: test_resolver_if_scoping\00"
+@.str.186 = private unnamed_addr constant [27 x i8] c"PASS: test_parser_for_stmt\00"
+@.str.2 = private unnamed_addr constant [25 x i8] c"test_array_push failed: \00"
+@.str.176 = private unnamed_addr constant [59 x i8] c"test_parser_if_elseif_else failed: expected 1 elseif, got \00"
+@.str.198 = private unnamed_addr constant [11 x i8] c"properties\00"
+@.str.323 = private unnamed_addr constant [12 x i8] c"var $x = 1;\00"
+@.str.454 = private unnamed_addr constant [43 x i8] c"\E2\9D\8C test_resolver_match_scoping - FAILED: \00"
+@.str.91 = private unnamed_addr constant [44 x i8] c"test_parser_unary_expr failed: errors found\00"
+@.str.115 = private unnamed_addr constant [71 x i8] c"test_parser_chained_method_call failed: outer method should be 'count'\00"
+@.str.141 = private unnamed_addr constant [52 x i8] c"test_parser_new_expr failed: expected NewExpr, got \00"
+@.str.383 = private unnamed_addr constant [27 x i8] c"\E2\9C\85 test_parser_unary_expr\00"
+@.str.271 = private unnamed_addr constant [6 x i8] c"level\00"
 @.str.375 = private unnamed_addr constant [24 x i8] c"\E2\9C\85 test_lexer_keywords\00"
-@.str.7 = private unnamed_addr constant [5 x i8] c"type\00"
-@.str.8 = private unnamed_addr constant [42 x i8] c"test_lexer_empty failed: expected 1 token\00"
-@.str.270 = private unnamed_addr constant [7 x i8] c"errors\00"
-@.str.390 = private unnamed_addr constant [47 x i8] c"\E2\9D\8C test_parser_chained_method_call - FAILED: \00"
-@.str.409 = private unnamed_addr constant [27 x i8] c"\E2\9C\85 test_parser_class_decl\00"
-@.str.44 = private unnamed_addr constant [14 x i8] c"expected ELSE\00"
-@.str.113 = private unnamed_addr constant [73 x i8] c"test_parser_chained_method_call failed: outer should be MethodCall, got \00"
-@.str.149 = private unnamed_addr constant [13 x i8] c"ArrayLiteral\00"
-@.str.150 = private unnamed_addr constant [62 x i8] c"test_parser_array_literal failed: expected ArrayLiteral, got \00"
-@.str.66 = private unnamed_addr constant [49 x i8] c"test_parser_binary_expr failed: expected VarDecl\00"
-@.str.112 = private unnamed_addr constant [53 x i8] c"test_parser_chained_method_call failed: errors found\00"
-@.str.239 = private unnamed_addr constant [36 x i8] c"var $add = func($a, $b) => $a + $b;\00"
-@.str.240 = private unnamed_addr constant [53 x i8] c"test_parser_closure_arrow failed: expected no errors\00"
-@.str.456 = private unnamed_addr constant [48 x i8] c"\E2\9D\8C test_typechecker_strict_mismatch - FAILED: \00"
+@.str.385 = private unnamed_addr constant [30 x i8] c"\E2\9C\85 test_parser_string_concat\00"
+@.str.397 = private unnamed_addr constant [30 x i8] c"\E2\9C\85 test_parser_array_literal\00"
+@.str.403 = private unnamed_addr constant [31 x i8] c"\E2\9C\85 test_parser_if_elseif_else\00"
+@.str.438 = private unnamed_addr constant [40 x i8] c"\E2\9D\8C test_resolver_if_scoping - FAILED: \00"
+@.str.110 = private unnamed_addr constant [30 x i8] c"PASS: test_parser_method_call\00"
 @.str.237 = private unnamed_addr constant [67 x i8] c"\E2\9D\8C test_parser_foreach_stmt - FAILED: expected valueVar 'v', got \00"
-@.str.252 = private unnamed_addr constant [55 x i8] c"match $x { 1 => print(\221\22); _ => { print(\22other\22); } }\00"
-@.str.348 = private unnamed_addr constant [31 x i8] c"PASS: test_typechecker_n1_loop\00"
+@.str.334 = private unnamed_addr constant [50 x i8] c"test_resolver_closure_scoping: expected no errors\00"
+@.str.192 = private unnamed_addr constant [74 x i8] c"class Dog { public $name = \22rex\22; public func bark() { print(\22woof\22); } }\00"
+@.str.287 = private unnamed_addr constant [62 x i8] c"test_resolver_undefined_var: expected at least 1 error for $z\00"
+@.str.315 = private unnamed_addr constant [9 x i8] c"multiply\00"
+@.str.326 = private unnamed_addr constant [57 x i8] c"test_resolver_lookup_miss: expected nil for unknown func\00"
+@.str.352 = private unnamed_addr constant [22 x i8] c"PASS: test_array_push\00"
+@.str.456 = private unnamed_addr constant [48 x i8] c"\E2\9D\8C test_typechecker_strict_mismatch - FAILED: \00"
+@.str.22 = private unnamed_addr constant [7 x i8] c"ASSIGN\00"
+@.str.163 = private unnamed_addr constant [7 x i8] c"IfStmt\00"
+@.str.264 = private unnamed_addr constant [13 x i8] c"var $x = 42;\00"
+@.str.368 = private unnamed_addr constant [32 x i8] c"\E2\9D\8C test_lexer_empty - FAILED: \00"
+@.str.229 = private unnamed_addr constant [9 x i8] c"iterable\00"
+@.str.146 = private unnamed_addr constant [27 x i8] c"PASS: test_parser_new_expr\00"
+@.str.226 = private unnamed_addr constant [58 x i8] c"\E2\9D\8C test_parser_foreach_stmt - FAILED: expected no errors\00"
+@.str.361 = private unnamed_addr constant [30 x i8] c"ALL RESOLVER TESTS PASSED \E2\9C\93\00"
+@.str.367 = private unnamed_addr constant [21 x i8] c"\E2\9C\85 test_lexer_empty\00"
+@.str.417 = private unnamed_addr constant [30 x i8] c"\E2\9C\85 test_parser_closure_arrow\00"
+@.str.13 = private unnamed_addr constant [7 x i8] c"Token \00"
+@.str.59 = private unnamed_addr constant [49 x i8] c"test_parser_basic failed: expected VarDecl, got \00"
+@.str.320 = private unnamed_addr constant [43 x i8] c"var $a = \22hello\22; var $b = $a .. \22 world\22;\00"
+@.str.231 = private unnamed_addr constant [69 x i8] c"\E2\9D\8C test_parser_foreach_stmt - FAILED: expected DollarIdent iterable\00"
+@.str.254 = private unnamed_addr constant [10 x i8] c"MatchStmt\00"
+@.str.380 = private unnamed_addr constant [39 x i8] c"\E2\9D\8C test_parser_binary_expr - FAILED: \00"
+@.str.399 = private unnamed_addr constant [28 x i8] c"\E2\9C\85 test_parser_map_literal\00"
+@.str.25 = private unnamed_addr constant [13 x i8] c"expected INT\00"
+@.str.372 = private unnamed_addr constant [33 x i8] c"\E2\9D\8C test_lexer_string - FAILED: \00"
+@.str.358 = private unnamed_addr constant [36 x i8] c"ALL TESTS PASSED IN lexer_test.wolf\00"
+@.str.187 = private unnamed_addr constant [33 x i8] c"while ($running) { var $x = 1; }\00"
+@.str.227 = private unnamed_addr constant [12 x i8] c"ForeachStmt\00"
 @.str.401 = private unnamed_addr constant [24 x i8] c"\E2\9C\85 test_parser_if_stmt\00"
+@.str.462 = private unnamed_addr constant [10 x i8] c" passed, \00"
+@.str.247 = private unnamed_addr constant [42 x i8] c"var $print = func($msg) { print($msg); };\00"
+@.str.435 = private unnamed_addr constant [36 x i8] c"\E2\9C\85 test_resolver_new_unknown_class\00"
+@.str.441 = private unnamed_addr constant [30 x i8] c"\E2\9C\85 test_resolver_method_call\00"
+@.str.67 = private unnamed_addr constant [6 x i8] c"value\00"
+@.str.88 = private unnamed_addr constant [65 x i8] c"test_parser_precedence_comparison failed: expected '!=' on right\00"
+@.str.167 = private unnamed_addr constant [2 x i8] c">\00"
+@.str.301 = private unnamed_addr constant [36 x i8] c"PASS: test_resolver_new_known_class\00"
+@.str.10 = private unnamed_addr constant [38 x i8] c"test_lexer_empty failed: expected EOF\00"
+@.str.53 = private unnamed_addr constant [45 x i8] c"test_parser_basic failed: parse errors found\00"
+@.str.442 = private unnamed_addr constant [41 x i8] c"\E2\9D\8C test_resolver_method_call - FAILED: \00"
+@.str.314 = private unnamed_addr constant [51 x i8] c"func multiply($a, $b, $c) { return $a * $b * $c; }\00"
 @.str.79 = private unnamed_addr constant [43 x i8] c"test_parser_precedence_comparison failed: \00"
-@.str.279 = private unnamed_addr constant [53 x i8] c"test_resolver_func_hoist: expected kind 'func', got \00"
-@.str.357 = private unnamed_addr constant [27 x i8] c"ALL LEXER TESTS PASSED \E2\9C\93\00"
+@.str.221 = private unnamed_addr constant [53 x i8] c"test_parser_grouped_expr failed: expected BinaryExpr\00"
+@.str.6 = private unnamed_addr constant [19 x i8] c"First token type: \00"
+@.str.369 = private unnamed_addr constant [21 x i8] c"\E2\9C\85 test_lexer_basic\00"
+@.str.324 = private unnamed_addr constant [12 x i8] c"nonexistent\00"
+@.str.343 = private unnamed_addr constant [54 x i8] c"foreach ($users as $u) { var $profile = $db->get(); }\00"
 @.str.424 = private unnamed_addr constant [38 x i8] c"\E2\9D\8C test_resolver_var_decl - FAILED: \00"
-@.str.73 = private unnamed_addr constant [6 x i8] c"right\00"
-@.str.74 = private unnamed_addr constant [68 x i8] c"test_parser_binary_expr failed: expected nested BinaryExpr on right\00"
-@.str.171 = private unnamed_addr constant [26 x i8] c"PASS: test_parser_if_stmt\00"
-@.str.181 = private unnamed_addr constant [8 x i8] c"ForStmt\00"
+@.str.436 = private unnamed_addr constant [47 x i8] c"\E2\9D\8C test_resolver_new_unknown_class - FAILED: \00"
+@.str.80 = private unnamed_addr constant [8 x i8] c" errors\00"
+@.str.203 = private unnamed_addr constant [54 x i8] c"test_parser_class_decl failed: expected method 'bark'\00"
+@.str.337 = private unnamed_addr constant [48 x i8] c"test_resolver_match_scoping: expected no errors\00"
+@.str.409 = private unnamed_addr constant [27 x i8] c"\E2\9C\85 test_parser_class_decl\00"
+@.str.443 = private unnamed_addr constant [35 x i8] c"\E2\9C\85 test_resolver_func_param_count\00"
+@.str.448 = private unnamed_addr constant [41 x i8] c"\E2\9D\8C test_resolver_lookup_miss - FAILED: \00"
+@.str.156 = private unnamed_addr constant [11 x i8] c"MapLiteral\00"
+@.str.246 = private unnamed_addr constant [32 x i8] c"PASS: test_parser_closure_arrow\00"
+@.str.312 = private unnamed_addr constant [53 x i8] c"test_resolver_method_call: unexpected resolve errors\00"
+@.str.132 = private unnamed_addr constant [30 x i8] c"PASS: test_parser_static_call\00"
+@.str.216 = private unnamed_addr constant [56 x i8] c"test_parser_return_stmt failed: expected 1 return value\00"
+@.str.339 = private unnamed_addr constant [24 x i8] c"var $x : int = \22hello\22;\00"
+@.str.360 = private unnamed_addr constant [37 x i8] c"ALL TESTS PASSED IN parser_test.wolf\00"
+@.str.20 = private unnamed_addr constant [6 x i8] c"IDENT\00"
+@.str.196 = private unnamed_addr constant [4 x i8] c"Dog\00"
+@.str.118 = private unnamed_addr constant [7 x i8] c"filter\00"
+@.str.92 = private unnamed_addr constant [10 x i8] c"UnaryExpr\00"
+@.str.99 = private unnamed_addr constant [13 x i8] c"StringConcat\00"
 @.str.41 = private unnamed_addr constant [3 x i8] c"IF\00"
-@.str.105 = private unnamed_addr constant [11 x i8] c"MethodCall\00"
-@.str.122 = private unnamed_addr constant [45 x i8] c"test_parser_static_call failed: errors found\00"
-@.str.338 = private unnamed_addr constant [34 x i8] c"PASS: test_resolver_match_scoping\00"
+@.str.214 = private unnamed_addr constant [58 x i8] c"test_parser_return_stmt failed: expected ReturnStmt, got \00"
+@.str.238 = private unnamed_addr constant [31 x i8] c"PASS: test_parser_foreach_stmt\00"
+@.str.248 = private unnamed_addr constant [53 x i8] c"test_parser_closure_block failed: expected no errors\00"
+@.str.310 = private unnamed_addr constant [32 x i8] c"PASS: test_resolver_for_scoping\00"
+@.str.1 = private unnamed_addr constant [6 x i8] c"hello\00"
+@.str.16 = private unnamed_addr constant [7 x i8] c"lexeme\00"
+@.str.201 = private unnamed_addr constant [55 x i8] c"test_parser_class_decl failed: expected 1 method, got \00"
+@.str.250 = private unnamed_addr constant [58 x i8] c"test_parser_closure_block failed: expected BlockStmt body\00"
+@.str.159 = private unnamed_addr constant [54 x i8] c"test_parser_map_literal failed: expected 2 keys, got \00"
+@.str.415 = private unnamed_addr constant [29 x i8] c"\E2\9C\85 test_parser_foreach_stmt\00"
+@.str.408 = private unnamed_addr constant [38 x i8] c"\E2\9D\8C test_parser_while_stmt - FAILED: \00"
+@.str.134 = private unnamed_addr constant [45 x i8] c"test_parser_array_index failed: errors found\00"
+@.str.171 = private unnamed_addr constant [26 x i8] c"PASS: test_parser_if_stmt\00"
+@.str.355 = private unnamed_addr constant [24 x i8] c"PASS: test_lexer_string\00"
 @.str.458 = private unnamed_addr constant [40 x i8] c"\E2\9D\8C test_typechecker_n1_loop - FAILED: \00"
+@.str.44 = private unnamed_addr constant [14 x i8] c"expected ELSE\00"
+@.str.386 = private unnamed_addr constant [41 x i8] c"\E2\9D\8C test_parser_string_concat - FAILED: \00"
+@.str.70 = private unnamed_addr constant [3 x i8] c"op\00"
+@.str.113 = private unnamed_addr constant [73 x i8] c"test_parser_chained_method_call failed: outer should be MethodCall, got \00"
+@.str.19 = private unnamed_addr constant [13 x i8] c"expected VAR\00"
+@.str.71 = private unnamed_addr constant [2 x i8] c"+\00"
+@.str.207 = private unnamed_addr constant [9 x i8] c"FuncDecl\00"
+@.str.268 = private unnamed_addr constant [4 x i8] c"var\00"
+@.str.277 = private unnamed_addr constant [56 x i8] c"test_resolver_func_hoist: 'greet' not in function table\00"
+@.str.353 = private unnamed_addr constant [23 x i8] c"PASS: test_lexer_empty\00"
+@.str.389 = private unnamed_addr constant [36 x i8] c"\E2\9C\85 test_parser_chained_method_call\00"
+@.str.96 = private unnamed_addr constant [29 x i8] c"PASS: test_parser_unary_expr\00"
+@.str.135 = private unnamed_addr constant [10 x i8] c"IndexExpr\00"
+@.str.459 = private unnamed_addr constant [37 x i8] c"\E2\9C\85 test_typechecker_n1_eager_bypass\00"
+@.str.213 = private unnamed_addr constant [11 x i8] c"ReturnStmt\00"
+@.str.253 = private unnamed_addr constant [50 x i8] c"test_parser_match_stmt failed: expected no errors\00"
+@.str.275 = private unnamed_addr constant [50 x i8] c"var $msg = \22hi\22; func greet() { return \22hello\22; }\00"
+@.str.284 = private unnamed_addr constant [32 x i8] c"PASS: test_resolver_func_params\00"
+@.str.306 = private unnamed_addr constant [40 x i8] c"var $x = 1; if ($x > 0) { var $y = 2; }\00"
+@.str.345 = private unnamed_addr constant [8 x i8] c"warning\00"
+@.str.11 = private unnamed_addr constant [12 x i8] c"var x = 10;\00"
+@.str.206 = private unnamed_addr constant [45 x i8] c"test_parser_return_stmt failed: errors found\00"
+@.str.453 = private unnamed_addr constant [32 x i8] c"\E2\9C\85 test_resolver_match_scoping\00"
+@.str.347 = private unnamed_addr constant [68 x i8] c"\E2\9D\8C test_typechecker_n1_loop - FAILED: expected N+1 warning message\00"
+@.str.379 = private unnamed_addr constant [28 x i8] c"\E2\9C\85 test_parser_binary_expr\00"
+@.str.432 = private unnamed_addr constant [40 x i8] c"\E2\9D\8C test_resolver_class_decl - FAILED: \00"
+@.str.97 = private unnamed_addr constant [36 x i8] c"var $s = \22hello\22 .. \22 \22 .. \22world\22;\00"
+@.str.257 = private unnamed_addr constant [47 x i8] c"test_parser_match_stmt failed: expected 2 arms\00"
+@.str.377 = private unnamed_addr constant [22 x i8] c"\E2\9C\85 test_parser_basic\00"
+@.str.429 = private unnamed_addr constant [32 x i8] c"\E2\9C\85 test_resolver_undefined_var\00"
+@.str.36 = private unnamed_addr constant [14 x i8] c"expected PLUS\00"
+@.str.185 = private unnamed_addr constant [51 x i8] c"test_parser_for_stmt failed: expected non-nil body\00"
+@.str.406 = private unnamed_addr constant [36 x i8] c"\E2\9D\8C test_parser_for_stmt - FAILED: \00"
+@.str.39 = private unnamed_addr constant [26 x i8] c"if else return class func\00"
+@.str.274 = private unnamed_addr constant [29 x i8] c"PASS: test_resolver_var_decl\00"
+@.str.138 = private unnamed_addr constant [43 x i8] c"var $p = new Parser($tokens, $file, $src);\00"
+@.str.289 = private unnamed_addr constant [34 x i8] c"PASS: test_resolver_undefined_var\00"
+@.str.398 = private unnamed_addr constant [41 x i8] c"\E2\9D\8C test_parser_array_literal - FAILED: \00"
+@.str.72 = private unnamed_addr constant [62 x i8] c"test_parser_binary_expr failed: expected '+' as root op, got \00"
+@.str.228 = private unnamed_addr constant [66 x i8] c"\E2\9D\8C test_parser_foreach_stmt - FAILED: expected ForeachStmt, got \00"
+@.str.73 = private unnamed_addr constant [6 x i8] c"right\00"
+@.str.109 = private unnamed_addr constant [64 x i8] c"test_parser_method_call failed: expected method 'getName', got \00"
+@.str.215 = private unnamed_addr constant [7 x i8] c"values\00"
+@.str.351 = private unnamed_addr constant [39 x i8] c"PASS: test_typechecker_n1_eager_bypass\00"
+@.str.373 = private unnamed_addr constant [20 x i8] c"\E2\9C\85 test_lexer_math\00"
+@.str.98 = private unnamed_addr constant [47 x i8] c"test_parser_string_concat failed: errors found\00"
+@.str.205 = private unnamed_addr constant [37 x i8] c"func add($a, $b) { return $a + $b; }\00"
+@.str.217 = private unnamed_addr constant [66 x i8] c"test_parser_return_stmt failed: expected '+' in return expression\00"
+@.str.285 = private unnamed_addr constant [17 x i8] c"var $y = $z + 1;\00"
+@.str.169 = private unnamed_addr constant [9 x i8] c"elseBody\00"
+@.str.193 = private unnamed_addr constant [32 x i8] c"test_parser_class_decl failed: \00"
+@.str.413 = private unnamed_addr constant [29 x i8] c"\E2\9C\85 test_parser_grouped_expr\00"
+@.str.32 = private unnamed_addr constant [16 x i8] c"expected STRING\00"
+@.str.281 = private unnamed_addr constant [31 x i8] c"PASS: test_resolver_func_hoist\00"
+@.str.349 = private unnamed_addr constant [67 x i8] c"foreach ($users as $u) { $db->with(); var $profile = $db->get(); }\00"
+@.str.364 = private unnamed_addr constant [42 x i8] c"ALL TESTS PASSED IN typechecker_test.wolf\00"
+@.str.56 = private unnamed_addr constant [11 x i8] c"statements\00"
+@.str.124 = private unnamed_addr constant [58 x i8] c"test_parser_static_call failed: expected StaticCall, got \00"
+@.str.133 = private unnamed_addr constant [18 x i8] c"var $v = $arr[0];\00"
+@.str.249 = private unnamed_addr constant [55 x i8] c"test_parser_closure_block failed: expected ClosureExpr\00"
+@.str.300 = private unnamed_addr constant [66 x i8] c"test_resolver_new_known_class: expected no errors for known class\00"
+@.str.303 = private unnamed_addr constant [74 x i8] c"test_resolver_new_unknown_class: expected error for unknown class 'Ghost'\00"
+@.str.42 = private unnamed_addr constant [12 x i8] c"expected IF\00"
+@.str.85 = private unnamed_addr constant [3 x i8] c"==\00"
+@.str.256 = private unnamed_addr constant [5 x i8] c"arms\00"
+@.str.298 = private unnamed_addr constant [31 x i8] c"PASS: test_resolver_class_decl\00"
+@.str.362 = private unnamed_addr constant [39 x i8] c"ALL TESTS PASSED IN resolver_test.wolf\00"
+@.str.431 = private unnamed_addr constant [29 x i8] c"\E2\9C\85 test_resolver_class_decl\00"
+@.str.144 = private unnamed_addr constant [59 x i8] c"test_parser_new_expr failed: expected class 'Parser', got \00"
+@.str.172 = private unnamed_addr constant [84 x i8] c"if ($x == 1) { var $a = 1; } else if ($x == 2) { var $a = 2; } else { var $a = 0; }\00"
+@.str.236 = private unnamed_addr constant [2 x i8] c"v\00"
+@.str.267 = private unnamed_addr constant [5 x i8] c"kind\00"
+@.str.317 = private unnamed_addr constant [11 x i8] c"paramCount\00"
+@.str.170 = private unnamed_addr constant [60 x i8] c"test_parser_if_stmt failed: expected else body to be parsed\00"
+@.str.225 = private unnamed_addr constant [42 x i8] c"foreach ($arr as $k => $v) { print($v); }\00"
+@.str.78 = private unnamed_addr constant [31 x i8] c"var $x = $a == $b && $c != $d;\00"
+@.str.106 = private unnamed_addr constant [58 x i8] c"test_parser_method_call failed: expected MethodCall, got \00"
+@.str.166 = private unnamed_addr constant [58 x i8] c"test_parser_if_stmt failed: expected BinaryExpr condition\00"
+@.str.278 = private unnamed_addr constant [5 x i8] c"func\00"
+@.str.341 = private unnamed_addr constant [76 x i8] c"\E2\9D\8C test_typechecker_strict_mismatch - FAILED: expected type mismatch error\00"
+@.str.7 = private unnamed_addr constant [5 x i8] c"type\00"
+@.str.43 = private unnamed_addr constant [5 x i8] c"ELSE\00"
+@.str.273 = private unnamed_addr constant [50 x i8] c"test_resolver_var_decl: unexpected resolve errors\00"
+@.str.374 = private unnamed_addr constant [31 x i8] c"\E2\9D\8C test_lexer_math - FAILED: \00"
+@.str.426 = private unnamed_addr constant [40 x i8] c"\E2\9D\8C test_resolver_func_hoist - FAILED: \00"
+@.str.117 = private unnamed_addr constant [67 x i8] c"test_parser_chained_method_call failed: inner should be MethodCall\00"
+@.str.153 = private unnamed_addr constant [32 x i8] c"PASS: test_parser_array_literal\00"
+@.str.309 = private unnamed_addr constant [54 x i8] c"test_resolver_for_scoping: expected no resolve errors\00"
+@.str.348 = private unnamed_addr constant [31 x i8] c"PASS: test_typechecker_n1_loop\00"
+@.str.325 = private unnamed_addr constant [56 x i8] c"test_resolver_lookup_miss: expected nil for unknown var\00"
+@.str.428 = private unnamed_addr constant [41 x i8] c"\E2\9D\8C test_resolver_func_params - FAILED: \00"
+@.str.107 = private unnamed_addr constant [7 x i8] c"method\00"
+@.str.261 = private unnamed_addr constant [9 x i8] c"Wildcard\00"
+@.str.444 = private unnamed_addr constant [46 x i8] c"\E2\9D\8C test_resolver_func_param_count - FAILED: \00"
+@.str.321 = private unnamed_addr constant [55 x i8] c"test_resolver_string_concat: unexpected resolve errors\00"
+@.str.391 = private unnamed_addr constant [28 x i8] c"\E2\9C\85 test_parser_static_call\00"
+@.str.422 = private unnamed_addr constant [38 x i8] c"\E2\9D\8C test_parser_match_stmt - FAILED: \00"
+@.str.87 = private unnamed_addr constant [3 x i8] c"!=\00"
+@.str.304 = private unnamed_addr constant [62 x i8] c"test_resolver_new_unknown_class: error should mention 'Ghost'\00"
+@.str.139 = private unnamed_addr constant [42 x i8] c"test_parser_new_expr failed: errors found\00"
+@.str.263 = private unnamed_addr constant [29 x i8] c"PASS: test_parser_match_stmt\00"
+@.str.208 = private unnamed_addr constant [56 x i8] c"test_parser_return_stmt failed: expected FuncDecl, got \00"
+@.str.446 = private unnamed_addr constant [43 x i8] c"\E2\9D\8C test_resolver_string_concat - FAILED: \00"
+@.str.90 = private unnamed_addr constant [17 x i8] c"var $x = !$flag;\00"
+@.str.168 = private unnamed_addr constant [54 x i8] c"test_parser_if_stmt failed: expected '>' condition op\00"
+@.str.111 = private unnamed_addr constant [37 x i8] c"var $v = $arr->filter($fn)->count();\00"
+@.str.209 = private unnamed_addr constant [7 x i8] c"params\00"
+@.str.233 = private unnamed_addr constant [2 x i8] c"k\00"
+@.str.382 = private unnamed_addr constant [49 x i8] c"\E2\9D\8C test_parser_precedence_comparison - FAILED: \00"
+@.str.4 = private unnamed_addr constant [10 x i8] c"test.wolf\00"
+@.str.95 = private unnamed_addr constant [53 x i8] c"test_parser_unary_expr failed: expected '!' op, got \00"
+@.str.449 = private unnamed_addr constant [34 x i8] c"\E2\9C\85 test_resolver_foreach_scoping\00"
+@.str.455 = private unnamed_addr constant [37 x i8] c"\E2\9C\85 test_typechecker_strict_mismatch\00"
+@.str.195 = private unnamed_addr constant [56 x i8] c"test_parser_class_decl failed: expected ClassDecl, got \00"
+@.str.420 = private unnamed_addr constant [41 x i8] c"\E2\9D\8C test_parser_closure_block - FAILED: \00"
+@.str.114 = private unnamed_addr constant [6 x i8] c"count\00"
+@.str.142 = private unnamed_addr constant [10 x i8] c"classExpr\00"
+@.str.319 = private unnamed_addr constant [37 x i8] c"PASS: test_resolver_func_param_count\00"
+@.str.24 = private unnamed_addr constant [4 x i8] c"INT\00"
+@.str.86 = private unnamed_addr constant [64 x i8] c"test_parser_precedence_comparison failed: expected '==' on left\00"
+@.str.218 = private unnamed_addr constant [30 x i8] c"PASS: test_parser_return_stmt\00"
+@.str.244 = private unnamed_addr constant [10 x i8] c"arrowExpr\00"
+@.str.333 = private unnamed_addr constant [67 x i8] c"var $x = 10; var $add = func($a) { var $y = $a + $x; return $y; };\00"
+@.str.346 = private unnamed_addr constant [62 x i8] c"\E2\9D\8C test_typechecker_n1_loop - FAILED: expected warning level\00"
+@.str.49 = private unnamed_addr constant [5 x i8] c"FUNC\00"
+@.str.104 = private unnamed_addr constant [45 x i8] c"test_parser_method_call failed: errors found\00"
+@.str.121 = private unnamed_addr constant [41 x i8] c"var $sub = Strings::Substring($s, 0, 5);\00"
+@.str.396 = private unnamed_addr constant [36 x i8] c"\E2\9D\8C test_parser_new_expr - FAILED: \00"
+@.str.65 = private unnamed_addr constant [51 x i8] c"test_parser_binary_expr failed: parse errors found\00"
+@.str.210 = private unnamed_addr constant [56 x i8] c"test_parser_return_stmt failed: expected 2 params, got \00"
+@.str.129 = private unnamed_addr constant [66 x i8] c"test_parser_static_call failed: expected method 'Substring', got \00"
+@.str.418 = private unnamed_addr constant [41 x i8] c"\E2\9D\8C test_parser_closure_arrow - FAILED: \00"
+@.str.30 = private unnamed_addr constant [44 x i8] c"test_lexer_string failed: expected 2 tokens\00"
+@.str.47 = private unnamed_addr constant [6 x i8] c"CLASS\00"
+@.str.101 = private unnamed_addr constant [71 x i8] c"test_parser_string_concat failed: expected nested StringConcat on left\00"
+@.str.122 = private unnamed_addr constant [45 x i8] c"test_parser_static_call failed: errors found\00"
+@.str.178 = private unnamed_addr constant [33 x i8] c"PASS: test_parser_if_elseif_else\00"
+@.str.204 = private unnamed_addr constant [29 x i8] c"PASS: test_parser_class_decl\00"
+@.str.390 = private unnamed_addr constant [47 x i8] c"\E2\9D\8C test_parser_chained_method_call - FAILED: \00"
+@.str.447 = private unnamed_addr constant [30 x i8] c"\E2\9C\85 test_resolver_lookup_miss\00"
+@.str.3 = private unnamed_addr constant [1 x i8] c"\00"
+@.str.14 = private unnamed_addr constant [8 x i8] c": type=\00"
+@.str.266 = private unnamed_addr constant [62 x i8] c"test_resolver_var_decl: expected 'x' in symbol table, got nil\00"
+@.str.35 = private unnamed_addr constant [5 x i8] c"PLUS\00"
+@.str.94 = private unnamed_addr constant [2 x i8] c"!\00"
+@.str.174 = private unnamed_addr constant [51 x i8] c"test_parser_if_elseif_else failed: expected IfStmt\00"
+@.str.245 = private unnamed_addr constant [63 x i8] c"test_parser_closure_arrow failed: expected BinaryExpr in arrow\00"
+@.str.130 = private unnamed_addr constant [5 x i8] c"args\00"
+@.str.155 = private unnamed_addr constant [45 x i8] c"test_parser_map_literal failed: errors found\00"
+@.str.123 = private unnamed_addr constant [11 x i8] c"StaticCall\00"
+@.str.316 = private unnamed_addr constant [53 x i8] c"test_resolver_func_param_count: 'multiply' not found\00"
+@.str.241 = private unnamed_addr constant [12 x i8] c"ClosureExpr\00"
+@.str.251 = private unnamed_addr constant [32 x i8] c"PASS: test_parser_closure_block\00"
+@.str.292 = private unnamed_addr constant [6 x i8] c"class\00"
+@.str.330 = private unnamed_addr constant [16 x i8] c"RESOLVE ERROR: \00"
+@.str.147 = private unnamed_addr constant [20 x i8] c"var $a = [1, 2, 3];\00"
+@.str.234 = private unnamed_addr constant [65 x i8] c"\E2\9D\8C test_parser_foreach_stmt - FAILED: expected keyVar 'k', got \00"
+@.str.450 = private unnamed_addr constant [45 x i8] c"\E2\9D\8C test_resolver_foreach_scoping - FAILED: \00"
+@.str.112 = private unnamed_addr constant [53 x i8] c"test_parser_chained_method_call failed: errors found\00"
+@.str.222 = private unnamed_addr constant [76 x i8] c"test_parser_grouped_expr failed: expected '*' at root due to grouping, got \00"
+@.str.296 = private unnamed_addr constant [60 x i8] c"test_resolver_class_decl: expected method 'bark' registered\00"
+@.str.21 = private unnamed_addr constant [15 x i8] c"expected IDENT\00"
+@.str.183 = private unnamed_addr constant [56 x i8] c"test_parser_for_stmt failed: expected non-nil condition\00"
+@.str.33 = private unnamed_addr constant [10 x i8] c"1 + 2 * 3\00"
+@.str.45 = private unnamed_addr constant [7 x i8] c"RETURN\00"
+@.str.58 = private unnamed_addr constant [8 x i8] c"VarDecl\00"
+@.str.84 = private unnamed_addr constant [5 x i8] c"left\00"
+@.str.126 = private unnamed_addr constant [8 x i8] c"Strings\00"
+@.str.197 = private unnamed_addr constant [57 x i8] c"test_parser_class_decl failed: expected name 'Dog', got \00"
+@.str.12 = private unnamed_addr constant [24 x i8] c"Tokens count in basic: \00"
+@.str.26 = private unnamed_addr constant [10 x i8] c"SEMICOLON\00"
+@.str.376 = private unnamed_addr constant [35 x i8] c"\E2\9D\8C test_lexer_keywords - FAILED: \00"
+@.str.280 = private unnamed_addr constant [52 x i8] c"test_resolver_func_hoist: unexpected resolve errors\00"
+@.str.370 = private unnamed_addr constant [32 x i8] c"\E2\9D\8C test_lexer_basic - FAILED: \00"
+@.str.161 = private unnamed_addr constant [49 x i8] c"if ($x > 0) { var $y = 1; } else { var $y = 0; }\00"
+@.str.182 = private unnamed_addr constant [52 x i8] c"test_parser_for_stmt failed: expected ForStmt, got \00"
+@.str.269 = private unnamed_addr constant [50 x i8] c"test_resolver_var_decl: expected kind 'var', got \00"
+@.str.329 = private unnamed_addr constant [54 x i8] c"foreach ([1, 2, 3] as $k => $v) { var $x = $v + $k; }\00"
+@.str.38 = private unnamed_addr constant [14 x i8] c"expected STAR\00"
+@.str.120 = private unnamed_addr constant [38 x i8] c"PASS: test_parser_chained_method_call\00"
+@.str.63 = private unnamed_addr constant [24 x i8] c"PASS: test_parser_basic\00"
+@.str.434 = private unnamed_addr constant [45 x i8] c"\E2\9D\8C test_resolver_new_known_class - FAILED: \00"
+@.str.51 = private unnamed_addr constant [26 x i8] c"PASS: test_lexer_keywords\00"
+@.str.62 = private unnamed_addr constant [50 x i8] c"test_parser_basic failed: expected name 'x', got \00"
+@.str.451 = private unnamed_addr constant [34 x i8] c"\E2\9C\85 test_resolver_closure_scoping\00"
+@.str.359 = private unnamed_addr constant [28 x i8] c"ALL PARSER TESTS PASSED \E2\9C\93\00"
+@.str.363 = private unnamed_addr constant [33 x i8] c"ALL TYPECHECKER TESTS PASSED \E2\9C\93\00"
+@.str.291 = private unnamed_addr constant [56 x i8] c"test_resolver_class_decl: expected 'Dog' in class table\00"
+@.str.305 = private unnamed_addr constant [38 x i8] c"PASS: test_resolver_new_unknown_class\00"
+@.str.75 = private unnamed_addr constant [2 x i8] c"*\00"
+@.str.179 = private unnamed_addr constant [45 x i8] c"for ($i = 0; $i < 10; $i++) { var $x = $i; }\00"
+@.str.258 = private unnamed_addr constant [8 x i8] c"pattern\00"
+@.str.262 = private unnamed_addr constant [66 x i8] c"test_parser_match_stmt failed: expected Wildcard pattern in arm 2\00"
+@.str.461 = private unnamed_addr constant [9 x i8] c"\0ATests: \00"
+@.str.157 = private unnamed_addr constant [58 x i8] c"test_parser_map_literal failed: expected MapLiteral, got \00"
+@.str.162 = private unnamed_addr constant [41 x i8] c"test_parser_if_stmt failed: errors found\00"
+@.str.219 = private unnamed_addr constant [22 x i8] c"var $v = (1 + 2) * 3;\00"
+@.str.328 = private unnamed_addr constant [32 x i8] c"PASS: test_resolver_lookup_miss\00"
+@.str.395 = private unnamed_addr constant [25 x i8] c"\E2\9C\85 test_parser_new_expr\00"
+@.str.27 = private unnamed_addr constant [19 x i8] c"expected SEMICOLON\00"
+@.str.119 = private unnamed_addr constant [72 x i8] c"test_parser_chained_method_call failed: inner method should be 'filter'\00"
+@.str.356 = private unnamed_addr constant [22 x i8] c"PASS: test_lexer_math\00"
+@.str.366 = private unnamed_addr constant [31 x i8] c"\E2\9D\8C test_array_push - FAILED: \00"
+@.str.50 = private unnamed_addr constant [14 x i8] c"expected FUNC\00"
+@.str.259 = private unnamed_addr constant [11 x i8] c"IntLiteral\00"
+@.str.335 = private unnamed_addr constant [36 x i8] c"PASS: test_resolver_closure_scoping\00"
+@.str.354 = private unnamed_addr constant [23 x i8] c"PASS: test_lexer_basic\00"
+@.str.440 = private unnamed_addr constant [41 x i8] c"\E2\9D\8C test_resolver_for_scoping - FAILED: \00"
+@.str.64 = private unnamed_addr constant [25 x i8] c"var $result = 1 + 2 * 3;\00"
+@.str.105 = private unnamed_addr constant [11 x i8] c"MethodCall\00"
+@.str.102 = private unnamed_addr constant [32 x i8] c"PASS: test_parser_string_concat\00"
+@.str.160 = private unnamed_addr constant [30 x i8] c"PASS: test_parser_map_literal\00"
+@.str.336 = private unnamed_addr constant [69 x i8] c"var $x = 10; match $x { 10 => { var $y = 1; } _ => { var $y = 2; } }\00"
+@.str.402 = private unnamed_addr constant [35 x i8] c"\E2\9D\8C test_parser_if_stmt - FAILED: \00"
+@.str.412 = private unnamed_addr constant [39 x i8] c"\E2\9D\8C test_parser_return_stmt - FAILED: \00"
+@.str.46 = private unnamed_addr constant [16 x i8] c"expected RETURN\00"
+@.str.100 = private unnamed_addr constant [70 x i8] c"test_parser_string_concat failed: expected StringConcat at root, got \00"
+@.str.31 = private unnamed_addr constant [7 x i8] c"STRING\00"
+@.str.81 = private unnamed_addr constant [70 x i8] c"test_parser_precedence_comparison failed: expected BinaryExpr at root\00"
+@.str.82 = private unnamed_addr constant [3 x i8] c"&&\00"
+@.str.230 = private unnamed_addr constant [12 x i8] c"DollarIdent\00"
+@.str.293 = private unnamed_addr constant [54 x i8] c"test_resolver_class_decl: expected kind 'class', got \00"
+@.str.318 = private unnamed_addr constant [49 x i8] c"test_resolver_func_param_count: expected 3, got \00"
+@.str.17 = private unnamed_addr constant [49 x i8] c"test_lexer_basic failed: expected 6 tokens, got \00"
+@.str.18 = private unnamed_addr constant [4 x i8] c"VAR\00"
+@.str.5 = private unnamed_addr constant [15 x i8] c"Tokens count: \00"
+@.str.60 = private unnamed_addr constant [5 x i8] c"name\00"
+@.str.61 = private unnamed_addr constant [2 x i8] c"x\00"
+@.str.108 = private unnamed_addr constant [8 x i8] c"getName\00"
+@.str.252 = private unnamed_addr constant [55 x i8] c"match $x { 1 => print(\221\22); _ => { print(\22other\22); } }\00"
+@.str.23 = private unnamed_addr constant [16 x i8] c"expected ASSIGN\00"
+@.str.37 = private unnamed_addr constant [5 x i8] c"STAR\00"
+@.str.342 = private unnamed_addr constant [39 x i8] c"PASS: test_typechecker_strict_mismatch\00"
+@.str.8 = private unnamed_addr constant [42 x i8] c"test_lexer_empty failed: expected 1 token\00"
+@.str.338 = private unnamed_addr constant [34 x i8] c"PASS: test_resolver_match_scoping\00"
+@.str.152 = private unnamed_addr constant [60 x i8] c"test_parser_array_literal failed: expected 3 elements, got \00"
+@.str.199 = private unnamed_addr constant [57 x i8] c"test_parser_class_decl failed: expected 1 property, got \00"
+@.str.55 = private unnamed_addr constant [47 x i8] c"test_parser_basic failed: expected Program AST\00"
+@.str.128 = private unnamed_addr constant [10 x i8] c"Substring\00"
+@.str.387 = private unnamed_addr constant [28 x i8] c"\E2\9C\85 test_parser_method_call\00"
+@.str.407 = private unnamed_addr constant [27 x i8] c"\E2\9C\85 test_parser_while_stmt\00"
+@.str.416 = private unnamed_addr constant [40 x i8] c"\E2\9D\8C test_parser_foreach_stmt - FAILED: \00"
+@.str.430 = private unnamed_addr constant [43 x i8] c"\E2\9D\8C test_resolver_undefined_var - FAILED: \00"
+@.str.433 = private unnamed_addr constant [34 x i8] c"\E2\9C\85 test_resolver_new_known_class\00"
+@.str.452 = private unnamed_addr constant [45 x i8] c"\E2\9D\8C test_resolver_closure_scoping - FAILED: \00"
+@.str.125 = private unnamed_addr constant [10 x i8] c"className\00"
+@.str.127 = private unnamed_addr constant [67 x i8] c"test_parser_static_call failed: expected className 'Strings', got \00"
+@.str.52 = private unnamed_addr constant [13 x i8] c"var $x = 10;\00"
+@.str.150 = private unnamed_addr constant [62 x i8] c"test_parser_array_literal failed: expected ArrayLiteral, got \00"
+@.str.286 = private unnamed_addr constant [8 x i8] c"message\00"
+@.str.393 = private unnamed_addr constant [28 x i8] c"\E2\9C\85 test_parser_array_index\00"
+@.str.405 = private unnamed_addr constant [25 x i8] c"\E2\9C\85 test_parser_for_stmt\00"
+@.str.425 = private unnamed_addr constant [29 x i8] c"\E2\9C\85 test_resolver_func_hoist\00"
+@.str.149 = private unnamed_addr constant [13 x i8] c"ArrayLiteral\00"
+@.str.265 = private unnamed_addr constant [13 x i8] c"_symbolTable\00"
+@.str.365 = private unnamed_addr constant [20 x i8] c"\E2\9C\85 test_array_push\00"
+@.str.457 = private unnamed_addr constant [29 x i8] c"\E2\9C\85 test_typechecker_n1_loop\00"
+@.str.410 = private unnamed_addr constant [38 x i8] c"\E2\9D\8C test_parser_class_decl - FAILED: \00"
+@.str.439 = private unnamed_addr constant [30 x i8] c"\E2\9C\85 test_resolver_for_scoping\00"
+@.str.69 = private unnamed_addr constant [66 x i8] c"test_parser_binary_expr failed: expected BinaryExpr at root, got \00"
+@.str.295 = private unnamed_addr constant [59 x i8] c"test_resolver_class_decl: expected field 'name' registered\00"
+@.str.311 = private unnamed_addr constant [88 x i8] c"class Box { public func open() { return 1; } } var $b = new Box(); var $v = $b->open();\00"
+@.str.151 = private unnamed_addr constant [9 x i8] c"elements\00"
+@.str.165 = private unnamed_addr constant [10 x i8] c"condition\00"
+@.str.299 = private unnamed_addr constant [33 x i8] c"class Cat {} var $c = new Cat();\00"
+@.str.175 = private unnamed_addr constant [8 x i8] c"elseIfs\00"
+@.str.239 = private unnamed_addr constant [36 x i8] c"var $add = func($a, $b) => $a + $b;\00"
+@.str.419 = private unnamed_addr constant [30 x i8] c"\E2\9C\85 test_parser_closure_block\00"
+@.str.15 = private unnamed_addr constant [10 x i8] c", lexeme=\00"
+@.str.136 = private unnamed_addr constant [57 x i8] c"test_parser_array_index failed: expected IndexExpr, got \00"
+@.str.200 = private unnamed_addr constant [8 x i8] c"methods\00"
+@.str.235 = private unnamed_addr constant [9 x i8] c"valueVar\00"
+@.str.327 = private unnamed_addr constant [58 x i8] c"test_resolver_lookup_miss: expected nil for unknown class\00"
+@.str.29 = private unnamed_addr constant [8 x i8] c"\22hello\22\00"
+@.str.154 = private unnamed_addr constant [41 x i8] c"var $m = {\22name\22: \22wolf\22, \22version\22: 1};\00"
+@.str.34 = private unnamed_addr constant [42 x i8] c"test_lexer_math failed: expected 6 tokens\00"
+@.str.194 = private unnamed_addr constant [10 x i8] c"ClassDecl\00"
+@.str.283 = private unnamed_addr constant [75 x i8] c"test_resolver_func_params: unexpected errors \E2\80\94 params should be in scope\00"
+@.str.344 = private unnamed_addr constant [64 x i8] c"\E2\9D\8C test_typechecker_n1_loop - FAILED: expected 1 warning, got \00"
+@.str.220 = private unnamed_addr constant [46 x i8] c"test_parser_grouped_expr failed: errors found\00"
+@.str.242 = private unnamed_addr constant [55 x i8] c"test_parser_closure_arrow failed: expected ClosureExpr\00"
+@.str.411 = private unnamed_addr constant [28 x i8] c"\E2\9C\85 test_parser_return_stmt\00"
+@.str.181 = private unnamed_addr constant [8 x i8] c"ForStmt\00"
+@.str.202 = private unnamed_addr constant [5 x i8] c"bark\00"
+@.str.290 = private unnamed_addr constant [74 x i8] c"class Dog { public $name = \22rex\22; public func bark() { return \22woof\22; } }\00"
+@.str.137 = private unnamed_addr constant [30 x i8] c"PASS: test_parser_array_index\00"
+@.str.190 = private unnamed_addr constant [56 x i8] c"test_parser_while_stmt failed: expected WhileStmt, got \00"
+@.str.313 = private unnamed_addr constant [32 x i8] c"PASS: test_resolver_method_call\00"
+@.str.400 = private unnamed_addr constant [39 x i8] c"\E2\9D\8C test_parser_map_literal - FAILED: \00"
+@.str.40 = private unnamed_addr constant [27 x i8] c"test_lexer_keywords failed\00"
+@.str.68 = private unnamed_addr constant [11 x i8] c"BinaryExpr\00"
+@.str.103 = private unnamed_addr constant [26 x i8] c"var $n = $obj->getName();\00"
+@.str.371 = private unnamed_addr constant [22 x i8] c"\E2\9C\85 test_lexer_string\00"
+@.str.463 = private unnamed_addr constant [8 x i8] c" failed\00"
+@.str.177 = private unnamed_addr constant [54 x i8] c"test_parser_if_elseif_else failed: expected else body\00"
+@.str.340 = private unnamed_addr constant [70 x i8] c"\E2\9D\8C test_typechecker_strict_mismatch - FAILED: expected 1 error, got \00"
+@.str.331 = private unnamed_addr constant [102 x i8] c"\E2\9D\8C test_resolver_foreach_scoping - FAILED: test_resolver_foreach_scoping: expected no resolve errors\00"
+@.str.427 = private unnamed_addr constant [30 x i8] c"\E2\9C\85 test_resolver_func_params\00"
+@.str.77 = private unnamed_addr constant [30 x i8] c"PASS: test_parser_binary_expr\00"
+@.str.89 = private unnamed_addr constant [40 x i8] c"PASS: test_parser_precedence_comparison\00"
+@.str.294 = private unnamed_addr constant [7 x i8] c"fields\00"
+@.str.350 = private unnamed_addr constant [88 x i8] c"\E2\9D\8C test_typechecker_n1_eager_bypass - FAILED: expected 0 warnings due to eager loading\00"
+@.str.74 = private unnamed_addr constant [68 x i8] c"test_parser_binary_expr failed: expected nested BinaryExpr on right\00"
+@.str.180 = private unnamed_addr constant [30 x i8] c"test_parser_for_stmt failed: \00"
+@.str.378 = private unnamed_addr constant [33 x i8] c"\E2\9D\8C test_parser_basic - FAILED: \00"
+@.str.9 = private unnamed_addr constant [4 x i8] c"EOF\00"
+@.str.255 = private unnamed_addr constant [50 x i8] c"test_parser_match_stmt failed: expected MatchStmt\00"
+@.str.232 = private unnamed_addr constant [7 x i8] c"keyVar\00"
+@.str.240 = private unnamed_addr constant [53 x i8] c"test_parser_closure_arrow failed: expected no errors\00"
+@.str.445 = private unnamed_addr constant [32 x i8] c"\E2\9C\85 test_resolver_string_concat\00"
+@.str.28 = private unnamed_addr constant [13 x i8] c"expected EOF\00"
+@.str.211 = private unnamed_addr constant [10 x i8] c"BlockStmt\00"
+@.str.279 = private unnamed_addr constant [53 x i8] c"test_resolver_func_hoist: expected kind 'func', got \00"
+@.str.302 = private unnamed_addr constant [22 x i8] c"var $x = new Ghost();\00"
+@.str.322 = private unnamed_addr constant [34 x i8] c"PASS: test_resolver_string_concat\00"
+@.str.404 = private unnamed_addr constant [42 x i8] c"\E2\9D\8C test_parser_if_elseif_else - FAILED: \00"
+@.str.421 = private unnamed_addr constant [27 x i8] c"\E2\9C\85 test_parser_match_stmt\00"
+@.str.173 = private unnamed_addr constant [48 x i8] c"test_parser_if_elseif_else failed: errors found\00"
+@.str.184 = private unnamed_addr constant [5 x i8] c"body\00"
+@.str.223 = private unnamed_addr constant [68 x i8] c"test_parser_grouped_expr failed: expected '+' on left from grouping\00"
+@.str.437 = private unnamed_addr constant [29 x i8] c"\E2\9C\85 test_resolver_if_scoping\00"
+@.str.116 = private unnamed_addr constant [7 x i8] c"object\00"
+@.str.158 = private unnamed_addr constant [5 x i8] c"keys\00"
+@.str.164 = private unnamed_addr constant [50 x i8] c"test_parser_if_stmt failed: expected IfStmt, got \00"
+@.str.276 = private unnamed_addr constant [6 x i8] c"greet\00"
+@.str.282 = private unnamed_addr constant [60 x i8] c"func add($a, $b) { var $result = $a + $b; return $result; }\00"
+@.str.288 = private unnamed_addr constant [54 x i8] c"test_resolver_undefined_var: error should mention 'z'\00"
+@.str.83 = private unnamed_addr constant [70 x i8] c"test_parser_precedence_comparison failed: expected '&&' at root, got \00"
+@.str.140 = private unnamed_addr constant [8 x i8] c"NewExpr\00"
+@.str.357 = private unnamed_addr constant [27 x i8] c"ALL LEXER TESTS PASSED \E2\9C\93\00"
+@.str.48 = private unnamed_addr constant [15 x i8] c"expected CLASS\00"
+@.str.93 = private unnamed_addr constant [56 x i8] c"test_parser_unary_expr failed: expected UnaryExpr, got \00"
+@.str.145 = private unnamed_addr constant [51 x i8] c"test_parser_new_expr failed: expected 3 args, got \00"
+@.str.243 = private unnamed_addr constant [52 x i8] c"test_parser_closure_arrow failed: expected 2 params\00"
+@.str.224 = private unnamed_addr constant [31 x i8] c"PASS: test_parser_grouped_expr\00"
+@.str.297 = private unnamed_addr constant [52 x i8] c"test_resolver_class_decl: unexpected resolve errors\00"
+@.str.414 = private unnamed_addr constant [40 x i8] c"\E2\9D\8C test_parser_grouped_expr - FAILED: \00"
+@.str.423 = private unnamed_addr constant [27 x i8] c"\E2\9C\85 test_resolver_var_decl\00"
+@.str.76 = private unnamed_addr constant [66 x i8] c"test_parser_binary_expr failed: expected '*' in nested expr, got \00"
+@.str.143 = private unnamed_addr constant [7 x i8] c"Parser\00"
+@.str.384 = private unnamed_addr constant [38 x i8] c"\E2\9D\8C test_parser_unary_expr - FAILED: \00"
+@.str.460 = private unnamed_addr constant [48 x i8] c"\E2\9D\8C test_typechecker_n1_eager_bypass - FAILED: \00"
+@.str.189 = private unnamed_addr constant [10 x i8] c"WhileStmt\00"
+@.str.260 = private unnamed_addr constant [68 x i8] c"test_parser_match_stmt failed: expected IntLiteral pattern in arm 1\00"
+@.str.148 = private unnamed_addr constant [47 x i8] c"test_parser_array_literal failed: errors found\00"
+@.str.392 = private unnamed_addr constant [39 x i8] c"\E2\9D\8C test_parser_static_call - FAILED: \00"
+@.str.131 = private unnamed_addr constant [54 x i8] c"test_parser_static_call failed: expected 3 args, got \00"
+@.str.270 = private unnamed_addr constant [7 x i8] c"errors\00"
+@.str.54 = private unnamed_addr constant [8 x i8] c"Program\00"
+@.str.57 = private unnamed_addr constant [53 x i8] c"test_parser_basic failed: expected 1 statement, got \00"
+@.str.307 = private unnamed_addr constant [53 x i8] c"test_resolver_if_scoping: expected no resolve errors\00"
+@.str.191 = private unnamed_addr constant [29 x i8] c"PASS: test_parser_while_stmt\00"
+@.str.388 = private unnamed_addr constant [39 x i8] c"\E2\9D\8C test_parser_method_call - FAILED: \00"
+@.str.66 = private unnamed_addr constant [49 x i8] c"test_parser_binary_expr failed: expected VarDecl\00"
+@.str.188 = private unnamed_addr constant [44 x i8] c"test_parser_while_stmt failed: errors found\00"
 
 ; --- External Runtime Functions ---
 declare void @wolf_print_str(ptr)
@@ -994,8 +994,8 @@ if.end.8:
 
 define void @wolf_test_lexer_empty() {
 entry:
-  %tokens = call ptr @wolf_req_alloc(i64 8)
   %l = call ptr @wolf_req_alloc(i64 8)
+  %tokens = call ptr @wolf_req_alloc(i64 8)
   %t20 = getelementptr [1 x i8], ptr @.str.3, i64 0, i64 0
   %t21 = getelementptr [10 x i8], ptr @.str.4, i64 0, i64 0
   %t22 = call ptr @wolf_NewLexer(ptr %t20, ptr %t21)
@@ -1096,10 +1096,10 @@ if.end.28:
 
 define void @wolf_test_lexer_basic() {
 entry:
-  %src = call ptr @wolf_req_alloc(i64 8)
-  %l = call ptr @wolf_req_alloc(i64 8)
   %tokens = call ptr @wolf_req_alloc(i64 8)
   %i = call ptr @wolf_req_alloc(i64 8)
+  %src = call ptr @wolf_req_alloc(i64 8)
+  %l = call ptr @wolf_req_alloc(i64 8)
   %t59 = getelementptr [12 x i8], ptr @.str.11, i64 0, i64 0
   store ptr %t59, ptr %src
   %t60 = load ptr, ptr %src
@@ -1338,9 +1338,9 @@ if.end.70:
 
 define void @wolf_test_lexer_string() {
 entry:
+  %l = call ptr @wolf_req_alloc(i64 8)
   %tokens = call ptr @wolf_req_alloc(i64 8)
   %src = call ptr @wolf_req_alloc(i64 8)
-  %l = call ptr @wolf_req_alloc(i64 8)
   %t171 = getelementptr [8 x i8], ptr @.str.29, i64 0, i64 0
   store ptr %t171, ptr %src
   %t172 = load ptr, ptr %src
@@ -1407,9 +1407,9 @@ if.end.82:
 
 define void @wolf_test_lexer_math() {
 entry:
+  %tokens = call ptr @wolf_req_alloc(i64 8)
   %src = call ptr @wolf_req_alloc(i64 8)
   %l = call ptr @wolf_req_alloc(i64 8)
-  %tokens = call ptr @wolf_req_alloc(i64 8)
   %t195 = getelementptr [10 x i8], ptr @.str.33, i64 0, i64 0
   store ptr %t195, ptr %src
   %t196 = load ptr, ptr %src
@@ -1496,9 +1496,9 @@ if.end.98:
 
 define void @wolf_test_lexer_keywords() {
 entry:
-  %src = call ptr @wolf_req_alloc(i64 8)
   %l = call ptr @wolf_req_alloc(i64 8)
   %tokens = call ptr @wolf_req_alloc(i64 8)
+  %src = call ptr @wolf_req_alloc(i64 8)
   %t229 = getelementptr [26 x i8], ptr @.str.39, i64 0, i64 0
   store ptr %t229, ptr %src
   %t230 = load ptr, ptr %src
@@ -1648,12 +1648,12 @@ if.end.126:
 
 define void @wolf_test_parser_basic() {
 entry:
+  %stmt = call ptr @wolf_req_alloc(i64 8)
   %src = call ptr @wolf_req_alloc(i64 8)
   %lexer = call ptr @wolf_req_alloc(i64 8)
   %tokens = call ptr @wolf_req_alloc(i64 8)
   %parser = call ptr @wolf_req_alloc(i64 8)
   %ast = call ptr @wolf_req_alloc(i64 8)
-  %stmt = call ptr @wolf_req_alloc(i64 8)
   %t294 = getelementptr [13 x i8], ptr @.str.52, i64 0, i64 0
   store ptr %t294, ptr %src
   %t295 = load ptr, ptr %src
@@ -1831,14 +1831,14 @@ if.end.156:
 
 define void @wolf_test_parser_binary_expr() {
 entry:
+  %right = call ptr @wolf_req_alloc(i64 8)
+  %src = call ptr @wolf_req_alloc(i64 8)
+  %lexer = call ptr @wolf_req_alloc(i64 8)
   %tokens = call ptr @wolf_req_alloc(i64 8)
   %parser = call ptr @wolf_req_alloc(i64 8)
   %ast = call ptr @wolf_req_alloc(i64 8)
   %stmt = call ptr @wolf_req_alloc(i64 8)
   %val = call ptr @wolf_req_alloc(i64 8)
-  %right = call ptr @wolf_req_alloc(i64 8)
-  %src = call ptr @wolf_req_alloc(i64 8)
-  %lexer = call ptr @wolf_req_alloc(i64 8)
   %t372 = getelementptr [25 x i8], ptr @.str.64, i64 0, i64 0
   store ptr %t372, ptr %src
   %t373 = load ptr, ptr %src
@@ -2028,12 +2028,12 @@ if.end.186:
 
 define void @wolf_test_parser_precedence_comparison() {
 entry:
-  %ast = call ptr @wolf_req_alloc(i64 8)
   %val = call ptr @wolf_req_alloc(i64 8)
   %src = call ptr @wolf_req_alloc(i64 8)
   %lexer = call ptr @wolf_req_alloc(i64 8)
   %tokens = call ptr @wolf_req_alloc(i64 8)
   %parser = call ptr @wolf_req_alloc(i64 8)
+  %ast = call ptr @wolf_req_alloc(i64 8)
   %t462 = getelementptr [31 x i8], ptr @.str.78, i64 0, i64 0
   store ptr %t462, ptr %src
   %t463 = load ptr, ptr %src
@@ -2210,12 +2210,12 @@ if.end.214:
 
 define void @wolf_test_parser_unary_expr() {
 entry:
+  %tokens = call ptr @wolf_req_alloc(i64 8)
   %parser = call ptr @wolf_req_alloc(i64 8)
   %ast = call ptr @wolf_req_alloc(i64 8)
   %val = call ptr @wolf_req_alloc(i64 8)
   %src = call ptr @wolf_req_alloc(i64 8)
   %lexer = call ptr @wolf_req_alloc(i64 8)
-  %tokens = call ptr @wolf_req_alloc(i64 8)
   %t543 = getelementptr [17 x i8], ptr @.str.90, i64 0, i64 0
   store ptr %t543, ptr %src
   %t544 = load ptr, ptr %src
@@ -2464,12 +2464,12 @@ if.end.250:
 
 define void @wolf_test_parser_method_call() {
 entry:
-  %ast = call ptr @wolf_req_alloc(i64 8)
-  %val = call ptr @wolf_req_alloc(i64 8)
   %src = call ptr @wolf_req_alloc(i64 8)
   %lexer = call ptr @wolf_req_alloc(i64 8)
   %tokens = call ptr @wolf_req_alloc(i64 8)
   %parser = call ptr @wolf_req_alloc(i64 8)
+  %ast = call ptr @wolf_req_alloc(i64 8)
+  %val = call ptr @wolf_req_alloc(i64 8)
   %t651 = getelementptr [26 x i8], ptr @.str.103, i64 0, i64 0
   store ptr %t651, ptr %src
   %t652 = load ptr, ptr %src
@@ -3052,12 +3052,12 @@ if.end.338:
 
 define void @wolf_test_parser_new_expr() {
 entry:
-  %parser = call ptr @wolf_req_alloc(i64 8)
-  %ast = call ptr @wolf_req_alloc(i64 8)
-  %val = call ptr @wolf_req_alloc(i64 8)
   %src = call ptr @wolf_req_alloc(i64 8)
   %lexer = call ptr @wolf_req_alloc(i64 8)
   %tokens = call ptr @wolf_req_alloc(i64 8)
+  %parser = call ptr @wolf_req_alloc(i64 8)
+  %ast = call ptr @wolf_req_alloc(i64 8)
+  %val = call ptr @wolf_req_alloc(i64 8)
   %t905 = getelementptr [43 x i8], ptr @.str.138, i64 0, i64 0
   store ptr %t905, ptr %src
   %t906 = load ptr, ptr %src
@@ -3222,12 +3222,12 @@ if.end.362:
 
 define void @wolf_test_parser_array_literal() {
 entry:
-  %ast = call ptr @wolf_req_alloc(i64 8)
-  %val = call ptr @wolf_req_alloc(i64 8)
   %src = call ptr @wolf_req_alloc(i64 8)
   %lexer = call ptr @wolf_req_alloc(i64 8)
   %tokens = call ptr @wolf_req_alloc(i64 8)
   %parser = call ptr @wolf_req_alloc(i64 8)
+  %ast = call ptr @wolf_req_alloc(i64 8)
+  %val = call ptr @wolf_req_alloc(i64 8)
   %t980 = getelementptr [20 x i8], ptr @.str.147, i64 0, i64 0
   store ptr %t980, ptr %src
   %t981 = load ptr, ptr %src
@@ -3508,12 +3508,12 @@ if.end.406:
 
 define void @wolf_test_parser_if_stmt() {
 entry:
+  %parser = call ptr @wolf_req_alloc(i64 8)
   %ast = call ptr @wolf_req_alloc(i64 8)
   %stmt = call ptr @wolf_req_alloc(i64 8)
   %src = call ptr @wolf_req_alloc(i64 8)
   %lexer = call ptr @wolf_req_alloc(i64 8)
   %tokens = call ptr @wolf_req_alloc(i64 8)
-  %parser = call ptr @wolf_req_alloc(i64 8)
   %t1096 = getelementptr [49 x i8], ptr @.str.161, i64 0, i64 0
   store ptr %t1096, ptr %src
   %t1097 = load ptr, ptr %src
@@ -3670,12 +3670,12 @@ if.end.434:
 
 define void @wolf_test_parser_if_elseif_else() {
 entry:
-  %lexer = call ptr @wolf_req_alloc(i64 8)
-  %tokens = call ptr @wolf_req_alloc(i64 8)
   %parser = call ptr @wolf_req_alloc(i64 8)
   %ast = call ptr @wolf_req_alloc(i64 8)
   %stmt = call ptr @wolf_req_alloc(i64 8)
   %src = call ptr @wolf_req_alloc(i64 8)
+  %lexer = call ptr @wolf_req_alloc(i64 8)
+  %tokens = call ptr @wolf_req_alloc(i64 8)
   %t1165 = getelementptr [84 x i8], ptr @.str.172, i64 0, i64 0
   store ptr %t1165, ptr %src
   %t1166 = load ptr, ptr %src
@@ -3824,12 +3824,12 @@ if.end.460:
 
 define void @wolf_test_parser_for_stmt() {
 entry:
-  %ast = call ptr @wolf_req_alloc(i64 8)
   %stmt = call ptr @wolf_req_alloc(i64 8)
   %src = call ptr @wolf_req_alloc(i64 8)
   %lexer = call ptr @wolf_req_alloc(i64 8)
   %tokens = call ptr @wolf_req_alloc(i64 8)
   %parser = call ptr @wolf_req_alloc(i64 8)
+  %ast = call ptr @wolf_req_alloc(i64 8)
   %t1224 = getelementptr [45 x i8], ptr @.str.179, i64 0, i64 0
   store ptr %t1224, ptr %src
   %t1225 = load ptr, ptr %src
@@ -3977,12 +3977,12 @@ if.end.484:
 
 define void @wolf_test_parser_while_stmt() {
 entry:
-  %ast = call ptr @wolf_req_alloc(i64 8)
-  %stmt = call ptr @wolf_req_alloc(i64 8)
   %src = call ptr @wolf_req_alloc(i64 8)
   %lexer = call ptr @wolf_req_alloc(i64 8)
   %tokens = call ptr @wolf_req_alloc(i64 8)
   %parser = call ptr @wolf_req_alloc(i64 8)
+  %ast = call ptr @wolf_req_alloc(i64 8)
+  %stmt = call ptr @wolf_req_alloc(i64 8)
   %t1286 = getelementptr [33 x i8], ptr @.str.187, i64 0, i64 0
   store ptr %t1286, ptr %src
   %t1287 = load ptr, ptr %src
@@ -4080,12 +4080,12 @@ if.end.498:
 
 define void @wolf_test_parser_class_decl() {
 entry:
-  %src = call ptr @wolf_req_alloc(i64 8)
-  %lexer = call ptr @wolf_req_alloc(i64 8)
-  %tokens = call ptr @wolf_req_alloc(i64 8)
   %parser = call ptr @wolf_req_alloc(i64 8)
   %ast = call ptr @wolf_req_alloc(i64 8)
   %stmt = call ptr @wolf_req_alloc(i64 8)
+  %src = call ptr @wolf_req_alloc(i64 8)
+  %lexer = call ptr @wolf_req_alloc(i64 8)
+  %tokens = call ptr @wolf_req_alloc(i64 8)
   %t1326 = getelementptr [74 x i8], ptr @.str.192, i64 0, i64 0
   store ptr %t1326, ptr %src
   %t1327 = load ptr, ptr %src
@@ -4320,7 +4320,6 @@ if.end.538:
 
 define void @wolf_test_parser_return_stmt() {
 entry:
-  %fn = call ptr @wolf_req_alloc(i64 8)
   %body = call ptr @wolf_req_alloc(i64 8)
   %ret = call ptr @wolf_req_alloc(i64 8)
   %src = call ptr @wolf_req_alloc(i64 8)
@@ -4328,6 +4327,7 @@ entry:
   %tokens = call ptr @wolf_req_alloc(i64 8)
   %parser = call ptr @wolf_req_alloc(i64 8)
   %ast = call ptr @wolf_req_alloc(i64 8)
+  %fn = call ptr @wolf_req_alloc(i64 8)
   %t1431 = getelementptr [37 x i8], ptr @.str.205, i64 0, i64 0
   store ptr %t1431, ptr %src
   %t1432 = load ptr, ptr %src
@@ -4561,12 +4561,12 @@ if.end.578:
 
 define void @wolf_test_parser_grouped_expr() {
 entry:
-  %tokens = call ptr @wolf_req_alloc(i64 8)
-  %parser = call ptr @wolf_req_alloc(i64 8)
   %ast = call ptr @wolf_req_alloc(i64 8)
   %val = call ptr @wolf_req_alloc(i64 8)
   %src = call ptr @wolf_req_alloc(i64 8)
   %lexer = call ptr @wolf_req_alloc(i64 8)
+  %tokens = call ptr @wolf_req_alloc(i64 8)
+  %parser = call ptr @wolf_req_alloc(i64 8)
   %t1537 = getelementptr [22 x i8], ptr @.str.219, i64 0, i64 0
   store ptr %t1537, ptr %src
   %t1538 = load ptr, ptr %src
@@ -4860,13 +4860,13 @@ if.end.620:
 
 define ptr @wolf_test_parser_closure_arrow() {
 entry:
-  %src = call ptr @wolf_req_alloc(i64 8)
   %lexer = call ptr @wolf_req_alloc(i64 8)
   %tokens = call ptr @wolf_req_alloc(i64 8)
   %parser = call ptr @wolf_req_alloc(i64 8)
   %ast = call ptr @wolf_req_alloc(i64 8)
   %stmt = call ptr @wolf_req_alloc(i64 8)
   %closure = call ptr @wolf_req_alloc(i64 8)
+  %src = call ptr @wolf_req_alloc(i64 8)
   %t1669 = getelementptr [36 x i8], ptr @.str.239, i64 0, i64 0
   store ptr %t1669, ptr %src
   %t1670 = load ptr, ptr %src
@@ -5010,13 +5010,13 @@ if.end.642:
 
 define ptr @wolf_test_parser_closure_block() {
 entry:
+  %closure = call ptr @wolf_req_alloc(i64 8)
   %src = call ptr @wolf_req_alloc(i64 8)
   %lexer = call ptr @wolf_req_alloc(i64 8)
   %tokens = call ptr @wolf_req_alloc(i64 8)
   %parser = call ptr @wolf_req_alloc(i64 8)
   %ast = call ptr @wolf_req_alloc(i64 8)
   %stmt = call ptr @wolf_req_alloc(i64 8)
-  %closure = call ptr @wolf_req_alloc(i64 8)
   %t1728 = getelementptr [42 x i8], ptr @.str.247, i64 0, i64 0
   store ptr %t1728, ptr %src
   %t1729 = load ptr, ptr %src
@@ -5313,17 +5313,17 @@ if.end.688:
 
 define void @wolf_test_resolver_var_decl() {
 entry:
+  %lexer = call ptr @wolf_req_alloc(i64 8)
   %tokens = call ptr @wolf_req_alloc(i64 8)
+  %parser = call ptr @wolf_req_alloc(i64 8)
   %ast = call ptr @wolf_req_alloc(i64 8)
-  %r = call ptr @wolf_req_alloc(i64 8)
+  %errCount = call ptr @wolf_req_alloc(i64 8)
   %i = call ptr @wolf_req_alloc(i64 8)
   %src = call ptr @wolf_req_alloc(i64 8)
-  %parser = call ptr @wolf_req_alloc(i64 8)
+  %r = call ptr @wolf_req_alloc(i64 8)
   %table = alloca ptr
   %sym = call ptr @wolf_req_alloc(i64 8)
   %errs = call ptr @wolf_req_alloc(i64 8)
-  %errCount = call ptr @wolf_req_alloc(i64 8)
-  %lexer = call ptr @wolf_req_alloc(i64 8)
   %t1853 = getelementptr [13 x i8], ptr @.str.264, i64 0, i64 0
   store ptr %t1853, ptr %src
   %t1854 = load ptr, ptr %src
@@ -5508,17 +5508,17 @@ if.end.718:
 
 define void @wolf_test_resolver_func_hoist() {
 entry:
-  %errCount = call ptr @wolf_req_alloc(i64 8)
+  %src = call ptr @wolf_req_alloc(i64 8)
+  %ast = call ptr @wolf_req_alloc(i64 8)
+  %table = alloca ptr
   %i = call ptr @wolf_req_alloc(i64 8)
   %lexer = call ptr @wolf_req_alloc(i64 8)
-  %parser = call ptr @wolf_req_alloc(i64 8)
-  %sym = call ptr @wolf_req_alloc(i64 8)
-  %r = call ptr @wolf_req_alloc(i64 8)
-  %table = alloca ptr
-  %errs = call ptr @wolf_req_alloc(i64 8)
-  %src = call ptr @wolf_req_alloc(i64 8)
   %tokens = call ptr @wolf_req_alloc(i64 8)
-  %ast = call ptr @wolf_req_alloc(i64 8)
+  %parser = call ptr @wolf_req_alloc(i64 8)
+  %r = call ptr @wolf_req_alloc(i64 8)
+  %sym = call ptr @wolf_req_alloc(i64 8)
+  %errs = call ptr @wolf_req_alloc(i64 8)
+  %errCount = call ptr @wolf_req_alloc(i64 8)
   %t1928 = getelementptr [50 x i8], ptr @.str.275, i64 0, i64 0
   store ptr %t1928, ptr %src
   %t1929 = load ptr, ptr %src
@@ -5703,15 +5703,15 @@ if.end.748:
 
 define void @wolf_test_resolver_func_params() {
 entry:
-  %src = call ptr @wolf_req_alloc(i64 8)
+  %tokens = call ptr @wolf_req_alloc(i64 8)
   %parser = call ptr @wolf_req_alloc(i64 8)
-  %ast = call ptr @wolf_req_alloc(i64 8)
   %r = call ptr @wolf_req_alloc(i64 8)
   %errs = call ptr @wolf_req_alloc(i64 8)
   %i = call ptr @wolf_req_alloc(i64 8)
-  %lexer = call ptr @wolf_req_alloc(i64 8)
-  %tokens = call ptr @wolf_req_alloc(i64 8)
+  %src = call ptr @wolf_req_alloc(i64 8)
+  %ast = call ptr @wolf_req_alloc(i64 8)
   %errCount = call ptr @wolf_req_alloc(i64 8)
+  %lexer = call ptr @wolf_req_alloc(i64 8)
   %t2003 = getelementptr [60 x i8], ptr @.str.282, i64 0, i64 0
   store ptr %t2003, ptr %src
   %t2004 = load ptr, ptr %src
@@ -5848,20 +5848,20 @@ if.end.770:
 
 define void @wolf_test_resolver_undefined_var() {
 entry:
-  %found = call ptr @wolf_req_alloc(i64 1)
-  %errItem = call ptr @wolf_req_alloc(i64 8)
-  %r = call ptr @wolf_req_alloc(i64 8)
-  %parser = call ptr @wolf_req_alloc(i64 8)
   %i = call ptr @wolf_req_alloc(i64 8)
-  %lvl = call ptr @wolf_req_alloc(i64 8)
-  %lexer = call ptr @wolf_req_alloc(i64 8)
+  %errLen = call ptr @wolf_req_alloc(i64 8)
+  %parser = call ptr @wolf_req_alloc(i64 8)
+  %r = call ptr @wolf_req_alloc(i64 8)
+  %errItem = call ptr @wolf_req_alloc(i64 8)
+  %tokens = call ptr @wolf_req_alloc(i64 8)
   %errs = call ptr @wolf_req_alloc(i64 8)
+  %lvl = call ptr @wolf_req_alloc(i64 8)
+  %ast = call ptr @wolf_req_alloc(i64 8)
+  %found = call ptr @wolf_req_alloc(i64 1)
   %errCount = call ptr @wolf_req_alloc(i64 8)
   %msg = alloca ptr
   %src = call ptr @wolf_req_alloc(i64 8)
-  %ast = call ptr @wolf_req_alloc(i64 8)
-  %errLen = call ptr @wolf_req_alloc(i64 8)
-  %tokens = call ptr @wolf_req_alloc(i64 8)
+  %lexer = call ptr @wolf_req_alloc(i64 8)
   %t2054 = getelementptr [17 x i8], ptr @.str.285, i64 0, i64 0
   store ptr %t2054, ptr %src
   %t2055 = load ptr, ptr %src
@@ -6026,19 +6026,19 @@ if.end.796:
 
 define void @wolf_test_resolver_class_decl() {
 entry:
-  %fields = call ptr @wolf_req_alloc(i64 8)
-  %errCount = call ptr @wolf_req_alloc(i64 8)
-  %i = call ptr @wolf_req_alloc(i64 8)
-  %lexer = call ptr @wolf_req_alloc(i64 8)
-  %ast = call ptr @wolf_req_alloc(i64 8)
-  %r = call ptr @wolf_req_alloc(i64 8)
   %table = alloca ptr
+  %cls = call ptr @wolf_req_alloc(i64 8)
+  %fields = call ptr @wolf_req_alloc(i64 8)
   %methods = call ptr @wolf_req_alloc(i64 8)
   %errs = call ptr @wolf_req_alloc(i64 8)
+  %i = call ptr @wolf_req_alloc(i64 8)
   %src = call ptr @wolf_req_alloc(i64 8)
+  %lexer = call ptr @wolf_req_alloc(i64 8)
   %tokens = call ptr @wolf_req_alloc(i64 8)
   %parser = call ptr @wolf_req_alloc(i64 8)
-  %cls = call ptr @wolf_req_alloc(i64 8)
+  %ast = call ptr @wolf_req_alloc(i64 8)
+  %r = call ptr @wolf_req_alloc(i64 8)
+  %errCount = call ptr @wolf_req_alloc(i64 8)
   %t2116 = getelementptr [74 x i8], ptr @.str.290, i64 0, i64 0
   store ptr %t2116, ptr %src
   %t2117 = load ptr, ptr %src
@@ -6265,15 +6265,15 @@ if.end.834:
 
 define void @wolf_test_resolver_new_known_class() {
 entry:
+  %ast = call ptr @wolf_req_alloc(i64 8)
+  %errs = call ptr @wolf_req_alloc(i64 8)
+  %i = call ptr @wolf_req_alloc(i64 8)
   %src = call ptr @wolf_req_alloc(i64 8)
   %lexer = call ptr @wolf_req_alloc(i64 8)
   %tokens = call ptr @wolf_req_alloc(i64 8)
-  %r = call ptr @wolf_req_alloc(i64 8)
-  %errs = call ptr @wolf_req_alloc(i64 8)
   %parser = call ptr @wolf_req_alloc(i64 8)
-  %ast = call ptr @wolf_req_alloc(i64 8)
+  %r = call ptr @wolf_req_alloc(i64 8)
   %errCount = call ptr @wolf_req_alloc(i64 8)
-  %i = call ptr @wolf_req_alloc(i64 8)
   %t2211 = getelementptr [33 x i8], ptr @.str.299, i64 0, i64 0
   store ptr %t2211, ptr %src
   %t2212 = load ptr, ptr %src
@@ -6410,19 +6410,19 @@ if.end.856:
 
 define void @wolf_test_resolver_new_unknown_class() {
 entry:
-  %src = call ptr @wolf_req_alloc(i64 8)
   %ast = call ptr @wolf_req_alloc(i64 8)
   %r = call ptr @wolf_req_alloc(i64 8)
-  %errs = call ptr @wolf_req_alloc(i64 8)
-  %i = call ptr @wolf_req_alloc(i64 8)
-  %errItem2 = call ptr @wolf_req_alloc(i64 8)
-  %msg2 = alloca ptr
-  %lexer = call ptr @wolf_req_alloc(i64 8)
-  %tokens = call ptr @wolf_req_alloc(i64 8)
-  %parser = call ptr @wolf_req_alloc(i64 8)
-  %errCount = call ptr @wolf_req_alloc(i64 8)
   %found = call ptr @wolf_req_alloc(i64 1)
+  %i = call ptr @wolf_req_alloc(i64 8)
+  %msg2 = alloca ptr
+  %src = call ptr @wolf_req_alloc(i64 8)
+  %lexer = call ptr @wolf_req_alloc(i64 8)
+  %parser = call ptr @wolf_req_alloc(i64 8)
+  %errItem2 = call ptr @wolf_req_alloc(i64 8)
   %lvl2 = call ptr @wolf_req_alloc(i64 8)
+  %tokens = call ptr @wolf_req_alloc(i64 8)
+  %errs = call ptr @wolf_req_alloc(i64 8)
+  %errCount = call ptr @wolf_req_alloc(i64 8)
   %t2262 = getelementptr [22 x i8], ptr @.str.302, i64 0, i64 0
   store ptr %t2262, ptr %src
   %t2263 = load ptr, ptr %src
@@ -6585,15 +6585,15 @@ if.end.882:
 
 define void @wolf_test_resolver_if_scoping() {
 entry:
-  %errCount = call ptr @wolf_req_alloc(i64 8)
   %src = call ptr @wolf_req_alloc(i64 8)
   %lexer = call ptr @wolf_req_alloc(i64 8)
-  %tokens = call ptr @wolf_req_alloc(i64 8)
-  %r = call ptr @wolf_req_alloc(i64 8)
-  %errs = call ptr @wolf_req_alloc(i64 8)
   %parser = call ptr @wolf_req_alloc(i64 8)
   %ast = call ptr @wolf_req_alloc(i64 8)
+  %r = call ptr @wolf_req_alloc(i64 8)
+  %errCount = call ptr @wolf_req_alloc(i64 8)
   %i = call ptr @wolf_req_alloc(i64 8)
+  %tokens = call ptr @wolf_req_alloc(i64 8)
+  %errs = call ptr @wolf_req_alloc(i64 8)
   %t2323 = getelementptr [40 x i8], ptr @.str.306, i64 0, i64 0
   store ptr %t2323, ptr %src
   %t2324 = load ptr, ptr %src
@@ -6730,15 +6730,15 @@ if.end.904:
 
 define void @wolf_test_resolver_for_scoping() {
 entry:
-  %lexer = call ptr @wolf_req_alloc(i64 8)
+  %src = call ptr @wolf_req_alloc(i64 8)
   %parser = call ptr @wolf_req_alloc(i64 8)
   %ast = call ptr @wolf_req_alloc(i64 8)
   %errs = call ptr @wolf_req_alloc(i64 8)
-  %src = call ptr @wolf_req_alloc(i64 8)
-  %r = call ptr @wolf_req_alloc(i64 8)
   %errCount = call ptr @wolf_req_alloc(i64 8)
   %i = call ptr @wolf_req_alloc(i64 8)
+  %lexer = call ptr @wolf_req_alloc(i64 8)
   %tokens = call ptr @wolf_req_alloc(i64 8)
+  %r = call ptr @wolf_req_alloc(i64 8)
   %t2374 = getelementptr [45 x i8], ptr @.str.179, i64 0, i64 0
   store ptr %t2374, ptr %src
   %t2375 = load ptr, ptr %src
@@ -6875,15 +6875,15 @@ if.end.926:
 
 define void @wolf_test_resolver_method_call() {
 entry:
-  %src = call ptr @wolf_req_alloc(i64 8)
+  %errs = call ptr @wolf_req_alloc(i64 8)
+  %tokens = call ptr @wolf_req_alloc(i64 8)
   %parser = call ptr @wolf_req_alloc(i64 8)
   %r = call ptr @wolf_req_alloc(i64 8)
   %errCount = call ptr @wolf_req_alloc(i64 8)
   %i = call ptr @wolf_req_alloc(i64 8)
+  %src = call ptr @wolf_req_alloc(i64 8)
   %lexer = call ptr @wolf_req_alloc(i64 8)
-  %tokens = call ptr @wolf_req_alloc(i64 8)
   %ast = call ptr @wolf_req_alloc(i64 8)
-  %errs = call ptr @wolf_req_alloc(i64 8)
   %t2425 = getelementptr [88 x i8], ptr @.str.311, i64 0, i64 0
   store ptr %t2425, ptr %src
   %t2426 = load ptr, ptr %src
@@ -7020,14 +7020,14 @@ if.end.948:
 
 define void @wolf_test_resolver_func_param_count() {
 entry:
+  %sym = call ptr @wolf_req_alloc(i64 8)
+  %src = call ptr @wolf_req_alloc(i64 8)
   %lexer = call ptr @wolf_req_alloc(i64 8)
   %tokens = call ptr @wolf_req_alloc(i64 8)
   %parser = call ptr @wolf_req_alloc(i64 8)
   %ast = call ptr @wolf_req_alloc(i64 8)
   %r = call ptr @wolf_req_alloc(i64 8)
   %table = alloca ptr
-  %sym = call ptr @wolf_req_alloc(i64 8)
-  %src = call ptr @wolf_req_alloc(i64 8)
   %t2476 = getelementptr [51 x i8], ptr @.str.314, i64 0, i64 0
   store ptr %t2476, ptr %src
   %t2477 = load ptr, ptr %src
@@ -7132,15 +7132,15 @@ if.end.962:
 
 define void @wolf_test_resolver_string_concat() {
 entry:
-  %r = call ptr @wolf_req_alloc(i64 8)
-  %errs = call ptr @wolf_req_alloc(i64 8)
-  %src = call ptr @wolf_req_alloc(i64 8)
-  %ast = call ptr @wolf_req_alloc(i64 8)
-  %parser = call ptr @wolf_req_alloc(i64 8)
-  %errCount = call ptr @wolf_req_alloc(i64 8)
-  %i = call ptr @wolf_req_alloc(i64 8)
   %lexer = call ptr @wolf_req_alloc(i64 8)
   %tokens = call ptr @wolf_req_alloc(i64 8)
+  %parser = call ptr @wolf_req_alloc(i64 8)
+  %errs = call ptr @wolf_req_alloc(i64 8)
+  %i = call ptr @wolf_req_alloc(i64 8)
+  %src = call ptr @wolf_req_alloc(i64 8)
+  %ast = call ptr @wolf_req_alloc(i64 8)
+  %r = call ptr @wolf_req_alloc(i64 8)
+  %errCount = call ptr @wolf_req_alloc(i64 8)
   %t2519 = getelementptr [43 x i8], ptr @.str.320, i64 0, i64 0
   store ptr %t2519, ptr %src
   %t2520 = load ptr, ptr %src
@@ -7402,17 +7402,17 @@ if.end.1002:
 
 define ptr @wolf_test_resolver_foreach_scoping() {
 entry:
+  %errCount = call ptr @wolf_req_alloc(i64 8)
+  %i = call ptr @wolf_req_alloc(i64 8)
+  %src = call ptr @wolf_req_alloc(i64 8)
+  %lexer = call ptr @wolf_req_alloc(i64 8)
+  %tokens = call ptr @wolf_req_alloc(i64 8)
+  %errs = call ptr @wolf_req_alloc(i64 8)
   %errItem = call ptr @wolf_req_alloc(i64 8)
   %lvl = call ptr @wolf_req_alloc(i64 8)
-  %src = call ptr @wolf_req_alloc(i64 8)
-  %tokens = call ptr @wolf_req_alloc(i64 8)
-  %ast = call ptr @wolf_req_alloc(i64 8)
-  %i = call ptr @wolf_req_alloc(i64 8)
-  %errCount = call ptr @wolf_req_alloc(i64 8)
-  %lexer = call ptr @wolf_req_alloc(i64 8)
   %parser = call ptr @wolf_req_alloc(i64 8)
+  %ast = call ptr @wolf_req_alloc(i64 8)
   %r = call ptr @wolf_req_alloc(i64 8)
-  %errs = call ptr @wolf_req_alloc(i64 8)
   %t2614 = getelementptr [54 x i8], ptr @.str.329, i64 0, i64 0
   store ptr %t2614, ptr %src
   %t2615 = load ptr, ptr %src
@@ -7564,15 +7564,15 @@ if.end.1026:
 
 define void @wolf_test_resolver_closure_scoping() {
 entry:
-  %tokens = call ptr @wolf_req_alloc(i64 8)
-  %parser = call ptr @wolf_req_alloc(i64 8)
   %r = call ptr @wolf_req_alloc(i64 8)
+  %errs = call ptr @wolf_req_alloc(i64 8)
   %errCount = call ptr @wolf_req_alloc(i64 8)
   %src = call ptr @wolf_req_alloc(i64 8)
-  %lexer = call ptr @wolf_req_alloc(i64 8)
   %ast = call ptr @wolf_req_alloc(i64 8)
-  %errs = call ptr @wolf_req_alloc(i64 8)
+  %parser = call ptr @wolf_req_alloc(i64 8)
   %i = call ptr @wolf_req_alloc(i64 8)
+  %lexer = call ptr @wolf_req_alloc(i64 8)
+  %tokens = call ptr @wolf_req_alloc(i64 8)
   %t2673 = getelementptr [67 x i8], ptr @.str.333, i64 0, i64 0
   store ptr %t2673, ptr %src
   %t2674 = load ptr, ptr %src
@@ -7710,12 +7710,12 @@ if.end.1046:
 define void @wolf_test_resolver_match_scoping() {
 entry:
   %tokens = call ptr @wolf_req_alloc(i64 8)
-  %errCount = call ptr @wolf_req_alloc(i64 8)
+  %parser = call ptr @wolf_req_alloc(i64 8)
+  %ast = call ptr @wolf_req_alloc(i64 8)
   %i = call ptr @wolf_req_alloc(i64 8)
   %src = call ptr @wolf_req_alloc(i64 8)
   %lexer = call ptr @wolf_req_alloc(i64 8)
-  %parser = call ptr @wolf_req_alloc(i64 8)
-  %ast = call ptr @wolf_req_alloc(i64 8)
+  %errCount = call ptr @wolf_req_alloc(i64 8)
   %r = call ptr @wolf_req_alloc(i64 8)
   %errs = call ptr @wolf_req_alloc(i64 8)
   %t2724 = getelementptr [69 x i8], ptr @.str.336, i64 0, i64 0
@@ -7854,16 +7854,16 @@ if.end.1068:
 
 define ptr @wolf_test_typechecker_strict_mismatch() {
 entry:
-  %msg = alloca ptr
-  %isMismatch = call ptr @wolf_req_alloc(i64 1)
-  %src = call ptr @wolf_req_alloc(i64 8)
-  %lexer = call ptr @wolf_req_alloc(i64 8)
-  %errors = call ptr @wolf_req_alloc(i64 8)
   %tc = call ptr @wolf_req_alloc(i64 8)
-  %c = call ptr @wolf_req_alloc(i64 8)
+  %errors = call ptr @wolf_req_alloc(i64 8)
+  %isMismatch = call ptr @wolf_req_alloc(i64 1)
+  %ast = call ptr @wolf_req_alloc(i64 8)
+  %lexer = call ptr @wolf_req_alloc(i64 8)
   %tokens = call ptr @wolf_req_alloc(i64 8)
   %parser = call ptr @wolf_req_alloc(i64 8)
-  %ast = call ptr @wolf_req_alloc(i64 8)
+  %c = call ptr @wolf_req_alloc(i64 8)
+  %msg = alloca ptr
+  %src = call ptr @wolf_req_alloc(i64 8)
   %t2775 = getelementptr [24 x i8], ptr @.str.339, i64 0, i64 0
   store ptr %t2775, ptr %src
   %t2776 = load ptr, ptr %src
@@ -7978,16 +7978,16 @@ if.end.1084:
 define ptr @wolf_test_typechecker_n1_loop() {
 entry:
   %src = call ptr @wolf_req_alloc(i64 8)
-  %lexer = call ptr @wolf_req_alloc(i64 8)
-  %parser = call ptr @wolf_req_alloc(i64 8)
-  %c = call ptr @wolf_req_alloc(i64 8)
-  %lvl = call ptr @wolf_req_alloc(i64 8)
-  %isN1 = call ptr @wolf_req_alloc(i64 1)
   %tokens = call ptr @wolf_req_alloc(i64 8)
-  %ast = call ptr @wolf_req_alloc(i64 8)
+  %parser = call ptr @wolf_req_alloc(i64 8)
   %tc = call ptr @wolf_req_alloc(i64 8)
-  %errors = call ptr @wolf_req_alloc(i64 8)
+  %c = call ptr @wolf_req_alloc(i64 8)
   %msg = alloca ptr
+  %lvl = call ptr @wolf_req_alloc(i64 8)
+  %lexer = call ptr @wolf_req_alloc(i64 8)
+  %ast = call ptr @wolf_req_alloc(i64 8)
+  %errors = call ptr @wolf_req_alloc(i64 8)
+  %isN1 = call ptr @wolf_req_alloc(i64 1)
   %t2819 = getelementptr [54 x i8], ptr @.str.343, i64 0, i64 0
   store ptr %t2819, ptr %src
   %t2820 = load ptr, ptr %src
@@ -8113,13 +8113,13 @@ if.end.1100:
 
 define ptr @wolf_test_typechecker_n1_eager_bypass() {
 entry:
-  %src = call ptr @wolf_req_alloc(i64 8)
-  %lexer = call ptr @wolf_req_alloc(i64 8)
   %tokens = call ptr @wolf_req_alloc(i64 8)
   %parser = call ptr @wolf_req_alloc(i64 8)
   %ast = call ptr @wolf_req_alloc(i64 8)
   %tc = call ptr @wolf_req_alloc(i64 8)
   %errors = call ptr @wolf_req_alloc(i64 8)
+  %src = call ptr @wolf_req_alloc(i64 8)
+  %lexer = call ptr @wolf_req_alloc(i64 8)
   %t2869 = getelementptr [67 x i8], ptr @.str.349, i64 0, i64 0
   store ptr %t2869, ptr %src
   %t2870 = load ptr, ptr %src
@@ -8197,11 +8197,11 @@ if.end.1110:
 
 define i1 @wolf___compiler_dispatch_controller(ptr %c.arg, ptr %m.arg, ptr %args.arg, ptr %req.arg, ptr %res.arg) {
 entry:
-  %c = alloca ptr
-  %m = alloca ptr
   %args = alloca ptr
   %req = alloca ptr
   %res = alloca ptr
+  %c = alloca ptr
+  %m = alloca ptr
   store ptr %c.arg, ptr %c
   store ptr %m.arg, ptr %m
   store ptr %args.arg, ptr %args

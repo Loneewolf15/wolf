@@ -177,7 +177,7 @@ typedef MYSQL_RES WolfDBRes;
  * wolf_active_requests == 0, calls wolf_db_pool_destroy(), then
  * exits with code 0.
  */
-static volatile sig_atomic_t wolf_shutdown_requested = 0;
+static int wolf_shutdown_requested = 0;
 static volatile sig_atomic_t wolf_active_requests    = 0;
 #ifndef WOLF_FREESTANDING
 static pthread_mutex_t wolf_drain_mutex = PTHREAD_MUTEX_INITIALIZER;
@@ -218,7 +218,7 @@ const char* wolf_argv(int64_t index) {
 
 static void wolf_signal_handler(int sig) {
     (void)sig;
-    wolf_shutdown_requested = 1;
+    __atomic_store_n(&wolf_shutdown_requested, 1, __ATOMIC_RELEASE);
     /* Write a visible message. write() is async-signal-safe. */
     const char msg[] = "\n[Wolf] Shutdown signal received — draining requests...\n";
     write(STDERR_FILENO, msg, sizeof(msg) - 1);
@@ -412,78 +412,8 @@ static int wolf_auto_thread_count(void) {
 #include <stdatomic.h>
 #include <sched.h>
 
-#define WOLF_CORE_QUEUE_SIZE 4096              /* per-worker ring (must be power of 2) */
-#define WOLF_CORE_QUEUE_MASK (WOLF_CORE_QUEUE_SIZE - 1)
-
-typedef struct {
-    wolf_task_t       tasks[WOLF_CORE_QUEUE_SIZE];
-    int               head;
-    int               tail;
-    pthread_mutex_t   mutex;
-} wolf_core_queue_t;
-
-static wolf_core_queue_t wolf_core_queues[WOLF_THREAD_ARRAY_SIZE];
-static _Atomic int        wolf_rr_index = 0;   /* round-robin push counter */
-
 static pthread_t wolf_worker_pool[WOLF_THREAD_ARRAY_SIZE];
 int       wolf_actual_threads = 16;     /* set in wolf_worker_pool_init */
-
-/* ---- Push from accept thread (or any producer) → chosen worker ring ---- */
-/* Returns 1 if task was enqueued, 0 if all rings are full */
-static int wolf_task_push(wolf_task_t task) {
-    /* Round-robin: pick the next worker */
-    int idx = (int)(atomic_fetch_add_explicit(&wolf_rr_index, 1,
-                    memory_order_relaxed) % (unsigned)wolf_actual_threads);
-    wolf_core_queue_t* q = &wolf_core_queues[idx];
-
-    pthread_mutex_lock(&q->mutex);
-    if ((q->tail - q->head) >= WOLF_CORE_QUEUE_SIZE) {
-        pthread_mutex_unlock(&q->mutex);
-        /* Primary queue full — scan peers for a free slot */
-        for (int i = 1; i < wolf_actual_threads; i++) {
-            int alt = (idx + i) % wolf_actual_threads;
-            q = &wolf_core_queues[alt];
-            pthread_mutex_lock(&q->mutex);
-            if ((q->tail - q->head) < WOLF_CORE_QUEUE_SIZE) goto enqueue;
-            pthread_mutex_unlock(&q->mutex);
-        }
-        return 0; /* All rings full */
-    }
-
-enqueue:
-    q->tasks[q->tail & WOLF_CORE_QUEUE_MASK] = task;
-    q->tail++;
-    pthread_mutex_unlock(&q->mutex);
-    return 1;
-}
-
-/* ---- Worker pops from its own ring ---- */
-static int wolf_core_pop(int wid, wolf_task_t* out) {
-    wolf_core_queue_t* q = &wolf_core_queues[wid];
-    pthread_mutex_lock(&q->mutex);
-    if (q->head >= q->tail) {
-        pthread_mutex_unlock(&q->mutex);
-        return 0;
-    }
-    *out = q->tasks[q->head & WOLF_CORE_QUEUE_MASK];
-    q->head++;
-    pthread_mutex_unlock(&q->mutex);
-    return 1;
-}
-
-/* ---- Work-stealer takes one task from victim's head ---- */
-static int wolf_core_steal(int victim, wolf_task_t* out) {
-    wolf_core_queue_t* q = &wolf_core_queues[victim];
-    pthread_mutex_lock(&q->mutex);
-    if (q->head >= q->tail) {
-        pthread_mutex_unlock(&q->mutex);
-        return 0;
-    }
-    *out = q->tasks[q->head & WOLF_CORE_QUEUE_MASK];
-    q->head++;
-    pthread_mutex_unlock(&q->mutex);
-    return 1;
-}
 
 static void* http_worker(void* arg); /* Forward declaration */
 
@@ -500,7 +430,7 @@ static void* wolf_worker_thread_func(void* arg) {
     fprintf(stderr, "[WOLF-POOL] Worker %d started!\n", wid);
 
     int spin = 0;
-    while (!wolf_shutdown_requested) {
+    while (!__atomic_load_n(&wolf_shutdown_requested, __ATOMIC_ACQUIRE)) {
         wolf_task_t task;
 
         extern int wolf_engine_spsc_pop(int wid, wolf_task_t* out);
@@ -509,20 +439,7 @@ static void* wolf_worker_thread_func(void* arg) {
             goto dispatch;
         }
 
-        /* 1. Pop from this worker's own ring — always try first */
-        if (wolf_core_pop(wid, &task)) {
-            spin = 0;
-            goto dispatch;
-        }
 
-        /* 2. Work-steal: scan peers in circular order */
-        for (int i = 1; i < wolf_actual_threads; i++) {
-            int victim = (wid + i) % wolf_actual_threads;
-            if (wolf_core_steal(victim, &task)) {
-                spin = 0;
-                goto dispatch;
-            }
-        }
 
         /* 3. Adaptive idle backoff:
          *   iterations 0–63  : spin (hot — new tasks likely in-flight)
@@ -721,7 +638,7 @@ static void wolf_worker_pool_init(void) {
 }
 
 void wolf_worker_pool_destroy(void) {
-    wolf_shutdown_requested = 1;
+    __atomic_store_n(&wolf_shutdown_requested, 1, __ATOMIC_RELEASE);
     fprintf(stderr, "[WOLF-POOL] Waiting for %d worker threads to exit...\n", wolf_actual_threads);
     for (int i = 0; i < wolf_actual_threads; i++) {
         if (wolf_worker_pool[i] != 0) {
@@ -792,7 +709,7 @@ static void* wolf_ws_poller_thread_func(void* arg) {
     (void)arg;
     #ifdef WOLF_USE_EPOLL
     struct epoll_event events[64];
-    while (!wolf_shutdown_requested) {
+    while (!__atomic_load_n(&wolf_shutdown_requested, __ATOMIC_ACQUIRE)) {
         int n = epoll_wait(wolf_ws_poller_fd, events, 64, 100);
         if (n > 0) fprintf(stderr, "[WOLF-POLLER] epoll fired n=%d\n", n);
         for (int i = 0; i < n; i++) {
@@ -803,7 +720,7 @@ static void* wolf_ws_poller_thread_func(void* arg) {
     #elif defined(WOLF_USE_KQUEUE)
     struct kevent events[64];
     struct timespec timeout = {1, 0};
-    while (!wolf_shutdown_requested) {
+    while (!__atomic_load_n(&wolf_shutdown_requested, __ATOMIC_ACQUIRE)) {
         int n = kevent(wolf_ws_poller_fd, NULL, 0, events, 64, &timeout);
         for (int i = 0; i < n; i++) {
             wolf_ws_handle_read_event((int)(intptr_t)events[i].udata);
@@ -812,7 +729,7 @@ static void* wolf_ws_poller_thread_func(void* arg) {
     #elif defined(WOLF_USE_POLL)
     struct pollfd fds[MAX_CONCURRENT_REQUESTS];
     int ids[MAX_CONCURRENT_REQUESTS];
-    while (!wolf_shutdown_requested) {
+    while (!__atomic_load_n(&wolf_shutdown_requested, __ATOMIC_ACQUIRE)) {
         int count = 0;
         pthread_mutex_lock(&http_mutex);
         for (int i = 0; i < MAX_CONCURRENT_REQUESTS; i++) {
@@ -3926,7 +3843,7 @@ static void* http_worker(void* arg) {
     int keep_alive  = 1;
     int req_count   = 0; /* Rule 3: track requests served on this connection */
 
-    while (keep_alive && !wolf_shutdown_requested) {
+    while (keep_alive && !__atomic_load_n(&wolf_shutdown_requested, __ATOMIC_ACQUIRE)) {
 
         /* --- Reset per-request state without reallocating the slot --- */
         ctx->method           = NULL;
@@ -3996,7 +3913,7 @@ static void* http_worker(void* arg) {
             wolf_ws_poller_add(ctx->client_fd, id);
 
             __atomic_fetch_sub(&wolf_active_requests, 1, __ATOMIC_SEQ_CST);
-            if (wolf_shutdown_requested && wolf_active_requests == 0) {
+            if (__atomic_load_n(&wolf_shutdown_requested, __ATOMIC_ACQUIRE) && wolf_active_requests == 0) {
                 pthread_mutex_lock(&wolf_drain_mutex);
                 pthread_cond_signal(&wolf_drain_cond);
                 pthread_mutex_unlock(&wolf_drain_mutex);
@@ -4122,7 +4039,7 @@ static void* http_worker(void* arg) {
 
     /* Decrement in-flight counter AFTER cleanup */
     __atomic_fetch_sub(&wolf_active_requests, 1, __ATOMIC_SEQ_CST);
-    if (wolf_shutdown_requested && wolf_active_requests == 0) {
+    if (__atomic_load_n(&wolf_shutdown_requested, __ATOMIC_ACQUIRE) && wolf_active_requests == 0) {
         pthread_mutex_lock(&wolf_drain_mutex);
         pthread_cond_signal(&wolf_drain_cond);
         pthread_mutex_unlock(&wolf_drain_mutex);
@@ -8181,7 +8098,7 @@ int main(int argc, char** argv) {
     
     /* If the app exits or serve() blocks, we stay alive to handle SIGUSR1? 
        Actually, serve() blocks. The engine must handle the pause. */
-    while (!wolf_shutdown_requested) {
+    while (!__atomic_load_n(&wolf_shutdown_requested, __ATOMIC_ACQUIRE)) {
         pause(); /* Wait for signals */
     }
 #else

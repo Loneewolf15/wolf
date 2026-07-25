@@ -141,22 +141,7 @@ typedef void (*wolf_ws_handler_t)(int64_t req_id, const char* message);
  * (epoll/kqueue) which serializes workers differently.
  * ================================================================ */
 
-#define WOLF_CORE_COMPLETE_SIZE 512          /* must be power of 2 */
-#define WOLF_CORE_COMPLETE_MASK (WOLF_CORE_COMPLETE_SIZE - 1)
 
-typedef struct {
-    void* ctx;       /* WolfConnCtx* — void* avoids circular header dep */
-    char* out_buf;
-    int   out_len;
-} WolfCoreCompletion;
-
-typedef struct {
-    WolfCoreCompletion entries[WOLF_CORE_COMPLETE_SIZE];
-    _Atomic int        head __attribute__((aligned(64)));
-    _Atomic int        tail __attribute__((aligned(64)));
-    int                notify_fd; /* eventfd — worker writes to wake poller */
-    int                worker_id; /* ID of the worker owning this ring */
-} WolfCoreCompleteRing;
 
 /*
  * V3: Per-worker SPSC rings for io_uring path
@@ -190,8 +175,8 @@ typedef struct WolfCore {
     wolf_http_handler_t http_handler;
     wolf_ws_handler_t   ws_handler;
 
-    /* Worker → poller completion handoff ring (legacy MPSC, used on epoll/kqueue) */
-    WolfCoreCompleteRing complete_ring;
+    /* eventfd — worker writes to wake poller */
+    int notify_fd;
 
     /*
      * V3: per-worker SPSC rings — io_uring fast path.
