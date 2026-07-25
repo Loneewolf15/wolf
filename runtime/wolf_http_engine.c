@@ -22,6 +22,8 @@
 #include "wolf_runtime.h"
 #include "wolf_uring.h"
 #include "wolf_numa.h"
+#include "wolf_timewheel.c"   /* Phase 4: time-wheel — compiled as part of engine unit */
+#include "wolf_ratelimit.c"    /* Phase 4: ratelimit token bucket */
 #include <openssl/evp.h>
 #include <setjmp.h>
 #include <stdatomic.h>
@@ -466,6 +468,11 @@ typedef struct {
     /* Keep-alive request counter — close connection after WOLF_KEEPALIVE_MAX_REQUESTS */
     int keep_alive_count;
     int worker_id;
+
+    /* Phase 5: smuggling defense flag — set by validate_crlf_and_smuggling (R2)
+     * when Transfer-Encoding: chunked is present. When true the body reader must
+     * use chunked framing and MUST NOT use Content-Length for body sizing. */
+    int ignore_content_length;
 } WolfConnCtx;
 
 extern __thread void* wolf_active_ctx;
@@ -581,7 +588,9 @@ void wolf_arena_pool_destroy(WolfArenaPool* pool) {
             free(curr);
             curr = next;
         }
-        if (pool->arenas[i].base_slab) free(pool->arenas[i].base_slab);
+        if (pool->arenas[i].base_slab) {
+            wolf_numa_free(pool->arenas[i].base_slab, pool->arenas[i].base_cap);
+        }
     }
     free(pool);
 }
@@ -740,8 +749,8 @@ void wolf_engine_parse_multipart(WolfConnCtx* ctx,
     }
 }
 
-static void wolf_engine_parse_request(WolfConnCtx* ctx, char* raw, size_t len) {
-    wolf_engine_parse_request_simd(ctx, raw, len);
+static int wolf_engine_parse_request(WolfConnCtx* ctx, char* raw, size_t len) {
+    return wolf_engine_parse_request_simd(ctx, raw, len);
 }
 
 
@@ -1226,7 +1235,13 @@ static void wtask_complete_cb(const wolf_spsc_entry_t* entry, void* userdata) {
         kevent(core->sentinel->poll_fd, &ev, 1, NULL, 0, NULL);
     }
 #endif
-    if (ctx->client_fd >= 0) close(ctx->client_fd);
+    if (ctx->client_fd >= 0) {
+        wolf_fd_remove_entry(ctx->client_fd);
+        if (core->timewheel) {
+            wolf_timewheel_remove(core->timewheel, ctx->client_fd);
+        }
+        close(ctx->client_fd);
+    }
     wolf_core_free_ctx(ctx);
 #if defined(WOLF_HAS_IO_URING)
     }
@@ -1237,8 +1252,10 @@ void wolf_core_drain_completions(WolfCore* core) {
     if (core->spsc_worker_count > 0) {
         for (int i = 0; i < core->spsc_worker_count; i++) {
             wolf_spsc_entry_t entry;
-            while (wolf_spsc_pop(&core->spsc_complete_rings[i], &entry)) {
+            int drain_count = 0;
+            while (drain_count < 1024 && wolf_spsc_pop(&core->spsc_complete_rings[i], &entry)) {
                 wtask_complete_cb(&entry, core);
+                drain_count++;
             }
         }
     }
@@ -1435,11 +1452,50 @@ static void on_recv_complete(int client_fd, void* ctx_ptr, int bytes_read) {
 static void on_accept_complete(int server_fd, void* core_ptr, int client_fd) {
     if (client_fd < 0) return;
     WolfCore* core = (WolfCore*)core_ptr;
-    
+
+    /* Shutdown hardening (Fix 2 / io_uring TSAN investigation):
+     * io_uring multishot-accept SQEs can fire AFTER the shutdown flag is set,
+     * delivering a valid client_fd even though the server is draining.
+     * Without this guard, wolf_engine_shutdown() closes server_fd from the
+     * main thread while on_accept_complete runs on the poller thread — the
+     * accepted socket is then close()d with data in flight, emitting a TCP RST.
+     * This was the source of the 1 connection reset in 20,665 observed in the
+     * TSAN gauntlet.  The fix: respond with 503 and close cleanly. */
+    if (__atomic_load_n(&wolf_engine_shutdown_flag, __ATOMIC_ACQUIRE)) {
+        const char* msg =
+            "HTTP/1.1 503 Service Unavailable\r\n"
+            "Content-Length: 19\r\n"
+            "Connection: close\r\n"
+            "\r\n"
+            "Server shutting down";
+        (void)write(client_fd, msg, strlen(msg));
+        /* linger=0 so the socket closes gracefully with FIN rather than RST */
+        struct linger sl = { .l_onoff = 0, .l_linger = 0 };
+        setsockopt(client_fd, SOL_SOCKET, SO_LINGER, &sl, sizeof(sl));
+        close(client_fd);
+        return;
+    }
+
     struct timeval tv = { WOLF_REQUEST_TIMEOUT_SEC, 0 };
     setsockopt(client_fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
     int opt = 1;
     setsockopt(client_fd, IPPROTO_TCP, TCP_NODELAY, &opt, sizeof(opt));
+
+    /* Phase 4: Rate limit check */
+    if (core->ratelimit) {
+        struct sockaddr_in raddr;
+        socklen_t ralen = sizeof(raddr);
+        if (getpeername(client_fd, (struct sockaddr*)&raddr, &ralen) == 0) {
+            if (!wolf_ratelimit_allow(core->ratelimit, (const uint8_t*)&raddr.sin_addr.s_addr, 4)) {
+                const char* msg = "HTTP/1.1 429 Too Many Requests\r\nContent-Length: 17\r\nConnection: close\r\n\r\nToo Many Requests";
+                (void)write(client_fd, msg, strlen(msg));
+                close(client_fd);
+                return;
+            }
+        } else {
+            perror("getpeername failed");
+        }
+    }
     
     WolfArena* arena = wolf_arena_acquire(core->arena_pool);
     WolfConnCtx* ctx = arena ? wolf_core_alloc_ctx(core, client_fd, arena) : NULL;
@@ -1468,6 +1524,70 @@ static void on_accept_complete(int server_fd, void* core_ptr, int client_fd) {
 #endif
 
 /* ================================================================
+ * Phase 4: Time-Wheel eviction callback
+ * Called by wolf_timewheel_tick for each connection that times out.
+ * Runs on the I/O poller thread — safe to call epoll_ctl/close directly.
+ *
+ * Critical invariant: wolf_timewheel_remove() is called at EVERY normal close
+ * path (wolf_epoll_recv_client, wolf_core_free_ctx indirectly via recv path).
+ * By the time we reach here, fd_registered[fd]==1 means the connection is
+ * genuinely still open and idle (no data received since accept).
+ * ================================================================ */
+static void wolf_timewheel_evict_fn(int fd, void *core_ptr) {
+    WolfCore* core = (WolfCore*)core_ptr;
+
+    /* Sanity: fd must be valid */
+    if (fd < 0 || fd >= WOLF_MAX_FD) return;
+
+    /* Retrieve context — verify fd matches before touching anything */
+    WolfFDEntry *e = wolf_fd_find(fd);
+    if (!e) {
+        /* fd_table has no entry; connection was already closed normally.
+         * Time-wheel lazy-removal should have cleared fd_registered, but
+         * if it didn't (race in shutdown), just return. */
+        return;
+    }
+    WolfConnCtx *ctx = (WolfConnCtx*)e->ctx;
+
+    /* Verify the context's client_fd still matches — guards against fd reuse */
+    if (ctx && ctx->client_fd != fd) {
+        /* fd was recycled for a new connection after the original was closed.
+         * Do NOT close it — that would kill the new connection. */
+        return;
+    }
+
+#if defined(WOLF_HAS_EPOLL)
+    /* Remove from epoll before closing to avoid spurious EPOLLERR events */
+    epoll_ctl(core->epoll_fd, EPOLL_CTL_DEL, fd, NULL);
+#elif defined(WOLF_HAS_KQUEUE)
+    if (core->sentinel && core->sentinel->poll_fd >= 0) {
+        struct kevent ev;
+        EV_SET(&ev, fd, EVFILT_READ, EV_DELETE, 0, 0, NULL);
+        kevent(core->sentinel->poll_fd, &ev, 1, NULL, 0, NULL);
+    }
+#endif
+
+    if (ctx) {
+        /* Set SO_LINGER{1,0} to send RST instead of FIN — critical for
+         * Slowloris: we want an immediate abort, not a graceful half-close
+         * that an attacker can exploit to keep the fd alive. */
+        struct linger sl = { .l_onoff = 1, .l_linger = 0 };
+        setsockopt(fd, SOL_SOCKET, SO_LINGER, &sl, sizeof(sl));
+        wolf_core_free_ctx(ctx);
+        /* wolf_core_free_ctx frees arena/read_buf but does NOT close(fd).
+         * We must close explicitly. Nullify ctx->client_fd to prevent any
+         * concurrent code from double-closing. */
+        close(fd);
+    } else {
+        /* No ctx — plain close */
+        close(fd);
+    }
+    wolf_fd_remove_entry(fd);
+
+    fprintf(stderr, "[WOLF-TIMEWHEEL] Evicted idle fd=%d (Slowloris eviction)\n", fd);
+}
+
+/* ================================================================
  * Event-driven epoll helpers (Linux non-io_uring path)
  * Mirrors the io_uring callback chain: accept → recv → [worker] → send
  * ================================================================ */
@@ -1476,18 +1596,29 @@ static void on_accept_complete(int server_fd, void* core_ptr, int client_fd) {
 /* Accept all pending connections and register each with epoll ONESHOT. */
 static void wolf_epoll_accept_all(WolfCore* core) {
     WolfCoreArgs* args = (WolfCoreArgs*)core->args;
-    for (;;) {
+    fprintf(stderr, "[DEBUG TW] ACCEPT ALL called\n");
+    int max_accepts = 256;
+    for (int count = 0; count < max_accepts; count++) {
         struct sockaddr_in addr;
         socklen_t alen = sizeof(addr);
         int client_fd = accept4(core->server_fd, (struct sockaddr*)&addr, &alen, SOCK_NONBLOCK);
         if (client_fd < 0) {
-            if (errno == EAGAIN || errno == EWOULDBLOCK) break;
-            if (errno == EINTR) continue;
             break;
         }
 
         int opt = 1;
         setsockopt(client_fd, IPPROTO_TCP, TCP_NODELAY, &opt, sizeof(opt));
+        
+        /* Phase 4: Rate limit check */
+        if (core->ratelimit) {
+            if (!wolf_ratelimit_allow(core->ratelimit, (const uint8_t*)&addr.sin_addr.s_addr, 4)) {
+                const char* msg = "HTTP/1.1 429 Too Many Requests\r\nContent-Length: 17\r\nConnection: close\r\n\r\nToo Many Requests";
+                (void)write(client_fd, msg, strlen(msg));
+                close(client_fd);
+                continue;
+            }
+        }
+        
         WolfArena*   arena = wolf_arena_acquire(core->arena_pool);
         WolfConnCtx* ctx   = arena ? wolf_core_alloc_ctx(core, client_fd, arena) : NULL;
         if (!ctx) {
@@ -1496,7 +1627,8 @@ static void wolf_epoll_accept_all(WolfCore* core) {
                 wolf_arena_reset(arena);
                 wolf_arena_unref(arena);
             }
-            continue;
+            /* OOM: Break out of accept loop to allow poller to drain completions and free arenas */
+            break;
         }
         ctx->core     = core;
         ctx->read_buf = (char*)malloc(WOLF_MAX_REQUEST_SIZE);
@@ -1509,6 +1641,14 @@ static void wolf_epoll_accept_all(WolfCore* core) {
         ev.events   = EPOLLIN | EPOLLONESHOT;
         ev.data.fd  = client_fd;
         epoll_ctl(core->epoll_fd, EPOLL_CTL_ADD, client_fd, &ev);
+
+        /* Phase 4: Register with time-wheel for Slowloris eviction.
+         * Deadline = now + WOLF_TIMEWHEEL_TIMEOUT_MS. If no data arrives
+         * before the deadline, wolf_timewheel_evict_fn RSTs the connection. */
+        if (core->timewheel) {
+            uint64_t deadline = wolf_monotonic_ms() + WOLF_TIMEWHEEL_TIMEOUT_MS;
+            wolf_timewheel_add(core->timewheel, client_fd, deadline);
+        }
     }
 }
 
@@ -1519,7 +1659,21 @@ static void wolf_epoll_recv_client(WolfCore* core, int client_fd) {
     if (!e) { fprintf(stderr, "[DEBUG] wolf_fd_find returned NULL for fd %d\n", client_fd); close(client_fd); return; }
     WolfConnCtx* ctx = (WolfConnCtx*)e->ctx;
 
-    ssize_t bytes = recv(client_fd, ctx->read_buf, WOLF_MAX_REQUEST_SIZE - 1, MSG_DONTWAIT);
+    /* Phase 4: We do NOT remove from time-wheel here. Slowloris protection
+     * requires an absolute timeout for the entire header parsing phase. */
+
+    size_t space = (WOLF_MAX_REQUEST_SIZE - 1) - ctx->bytes_in;
+    if (space <= 0) {
+        /* Request header too large */
+        epoll_ctl(core->epoll_fd, EPOLL_CTL_DEL, client_fd, NULL);
+        wolf_fd_remove_entry(client_fd);
+        close(client_fd);
+        wolf_core_free_ctx(ctx);
+        if (core->timewheel) wolf_timewheel_remove(core->timewheel, client_fd);
+        return;
+    }
+
+    ssize_t bytes = recv(client_fd, ctx->read_buf + ctx->bytes_in, space, MSG_DONTWAIT);
     if (bytes < 0 && errno != EAGAIN) { fprintf(stderr, "[DEBUG] recv on %d returned %zd (errno=%d)\n", client_fd, bytes, errno); }
     if (bytes <= 0) {
         if (bytes < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
@@ -1534,12 +1688,35 @@ static void wolf_epoll_recv_client(WolfCore* core, int client_fd) {
         wolf_fd_remove_entry(client_fd);
         close(client_fd);
         wolf_core_free_ctx(ctx);
+        if (core->timewheel) wolf_timewheel_remove(core->timewheel, client_fd);
         return;
     }
-    ctx->read_buf[bytes] = '\0';
-    ctx->bytes_in        = bytes;
+    
+    ctx->bytes_in += bytes;
+    ctx->read_buf[ctx->bytes_in] = '\0';
 
-    wolf_engine_parse_request(ctx, ctx->read_buf, bytes);
+    int parse_status = wolf_engine_parse_request(ctx, ctx->read_buf, ctx->bytes_in);
+    if (parse_status == 1) {
+        /* Incomplete header. Re-arm and wait for more data. Time-wheel keeps ticking. */
+        struct epoll_event ev;
+        ev.events  = EPOLLIN | EPOLLONESHOT;
+        ev.data.fd = client_fd;
+        epoll_ctl(core->epoll_fd, EPOLL_CTL_MOD, client_fd, &ev);
+        return;
+    } else if (parse_status < 0 || ctx->status_code == 400) {
+        /* Parse error or smuggling detected */
+        epoll_ctl(core->epoll_fd, EPOLL_CTL_DEL, client_fd, NULL);
+        wolf_fd_remove_entry(client_fd);
+        close(client_fd);
+        wolf_core_free_ctx(ctx);
+        if (core->timewheel) wolf_timewheel_remove(core->timewheel, client_fd);
+        return;
+    }
+
+    /* Successfully parsed the header! Now we can remove from time-wheel. */
+    if (core->timewheel) {
+        wolf_timewheel_remove(core->timewheel, client_fd);
+    }
 
     /* Health endpoint — answer inline without going through the worker pool */
     if (ctx->method && strcmp(ctx->method, "GET") == 0 &&
@@ -1625,6 +1802,16 @@ static void wolf_kqueue_accept_all(WolfCore* core) {
         fcntl(client_fd, F_SETFL, flags | O_NONBLOCK);
         int opt = 1;
         setsockopt(client_fd, IPPROTO_TCP, TCP_NODELAY, &opt, sizeof(opt));
+        
+        /* Phase 4: Rate limit check */
+        if (core->ratelimit) {
+            if (!wolf_ratelimit_allow(core->ratelimit, (const uint8_t*)&addr.sin_addr.s_addr, 4)) {
+                const char* msg = "HTTP/1.1 429 Too Many Requests\r\nContent-Length: 17\r\nConnection: close\r\n\r\nToo Many Requests";
+                (void)write(client_fd, msg, strlen(msg));
+                close(client_fd);
+                continue;
+            }
+        }
 
         WolfArena*   arena = wolf_arena_acquire(core->arena_pool);
         WolfConnCtx* ctx   = arena ? wolf_core_alloc_ctx(core, client_fd, arena) : NULL;
@@ -1736,6 +1923,10 @@ static void* wolf_core_thread(void* arg) {
     while (!__atomic_load_n(&wolf_engine_shutdown_flag, __ATOMIC_ACQUIRE)) {
         wolf_core_drain_completions(core);
         wolf_uring_poll(core->sentinel->uring, 5); /* 5ms max wait — reduced from 100ms */
+        /* Phase 4: tick time-wheel after each uring poll cycle */
+        if (core->timewheel) {
+            wolf_timewheel_tick(core->timewheel, core, wolf_timewheel_evict_fn);
+        }
     }
     }
 #endif /* WOLF_HAS_IO_URING */
@@ -1772,8 +1963,26 @@ static void* wolf_core_thread(void* arg) {
         __atomic_store_n(&core->ready, 1, __ATOMIC_RELEASE);
 
         struct epoll_event evs[256];
+        int loop_count = 0;
+        uint64_t last_print_ms = wolf_monotonic_ms();
         while (!__atomic_load_n(&wolf_engine_shutdown_flag, __ATOMIC_ACQUIRE)) {
+            loop_count++;
+            uint64_t ms = wolf_monotonic_ms();
+            if (ms - last_print_ms >= 1000) {
+                fprintf(stderr, "[DEBUG POLLER] loop_count=%d, now_ms=%lu, last_tick=%lu\n", loop_count, ms, core->timewheel ? core->timewheel->last_tick_ms : 0);
+                last_print_ms = ms;
+                loop_count = 0;
+            }
+
             int n = epoll_wait(efd, evs, 256, 5);
+
+            /* Phase 4: Tick the time-wheel after each epoll_wait cycle (~5ms cadence).
+             * Evicts connections that have been idle since accept without sending
+             * a complete request header (Slowloris attack pattern). */
+            if (core->timewheel) {
+                wolf_timewheel_tick(core->timewheel, core, wolf_timewheel_evict_fn);
+            }
+
             for (int i = 0; i < n; i++) {
                 int fd = evs[i].data.fd;
                 if (fd == core->server_fd) {
@@ -1781,7 +1990,10 @@ static void* wolf_core_thread(void* arg) {
                 } else if (fd == nfd) {
                     /* Drain eventfd counter (EFD_SEMAPHORE: one read = decrement by 1) */
                     uint64_t v;
-                    while (read(nfd, &v, sizeof(v)) == sizeof(v)) {}
+                    int drain_count = 0;
+                    while (drain_count < 1024 && read(nfd, &v, sizeof(v)) == sizeof(v)) {
+                        drain_count++;
+                    }
                     wolf_core_drain_completions(core);
                 } else {
                     wolf_epoll_recv_client(core, fd);
@@ -2005,6 +2217,11 @@ WolfEngine* wolf_engine_create(int port, int core_count) {
         core->arena_pool  = wolf_arena_pool_create(i);
         core->epoll_fd    = -1;
         core->kq_notify_rfd = -1;
+        /* Phase 4: initialize per-core time-wheel */
+        core->timewheel   = wolf_timewheel_create();
+        /* ADR-030: core->ratelimit is a shared pointer; assigned below after
+         * wolf_engine_create allocates the single global instance. */
+        core->ratelimit   = NULL; /* filled in after loop */
 #if defined(WOLF_HAS_IO_URING)
         /* Probe SEND_ZC support once per core (same uring instance, same kernel) */
         core->use_send_zc = core->sentinel->uring
@@ -2015,6 +2232,16 @@ WolfEngine* wolf_engine_create(int port, int core_count) {
         }
 #endif
         engine->cores[i] = core;
+    }
+
+    /* ADR-030: Create a single global rate limiter shared by all cores.
+     * Per-core limiters would allow N × WOLF_RATE_RPS per IP (where N = core_count),
+     * breaking the security contract. One global instance enforces the exact ceiling. */
+    engine->ratelimit = wolf_ratelimit_create(WOLF_RATE_RPS, WOLF_RATE_BURST);
+    for (int i = 0; i < engine->core_count; i++) {
+        if (engine->cores[i]) {
+            engine->cores[i]->ratelimit = engine->ratelimit;
+        }
     }
 
     return engine;
@@ -2157,8 +2384,16 @@ void wolf_engine_destroy(WolfEngine* engine) {
         if (!core) continue;
         wolf_sentinel_destroy(core->sentinel);
         wolf_arena_pool_destroy(core->arena_pool);
+        /* Phase 4: destroy per-core time-wheel */
+        wolf_timewheel_destroy(core->timewheel);
+        /* ADR-030: do NOT destroy core->ratelimit here; it is a shared pointer.
+         * The single global instance is destroyed on engine after this loop. */
+        core->ratelimit = NULL;
         free(core);
     }
+    /* ADR-030: destroy the single global rate limiter */
+    wolf_ratelimit_destroy(engine->ratelimit);
+    engine->ratelimit = NULL;
     free(engine->cores);
     free(engine);
 }

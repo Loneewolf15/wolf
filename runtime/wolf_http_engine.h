@@ -21,6 +21,7 @@
 #include "wolf_thread_compat.h"   /* pthread + Windows portability shims */
 #include "wolf_config_runtime.h"
 #include "wolf_queue.h"            /* Lock-free SPSC ring buffer — Wolf Engine V3 */
+#include "wolf_timewheel.h"        /* 3-level hierarchical time-wheel — Phase 4 */
 
 /* ── Platform capability detection ──────────────────────────────────────── */
 #if defined(_WIN32)
@@ -43,6 +44,8 @@ typedef enum {
 } WolfIOBackend;
 
 typedef void (*wolf_io_callback_t)(int fd, void* ctx, int events);
+typedef struct wolf_timewheel_t wolf_timewheel_t;
+typedef struct wolf_ratelimit_t wolf_ratelimit_t;
 
 typedef struct WolfSentinel {
     WolfIOBackend backend;
@@ -199,6 +202,16 @@ typedef struct WolfCore {
     /* Event-driven epoll/kqueue fds (set in wolf_core_thread, -1 elsewhere) */
     int epoll_fd;       /* Linux epoll fd used by the event-driven loop */
     int kq_notify_rfd;  /* macOS: pipe read-end for worker→poller wakeup */
+
+    /* Phase 4: per-core time-wheel for O(1) Slowloris eviction.
+     * Owned by and accessed only from the I/O poller thread — no locking. */
+    wolf_timewheel_t* timewheel;
+
+    /* ADR-030: Shared rate limiter — points to WolfEngine.ratelimit.
+     * Set once at startup (wolf_engine_create), read-only after.
+     * All cores share the same instance so the per-IP ceiling is exactly
+     * WOLF_RATE_RPS (not WOLF_RATE_RPS × core_count). */
+    wolf_ratelimit_t* ratelimit;
 } WolfCore;
 
 /* ================================================================
@@ -217,6 +230,11 @@ typedef struct WolfEngine {
     /* TLS / kTLS Integration */
     int   use_ktls;
     void* ssl_ctx;
+
+    /* ADR-030: Global rate limiter — single instance shared by all cores.
+     * Created in wolf_engine_create(), destroyed in wolf_engine_destroy().
+     * Uses C11 atomics internally; no external locking required. */
+    wolf_ratelimit_t* ratelimit;
 } WolfEngine;
 
 WolfEngine* wolf_engine_create(int port, int core_count);
@@ -260,7 +278,7 @@ int wolf_engine_socket_set_nonblocking(int fd);
 int wolf_engine_socket_set_tcp_nodelay(int fd);
 
 /* SIMD HTTP Parser */
-void wolf_engine_parse_request_simd(void* ctx_ptr, char* raw, size_t len);
+int wolf_engine_parse_request_simd(void* ctx_ptr, char* raw, size_t len);
 int wolf_header_compare_ct(const char* a, const char* b);
 
 #endif /* WOLF_HTTP_ENGINE_H */

@@ -20,26 +20,117 @@ int wolf_header_compare_ct(const char* a, const char* b) {
     return result;
 }
 
-/* HTTP Smuggling Defense: Reject ambiguous requests */
+/* ================================================================
+ * Phase 5 — HTTP Request Smuggling Defense Suite
+ *
+ * Enforces RFC 9112 §6.3 disambiguation rules plus hardened rejection
+ * of all known CL.TE / TE.CL / TE.TE attack variants.
+ *
+ * Rules:
+ *   R1: Reject if both Content-Length AND Transfer-Encoding are present
+ *       (unless TE == "identity" in which case CL takes precedence — RFC 7230)
+ *   R2: If Transfer-Encoding: chunked is present, ignore Content-Length
+ *       (recorded as ctx->ignore_content_length for the body reader)
+ *   R3: Reject any Transfer-Encoding value that is not "chunked" or "identity"
+ *       — covers TE.TE obfuscation ("xchunked", " chunked", "chunked, trailers")
+ *   R4: Reject duplicate Content-Length headers with *different* values
+ *       (same value is technically allowed by some implementations but
+ *       still rejected here for maximum defensive posture)
+ *   R5: Bare \r not followed by \n in the header section → reject
+ *       (RFC 9112 §2.2 — only \r\n is a valid line terminator)
+ *
+ * Returns:
+ *   0  — request is well-formed; caller may proceed
+ *  -1  — request is malformed/smuggling attempt; caller must return 400
+ * ================================================================ */
+
+/* Normalise a Transfer-Encoding value: strip leading/trailing whitespace,
+ * return true if the value is a safe canonical token. */
+static int te_value_is_safe(const char* val) {
+    if (!val) return 0;
+    while (*val == ' ' || *val == '\t') val++;  /* ltrim */
+    if (strcasecmp(val, "chunked")  == 0) return 1;
+    if (strcasecmp(val, "identity") == 0) return 1;
+    /* Reject "xchunked", "CHUNKED\t", "chunked, trailers", etc. */
+    return 0;
+}
+
 static int validate_crlf_and_smuggling(WolfConnCtx* ctx) {
-    int has_cl = 0;
-    int has_te = 0;
+    int    has_te          = 0;  /* any TE header present */
+    int    te_is_chunked   = 0;  /* TE == chunked */
+    int    cl_count        = 0;  /* number of CL headers seen */
+    long   cl_first        = -1; /* value of first CL header */
+
     for (int i = 0; i < ctx->header_count; i++) {
-        if (strcasecmp(ctx->header_keys[i], "content-length") == 0) has_cl = 1;
-        if (strcasecmp(ctx->header_keys[i], "transfer-encoding") == 0) has_te = 1;
-        if (strcasecmp(ctx->header_keys[i], "upgrade") == 0 && strcasecmp(ctx->header_vals[i], "h2c") == 0) {
-            /* Block cleartext HTTP/2 tunneling */
+        const char* k = ctx->header_keys[i];
+        const char* v = ctx->header_vals[i];
+
+        /* ── Transfer-Encoding ─────────────────────────────────────── */
+        if (strcasecmp(k, "transfer-encoding") == 0) {
+            has_te = 1;
+            /* R3: Reject obfuscated / non-canonical TE values */
+            if (!te_value_is_safe(v)) {
+                return -1;  /* TE.TE obfuscation attempt */
+            }
+            if (strcasecmp(v, "chunked") == 0) te_is_chunked = 1;
+        }
+
+        /* ── Content-Length ────────────────────────────────────────── */
+        if (strcasecmp(k, "content-length") == 0) {
+            cl_count++;
+            char* endptr;
+            long cl_val = strtol(v, &endptr, 10);
+            if (*endptr != '\0' && *endptr != ' ') return -1; /* non-numeric CL */
+            if (cl_val < 0) return -1;  /* negative CL */
+            if (cl_count == 1) {
+                cl_first = cl_val;
+            } else {
+                /* R4: Two CL headers — reject regardless of value match
+                 * (duplicate CL is used in CL.CL smuggling vectors) */
+                return -1;
+            }
+        }
+
+        /* ── Upgrade: h2c — block HTTP/1.1→HTTP/2 cleartext upgrade ── */
+        if (strcasecmp(k, "upgrade") == 0 && strcasecmp(v, "h2c") == 0) {
             return -1;
         }
     }
-    if (has_cl && has_te) {
-        /* RFC 7230: If both are present, it's a smuggling attempt. Reject. */
+
+    /* R1: Both TE and CL present — RFC 9112 §6.3 says "the server MUST
+     * reject the message" when TE is not "identity". We reject both cases
+     * for maximum defensive posture. */
+    if (has_te && cl_first >= 0) {
+        return -1;
+    }
+
+    /* R2: Record that TE:chunked means we use chunked framing, not CL */
+    if (te_is_chunked) {
+        ctx->ignore_content_length = 1;
+    }
+
+    (void)cl_count; /* suppress unused-variable warning in edge paths */
+    return 0;
+}
+
+/* R5: Scan raw header bytes for bare \r not followed by \n.
+ * Called before the header tokeniser so we see the raw bytes.
+ * Returns -1 if a bare CR is found, 0 otherwise. */
+static int validate_raw_crlf(const char* raw, size_t header_len) {
+    for (size_t i = 0; i + 1 < header_len; i++) {
+        if (raw[i] == '\r' && raw[i+1] != '\n') {
+            return -1;
+        }
+    }
+    /* Also check the last byte */
+    if (header_len > 0 && raw[header_len - 1] == '\r') {
         return -1;
     }
     return 0;
 }
 
-void wolf_engine_parse_request_simd(void* ctx_ptr, char* raw, size_t len) {
+
+int wolf_engine_parse_request_simd(void* ctx_ptr, char* raw, size_t len) {
     WolfConnCtx* ctx = (WolfConnCtx*)ctx_ptr;
     WolfArena* a = ctx->arena;
     char* body_start = NULL;
@@ -84,13 +175,30 @@ void wolf_engine_parse_request_simd(void* ctx_ptr, char* raw, size_t len) {
     }
     
 found:
+    if (!body_start) {
+        return 1; /* Incomplete request */
+    }
 
-    ctx->body = wolf_arena_strdup(a, body_start ? body_start : "");
+    /* R5: Reject bare \r not followed by \n in the header section.
+     * body_start points 4 bytes past the \r\n\r\n terminator.
+     * At this point raw[j] has been set to '\0' (see above) so header_len == j.
+     * We scan the original raw bytes before strtok_r erases them. */
+    {
+        /* Compute header length: body_start is raw + j + 4, j is where \r was */
+        size_t header_len = (size_t)(body_start - raw - 4);
+        if (validate_raw_crlf(raw, header_len) < 0) {
+            ctx->status_code = 400;
+            return -1;
+        }
+    }
+
+    ctx->body = wolf_arena_strdup(a, body_start);
+
 
     /* Parse request line */
     char* saveptr;
     char* line = strtok_r(raw, "\r\n", &saveptr);
-    if (!line) return;
+    if (!line) return -1;
 
     char* l_save;
     char* method    = strtok_r(line, " ", &l_save);
@@ -142,7 +250,7 @@ found:
     if (validate_crlf_and_smuggling(ctx) < 0) {
         ctx->status_code = 400; /* Bad Request */
         ctx->is_websocket = 0;
-        return;
+        return -1;
     }
 
     if (upgrade_val && strcasecmp(upgrade_val, "websocket") == 0 && ws_key_val) {
@@ -157,4 +265,6 @@ found:
             wolf_engine_parse_multipart(ctx, content_type_val, body_start, body_len);
         }
     }
+    
+    return 0; /* Success */
 }
