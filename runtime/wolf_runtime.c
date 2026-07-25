@@ -573,11 +573,6 @@ static int wolf_is_dedicated_server(void) { return 0; }
 static void wolf_worker_pool_init(void) {
     wolf_actual_threads = wolf_auto_thread_count();
     /* Initialize queues and mutexes */
-    for (int i = 0; i < wolf_actual_threads; i++) {
-        wolf_core_queues[i].head = 0;
-        wolf_core_queues[i].tail = 0;
-        pthread_mutex_init(&wolf_core_queues[i].mutex, NULL);
-    }
     fprintf(stderr,
             "[WOLF-POOL] Spawning %d worker threads (lock-free per-core queues + work-stealing)...\n",
             wolf_actual_threads);

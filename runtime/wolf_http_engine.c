@@ -1225,75 +1225,13 @@ static void wtask_complete_cb(const wolf_spsc_entry_t* entry, void* userdata) {
 void wolf_core_drain_completions(WolfCore* core) {
     if (core->spsc_worker_count > 0) {
         extern wolf_engine_matrix_t comp_matrix;
-        wolf_matrix_drain(&comp_matrix, core->id, wtask_complete_cb, core);
+        wolf_matrix_drain(&comp_matrix, core->core_id, wtask_complete_cb, core);
     }
     
     if (core->notify_fd >= 0) {
         uint64_t v;
         ssize_t n = read(core->notify_fd, &v, sizeof(v));
         (void)n;
-    }
-}
-
-    for (;;) {
-        int h = atomic_load_explicit(&ring->head, memory_order_acquire);
-        int t = atomic_load_explicit(&ring->tail, memory_order_acquire);
-        if (h == t) break;
-
-        WolfCoreCompletion comp = ring->entries[h & WOLF_CORE_COMPLETE_MASK];
-        atomic_store_explicit(&ring->head, h + 1, memory_order_release);
-
-        WolfConnCtx* ctx = (WolfConnCtx*)comp.ctx;
-
-#if defined(WOLF_HAS_IO_URING)
-        if (core->sentinel->backend == WOLF_IO_IOURING) {
-            if (comp.out_buf && comp.out_len > 0) {
-                if (core->use_send_zc) {
-                    /* Zero-copy: kernel pins the arena buffer directly.
-                     * on_send_complete fires only after the kernel releases it
-                     * (IORING_CQE_F_MORE gone), so arena reset is always safe. */
-                    wolf_uring_submit_send_zc(core->sentinel->uring, ctx->client_fd,
-                                              comp.out_buf, comp.out_len,
-                                              on_send_complete, ctx, ctx->arena);
-                } else {
-                    wolf_uring_submit_send(core->sentinel->uring, ctx->client_fd,
-                                           comp.out_buf, comp.out_len,
-                                           on_send_complete, ctx, ctx->arena);
-                }
-            } else {
-                on_send_complete(ctx->client_fd, ctx, -1);
-            }
-            wolf_uring_flush(core->sentinel->uring);
-        } else {
-#endif
-        /* epoll / kqueue / poll fallback send path */
-        if (comp.out_buf && comp.out_len > 0) {
-            ssize_t n = send(ctx->client_fd, comp.out_buf, comp.out_len, MSG_DONTWAIT);
-            if (n > 0) {
-                __atomic_fetch_add(&core->requests_total, 1, __ATOMIC_RELAXED);
-                __atomic_fetch_add(&core->bytes_in,  ctx->bytes_in, __ATOMIC_RELAXED);
-                __atomic_fetch_add(&core->bytes_out, n, __ATOMIC_RELAXED);
-            }
-        }
-        __atomic_fetch_sub(&core->requests_active, 1, __ATOMIC_RELAXED);
-
-        /* Remove from epoll / kqueue before closing */
-#if defined(WOLF_HAS_EPOLL)
-        if (core->epoll_fd >= 0)
-            epoll_ctl(core->epoll_fd, EPOLL_CTL_DEL, ctx->client_fd, NULL);
-#elif defined(WOLF_HAS_KQUEUE)
-        if (core->sentinel && core->sentinel->poll_fd >= 0) {
-            struct kevent ev;
-            EV_SET(&ev, ctx->client_fd, EVFILT_READ, EV_DELETE, 0, 0, NULL);
-            kevent(core->sentinel->poll_fd, &ev, 1, NULL, 0, NULL);
-        }
-#endif
-        wolf_fd_remove_entry(ctx->client_fd);
-        close(ctx->client_fd);
-        wolf_core_free_ctx(ctx);
-#if defined(WOLF_HAS_IO_URING)
-        }
-#endif
     }
 }
 
