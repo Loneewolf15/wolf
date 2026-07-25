@@ -971,22 +971,25 @@ func getPkgConfigVariable(lib, variable string) (string, error) {
 // must invalidate the cache.
 func runtimeCacheKey(runtimeC string, flags []string) (string, error) {
 	h := sha256.New()
-	// Hash wolf_runtime.c
-	f, err := os.Open(runtimeC)
+	
+	// Hash all .c and .h files in the runtime directory
+	runtimeDir := filepath.Dir(runtimeC)
+	err := filepath.Walk(runtimeDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if !info.IsDir() && (strings.HasSuffix(path, ".c") || strings.HasSuffix(path, ".h")) {
+			f, err := os.Open(path)
+			if err != nil {
+				return err
+			}
+			_, _ = io.Copy(h, f)
+			f.Close()
+		}
+		return nil
+	})
 	if err != nil {
 		return "", err
-	}
-	if _, err := io.Copy(h, f); err != nil {
-		f.Close()
-		return "", err
-	}
-	f.Close()
-
-	// Hash wolf_http_engine.c (it is #include'd by wolf_runtime.c so must also invalidate cache)
-	engineC := filepath.Join(filepath.Dir(runtimeC), "wolf_http_engine.c")
-	if ef, err := os.Open(engineC); err == nil {
-		_, _ = io.Copy(h, ef)
-		ef.Close()
 	}
 
 	// Mix in the flags (exclude the -o <path> and the runtimeC path at the end,
