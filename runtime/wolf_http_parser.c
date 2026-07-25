@@ -153,7 +153,7 @@ found:
     if (body_start && content_type_val && strstr(content_type_val, "multipart/form-data")) {
         size_t body_len = len - (body_start - raw);
         if (body_len > 0) {
-            extern void wolf_engine_parse_multipart(WolfConnCtx* ctx, const char* content_type_val, char* body_start, size_t body_len);
+            extern void wolf_engine_parse_multipart(WolfConnCtx* ctx, const char* content_type_val, const char* body, size_t body_len);
             wolf_engine_parse_multipart(ctx, content_type_val, body_start, body_len);
         }
     }
