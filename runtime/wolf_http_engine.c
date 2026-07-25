@@ -603,7 +603,7 @@ void wolf_arena_pool_destroy(WolfArenaPool* pool) {
  * Uses memmem() for POSIX-portable boundary search.
  * Mirrors wolf_parse_multipart() in wolf_runtime.c but targets WolfConnCtx
  * (arena alloc) instead of http_contexts[] (wolf_req_alloc arena). */
-static void wolf_engine_parse_multipart(WolfConnCtx* ctx,
+void wolf_engine_parse_multipart(WolfConnCtx* ctx,
                                          const char* ct_header,
                                          const char* body, size_t body_len) {
     WolfArena* a = ctx->arena;

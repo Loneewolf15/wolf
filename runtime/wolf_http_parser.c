@@ -112,6 +112,7 @@ found:
     /* Parse headers */
     const char* upgrade_val      = NULL;
     const char* ws_key_val       = NULL;
+    const char* content_type_val = NULL;
 
     while ((line = strtok_r(NULL, "\r\n", &saveptr))) {
         char* colon = strchr(line, ':');
@@ -130,6 +131,7 @@ found:
             
             if (strcmp(line, "upgrade") == 0)          upgrade_val      = ctx->header_vals[ctx->header_count];
             if (strcmp(line, "sec-websocket-key") == 0) ws_key_val       = ctx->header_vals[ctx->header_count];
+            if (strcmp(line, "content-type") == 0)      content_type_val = ctx->header_vals[ctx->header_count];
             
             wolf_header_htab_insert(ctx->header_htab, ctx->header_count, line);
             ctx->header_count++;
@@ -146,5 +148,13 @@ found:
     if (upgrade_val && strcasecmp(upgrade_val, "websocket") == 0 && ws_key_val) {
         ctx->is_websocket = 1;
         ctx->ws_key = wolf_arena_strdup(a, ws_key_val);
+    }
+
+    if (body_start && content_type_val && strstr(content_type_val, "multipart/form-data")) {
+        size_t body_len = len - (body_start - raw);
+        if (body_len > 0) {
+            extern void wolf_engine_parse_multipart(WolfConnCtx* ctx, const char* content_type_val, char* body_start, size_t body_len);
+            wolf_engine_parse_multipart(ctx, content_type_val, body_start, body_len);
+        }
     }
 }
