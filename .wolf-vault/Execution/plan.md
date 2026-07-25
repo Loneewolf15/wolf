@@ -51,6 +51,26 @@ graph TD
 
 ## Session History
 
+### 2026-07-25 (Session 38 — Rate Limiter Fix, io_uring Shutdown Hardening, HTTP Smuggling Defenses)
+**Done:**
+- **BUG-096 (CRITICAL):** Confirmed and fixed per-core rate limiter security flaw (ADR-030). Moved `wolf_ratelimit_t*` from `WolfCore` → `WolfEngine`. Effective per-IP ceiling is now exactly `WOLF_RATE_RPS` regardless of core count.
+- **BUG-097:** Confirmed and fixed io_uring accept-during-shutdown emitting TCP RST. `on_accept_complete` now returns `503 Service Unavailable` + `SO_LINGER=0` (FIN) during the shutdown window (ADR-031). Root-cause of the 1-in-20,665 connection reset in Session 37 TSAN gauntlet.
+- **BUG-098 / Phase 5:** Replaced the minimal smuggling-defense stub with a full 5-rule RFC 9112-compliant suite (ADR-032): R1 (CL+TE), R2 (TE:chunked flag), R3 (TE.TE obfuscation), R4 (duplicate CL), R5 (bare CR). Added `ignore_content_length` field to `WolfConnCtx`.
+- Added `bench/test_smuggling.c` self-contained unit test: **21/21 PASS**.
+- Removed leftover `[DEBUG]` fprintf printing raw IPs on every io_uring accept.
+- All `go test ./internal/...` — 13/13 packages PASS.
+- E2E failures confirmed pre-existing (`TestWIR*` require native binary; `TestWebSocketEcho` flaky).
+- **Commit:** `5196092`
+
+### 2026-07-25 (Session 37 — IO_URING Parity, TimeWheel Fix, Compiler Cache)
+**Done:**
+- Discovered and fixed a critical compiler caching flaw (`compiler.go`) where `#include` headers were not hashed, causing tests against stale binaries. Replaced with `filepath.Walk` over the `runtime/` directory.
+- Confirmed the intrusive linked-list bucket aliasing bug (`test_node_reuse.c`) was a structural flaw causing double-free crashes. Re-verified the `in_wheel` status boolean fix permanently mitigates it.
+- Ran TSAN-enabled connection gauntlets with `hey -c 1000 -n 2000` to force `io_uring` multishot-accept past the 200 RPS token burst limit.
+- Verified 429 Rate Limiter exact parity between `epoll` and `io_uring` fast-paths.
+- Completed 20,665-request `io_uring` + TSAN test run proving **0 data races**.
+- All Phases 1-4 completed and verified. Phase 5/6 parked for next session.
+
 ### 2026-07-23 (Session 36 — Native Register Allocation Phase 1 & 2)
 **Done:**
 - Resolved a critical bootstrapping bug where `wolf_system_exec` was mistyped as `ptr` instead of `i64`.

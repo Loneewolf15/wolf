@@ -1,5 +1,49 @@
 # Wolf Bugs Fixed — Cumulative Log
 
+## Session 2026-07-25 (Session 38 — Rate Limiter Fix, Shutdown Hardening, HTTP Smuggling Defenses)
+
+### BUG-096: Per-Core Rate Limiter Breaks Security Contract (CRITICAL)
+- **Class:** P0 🔴 Security — Incorrect Effective Rate Limit
+- **Root cause:** `wolf_ratelimit_create()` was called once per `WolfCore` in `wolf_engine_create()`. With `N` CPU cores and `WOLF_RATE_RPS=100`, any IP could make `N × 100` requests/second (e.g. 800 RPS on 8 cores) — 8× the declared limit. Per-core token buckets are structurally independent; no coordination exists between them. The `WOLF_RL_NUM_BUCKETS=65536` maps to the same bucket index from any core, but there are `N` separate map instances.
+- **Fix (ADR-030):** Moved `wolf_ratelimit_t*` from `WolfCore` to `WolfEngine`. One global instance is created in `wolf_engine_create()` after the core loop. Each core receives a shared read-only pointer (`core->ratelimit = engine->ratelimit`). The `wolf_ratelimit_t` implementation already uses C11 `_Atomic uint64_t` CAS internally — fully thread-safe for concurrent multi-core access. The global instance is destroyed once in `wolf_engine_destroy()` after nullifying all core pointers.
+- **Files:** `runtime/wolf_http_engine.h`, `runtime/wolf_http_engine.c`
+- **Commit:** `5196092`
+
+### BUG-097: io_uring Accept-During-Shutdown Emits TCP RST
+- **Class:** P1 🟠 Runtime Stability — Connection Reset on Graceful Shutdown
+- **Root cause:** `io_uring` multishot-accept SQEs can fire after `wolf_engine_shutdown_flag` is set. The main thread closes `core->server_fd` while the poller thread's `on_accept_complete` callback may still be queued with a valid `client_fd`. Without a shutdown check, the code proceeds through `SO_RCVTIMEO`/`TCP_NODELAY` setup and then either the rate-limit check or the arena alloc fails and calls bare `close(client_fd)` — emitting a TCP RST because the send buffer has data in-flight. This was the confirmed source of the 1-in-20,665 connection reset in the Session 37 TSAN gauntlet.
+- **Fix:** Added an atomic shutdown flag check at the top of `on_accept_complete`. Connections accepted during the shutdown window receive `HTTP/1.1 503 Service Unavailable` with `SO_LINGER=0` (graceful FIN) before close. Removed leftover `[DEBUG] io_uring accept IP:` fprintf that was printing raw IPs on every connection.
+- **File:** `runtime/wolf_http_engine.c`
+- **Commit:** `5196092`
+
+### BUG-098: HTTP Request Smuggling Attack Surface (No CL/TE Disambiguation)
+- **Class:** P0 🔴 Security — HTTP Request Smuggling (CL.TE / TE.CL / TE.TE)
+- **Root cause:** The original `validate_crlf_and_smuggling()` stub only checked if both `Content-Length` and `Transfer-Encoding` were present simultaneously and rejected the h2c upgrade. It was missing: TE value canonicality checking (TE.TE obfuscation), duplicate CL rejection, negative CL rejection, and bare CR terminator detection (R5). An attacker could send `Transfer-Encoding: xchunked` to bypass the TE check, or send two CL headers to confuse proxy desynchronization.
+- **Fix (Phase 5):** Replaced the stub with a 5-rule defense suite:
+  - R1: Reject CL + TE coexistence (RFC 9112 §6.3 maximum-defensive posture)
+  - R2: TE:chunked sets `ctx->ignore_content_length` flag for body reader
+  - R3: `te_value_is_safe()` rejects any TE value other than `chunked`/`identity` — covers `xchunked`, `chunked, trailers`, trailing-whitespace variants
+  - R4: Reject any duplicate `Content-Length` header (count ≥ 2) and negative CL values
+  - R5: `validate_raw_crlf()` scans raw header bytes before tokenisation, rejecting bare `\r` not followed by `\n`
+  - Added `ignore_content_length` field to `WolfConnCtx`
+  - Added unit test `bench/test_smuggling.c`: 21/21 PASS
+- **Files:** `runtime/wolf_http_parser.c`, `runtime/wolf_http_engine.c`, `bench/test_smuggling.c`
+- **Commit:** `5196092`
+
+
+
+### BUG-094: Compiler cache fails to invalidate on `#include` changes
+- **Class:** P0 🔴 Compiler Correctness / Test Infrastructure
+- **Root cause:** The Wolf compiler cached compiled runtime `.o` files in `/tmp/wolf_rt_cache` by hashing only `wolf_runtime.c` and `wolf_http_engine.c`. Modifying included files like `wolf_timewheel.c` did not bust the cache, meaning tests and binaries continued running against stale, buggy runtime code.
+- **Fix:** Rewrote `runtimeCacheKey()` in `compiler.go` to use `filepath.Walk` on the entire `runtime/` directory, hashing all `.c` and `.h` files. Cache invalidation is now perfectly robust.
+- **File:** `internal/compiler/compiler.go`
+
+### BUG-095: Intrusive Linked-List Bucket Aliasing (Node Reuse)
+- **Class:** P0 🔴 Runtime Panic (Memory corruption, double-close)
+- **Root cause:** When a single-element socket (where `prev` and `next` are both `NULL`) refreshed its timeout, the time-wheel check `if (next != NULL || prev != NULL)` bypassed it. The same socket was inserted into a new timeout bucket WITHOUT being removed from the first, causing Bucket Aliasing. The socket existed in two buckets simultaneously, resulting in double-closes or fatal memory corruption when ticking.
+- **Fix:** Implemented an explicit `in_wheel` boolean status flag. If `in_wheel` is true, the node is explicitly unlinked from its current bucket before being inserted into a new one. Proven via isolated C regression test `test_node_reuse.c`.
+- **File:** `runtime/wolf_timewheel.c`, `bench/test_node_reuse.c`
+
 ## Session 2026-07-23 (Session 36 — Native Register Allocation Phase 1 & 2)
 
 ### BUG-091: `wolf_system_exec` pointer vs i64 LLVM type mismatch
@@ -417,9 +461,10 @@
 
 ## Status Ledger
 
-- Total bugs fixed: **62** (BUG-001 through BUG-088, including N-series omissions)
+- Total bugs fixed: **67** (BUG-001 through BUG-098, including N-series omissions)
 - E2E tests: **10/10 Phase 2 tests passing** (`01_hello`, `14_classes`, `36_closures`, `39_interfaces`, `41_enums`, `42_try_catch`, `43_visibility`, `44_package_system`, `52_supervise`, `54_cpu_preempt`) + `TestFileUpload` ✅ + `TestGracefulShutdown` ✅
 - Open: **None** (BUG-052 closed ✅)
+- Pre-existing known-failing E2E tests (not regressions): `TestWIRDump`, `TestWIREmitLLVM`, `TestWIRBothFlags` (require `wolf_out/main` native binary to exist), `TestWebSocketEcho` (flaky timing)
 - Next Bloodhound Sweep: Monitor for `libcurl` multi-handle leakage if we move from synchronous `easy` interface to asynchronous.
 ---
 
