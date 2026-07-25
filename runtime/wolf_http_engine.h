@@ -34,6 +34,7 @@
  * ================================================================ */
 
 typedef enum {
+    WOLF_IO_NONE = 0,
     WOLF_IO_EPOLL,    /* Linux */
     WOLF_IO_KQUEUE,   /* macOS / BSD */
     WOLF_IO_POLL,     /* fallback */

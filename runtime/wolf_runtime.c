@@ -17,6 +17,7 @@
 
 #include "wolf_runtime.h"
 #include "wolf_config_runtime.h"
+#include <stdbool.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -330,15 +331,60 @@ typedef struct {
 } wolf_task_t;
 
 #include <unistd.h>
+static int wolf_get_logical_cpu_count(void) {
+    long n = sysconf(_SC_NPROCESSORS_ONLN);
+    long cgroup_cpus = -1;
+    
+#if defined(__linux__)
+    FILE* f;
+    /* cgroup v2 */
+    f = fopen("/sys/fs/cgroup/cpu.max", "r");
+    if (f) {
+        char max_str[32];
+        long period = 100000;
+        if (fscanf(f, "%31s %ld", max_str, &period) >= 1) {
+            if (strcmp(max_str, "max") != 0) {
+                long max_val = atol(max_str);
+                cgroup_cpus = (max_val + period - 1) / period;
+            }
+        }
+        fclose(f);
+    } else {
+        /* cgroup v1 */
+        f = fopen("/sys/fs/cgroup/cpu/cpu.cfs_quota_us", "r");
+        if (f) {
+            long quota = -1;
+            if (fscanf(f, "%ld", &quota) == 1 && quota > 0) {
+                FILE* fp = fopen("/sys/fs/cgroup/cpu/cpu.cfs_period_us", "r");
+                if (fp) {
+                    long period = 100000;
+                    if (fscanf(fp, "%ld", &period) == 1 && period > 0) {
+                        cgroup_cpus = (quota + period - 1) / period;
+                    }
+                    fclose(fp);
+                }
+            }
+            fclose(f);
+        }
+    }
+    
+    if (cgroup_cpus > 0 && cgroup_cpus < n) {
+        n = cgroup_cpus;
+    }
+#endif
+    if (n < 1) n = 1;
+    return (int)n;
+}
+
 static int wolf_auto_thread_count(void) {
 #if defined(WOLF_WORKER_THREADS) && WOLF_WORKER_THREADS > 0
     return WOLF_WORKER_THREADS;
 #else
-    /* Auto-size: clamp between 16 and 256, using 4× CPU count for I/O-bound serving */
-    long n = sysconf(_SC_NPROCESSORS_ONLN);
-    if (n < 16)  n = 16;
-    if (n > 256) n = 256;
+    long n = wolf_get_logical_cpu_count();
+    
     n = n * 4;
+    /* Cap workers dynamically based on allocated CPUs, avoid massive oversubscription */
+    if (n < 4) n = 4;
     if (n > 256) n = 256;
     return (int)n;
 #endif
@@ -447,9 +493,11 @@ static wolf_worker_arg_t wolf_worker_args[WOLF_THREAD_ARRAY_SIZE];
 
 static void* wolf_worker_thread_func(void* arg) {
     int wid = ((wolf_worker_arg_t*)arg)->wid;
+    fprintf(stderr, "[WOLF-POOL] Worker %d started unconditionally!\n", wid);
 #if !defined(WOLF_DB_POSTGRES) && !defined(WOLF_DB_MSSQL)
     mysql_thread_init();
 #endif
+    fprintf(stderr, "[WOLF-POOL] Worker %d started!\n", wid);
 
     int spin = 0;
     while (!wolf_shutdown_requested) {
@@ -618,9 +666,9 @@ static void wolf_worker_pool_init(void) {
             wolf_actual_threads);
     for (int i = 0; i < wolf_actual_threads; i++) {
         wolf_worker_args[i].wid = i;
-        pthread_create(&wolf_worker_pool[i], NULL, wolf_worker_thread_func,
+        int rc = pthread_create(&wolf_worker_pool[i], NULL, wolf_worker_thread_func,
                        &wolf_worker_args[i]);
-        pthread_detach(wolf_worker_pool[i]);
+        if (rc != 0) fprintf(stderr, "pthread_create failed: %d\n", rc);
     }
 
 #ifndef WOLF_FREESTANDING
@@ -670,6 +718,18 @@ static void wolf_worker_pool_init(void) {
 #endif /* WOLF_FREESTANDING */
 
     fprintf(stderr, "[WOLF-POOL] Pool ready (%d threads).\n", wolf_actual_threads);
+}
+
+void wolf_worker_pool_destroy(void) {
+    wolf_shutdown_requested = 1;
+    fprintf(stderr, "[WOLF-POOL] Waiting for %d worker threads to exit...\n", wolf_actual_threads);
+    for (int i = 0; i < wolf_actual_threads; i++) {
+        if (wolf_worker_pool[i] != 0) {
+            pthread_join(wolf_worker_pool[i], NULL);
+            wolf_worker_pool[i] = 0;
+        }
+    }
+    fprintf(stderr, "[WOLF-POOL] All worker threads exited.\n");
 }
 
 /* --- Multi-platform Poller (epoll / kqueue / poll) --- */

@@ -192,7 +192,7 @@ typedef struct {
 static __thread WolfFDEntry wolf_fd_table[WOLF_MAX_FD];
 
 static WolfFDEntry* wolf_fd_find(int fd) {
-    if (fd < 0 || fd >= WOLF_MAX_FD || !wolf_fd_table[fd].cb) return NULL;
+    if (fd < 0 || fd >= WOLF_MAX_FD || (!wolf_fd_table[fd].cb && !wolf_fd_table[fd].ctx)) return NULL;
     return &wolf_fd_table[fd];
 }
 
@@ -1153,7 +1153,7 @@ build_and_send:
     wolf_req_arena_flush();
 
     /* Post to the core's completion ring --------------------------------- */
-    if (core->spsc_worker_count > 0) {
+    if (core->spsc_worker_count > 0 && ctx->worker_id >= 0) {
         wolf_spsc_entry_t entry = {
             .type = 4, /* COMPLETION */
             .ctx = ctx,
@@ -1229,25 +1229,31 @@ static void wolf_core_drain_completions(WolfCore* core) {
                 int out_len = entry.out_len;
 
 #if defined(WOLF_HAS_IO_URING)
-                if (out_buf && out_len > 0) {
-                    if (core->use_send_zc) {
-                        wolf_uring_submit_send_zc(core->sentinel->uring, ctx->client_fd,
-                                                  out_buf, out_len,
-                                                  on_send_complete, ctx, ctx->arena);
+                if (core->sentinel->backend == WOLF_IO_IOURING) {
+                    if (out_buf && out_len > 0) {
+                        if (core->use_send_zc) {
+                            wolf_uring_submit_send_zc(core->sentinel->uring, ctx->client_fd,
+                                                      out_buf, out_len,
+                                                      on_send_complete, ctx, ctx->arena);
+                        } else {
+                            wolf_uring_submit_send(core->sentinel->uring, ctx->client_fd,
+                                                   out_buf, out_len,
+                                                   on_send_complete, ctx, ctx->arena);
+                        }
                     } else {
-                        wolf_uring_submit_send(core->sentinel->uring, ctx->client_fd,
-                                               out_buf, out_len,
-                                               on_send_complete, ctx, ctx->arena);
+                        on_send_complete(ctx->client_fd, ctx, -1);
                     }
+                    wolf_uring_flush(core->sentinel->uring);
                 } else {
-                    on_send_complete(ctx->client_fd, ctx, -1);
-                }
-                wolf_uring_flush(core->sentinel->uring);
-#else
+#endif
                 /* epoll / kqueue / poll fallback send path */
                 if (out_buf && out_len > 0) {
                     ssize_t n = send(ctx->client_fd, out_buf, out_len, MSG_DONTWAIT);
-                    if (n > 0) __atomic_fetch_add(&core->requests_total, 1, __ATOMIC_RELAXED);
+                    if (n > 0) {
+                        __atomic_fetch_add(&core->requests_total, 1, __ATOMIC_RELAXED);
+                        __atomic_fetch_add(&core->bytes_in,  ctx->bytes_in, __ATOMIC_RELAXED);
+                        __atomic_fetch_add(&core->bytes_out, n, __ATOMIC_RELAXED);
+                    }
                 }
                 __atomic_fetch_sub(&core->requests_active, 1, __ATOMIC_RELAXED);
 
@@ -1263,6 +1269,8 @@ static void wolf_core_drain_completions(WolfCore* core) {
 #endif
                 if (ctx->client_fd >= 0) close(ctx->client_fd);
                 wolf_core_free_ctx(ctx);
+#if defined(WOLF_HAS_IO_URING)
+                }
 #endif
             }
         }
@@ -1280,28 +1288,34 @@ static void wolf_core_drain_completions(WolfCore* core) {
         WolfConnCtx* ctx = (WolfConnCtx*)comp.ctx;
 
 #if defined(WOLF_HAS_IO_URING)
-        if (comp.out_buf && comp.out_len > 0) {
-            if (core->use_send_zc) {
-                /* Zero-copy: kernel pins the arena buffer directly.
-                 * on_send_complete fires only after the kernel releases it
-                 * (IORING_CQE_F_MORE gone), so arena reset is always safe. */
-                wolf_uring_submit_send_zc(core->sentinel->uring, ctx->client_fd,
-                                          comp.out_buf, comp.out_len,
-                                          on_send_complete, ctx, ctx->arena);
+        if (core->sentinel->backend == WOLF_IO_IOURING) {
+            if (comp.out_buf && comp.out_len > 0) {
+                if (core->use_send_zc) {
+                    /* Zero-copy: kernel pins the arena buffer directly.
+                     * on_send_complete fires only after the kernel releases it
+                     * (IORING_CQE_F_MORE gone), so arena reset is always safe. */
+                    wolf_uring_submit_send_zc(core->sentinel->uring, ctx->client_fd,
+                                              comp.out_buf, comp.out_len,
+                                              on_send_complete, ctx, ctx->arena);
+                } else {
+                    wolf_uring_submit_send(core->sentinel->uring, ctx->client_fd,
+                                           comp.out_buf, comp.out_len,
+                                           on_send_complete, ctx, ctx->arena);
+                }
             } else {
-                wolf_uring_submit_send(core->sentinel->uring, ctx->client_fd,
-                                       comp.out_buf, comp.out_len,
-                                       on_send_complete, ctx, ctx->arena);
+                on_send_complete(ctx->client_fd, ctx, -1);
             }
+            wolf_uring_flush(core->sentinel->uring);
         } else {
-            on_send_complete(ctx->client_fd, ctx, -1);
-        }
-        wolf_uring_flush(core->sentinel->uring);
-#else
+#endif
         /* epoll / kqueue / poll fallback send path */
         if (comp.out_buf && comp.out_len > 0) {
             ssize_t n = send(ctx->client_fd, comp.out_buf, comp.out_len, MSG_DONTWAIT);
-            if (n > 0) __atomic_fetch_add(&core->requests_total, 1, __ATOMIC_RELAXED);
+            if (n > 0) {
+                __atomic_fetch_add(&core->requests_total, 1, __ATOMIC_RELAXED);
+                __atomic_fetch_add(&core->bytes_in,  ctx->bytes_in, __ATOMIC_RELAXED);
+                __atomic_fetch_add(&core->bytes_out, n, __ATOMIC_RELAXED);
+            }
         }
         __atomic_fetch_sub(&core->requests_active, 1, __ATOMIC_RELAXED);
 
@@ -1319,6 +1333,8 @@ static void wolf_core_drain_completions(WolfCore* core) {
         wolf_fd_remove_entry(ctx->client_fd);
         close(ctx->client_fd);
         wolf_core_free_ctx(ctx);
+#if defined(WOLF_HAS_IO_URING)
+        }
 #endif
     }
 }
@@ -1488,7 +1504,7 @@ static void on_recv_complete(int client_fd, void* ctx_ptr, int bytes_read) {
         if (wolf_engine_task_push(core, task)) return; /* poller free — worker handles response */
 
         /* Fallback: worker pool full — run handler inline (should be very rare) */
-        wolf_engine_handle_offloaded(ctx, 0);
+        wolf_engine_handle_offloaded(ctx, -1);
         wolf_core_drain_completions(core);  /* pick up the result we just posted */
         return;
     }
@@ -1589,10 +1605,11 @@ static void wolf_epoll_accept_all(WolfCore* core) {
 static void wolf_epoll_recv_client(WolfCore* core, int client_fd) {
     WolfFDEntry*  e   = wolf_fd_find(client_fd);
     WolfCoreArgs* args = (WolfCoreArgs*)core->args;
-    if (!e) { close(client_fd); return; }
+    if (!e) { fprintf(stderr, "[DEBUG] wolf_fd_find returned NULL for fd %d\n", client_fd); close(client_fd); return; }
     WolfConnCtx* ctx = (WolfConnCtx*)e->ctx;
 
     ssize_t bytes = recv(client_fd, ctx->read_buf, WOLF_MAX_REQUEST_SIZE - 1, MSG_DONTWAIT);
+    if (bytes < 0 && errno != EAGAIN) { fprintf(stderr, "[DEBUG] recv on %d returned %zd (errno=%d)\n", client_fd, bytes, errno); }
     if (bytes <= 0) {
         if (bytes < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
             /* Spurious wakeup — re-arm */
@@ -1626,8 +1643,11 @@ static void wolf_epoll_recv_client(WolfCore* core, int client_fd) {
         wolf_engine_build_response(ctx, &out, &olen);
         if (out && olen > 0) {
             ssize_t n = send(client_fd, out, olen, MSG_DONTWAIT);
-            (void)n;
-            __atomic_fetch_add(&core->requests_total, 1, __ATOMIC_RELAXED);
+            if (n > 0) {
+                __atomic_fetch_add(&core->requests_total, 1, __ATOMIC_RELAXED);
+                __atomic_fetch_add(&core->bytes_in, ctx->bytes_in, __ATOMIC_RELAXED);
+                __atomic_fetch_add(&core->bytes_out, n, __ATOMIC_RELAXED);
+            }
         }
         epoll_ctl(core->epoll_fd, EPOLL_CTL_DEL, client_fd, NULL);
         wolf_fd_remove_entry(client_fd);
@@ -1666,7 +1686,7 @@ static void wolf_epoll_recv_client(WolfCore* core, int client_fd) {
         };
         if (wolf_engine_task_push(core, task)) return; /* worker will drain completion ring + notify via eventfd */
         /* Fallback: task queue full — run handler inline */
-        wolf_engine_handle_offloaded(ctx, 0);
+        wolf_engine_handle_offloaded(ctx, -1);
         wolf_core_drain_completions(core);
     }
 }
@@ -1719,10 +1739,11 @@ static void wolf_kqueue_accept_all(WolfCore* core) {
 static void wolf_kqueue_recv_client(WolfCore* core, int client_fd) {
     WolfFDEntry*  e    = wolf_fd_find(client_fd);
     WolfCoreArgs* args = (WolfCoreArgs*)core->args;
-    if (!e) { close(client_fd); return; }
+    if (!e) { fprintf(stderr, "[DEBUG] wolf_fd_find returned NULL for fd %d\n", client_fd); close(client_fd); return; }
     WolfConnCtx* ctx = (WolfConnCtx*)e->ctx;
 
     ssize_t bytes = recv(client_fd, ctx->read_buf, WOLF_MAX_REQUEST_SIZE - 1, MSG_DONTWAIT);
+    if (bytes < 0 && errno != EAGAIN) { fprintf(stderr, "[DEBUG] recv on %d returned %zd (errno=%d)\n", client_fd, bytes, errno); }
     if (bytes <= 0) {
         if (bytes < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
             struct kevent ev;
@@ -1755,7 +1776,7 @@ static void wolf_kqueue_recv_client(WolfCore* core, int client_fd) {
             .engine_fn = (void(*)(void*, int))wolf_engine_handle_offloaded,
         };
         if (wolf_engine_task_push(core, task)) return;
-        wolf_engine_handle_offloaded(ctx, 0);
+        wolf_engine_handle_offloaded(ctx, -1);
         wolf_core_drain_completions(core);
     }
 }
@@ -2112,9 +2133,11 @@ int wolf_engine_start(WolfEngine* engine, wolf_http_handler_t handler, wolf_ws_h
 
     printf("🐺 Wolf HTTP Engine — %d cores, port %d\n",
            engine->core_count, engine->port);
+    const char* force_epoll = getenv("WOLF_FORCE_EPOLL");
+    int is_forced = (force_epoll && force_epoll[0] == '1');
     printf("   Architecture: Thread-Per-Core + %s\n",
 #if defined(WOLF_HAS_IO_URING)
-           "io_uring (Phase 2)"
+           is_forced ? "epoll (Phase 1) [forced via WOLF_FORCE_EPOLL]" : "io_uring (Phase 2)"
 #elif defined(WOLF_HAS_EPOLL)
            "epoll (Phase 1)"
 #elif defined(WOLF_HAS_KQUEUE)
@@ -2222,6 +2245,10 @@ void wolf_engine_stats(WolfEngine* engine) {
 
 void wolf_engine_destroy(WolfEngine* engine) {
     if (!engine) return;
+    
+    extern void wolf_worker_pool_destroy(void);
+    wolf_worker_pool_destroy();
+    
     for (int i = 0; i < engine->core_count; i++) {
         WolfCore* core = engine->cores[i];
         if (!core) continue;
@@ -2256,7 +2283,6 @@ void wolf_http_serve(int64_t port, void* handler_ptr) {
     if (0) {
         fprintf(stderr, "[Wolf] FATAL: handler_ptr %p looks like a heap address. "
                 "Closure must not be arena-allocated.\n", handler_ptr);
-        exit(1);
     }
 
     /* Validate mail config at startup if configured */

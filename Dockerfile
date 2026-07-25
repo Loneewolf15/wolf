@@ -12,7 +12,9 @@ RUN apt-get update && apt-get install -y \
     make \
     git \
     liburing-dev \
-    libmysqlclient-dev \
+    libmariadb-dev-compat \
+    libsodium-dev \
+    libcurl4-openssl-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Add LLVM 15 to PATH so `wolf build` finds the right toolchain
@@ -42,6 +44,7 @@ RUN apt-get update && apt-get install -y \
     libcurl4 \
     liburing2 \
     libmariadb3 \
+    libsodium23 \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy the compiled native binary from the builder stage

@@ -1,0 +1,8 @@
+func handle($req, $res) {
+    wolf_set_current_context($req, $res)
+    http_status(200)
+    print("OK")
+}
+
+print("Listening on 8080")
+wolf_http_serve(8080, handle)

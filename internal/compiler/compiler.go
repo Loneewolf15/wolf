@@ -587,6 +587,7 @@ func (c *Compiler) Build(source, filename string) (*CompileResult, error) {
 	if os.Getenv("WOLF_TSAN") != "" {
 		rtArgs = append(rtArgs, "-fsanitize=thread", "-fno-omit-frame-pointer")
 	}
+        rtArgs = append(rtArgs, "-DWOLF_BUILD_TARGET_API")
 
 	if c.Config != nil && c.Config.Target.Shared {
 		rtArgs = append(rtArgs, "-DWOLF_HOST_SHELL")
