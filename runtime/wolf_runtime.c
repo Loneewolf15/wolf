@@ -4048,8 +4048,10 @@ static void* http_worker(void* arg) {
 
 
 /* Phase 2: WolfScheduler and io_uring HTTP Engine */
+#include "wolf_numa.c"
 #include "wolf_uring.c"
 #include "wolf_http_engine.c"
+#include "wolf_http_parser.c"
 #include "wolf_scheduler.c"
 #include "wolf_mailer.c"
 

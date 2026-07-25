@@ -21,6 +21,7 @@
 #include "wolf_http_engine.h"
 #include "wolf_runtime.h"
 #include "wolf_uring.h"
+#include "wolf_numa.h"
 #include <openssl/evp.h>
 #include <setjmp.h>
 #include <stdatomic.h>
@@ -340,8 +341,10 @@ WolfArenaPool* wolf_arena_pool_create(int core_id) {
     pool->core_id = core_id;
     pool->count   = WOLF_ARENA_POOL_SIZE;
 
+    int node = wolf_numa_node_of_cpu(core_id);
+
     for (int i = 0; i < WOLF_ARENA_POOL_SIZE; i++) {
-        pool->arenas[i].base_slab     = (char*)malloc(WOLF_ARENA_SLAB_SIZE);
+        pool->arenas[i].base_slab     = (char*)wolf_numa_alloc_onnode(WOLF_ARENA_SLAB_SIZE, node);
         pool->arenas[i].base_cap      = WOLF_ARENA_SLAB_SIZE;
         pool->arenas[i].active_slab   = pool->arenas[i].base_slab;
         pool->arenas[i].cap           = WOLF_ARENA_SLAB_SIZE;
@@ -738,6 +741,12 @@ static void wolf_engine_parse_multipart(WolfConnCtx* ctx,
 }
 
 static void wolf_engine_parse_request(WolfConnCtx* ctx, char* raw, size_t len) {
+    wolf_engine_parse_request_simd(ctx, raw, len);
+}
+
+
+#if 0
+static void _unused_wolf_engine_parse_request(WolfConnCtx* ctx, char* raw, size_t len) {
     WolfArena* a = ctx->arena;
 
     /* Find header/body boundary */
@@ -807,6 +816,7 @@ static void wolf_engine_parse_request(WolfConnCtx* ctx, char* raw, size_t len) {
         wolf_engine_parse_multipart(ctx, content_type_val, body_start, body_len);
     }
 }
+#endif
 
 /* ================================================================
  * HTTP Response Writer
@@ -1167,6 +1177,7 @@ build_and_send:
             (void)n;
         }
     }
+}
 
 /* Drain all ready completions from the ring and submit sends.
  * Must be called from the owning poller thread. */
