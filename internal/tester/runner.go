@@ -133,7 +133,7 @@ if $failed > 0 {
 
 	c := compiler.New()
 	c.ProjectRoot = projectRoot
-	c.Verbose = false
+	c.Verbose = true
 	// Avoid caching issues
 	c.OutDir = filepath.Join(projectRoot, "wolf_out_test_runner")
 	// defer os.RemoveAll(c.OutDir)

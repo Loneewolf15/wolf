@@ -165,10 +165,10 @@ func (c *Compiler) legacyAutoDiscover(projectRoot string, filename string) ([]*p
 	isCompilerInternal := strings.Contains(filepath.ToSlash(filename), "src/compiler")
 	var dirsToScan []string
 	if !isCompilerInternal {
-		dirsToScan = []string{"stdlib", "packages", "config", "libraries", "models", "controllers", "services", "helpers", ".wolf_modules"}
+		dirsToScan = []string{"packages", "config", "libraries", "models", "controllers", "services", "helpers", ".wolf_modules"}
 	} else {
-		// Scan src/compiler when building the compiler
-		dirsToScan = []string{"src/compiler"}
+		// Scan projectRoot (.) when building the compiler (e.g. from e2e/ test runner)
+		dirsToScan = []string{"."}
 	}
 
 	wolfRoot := os.Getenv("WOLF_ROOT")
