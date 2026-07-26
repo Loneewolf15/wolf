@@ -1607,7 +1607,6 @@ static void wolf_timewheel_evict_fn(int fd, void *core_ptr) {
 /* Accept all pending connections and register each with epoll ONESHOT. */
 static void wolf_epoll_accept_all(WolfCore* core) {
     WolfCoreArgs* args = (WolfCoreArgs*)core->args;
-    fprintf(stderr, "[DEBUG TW] ACCEPT ALL called\n");
     int max_accepts = 256;
     for (int count = 0; count < max_accepts; count++) {
         struct sockaddr_in addr;
@@ -1990,7 +1989,6 @@ static void* wolf_core_thread(void* arg) {
             loop_count++;
             uint64_t ms = wolf_monotonic_ms();
             if (ms - last_print_ms >= 1000) {
-                fprintf(stderr, "[DEBUG POLLER] loop_count=%d, now_ms=%lu, last_tick=%lu\n", loop_count, ms, core->timewheel ? core->timewheel->last_tick_ms : 0);
                 last_print_ms = ms;
                 loop_count = 0;
             }
