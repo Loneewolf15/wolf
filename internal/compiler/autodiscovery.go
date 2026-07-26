@@ -195,6 +195,12 @@ func (c *Compiler) legacyAutoDiscover(projectRoot string, filename string) ([]*p
 			if err != nil {
 				return err
 			}
+			if info.IsDir() {
+				if info.Name() == "e2e" || info.Name() == "bench" || info.Name() == "tests" || info.Name() == "test_api" || info.Name() == ".git" || info.Name() == "examples" || info.Name() == "scratch" || info.Name() == "wolf_out" || info.Name() == "wolf_modules" || info.Name() == ".wolf_modules" {
+					return filepath.SkipDir
+				}
+				return nil
+			}
 			if !info.IsDir() {
 				if strings.HasSuffix(info.Name(), ".wolf") {
 					absPath, _ := filepath.Abs(path)

@@ -1,0 +1,189 @@
+// src/compiler/Optimizer.wolf
+// Horizon 2 WIR Optimization Passes
+
+class Optimizer {
+    public func __construct() {
+    }
+
+    public func Optimize($module, $varClass, $typeMap) {
+        var $i = 0
+        var $funcs = $module->functions
+        while ($i < count($funcs)) {
+            var $f = $funcs[$i]
+            var $j = 0
+            var $blocks = $f->blocks
+            while ($j < count($blocks)) {
+                var $b = $blocks[$j]
+                
+                $this->optBoxingElim($b, $typeMap)
+                $this->optStaticDispatch($b, $varClass)
+                $this->optConcatFusion($b)
+                $this->optConstFold($b)
+                $this->optDeadInstElim($b)
+                
+                $j = intval($j) + 1
+            }
+            $i = intval($i) + 1
+        }
+        return $module
+    }
+
+    public func optBoxingElim($block, $typeMap) {
+        var $insts = $block->instructions
+        var $i = 0
+        var $boxMap = {} 
+        var $memMap = {} 
+        
+        while ($i < count($insts)) {
+            var $inst = $insts[$i]
+            if ($inst->opcode == "box_int") {
+                $boxMap[$inst->dest] = $inst->op1
+            }
+            if ($inst->opcode == "store") {
+                if ($boxMap[$inst->op1] != nil) {
+                    $memMap[$inst->op2] = $boxMap[$inst->op1]
+                } else {
+                    $memMap[$inst->op2] = nil
+                }
+            }
+            if ($inst->opcode == "load") {
+                if ($memMap[$inst->op1] != nil) {
+                    $boxMap[$inst->dest] = $memMap[$inst->op1]
+                }
+            }
+            if ($inst->opcode == "intval") {
+                if ($boxMap[$inst->op1] != nil) {
+                    $inst->opcode = "inline_i64"
+                    $inst->op1 = $boxMap[$inst->op1]
+                }
+            }
+            $i = intval($i) + 1
+        }
+    }
+
+    public func optStaticDispatch($block, $varClass) {
+        var $insts = $block->instructions
+        var $i = 0
+        while ($i < count($insts)) {
+            var $inst = $insts[$i]
+            if ($inst->opcode == "call_method") {
+                // op1 is methodName. op2 is arg list (ptr %obj, ...)
+                var $args = $inst->op2
+                var $parts = Strings::Split($args, ", ")
+                if (count($parts) > 0) {
+                    var $objArg = $parts[0] // e.g., "ptr %myobj"
+                    var $objParts = Strings::Split($objArg, " ")
+                    if (count($objParts) == 2) {
+                        var $objReg = $objParts[1]
+                        // Strip the % to get the var name
+                        var $varName = Strings::Substring($objReg, 1, Strings::Length($objReg))
+                        var $className = $varClass[$varName]
+                        if ($className != nil && $className != "") {
+                            // We know the exact class, convert to static call
+                            $inst->opcode = "call"
+                            $inst->op1 = $className .. "_" .. $inst->op1
+                            $inst->type = "ptr"
+                        }
+                    }
+                }
+            }
+            $i = intval($i) + 1
+        }
+    }
+
+    public func optConcatFusion($block) {
+        var $insts = $block->instructions
+        var $i = 0
+        var $concatCount = {}
+        var $concatArgs = {}
+        
+        while ($i < count($insts)) {
+            var $inst = $insts[$i]
+            if ($inst->opcode == "concat") {
+                var $c = $concatCount[$inst->op1]
+                if ($c != nil) {
+                    $inst->opcode = "string_concat_n"
+                    var $newCount = intval($c) + 1
+                    var $newArgs = $concatArgs[$inst->op1] .. ", ptr " .. $inst->op2
+                    $inst->op1 = "" .. $newCount
+                    $inst->op2 = $newArgs
+                    
+                    $concatCount[$inst->dest] = $newCount
+                    $concatArgs[$inst->dest] = $newArgs
+                } else {
+                    $concatCount[$inst->dest] = 2
+                    $concatArgs[$inst->dest] = "ptr " .. $inst->op1 .. ", ptr " .. $inst->op2
+                }
+            }
+            $i = intval($i) + 1
+        }
+    }
+
+    public func optConstFold($block) {
+        var $insts = $block->instructions
+        var $i = 0
+        var $constMap = {} 
+        
+        while ($i < count($insts)) {
+            var $inst = $insts[$i]
+            if ($inst->opcode == "inline_i64") {
+                $constMap[$inst->dest] = $inst->op1
+            }
+            if ($inst->opcode == "add" || $inst->opcode == "sub" || $inst->opcode == "mul" || $inst->opcode == "div") {
+                var $val1 = $constMap[$inst->op1]
+                var $val2 = $constMap[$inst->op2]
+                if ($val1 != nil && $val2 != nil) {
+                    var $v1 = intval($val1)
+                    var $v2 = intval($val2)
+                    var $res = 0
+                    if ($inst->opcode == "add") { $res = $v1 + $v2 }
+                    if ($inst->opcode == "sub") { $res = $v1 - $v2 }
+                    if ($inst->opcode == "mul") { $res = $v1 * $v2 }
+                    if ($inst->opcode == "div") { 
+                        if ($v2 != 0) { $res = $v1 / $v2 }
+                    }
+                    $inst->opcode = "inline_i64"
+                    $inst->op1 = "" .. $res
+                    $inst->op2 = ""
+                    $constMap[$inst->dest] = $inst->op1
+                }
+            }
+            $i = intval($i) + 1
+        }
+    }
+
+    public func optDeadInstElim($block) {
+        var $insts = $block->instructions
+        var $used = {}
+        var $i = count($insts) - 1
+        
+        while ($i >= 0) {
+            var $inst = $insts[$i]
+            if ($inst->opcode == "concat") {
+                if ($used[$inst->dest] == nil) {
+                    $inst->opcode = "nop"
+                } else {
+                    $used[$inst->op1] = true
+                    $used[$inst->op2] = true
+                }
+            } else if ($inst->opcode == "string_concat_n") {
+                if ($used[$inst->dest] == nil) {
+                    $inst->opcode = "nop"
+                }
+            } else if ($inst->opcode == "inline_i64" || $inst->opcode == "const_float" || $inst->opcode == "const_bool" || $inst->opcode == "const_string") {
+                if ($used[$inst->dest] == nil) {
+                    $inst->opcode = "nop"
+                }
+            } else {
+                if ($inst->op1 != "") { 
+                    var $parts1 = Strings::Split($inst->op1, " ")
+                    if (count($parts1) == 2) { $used[$parts1[1]] = true } else { $used[$inst->op1] = true }
+                }
+                if ($inst->op2 != "") { 
+                    $used[$inst->op2] = true 
+                }
+            }
+            $i = intval($i) - 1
+        }
+    }
+}

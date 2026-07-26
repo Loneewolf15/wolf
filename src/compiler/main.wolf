@@ -160,6 +160,10 @@ class WolfCompiler {
         var $builder = new WIRBuilder()
         var $module = $builder->build($ast)
 
+        // Phase 5b - WIR Optimization (Horizon 2)
+        var $opt = new Optimizer()
+        $module = $opt->Optimize($module, $builder->varClass, $builder->typeMap)
+
         if ($this->dumpWIR) {
             print($module->to_string_module())
         }
