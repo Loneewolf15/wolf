@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"os/signal"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -179,6 +180,7 @@ func runScriptMode(c *compiler.Compiler, filename, outDir, watchRoot string) err
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
 		cmd.Stdin = os.Stdin
+		cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 		if err := cmd.Start(); err != nil {
 			fmt.Fprintf(os.Stderr, "wolf dev: failed to start binary: %v\n", err)
 			return
@@ -194,7 +196,7 @@ func runScriptMode(c *compiler.Compiler, filename, outDir, watchRoot string) err
 		mu.Lock()
 		defer mu.Unlock()
 		if runningCmd != nil && runningCmd.Process != nil {
-			_ = runningCmd.Process.Kill()
+			_ = syscall.Kill(-runningCmd.Process.Pid, syscall.SIGKILL)
 			_ = runningCmd.Wait()
 			runningCmd = nil
 		}
@@ -202,6 +204,15 @@ func runScriptMode(c *compiler.Compiler, filename, outDir, watchRoot string) err
 
 	// Start the binary initially
 	startBinary()
+
+	// Handle graceful shutdown on Ctrl-C
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
+	go func() {
+		<-sigChan
+		stopBinary()
+		os.Exit(0)
+	}()
 
 	fmt.Printf("wolf dev: watching %s for changes (script mode)...\n", watchRoot)
 
@@ -275,9 +286,21 @@ func runHMRMode(c *compiler.Compiler, cfg *config.WolfConfig, filename, outDir, 
 	hostCmd.Stdout = os.Stdout
 	hostCmd.Stderr = os.Stderr
 	hostCmd.Env = append(os.Environ(), "WOLF_APP_SO_PATH="+appSoPath)
+	hostCmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	if err := hostCmd.Start(); err != nil {
 		return fmt.Errorf("failed to start host shell: %w", err)
 	}
+
+	// Handle graceful shutdown on Ctrl-C
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
+	go func() {
+		<-sigChan
+		if hostCmd.Process != nil {
+			_ = syscall.Kill(-hostCmd.Process.Pid, syscall.SIGKILL)
+		}
+		os.Exit(0)
+	}()
 
 	fmt.Printf("wolf dev: watching %s for changes (HMR mode)...\n", watchRoot)
 
