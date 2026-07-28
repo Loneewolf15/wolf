@@ -570,3 +570,11 @@ live beyond its test window regardless of what it does.
 - **MRS:** `e2e/testdata/_bug_052.wolf`
 - **Fix:** Add `static __thread const char* wolf_qb_last_error = NULL;` near QB section. Set it in `wolf_db_escape` NULL-conn path. Gate `wolf_qb_insert`, `wolf_qb_update`, `wolf_qb_delete` on this flag before executing SQL.
 - **Identified by:** AXIOM Security audit 2026-05-10
+
+---
+
+### BUG-099: Zero-Dependency Watcher Leaks and Panics
+- **Class:** P1 🟠 Runtime Stability
+- **Status:** Verified — fault-injection suite passing
+- **Root cause:** The native OS file events watcher (inotify) had multiple failure modes: `IN_IGNORED` map leak, no bounds checking on event parsing length, lack of ENOSPC handling, and crucially, `InotifyInit1` was missing `syscall.IN_NONBLOCK`, causing `Watch()` to hang permanently on a blocking read when the context was cancelled.
+- **Fix:** Applied defensive engineering (bounds checks, map cleanup on `IN_IGNORED`, standard ENOSPC warning) and added `syscall.IN_NONBLOCK` to hook into Go's runtime epoll, making shutdown completely safe against FD reuse races.

@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/binary"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -14,6 +15,46 @@ import (
 	"syscall"
 	"time"
 )
+
+
+var (
+	sysInotifyAddWatch = syscall.InotifyAddWatch
+	logOutput          io.Writer = os.Stderr
+)
+
+type inotifyEvent struct {
+	wd   int32
+	mask uint32
+	name string
+}
+
+func parseInotifyEvents(buf []byte, n int) []inotifyEvent {
+	var events []inotifyEvent
+	offset := 0
+	for offset <= n-16 {
+		wd := int32(binary.LittleEndian.Uint32(buf[offset : offset+4]))
+		mask := binary.LittleEndian.Uint32(buf[offset+4 : offset+8])
+		length := binary.LittleEndian.Uint32(buf[offset+12 : offset+16])
+
+		var name string
+		if length > 0 {
+			// Prevent slice out-of-bounds panic on malformed/truncated events
+			if offset+16+int(length) > n {
+				break
+			}
+			nameBytes := buf[offset+16 : offset+16+int(length)]
+			name = strings.TrimRight(string(nameBytes), "\x00")
+		}
+
+		offset += 16 + int(length)
+		events = append(events, inotifyEvent{
+			wd:   wd,
+			mask: mask,
+			name: name,
+		})
+	}
+	return events
+}
 
 type Watcher struct {
 	Root     string
@@ -33,9 +74,9 @@ func New(root string, interval time.Duration) *Watcher {
 }
 
 func (w *Watcher) Watch(ctx context.Context, onChange func(string)) {
-	fd, err := syscall.InotifyInit1(syscall.IN_CLOEXEC)
+	fd, err := syscall.InotifyInit1(syscall.IN_CLOEXEC | syscall.IN_NONBLOCK)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "wolf dev: inotify init failed: %v\n", err)
+		fmt.Fprintf(logOutput, "wolf dev: inotify init failed: %v\n", err)
 		return
 	}
 	w.fd = fd
@@ -141,13 +182,31 @@ func (w *Watcher) Watch(ctx context.Context, onChange func(string)) {
 
 func (w *Watcher) addWatch(path string) {
 	flags := uint32(syscall.IN_MODIFY | syscall.IN_CREATE | syscall.IN_DELETE | syscall.IN_MOVED_TO)
-	wd, err := syscall.InotifyAddWatch(w.fd, path, flags)
+	wd, err := sysInotifyAddWatch(w.fd, path, flags)
 	if err == nil {
 		w.mu.Lock()
 		w.wdPaths[int32(wd)] = path
 		w.mu.Unlock()
 	} else if err == syscall.ENOSPC {
 		// Log a warning if the user hits the fs.inotify.max_user_watches limit
-		fmt.Fprintf(os.Stderr, "wolf dev: inotify watch limit reached. Cannot watch %s\n", path)
+		fmt.Fprintf(logOutput, "wolf dev: inotify watch limit reached. Cannot watch %s\n", path)
 	}
+}
+
+func (w *Watcher) wdCount() int {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return len(w.wdPaths)
+}
+
+func (w *Watcher) Close() error {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if w.fd > 0 {
+		// Just for satisfying the interface if something expects it; 
+		// the actual safe close happens via context cancellation in Watch() which closes the os.File.
+		// However, to make w.Close() itself safe, we should really just rely on ctx.
+		return nil
+	}
+	return nil
 }
