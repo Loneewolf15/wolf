@@ -903,8 +903,9 @@ static int wolf_engine_build_response(WolfConnCtx* ctx, char** out_buf, int* out
         }
     }
 
+    const char* conn_header = (ctx->status_code == 400) ? "close" : "keep-alive";
     int remaining = (response + total_size + 64) - ptr;
-    int written = snprintf(ptr, remaining, "Content-Length: %d\r\nConnection: keep-alive\r\n\r\n", body_len);
+    int written = snprintf(ptr, remaining, "Content-Length: %d\r\nConnection: %s\r\n\r\n", body_len, conn_header);
     if (written < 0 || written >= remaining) {
         fprintf(stderr, "[DEBUG] Fixed headers overflow: written=%d remaining=%d\n", written, remaining);
         return -1;
@@ -1299,6 +1300,12 @@ static void on_send_complete(int client_fd, void* ctx_ptr, int bytes_written) {
     }
 
     if (bytes_written > 0) {
+        if (ctx->status_code == 400) {
+            /* Close connection on protocol errors to prevent request smuggling pipelines */
+            close(client_fd);
+            wolf_core_free_ctx(ctx);
+            return;
+        }
         ctx->keep_alive_count++;
 
         if (ctx->keep_alive_count >= WOLF_KEEPALIVE_MAX_REQUESTS) {
