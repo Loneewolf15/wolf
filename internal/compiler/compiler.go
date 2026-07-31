@@ -309,7 +309,15 @@ func (c *Compiler) Build(source, filename string) (*CompileResult, error) {
 
 	baseName := strings.TrimSuffix(filepath.Base(filename), filepath.Ext(filename))
 	cc := findCC()
-
+	var zigArgs []string
+	if c.Config != nil && c.Config.Target.Static {
+		if path, err := exec.LookPath("zig"); err == nil {
+			cc = path
+			zigArgs = []string{"cc", "-target", "x86_64-linux-musl"}
+		} else {
+			return result, fmt.Errorf("zig compiler is required for static builds but was not found in PATH")
+		}
+	}
 	if c.Verbose {
 		fmt.Printf("wolf: using C compiler: %s\n", cc)
 		if c.Config != nil {
@@ -444,6 +452,26 @@ func (c *Compiler) Build(source, filename string) (*CompileResult, error) {
 	// Compile wolf runtime
 	runtimeObj := filepath.Join(outDir, "wolf_runtime.o")
 
+	// Production-grade library discovery via bundled static libs or pkg-config
+	staticDir := filepath.Join(assetsDir, "third_party", "lib")
+
+	// Platform-specific static paths
+	var bundledPath string
+	if c.Config != nil && c.Config.Target.Static {
+		bundledPath = filepath.Join(staticDir, "linux_x64_musl")
+	} else if runtime.GOOS == "linux" && runtime.GOARCH == "amd64" {
+		bundledPath = filepath.Join(staticDir, "linux_x64")
+	} else if runtime.GOOS == "darwin" {
+		bundledPath = filepath.Join(staticDir, "macos")
+	}
+
+	useStatic := false
+	if bundledPath != "" {
+		if _, err := os.Stat(filepath.Join(bundledPath, "libsodium.a")); err == nil {
+			useStatic = true
+		}
+	}
+
 	// Detect DB client flags
 	dbCflags := ""
 	dbLibs := ""
@@ -454,16 +482,21 @@ func (c *Compiler) Build(source, filename string) (*CompileResult, error) {
 	}
 
 	if driver == "mysql" {
-		dbLibs = "-lmysqlclient"
-		for _, mysqlConfig := range []string{"/opt/lampp/bin/mysql_config", "/usr/local/mysql/bin/mysql_config", "mysql_config"} {
-			if path, err := exec.LookPath(mysqlConfig); err == nil {
-				if out, err := exec.Command(path, "--cflags").Output(); err == nil {
-					dbCflags = strings.TrimSpace(string(out))
+		if c.Config != nil && c.Config.Target.Static {
+			dbLibs = filepath.Join(bundledPath, "libmariadb.a")
+			dbCflags = "-I" + filepath.Join(bundledPath, "../../include")
+		} else {
+			dbLibs = "-lmysqlclient"
+			for _, mysqlConfig := range []string{"/opt/lampp/bin/mysql_config", "/usr/local/mysql/bin/mysql_config", "mariadb_config", "mysql_config"} {
+				if path, err := exec.LookPath(mysqlConfig); err == nil {
+					if out, err := exec.Command(path, "--cflags").Output(); err == nil {
+						dbCflags = strings.TrimSpace(string(out))
+					}
+					if out, err := exec.Command(path, "--libs").Output(); err == nil {
+						dbLibs = strings.TrimSpace(string(out))
+					}
+					break
 				}
-				if out, err := exec.Command(path, "--libs").Output(); err == nil {
-					dbLibs = strings.TrimSpace(string(out))
-				}
-				break
 			}
 		}
 	} else if driver == "postgres" {
@@ -487,23 +520,7 @@ func (c *Compiler) Build(source, filename string) (*CompileResult, error) {
 		redisLibs = "-lhiredis"
 	}
 
-	// Production-grade library discovery via bundled static libs or pkg-config
-	staticDir := filepath.Join(assetsDir, "third_party", "lib")
 
-	// Platform-specific static paths
-	var bundledPath string
-	if runtime.GOOS == "linux" && runtime.GOARCH == "amd64" {
-		bundledPath = filepath.Join(staticDir, "linux_x64")
-	} else if runtime.GOOS == "darwin" {
-		bundledPath = filepath.Join(staticDir, "macos")
-	}
-
-	useStatic := false
-	if bundledPath != "" {
-		if _, err := os.Stat(filepath.Join(bundledPath, "libcrypto.a")); err == nil {
-			useStatic = true
-		}
-	}
 
 	sslLibs, sslCflags := getPkgConfig("openssl")
 	sodiumLibs, sodiumCflags := getPkgConfig("libsodium")
@@ -525,6 +542,7 @@ func (c *Compiler) Build(source, filename string) (*CompileResult, error) {
 			filepath.Join(bundledPath, "libsodium.a"),
 			filepath.Join(bundledPath, "libssl.a"),
 			filepath.Join(bundledPath, "libcrypto.a"))
+		cryptoCflags = "-I" + filepath.Join(bundledPath, "../../include")
 	}
 
 	// Special case: If user has XAMPP installed, its mysql_config might add a -L path
@@ -546,9 +564,13 @@ func (c *Compiler) Build(source, filename string) (*CompileResult, error) {
 	if c.Config != nil && !c.Config.Build.Optimise {
 		optFlag = "-O0"
 	}
-	rtArgs := []string{"-c", optFlag, "-pthread", "-g"}
+	rtArgs := append(append([]string{}, zigArgs...), "-c", optFlag, "-pthread", "-g")
 	if runtime.GOOS == "linux" {
-		rtArgs = append(rtArgs, "-I/tmp/liburing/src/include")
+		if c.Config != nil && c.Config.Target.Static {
+			rtArgs = append(rtArgs, "-I"+filepath.Join(bundledPath, "../../include"))
+		} else {
+			rtArgs = append(rtArgs, "-I/tmp/liburing/src/include")
+		}
 	}
 
 	// DB include flags
@@ -613,6 +635,7 @@ func (c *Compiler) Build(source, filename string) (*CompileResult, error) {
 			}
 		}
 		if !rtCacheHit {
+			fmt.Printf("wolf: runtime compile args: %v\n", rtArgs)
 			rtCmd := exec.Command(cc, rtArgs...)
 			if out, err := rtCmd.CombinedOutput(); err != nil {
 				return result, fmt.Errorf("failed to compile wolf runtime: %s\n%s", err, string(out))
@@ -640,7 +663,7 @@ func (c *Compiler) Build(source, filename string) (*CompileResult, error) {
 
 	var linkArgs []string
 	if c.Config != nil && c.Config.Target.Shared {
-		linkArgs = []string{"-shared", "-fPIC", "-o", binaryPath, objFile, "-g"}
+		linkArgs = append(append([]string{}, zigArgs...), "-shared", "-fPIC", "-o", binaryPath, objFile, "-g")
 		if hasGoPlugin {
 			linkArgs = append(linkArgs, goPluginArchive)
 		}
@@ -648,7 +671,10 @@ func (c *Compiler) Build(source, filename string) (*CompileResult, error) {
 			linkArgs = append(linkArgs, "-undefined", "dynamic_lookup")
 		}
 	} else {
-		linkArgs = []string{"-o", binaryPath, objFile, runtimeObj, "-pthread", "-g", "-luring"}
+		linkArgs = append(append([]string{}, zigArgs...), "-o", binaryPath, objFile, runtimeObj, "-pthread", "-g")
+		if c.Config != nil && c.Config.Target.Static {
+			linkArgs = append(linkArgs, "-static")
+		}
 		if hasGoPlugin {
 			linkArgs = append(linkArgs, goPluginArchive)
 		}
@@ -683,10 +709,21 @@ func (c *Compiler) Build(source, filename string) (*CompileResult, error) {
 	if runtime.GOOS == "linux" || runtime.GOOS == "darwin" {
 		linkArgs = append(linkArgs, "-lm")
 		if runtime.GOOS == "linux" {
-			linkArgs = append(linkArgs, "-luring")
+			if c.Config != nil && c.Config.Target.Static {
+				linkArgs = append(linkArgs, filepath.Join(bundledPath, "liburing.a"))
+			} else {
+				linkArgs = append(linkArgs, "-luring")
+			}
 		}
 		if httpClientEnabled {
-			linkArgs = append(linkArgs, "-lcurl")
+			if c.Config != nil && c.Config.Target.Static {
+				linkArgs = append(linkArgs, filepath.Join(bundledPath, "libcurl.a"))
+			} else {
+				linkArgs = append(linkArgs, "-lcurl")
+			}
+		}
+		if c.Config != nil && c.Config.Target.Static {
+			linkArgs = append(linkArgs, filepath.Join(bundledPath, "libz.a"), filepath.Join(bundledPath, "libucontext.a"))
 		}
 	}
 
@@ -1095,7 +1132,17 @@ func (c *Compiler) buildGoPlugins(irProg *ir.Program) ([]emitter.CGOFunction, er
 	// Build the archive
 	cmd := exec.Command("go", "build", "-buildmode=c-archive", "-o", archivePath, ".")
 	cmd.Dir = cacheDir
-	cmd.Env = append(os.Environ(), "CGO_ENABLED=1")
+	cmdEnv := append(os.Environ(), "CGO_ENABLED=1")
+	if c.Config != nil && c.Config.Target.Static {
+		if _, err := exec.LookPath("musl-gcc"); err == nil {
+			cmdEnv = append(cmdEnv, "CC=musl-gcc", "CGO_LDFLAGS=-static")
+		} else if _, err := exec.LookPath("zig"); err == nil {
+			cmdEnv = append(cmdEnv, "CC=zig cc -target x86_64-linux-musl", "CGO_LDFLAGS=-static")
+		} else {
+			return nil, fmt.Errorf("static compilation requested but neither musl-gcc nor zig were found in PATH")
+		}
+	}
+	cmd.Env = cmdEnv
 
 	if out, err := cmd.CombinedOutput(); err != nil {
 		return nil, fmt.Errorf("failed to compile go plugins: %s\n%s", err, string(out))

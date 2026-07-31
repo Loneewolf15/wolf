@@ -54,6 +54,9 @@ func ensureAssetsExtracted() (string, error) {
 		return "", fmt.Errorf("failed to extract embedded third_party files: %w", err)
 	}
 
+	// It's possible that include doesn't exist if we aren't bundling it, so ignore errors here
+	_ = extractFS(wolf.Assets, "third_party/include", filepath.Join(thirdPartyDir, "include"))
+
 	return cacheDir, nil
 }
 
