@@ -2441,12 +2441,23 @@ void wolf_engine_destroy(WolfEngine* engine) {
  * ================================================================ */
 
 void wolf_http_serve(int64_t port, void* handler_ptr) {
+    /* Cloud providers (Railway, Heroku, etc.) provide PORT via env var */
+    const char* env_port = getenv("PORT");
+    if (env_port != NULL) {
+        int p = atoi(env_port);
+        if (p > 0 && p < 65536) {
+            port = p;
+        }
+    }
+
     extern void wolf_crypto_init(void);
     wolf_crypto_init();
 
     /* Fix #3: Ensure the legacy WS poller is initialized if we use it */
     extern void wolf_ws_poller_init(void);
     wolf_ws_poller_init();
+    extern void wolf_ws_poller_start(void);
+    wolf_ws_poller_start();
 
     /* Get the global WS handler registered via wolf_ws_on_message() */
     typedef void (*wolf_ws_handler_t)(int64_t req_id, const char* message);
