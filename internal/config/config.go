@@ -27,6 +27,7 @@ type TargetConfig struct {
 	Mode   string // "api" | "script" | "mcu" — determines the runtime contract
 	Arch   string // "native" | "arm-cortex-m4" | "riscv32" | "wasm" — cross-compile target
 	Shared bool   // If true, compile as a dynamically loaded shared library (.so) instead of an executable
+	Static bool   // If true, compile as a fully statically linked binary using musl
 }
 
 // AppConfig holds general application identity.

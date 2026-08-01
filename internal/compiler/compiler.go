@@ -567,7 +567,7 @@ func (c *Compiler) Build(source, filename string) (*CompileResult, error) {
 	rtArgs := append(append([]string{}, zigArgs...), "-c", optFlag, "-pthread", "-g")
 	if runtime.GOOS == "linux" {
 		if c.Config != nil && c.Config.Target.Static {
-			rtArgs = append(rtArgs, "-I"+filepath.Join(bundledPath, "../../include"))
+			rtArgs = append(rtArgs, "-I"+filepath.Join(bundledPath, "../../include"), "-I"+filepath.Join(bundledPath, "../../include/musl"))
 		} else {
 			rtArgs = append(rtArgs, "-I/tmp/liburing/src/include")
 		}
@@ -609,7 +609,6 @@ func (c *Compiler) Build(source, filename string) (*CompileResult, error) {
 	if os.Getenv("WOLF_TSAN") != "" {
 		rtArgs = append(rtArgs, "-fsanitize=thread", "-fno-omit-frame-pointer")
 	}
-        rtArgs = append(rtArgs, "-DWOLF_BUILD_TARGET_API")
 
 	if c.Config != nil && c.Config.Target.Shared {
 		rtArgs = append(rtArgs, "-DWOLF_HOST_SHELL")
@@ -826,14 +825,20 @@ func (c *Compiler) configCFlags() []string {
 	//   Script → lightweight build, single arena, no HTTP engine spun up
 	//   MCU    → no OS primitives: no pthreads, no epoll, static heap only
 	targetFlag := "-DWOLF_BUILD_TARGET_SCRIPT" // safe default
+	var mcuFlags []string
 	switch cfg.Target.Mode {
 	case "api":
 		targetFlag = "-DWOLF_BUILD_TARGET_API"
+	case "cgi":
+		targetFlag = "-DWOLF_BUILD_TARGET_CGI"
+	case "fastcgi":
+		targetFlag = "-DWOLF_BUILD_TARGET_FASTCGI"
 	case "mcu":
 		targetFlag = "-DWOLF_BUILD_TARGET_MCU"
+		mcuFlags = append(mcuFlags, "-DWOLF_FREESTANDING=1")
 	}
 
-	return []string{
+	flags := []string{
 		targetFlag,
 		driverFlag,
 		// DB pool
@@ -857,6 +862,9 @@ func (c *Compiler) configCFlags() []string {
 		fmt.Sprintf("-DWOLF_APP_ENV=\"%s\"", escapeCStr(cfg.App.Env)),
 		fmt.Sprintf("-DWOLF_APP_DEBUG=%d", boolToInt(cfg.App.Debug)),
 	}
+
+	flags = append(flags, mcuFlags...)
+	return flags
 }
 
 // writeConfigSnapshot writes a .wolf_build_config file to outDir so deployment
