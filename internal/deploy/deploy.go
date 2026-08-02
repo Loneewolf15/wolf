@@ -109,7 +109,12 @@ func deployShared(c *compiler.Compiler, sourceFile string) error {
 	defer binFile.Close()
 	
 	binName := filepath.Base(binaryPath)
-	f, err := w.Create(binName)
+	fh := &zip.FileHeader{
+		Name:   binName,
+		Method: zip.Deflate,
+	}
+	fh.SetMode(0755)
+	f, err := w.CreateHeader(fh)
 	if err != nil {
 		return fmt.Errorf("failed to add binary to zip: %w", err)
 	}
@@ -124,7 +129,12 @@ RewriteCond %%{REQUEST_FILENAME} !-f
 RewriteRule ^(.*)$ %%s/$1 [QSA,L]
 `, binName)
 
-	h, err := w.Create(".htaccess")
+	hh := &zip.FileHeader{
+		Name:   ".htaccess",
+		Method: zip.Deflate,
+	}
+	hh.SetMode(0644)
+	h, err := w.CreateHeader(hh)
 	if err != nil {
 		return fmt.Errorf("failed to add .htaccess to zip: %w", err)
 	}
