@@ -4298,14 +4298,23 @@ void wolf_http_res_write(int64_t res_id, const char* body) {
             if (ctx->res_body) {
                 size_t old_len = strlen(ctx->res_body);
                 size_t new_len = strlen(body);
-                char* new_body = (char*)wolf_arena_alloc(ctx->arena, old_len + new_len + 1);
+                char* new_body = NULL;
+                if (ctx->arena) {
+                    new_body = (char*)wolf_arena_alloc(ctx->arena, old_len + new_len + 1);
+                } else {
+                    new_body = wolf_req_alloc(old_len + new_len + 1);
+                }
                 if (new_body) {
                     memcpy(new_body, ctx->res_body, old_len);
                     memcpy(new_body + old_len, body, new_len + 1);
                     ctx->res_body = new_body;
                 }
             } else {
-                ctx->res_body = wolf_arena_strdup(ctx->arena, body);
+                if (ctx->arena) {
+                    ctx->res_body = wolf_arena_strdup(ctx->arena, body);
+                } else {
+                    ctx->res_body = wolf_req_strdup(body);
+                }
             }
         }
     }
@@ -8155,3 +8164,6 @@ const char* wolf_string_concat_n(int count, ...) {
     *ptr = '\0';
     return result;
 }
+#ifndef WOLF_FREESTANDING
+#include "wolf_cgi.c"
+#endif

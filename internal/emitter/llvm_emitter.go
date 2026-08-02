@@ -15,6 +15,7 @@ import (
 type LLVMEmitter struct {
 	CompilerMode    string // e.g. "api", "script", "mcu"
 	TargetTriple    string // auto-detected or set by compiler
+	IsCGI           bool   // whether to emit CGI adapter instead of HTTP engine
 	usedDynamicInst bool   // tracks if wolf_instantiate_dynamic was called
 	buf             strings.Builder
 	stringConsts    map[string]string // value → @.str.N label
@@ -893,6 +894,7 @@ func (e *LLVMEmitter) Emit(program *ir.Program) string {
 
 	e.writeln("; --- HTTP Server (C FFI) ---")
 	e.writeln("declare void @wolf_http_serve(i64, ptr)")
+	e.writeln("declare void @wolf_cgi_serve(ptr)")
 	e.writeln("declare ptr @wolf_http_req_method(i64)")
 	e.writeln("declare ptr @wolf_http_req_path(i64)")
 	e.writeln("declare ptr @wolf_http_req_query(i64, ptr)")
@@ -1459,7 +1461,11 @@ func (e *LLVMEmitter) checkErrorPropagate() {
 func (e *LLVMEmitter) emitServe(s *ir.ServeStmt) {
 	portVal := e.emitExpr(s.Port, "i64")
 	handlerVal := e.emitExpr(s.Handler, "ptr")
-	e.writelnIndent(fmt.Sprintf("call void @wolf_http_serve(i64 %s, ptr %s)", portVal, handlerVal))
+	if e.IsCGI {
+		e.writelnIndent(fmt.Sprintf("call void @wolf_cgi_serve(ptr %s)", handlerVal))
+	} else {
+		e.writelnIndent(fmt.Sprintf("call void @wolf_http_serve(i64 %s, ptr %s)", portVal, handlerVal))
+	}
 }
 
 func (e *LLVMEmitter) emitRespond(s *ir.RespondStmt) {
@@ -2641,6 +2647,13 @@ func (e *LLVMEmitter) emitCallExpr(call *ir.CallExpr) string {
 
 		// Map global wolf functions to C runtime equivalents
 		switch calleeName {
+		case "wolf_http_serve":
+			if e.IsCGI {
+				calleeName = "wolf_cgi_serve"
+				if len(call.Args) >= 2 {
+					call.Args = call.Args[1:]
+				}
+			}
 		case "say":
 			calleeName = "wolf_say"
 		case "show":
