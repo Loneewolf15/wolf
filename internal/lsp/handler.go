@@ -123,8 +123,7 @@ func (h *Handler) Hover(params HoverParams) *Hover {
 
 	if expr, ok := node.(parser.Expression); ok {
 		name = ExprName(expr)
-		// Basic type inference
-		switch expr.(type) {
+		switch e := expr.(type) {
 		case *parser.IntLiteral:
 			typeName = "int"
 		case *parser.StringLiteral:
@@ -133,6 +132,20 @@ func (h *Handler) Hover(params HoverParams) *Hover {
 			typeName = "float"
 		case *parser.BoolLiteral:
 			typeName = "bool"
+		case *parser.DollarIdent:
+			typeName = "variable"
+		case *parser.Identifier:
+			typeName = "identifier"
+		case *parser.PropertyAccess:
+			typeName = "property"
+		case *parser.MethodCall:
+			name = "func " + e.Method
+			typeName = "method"
+		case *parser.CallExpr:
+			if ident, ok := e.Callee.(*parser.Identifier); ok {
+				name = "func " + ident.Name
+			}
+			typeName = "function call"
 		}
 	} else if fd, ok := node.(*parser.FuncDecl); ok {
 		name = "func " + fd.Name
@@ -140,6 +153,9 @@ func (h *Handler) Hover(params HoverParams) *Hover {
 	} else if cd, ok := node.(*parser.ClassDecl); ok {
 		name = "class " + cd.Name
 		typeName = "class"
+	} else if vd, ok := node.(*parser.VarDecl); ok {
+		name = "var " + vd.Name
+		typeName = "variable"
 	}
 
 	if name == "" {
@@ -227,6 +243,17 @@ func (h *Handler) Completion(params CompletionParams) *CompletionList {
 		{Label: "match", Kind: CompletionItemKindKeyword},
 		{Label: "for", Kind: CompletionItemKindKeyword},
 		{Label: "foreach", Kind: CompletionItemKindKeyword},
+		{Label: "while", Kind: CompletionItemKindKeyword},
+		{Label: "async", Kind: CompletionItemKindKeyword},
+		{Label: "await", Kind: CompletionItemKindKeyword},
+		{Label: "spawn", Kind: CompletionItemKindKeyword},
+		{Label: "parallel", Kind: CompletionItemKindKeyword},
+		{Label: "import", Kind: CompletionItemKindKeyword},
+		{Label: "namespace", Kind: CompletionItemKindKeyword},
+		{Label: "var", Kind: CompletionItemKindKeyword},
+		{Label: "print", Kind: CompletionItemKindKeyword},
+		{Label: "try", Kind: CompletionItemKindKeyword},
+		{Label: "catch", Kind: CompletionItemKindKeyword},
 	}
 
 	if h.program != nil {
