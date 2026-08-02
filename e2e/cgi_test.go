@@ -21,7 +21,14 @@ func TestCGIAdapter(t *testing.T) {
 	sourceCode := `
 func handle($req: int, $res: int) {
 	wolf_http_res_status($res, 200)
-	wolf_http_res_write($res, "Hello CGI World!")
+	$method = wolf_http_req_method($req)
+	$path = wolf_http_req_path($req)
+	$body = wolf_http_req_body($req)
+	$out = "Method: " + $method + ", Path: " + $path
+	if ($body != "") {
+		$out = $out + ", Body: " + $body
+	}
+	wolf_http_res_write($res, $out)
 }
 wolf_http_serve(8080, handle)
 `
@@ -73,8 +80,8 @@ wolf_http_serve(8080, handle)
 		if !strings.Contains(out, "Status: 200") {
 			t.Errorf("expected Status: 200, got: %s", out)
 		}
-		if !strings.Contains(out, "Hello CGI World!") {
-			t.Errorf("expected body, got: %s", out)
+		if !strings.Contains(out, "Method: GET, Path: /hello") {
+			t.Errorf("expected echoed context, got: %s", out)
 		}
 	})
 
@@ -90,6 +97,10 @@ wolf_http_serve(8080, handle)
 		if !strings.Contains(out, "Status: 200") {
 			t.Errorf("expected Status: 200, got: %s", out)
 		}
+		// CGI adapter allocates NO body if CONTENT_LENGTH is missing
+		if !strings.Contains(out, "Method: POST, Path: /upload") || strings.Contains(out, "Body:") {
+			t.Errorf("expected no body due to missing content length, got: %s", out)
+		}
 	})
 
 	// Test 3: Oversized body truncated correctly (or doesn't crash)
@@ -98,25 +109,33 @@ wolf_http_serve(8080, handle)
 		out, err := runCGI(map[string]string{
 			"REQUEST_METHOD": "POST",
 			"CONTENT_LENGTH": "100000",
-		}, "small")
+			"PATH_INFO":      "/large",
+		}, "short data")
 		if err != nil {
 			t.Fatalf("failed to run: %v", err)
 		}
 		if !strings.Contains(out, "Status: 200") {
 			t.Errorf("expected Status: 200, got: %s", out)
 		}
+		if !strings.Contains(out, "Method: POST, Path: /large") || strings.Contains(out, "Body:") {
+			t.Errorf("expected empty body (exceeds WOLF_MAX_REQUEST_SIZE), got: %s", out)
+		}
 	})
 	
-	// Test 4: Malformed REQUEST_METHOD
+	// Test 4: Malformed method shouldn't crash and should pass through accurately
 	t.Run("MalformedMethod", func(t *testing.T) {
 		out, err := runCGI(map[string]string{
 			"REQUEST_METHOD": "BLAHBLAH",
+			"PATH_INFO":      "/test",
 		}, "")
 		if err != nil {
 			t.Fatalf("failed to run: %v", err)
 		}
 		if !strings.Contains(out, "Status: 200") {
 			t.Errorf("expected Status: 200, got: %s", out)
+		}
+		if !strings.Contains(out, "Method: BLAHBLAH, Path: /test") {
+			t.Errorf("expected malformed method to be passed through, got: %s", out)
 		}
 	})
 }

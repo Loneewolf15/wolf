@@ -28,33 +28,39 @@ func Run(c *compiler.Compiler, target string, sourceFile string) error {
 func deployContainer(c *compiler.Compiler, sourceFile string) error {
 	fmt.Printf("Deploying %s to container...\n", sourceFile)
 	
-	sourceBytes, err := os.ReadFile(sourceFile)
-	if err != nil {
-		return fmt.Errorf("cannot read file: %w", err)
-	}
+	binName := strings.TrimSuffix(filepath.Base(sourceFile), ".wolf")
 
-	// Simply build the executable first
-	c.Config.Target.Mode = "api"
-	_, err = c.Build(string(sourceBytes), sourceFile)
-	if err != nil {
-		return fmt.Errorf("failed to build: %w", err)
-	}
-	
-	// Create Dockerfile
-	dockerfileContent := fmt.Sprintf(`FROM debian:bookworm-slim
+	// Create multi-stage Dockerfile matching Scope 1 static build
+	dockerfileContent := fmt.Sprintf(`# -----------------------------------------------------------------------------
+# STAGE 1: Builder
+# -----------------------------------------------------------------------------
+FROM golang:1.22-alpine AS builder
+
+RUN apk add --no-cache zig make git
+
 WORKDIR /app
-RUN apt-get update && apt-get install -y ca-certificates libcurl4 liburing2 libmariadb3 libsodium23 && rm -rf /var/lib/apt/lists/*
-COPY wolf_out /app/wolf_out
-EXPOSE 8080
-CMD ["/app/wolf_out/%%s"]
-`, strings.TrimSuffix(filepath.Base(sourceFile), ".wolf"))
+COPY . .
 
-	err = os.WriteFile("Dockerfile.deploy", []byte(dockerfileContent), 0644)
+RUN go build -o /usr/local/bin/wolf ./cmd/wolf
+RUN wolf build --static %s
+
+# -----------------------------------------------------------------------------
+# STAGE 2: Runner (Zero-Dependency)
+# -----------------------------------------------------------------------------
+FROM scratch
+
+COPY --from=builder /app/wolf_out/%s /server
+
+EXPOSE 8080
+CMD ["/server"]
+`, sourceFile, binName)
+
+	err := os.WriteFile("Dockerfile.deploy", []byte(dockerfileContent), 0644)
 	if err != nil {
 		return fmt.Errorf("failed to write Dockerfile: %w", err)
 	}
 	
-	fmt.Println("Building Docker image...")
+	fmt.Println("Building Docker image (this will compile a static musl binary inside Alpine)...")
 	cmd := exec.Command("docker", "build", "-f", "Dockerfile.deploy", "-t", "wolf-app", ".")
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
