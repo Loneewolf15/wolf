@@ -12,6 +12,7 @@ import (
 	"wolf/internal/compiler"
 	"wolf/internal/config"
 	"wolf/internal/dashboard"
+	"wolf/internal/deploy"
 	"wolf/internal/explain"
 	"wolf/internal/lsp"
 	"wolf/internal/migrate"
@@ -258,6 +259,44 @@ database layer, and embeds CPython for native ML library access.`,
 			return nil
 		},
 	}
+
+	var deployTarget string
+	deployCmd := &cobra.Command{
+		Use:   "deploy [file]",
+		Short: "Deploy a Wolf application to a target environment",
+		Args:  cobra.MaximumNArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			filename := ""
+			if len(args) > 0 {
+				filename = args[0]
+			} else {
+				if _, err := os.Stat("src/main.wolf"); err == nil {
+					filename = "src/main.wolf"
+				} else if _, err := os.Stat("main.wolf"); err == nil {
+					filename = "main.wolf"
+				} else {
+					return fmt.Errorf("no input file specified. Please provide a file or create src/main.wolf")
+				}
+			}
+
+			projectRoot, err := os.Getwd()
+			if err != nil {
+				return fmt.Errorf("wolf: cannot determine working directory: %w", err)
+			}
+			c, err := compiler.NewWithConfig(projectRoot)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "wolf: config warning: %v\n", err)
+				c = compiler.New()
+			}
+			c.Verbose = verbose
+			c.StrictMode = strict
+
+			// Call internal deploy package
+			return deploy.Run(c, deployTarget, filename)
+		},
+	}
+	deployCmd.Flags().StringVarP(&deployTarget, "target", "t", "", "Deployment target (container, shared)")
+	deployCmd.MarkFlagRequired("target")
 
 	dockerCmd := &cobra.Command{
 		Use:   "docker",
@@ -734,9 +773,10 @@ Run 'wolf build <file.wolf>' first to capture an error, then 'wolf explain'.`,
 		},
 	}
 
-	rootCmd.AddCommand(buildCmd, runCmd, checkCmd, fmtCmd, testCmd, pythonCmd, newCmd, generateCmd, migrateCmd, tokensCmd, skillsCmd, devCmd, initCmd, addCmd, installCmd, publishCmd, dockerCmd, explainCmd, lspCmd)
+	rootCmd.AddCommand(buildCmd, runCmd, checkCmd, fmtCmd, testCmd, pythonCmd, newCmd, generateCmd, migrateCmd, tokensCmd, skillsCmd, devCmd, initCmd, addCmd, installCmd, publishCmd, dockerCmd, explainCmd, lspCmd, deployCmd)
 
 	if err := rootCmd.Execute(); err != nil {
+		fmt.Println(err)
 		os.Exit(1)
 	}
 }
