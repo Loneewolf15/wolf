@@ -469,7 +469,12 @@ dispatch:
                 int64_t tagged_id = task.id | WOLF_ID_TAG_WS;
                 wolf_set_current_context((void*)(intptr_t)tagged_id, (void*)(intptr_t)tagged_id);
                 WOLF_LOG("[WOLF-WS] Dispatching to global_ws_handler with tagged ID %p!\n", (void*)tagged_id);
-                global_ws_handler(tagged_id, task.payload);
+                wolf_closure_t* closure = (wolf_closure_t*)global_ws_handler;
+                if (closure && wolf_closure_valid(closure)) {
+                    typedef void* (*wolf_closure_fn_t)(void* env, int64_t arg0, void* arg1);
+                    wolf_closure_fn_t fn = (wolf_closure_fn_t)closure->fn;
+                    fn(closure->env, tagged_id, task.payload);
+                }
                 wolf_req_arena_flush();
             } else {
                 WOLF_LOG("[WOLF-WS] No global_ws_handler assigned!\n");
@@ -842,7 +847,12 @@ static void wolf_ws_handle_read_event(int id) {
                 wolf_req_arena_init();
                 int64_t tagged_id = (int64_t)id | WOLF_ID_TAG_WS;
                 wolf_set_current_context((void*)(intptr_t)tagged_id, (void*)(intptr_t)tagged_id);
-                global_ws_handler(tagged_id, ctx->ws_payload_buf);
+                wolf_closure_t* closure = (wolf_closure_t*)global_ws_handler;
+                if (closure && wolf_closure_valid(closure)) {
+                    typedef void* (*wolf_closure_fn_t)(void* env, int64_t arg0, void* arg1);
+                    wolf_closure_fn_t fn = (wolf_closure_fn_t)closure->fn;
+                    fn(closure->env, tagged_id, ctx->ws_payload_buf);
+                }
                 wolf_req_arena_flush();
             }
         }
@@ -860,7 +870,12 @@ close_ws:
     if (global_ws_close_handler) {
         wolf_req_arena_init();
         wolf_set_current_context((void*)(intptr_t)id, (void*)(intptr_t)id);
-        global_ws_close_handler((int64_t)id, "close");
+        wolf_closure_t* closure = (wolf_closure_t*)global_ws_close_handler;
+        if (closure && wolf_closure_valid(closure)) {
+            typedef void* (*wolf_closure_fn_t)(void* env, int64_t arg0, void* arg1);
+            wolf_closure_fn_t fn = (wolf_closure_fn_t)closure->fn;
+            fn(closure->env, (int64_t)id, "close");
+        }
         wolf_req_arena_flush();
     }
     /* Remove fd from the WS poller before closing to prevent stale events. */
