@@ -39,7 +39,7 @@
 
 1. **Strict Verification Boundaries:** When a task is scoped to verify an existing floor or foundation, do not actively debug or implement new fixes for edge cases discovered during that verification. Report the floor's status exactly as it is. Mixed-scope sessions lead to cascading regressions.
 2. **The Smallest Possible Slice:** For high-risk, novel, or complex infrastructure operations (e.g., CGO toolchains, static linking, or runtime changes), never execute the entire pipeline in one pass. Execute the smallest verifiable slice first (e.g., just the plugin compilation) and stop to confirm it works. This acts as a natural checkpoint and limits the blast radius of incorrect assumptions.
-3. **Handoff Boundaries Are Law:** Never ignore handoff documents that say "stop here" or "deferred to next session". Do not execute deferred tasks, even if `/goal` is active. A `/goal` flag does not authorize breaching explicitly defined scope boundaries.
+3. **Handoff Boundaries Are Law:** Never ignore handoff documents that say "stop here" or "deferred to next session". Do not execute deferred tasks, even if `/goal` is active. A `/goal` flag does not authorize breaching explicitly defined scope boundaries. If a session needs to cross a documented stop-point deliberately, the user must explicitly name the deferred item they want tackled — a general `/goal` invocation is not sufficient authorization on its own.
 
 # Static Dependency Maintenance
 
