@@ -6,6 +6,7 @@
 2. **Mandatory Fault Injection:** Never assume infrastructure changes (shutdown sequences, rate limiters, arena memory) are safe just because they look logically correct. You must rerun full concurrency stress tests (e.g., `bombardier` + `SIGTERM` + `WOLF_TSAN=1`) to prove stability under real failure conditions.
 3. **Prove the Negative:** A silent log is not proof of safety. Before claiming a bug is fixed, you must prove that your fault injection successfully triggers failures when the fix is absent or incomplete. 
 4. **Honest Handoffs:** Never log an item as unqualified "Verified" unless you have raw logs, fault injection, and live probing to back it up. If a test has constraints (e.g., "Tested single-IP contention only"), explicitly document those limitations in the handoff state.
+5. **Test Data, Not Just Survival:** When writing tests for parsers, adapters, or integration points, asserting `Status: 200` or process survival is insufficient. Tests must echo, inspect, or assert against the internal parsed state to prove the data was routed, typed, and formatted correctly. A test passing must mean the logic worked, not just that it didn't segfault.
 
 # Architectural North Star: Zero-Dependency Self-Hosting
 
@@ -15,6 +16,7 @@
 2. **Minimize C/LLVM Entrenchment:** When architecting features or runtime additions, avoid introducing new external C-library dependencies or complex LLVM flags where pure Wolf syntax, direct syscalls (`io_uring`, `kqueue`), or self-hosted abstractions can be used.
 3. **Design for Phase 5 Transition:** Build runtime structures and stdlib APIs so that existing C-wrappers can be cleanly swapped out for self-hosted Wolf implementations in Phase 5 without breaking developer contracts.
 4. **Target Standalone Portability:** Remember that the end goal of every compiler and runtime feature is instant cross-compilation and `FROM scratch` container deployments with zero external dependencies.
+5. **Architectural Permanence (Do Not Undo Wins):** If a previous phase achieved zero-dependency static compilation (e.g., `FROM scratch`), any new CLI, deployment tool, or feature must preserve that constraint. Do not silently revert to dynamic linking or OS package manager (`apt-get`) builds to circumvent immediate friction.
 
 # I/O Context-Bleeding in Asynchronous C Runtimes
 
@@ -37,6 +39,7 @@
 
 1. **Strict Verification Boundaries:** When a task is scoped to verify an existing floor or foundation, do not actively debug or implement new fixes for edge cases discovered during that verification. Report the floor's status exactly as it is. Mixed-scope sessions lead to cascading regressions.
 2. **The Smallest Possible Slice:** For high-risk, novel, or complex infrastructure operations (e.g., CGO toolchains, static linking, or runtime changes), never execute the entire pipeline in one pass. Execute the smallest verifiable slice first (e.g., just the plugin compilation) and stop to confirm it works. This acts as a natural checkpoint and limits the blast radius of incorrect assumptions.
+3. **Handoff Boundaries Are Law:** Never ignore handoff documents that say "stop here" or "deferred to next session". Do not execute deferred tasks, even if `/goal` is active. A `/goal` flag does not authorize breaching explicitly defined scope boundaries.
 
 # Static Dependency Maintenance
 
@@ -57,3 +60,11 @@
 - Race safety → run TSAN against the **dynamic glibc build** (same C code paths, glibc-compatible). Previous TSAN gauntlets (Sessions 37-38) remain valid proof.
 - Static binary correctness → run smuggling probes + SIGTERM shutdown + concurrent load test (not TSAN).
 
+
+# Scope Adherence and Architectural Restraint
+
+**Never implement unrequested architectural features under the guise of a different task.**
+
+1. **Scoping Means Scoping:** If a task is to "scope" or investigate a feature, do not execute large-scale implementations or hack apart core runtime files.
+2. **No Unapproved Core Modes:** Do not introduce massive architectural paradigms (such as bare-metal stripped modes or new OS target abstraction layers) unless the user explicitly requested them. If you believe such a refactor is necessary, stop and propose it to the user first.
+3. **The Final Verification Gate:** Never commit to `main` or claim a feature is complete without running the full test suite (`go test -count=1 ./internal/... ./e2e/...`) to completion and explicitly reviewing the final `PASS` output.
